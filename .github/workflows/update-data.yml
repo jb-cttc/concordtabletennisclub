@@ -40,10 +40,12 @@ permissions:
 
 concurrency:
   group: github-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   update-and-deploy:
+    # Runs only in the live repo, or where CTTC_DEPLOY_ENABLED is set (jb-cttc at domain cutover); never in forks.
+    if: ${{ github.repository == 'Latkecrszy/concordtabletennisclub' || vars.CTTC_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -63,39 +65,31 @@ jobs:
         run: npm ci
 
       - name: Refresh session list
+        if: ${{ vars.CTTC_LIVE_START_DATE == '' }}
         run: npm run build:sessions
 
       - name: Refresh parsed data
+        if: ${{ vars.CTTC_LIVE_START_DATE == '' }}
         run: npm run build:data
         env:
           CTTC_FETCH_DELAY_MS: 250
           CTTC_FULL_REFRESH: ${{ github.event.inputs.full_refresh == 'true' }}
 
-      - name: Send session summary email
-        # Only ever on a scheduled run or a manual trigger — never on an
-        # ordinary push to main (e.g. a code/content change). The
-        # already-sent marker (.cache/last-emailed-session.json) guards
-        # against re-sending for a session that was already emailed, but
-        # that guard only works once it exists; this restriction is the
-        # real backstop against a routine push ever mailing everyone.
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: npm run email:send
+      - name: Publish finalized Google sessions
+        if: ${{ vars.CTTC_LIVE_START_DATE != '' }}
+        run: npm run publish:finalized
         env:
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          EMAIL_SUBSCRIBERS: ${{ secrets.EMAIL_SUBSCRIBERS }}
-          GOOGLE_SHEETS_SUBSCRIBERS_ID: ${{ secrets.GOOGLE_SHEETS_SUBSCRIBERS_ID }}
+          CTTC_LIVE_START_DATE: ${{ vars.CTTC_LIVE_START_DATE }}
+          GOOGLE_ROUND_ROBIN_DATABASE_ID: ${{ secrets.GOOGLE_ROUND_ROBIN_DATABASE_ID }}
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
-          GOOGLE_SHEETS_SUBSCRIBERS_RANGE: ${{ secrets.GOOGLE_SHEETS_SUBSCRIBERS_RANGE }}
-          TEST_EMAIL_OVERRIDE: ${{ secrets.TEST_EMAIL_OVERRIDE }}
+
+      - name: Refresh public indexes and verify data
+        run: npm run build:roster && npm run build:player-index && npm run check:data
 
       - name: Commit generated data
         run: |
-          FILES="data/sessions.json data/session-details-2024.json data/session-details-2025.json data/session-details-2026.json data/players.json .cache/session-raw-cache.json .cache/last-emailed-session.json"
-          # .cache/last-emailed-session.json only exists after the first real
-          # (non-test) send, so filter to files that actually exist -- git add
-          # errors fatally on a literal path that isn't there.
+          FILES="data/sessions.json data/session-details-*.json data/players.json data/site-status.json data/session-roster.json data/player-index.json data/session-summaries.json data/parse-report.json .cache/session-raw-cache.json"
           EXISTING=""
           for f in $FILES; do
             [ -e "$f" ] && EXISTING="$EXISTING $f"
@@ -115,7 +109,7 @@ jobs:
         run: |
           mkdir -p _site
           cp .nojekyll CNAME _site/
-          cp *.html style.css navtoggle.js favicon.svg _site/
+          cp *.html style.css navtoggle.js standings.js favicon.svg _site/
           cp -R data _site/
           cp -R assets _site/
 
@@ -127,3 +121,28 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4.0.5
+
+      - name: Send session summary email
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: npm run email:send
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_SUBSCRIBERS: ${{ secrets.EMAIL_SUBSCRIBERS }}
+          GOOGLE_SHEETS_SUBSCRIBERS_ID: ${{ secrets.GOOGLE_SHEETS_SUBSCRIBERS_ID }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          GOOGLE_SHEETS_SUBSCRIBERS_RANGE: ${{ secrets.GOOGLE_SHEETS_SUBSCRIBERS_RANGE }}
+          TEST_EMAIL_OVERRIDE: ${{ secrets.TEST_EMAIL_OVERRIDE }}
+          CTTC_LIVE_START_DATE: ${{ vars.CTTC_LIVE_START_DATE }}
+
+      - name: Commit sent marker
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          if [ -f .cache/last-emailed-session.json ] && [ -n "$(git status --porcelain .cache/last-emailed-session.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .cache/last-emailed-session.json
+            git commit -m "Record emailed session"
+            git push
+          fi

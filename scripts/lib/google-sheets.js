@@ -49,8 +49,8 @@ async function getAccessToken(clientEmail, privateKey, scope) {
   return data.access_token;
 }
 
-// range e.g. "Subscribers!A:A". Returns a flat array of cell values.
-async function fetchSheetColumn(spreadsheetId, range, clientEmail, privateKey) {
+// range e.g. "Sessions!A:Z". Returns rows in sheet order.
+async function fetchSheetRows(spreadsheetId, range, clientEmail, privateKey) {
   const token = await getAccessToken(clientEmail, privateKey, 'https://www.googleapis.com/auth/spreadsheets.readonly');
   const url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
     encodeURIComponent(spreadsheetId) + '/values/' + encodeURIComponent(range);
@@ -60,7 +60,12 @@ async function fetchSheetColumn(spreadsheetId, range, clientEmail, privateKey) {
     throw new Error('Sheets API request failed: HTTP ' + response.status + ' ' + await response.text());
   }
   const data = await response.json();
-  return (data.values || []).flat();
+  return data.values || [];
 }
 
-module.exports = { fetchSheetColumn };
+async function fetchSheetColumn(spreadsheetId, range, clientEmail, privateKey) {
+  const rows = await fetchSheetRows(spreadsheetId, range, clientEmail, privateKey);
+  return rows.flat();
+}
+
+module.exports = { fetchSheetColumn, fetchSheetRows };

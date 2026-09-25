@@ -19,8 +19,10 @@ function tryLoadJson(file, fallback) {
 
 function loadAllSessionDetails() {
   const all = [];
-  ['2024', '2025', '2026'].forEach(function (year) {
-    const file = path.join(DATA_DIR, 'session-details-' + year + '.json');
+  fs.readdirSync(DATA_DIR).filter(function (name) {
+    return /^session-details-\d{4}\.json$/.test(name);
+  }).forEach(function (name) {
+    const file = path.join(DATA_DIR, name);
     const sessions = tryLoadJson(file, []);
     sessions.forEach(function (s) { all.push(s); });
   });

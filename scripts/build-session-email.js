@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { sortByGroupResult } = require('../standings');
 
 const ROOT = path.join(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
@@ -47,11 +48,9 @@ function latestSessionDate() {
   return status.latestSessionDate || null;
 }
 
-// Winner = top row of each group's players array, which is already sorted
-// wins-desc (ties broken by rating) by scripts/fetch-and-parse.js.
 function groupWinners(session) {
   return session.groups.map(function (group) {
-    const winner = group.players[0];
+    const winner = sortByGroupResult(group.players)[0];
     return { groupName: group.name, player: winner };
   }).filter(function (entry) { return entry.player; });
 }

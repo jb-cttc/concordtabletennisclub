@@ -1,0 +1,413 @@
+<style>
+.print-root{display:none}
+@media print{
+  @page{size:letter portrait;margin:0}
+  body.printing>*:not(.print-root){display:none!important}
+  body.printing{background:#fff}
+  body.printing .print-root{display:block}
+  .print-sheet{width:8.5in;min-height:11in;margin:0;box-shadow:none;break-after:page;page-break-after:always}
+  .print-sheet:last-child{break-after:auto;page-break-after:auto}
+  .print-tournament-sheet{overflow:visible;padding:.52in .36in .45in}
+  .tournament-sheet-columns{width:auto;grid-template-columns:minmax(0,47fr) minmax(0,53fr)}
+  .print-sheet-header{align-items:flex-end;flex-direction:row}
+  .print-sheet-header>div:last-child{align-items:flex-end;text-align:right}
+  .print-group-grid{grid-template-columns:repeat(2,1fr)}
+}
+.print-sheet {
+  box-sizing: border-box;
+  width: min(8.5in, 100%);
+  min-height: 11in;
+  padding: 0.4in 0.46in;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(37, 34, 29, 0.18);
+  color: #111;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 10pt;
+}
+.print-sheet-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 3px solid #111;
+  padding-bottom: 0.11in;
+  margin-bottom: 0.12in;
+}
+.print-sheet-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.print-sheet-header > div:last-child {
+  align-items: flex-end;
+  text-align: right;
+}
+.print-sheet-header strong {
+  font-size: 12pt;
+}
+.print-sheet-header span {
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+.print-sheet h2 {
+  border: 0;
+  margin: 0.12in 0 0.05in;
+  padding: 0;
+  color: #111;
+  font-size: 9pt;
+  text-transform: uppercase;
+}
+.print-sheet table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 8.5pt;
+}
+.print-sheet th,
+.print-sheet td {
+  border: 1px solid #222;
+  padding: 3px 5px;
+  color: #111;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.print-sheet th {
+  background: #e8e8e8;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+}
+.print-sheet .print-player-name {
+  text-align: left;
+  font-weight: 600;
+}
+.print-sheet-signoff {
+  display: flex;
+  justify-content: space-between;
+  gap: 30px;
+  margin-top: 0.18in;
+  font-size: 8.5pt;
+  font-weight: 600;
+}
+.print-tournament-sheet {
+  padding: 0.52in 0.36in 0.45in;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8.5pt;
+}
+.tournament-sheet-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 47fr) minmax(0, 53fr);
+  gap: 0.28in;
+  align-items: start;
+}
+.tournament-metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1in;
+  margin: 0.05in 0 0.22in;
+  font-size: 10pt;
+}
+.tournament-player-register {
+  border: 1px solid #777;
+  border-bottom: 0;
+}
+.tournament-player-key {
+  min-height: 0.18in;
+  border-bottom: 1px solid #777;
+  padding: 3px 4px;
+  font-size: 6.2pt;
+  line-height: 1.15;
+}
+.tournament-player-row {
+  display: flex;
+  align-items: flex-start;
+  min-height: 0.52in;
+  border-bottom: 1px solid #777;
+  padding: 5px 3px;
+  font-size: 9pt;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.tournament-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15in;
+  margin: 0.55in 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 10.5pt;
+  line-height: 1.18;
+}
+.tournament-instructions li {
+  display: grid;
+  grid-template-columns: 0.17in minmax(0, 1fr);
+  gap: 0.12in;
+  align-items: start;
+}
+.tournament-checkbox {
+  box-sizing: border-box;
+  width: 0.17in;
+  height: 0.17in;
+  border: 1px solid #444;
+  margin-top: 1px;
+}
+.tournament-brand {
+  display: grid;
+  grid-template-columns: 0.62in minmax(0, 1fr);
+  align-items: center;
+  gap: 0.16in;
+  min-height: 0.72in;
+  margin-bottom: 0.05in;
+}
+.tournament-brand img {
+  width: 0.62in;
+  height: 0.72in;
+  object-fit: contain;
+  filter: grayscale(1) contrast(1.2);
+}
+.tournament-brand > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  line-height: 1.1;
+}
+.tournament-brand span {
+  font-size: 12pt;
+}
+.tournament-brand strong {
+  font-size: 11pt;
+  font-weight: normal;
+}
+.tournament-schedule-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0.86in;
+  align-items: end;
+  gap: 0.08in;
+  margin-bottom: 0.04in;
+}
+.tournament-schedule-heading strong {
+  border-bottom: 1px solid #111;
+  font-size: 11pt;
+  line-height: 1.1;
+}
+.tournament-schedule-heading span {
+  font-size: 6.5pt;
+  font-style: italic;
+  line-height: 1.05;
+}
+.tournament-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12in;
+}
+.tournament-match {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0.48in 0.78in;
+  gap: 0.08in;
+  min-height: 0.43in;
+}
+.tournament-match-names,
+.tournament-match-result {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.tournament-match-names span,
+.tournament-match-result span {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-bottom: 1px solid #777;
+}
+.tournament-match-names span {
+  padding: 0 2px;
+  font-size: 7pt;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+.tournament-match-result {
+  border-inline: 1px solid #777;
+  border-top: 1px solid #777;
+}
+.tournament-match-result span {
+  justify-content: center;
+  font-size: 12pt;
+  font-weight: 600;
+}
+.tournament-rating-adjustment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  border-bottom: 1px solid #777;
+  font-size: 6.5pt;
+}
+.print-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.2in;
+  margin-top: 0.18in;
+}
+.print-group-card {
+  break-inside: avoid;
+  border: 1px solid #222;
+}
+.print-group-card h2 {
+  border-bottom: 1px solid #222;
+  background: #e8e8e8;
+  margin: 0;
+  padding: 6px 8px;
+}
+.print-group-card ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: print-roster;
+}
+.print-group-card li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 6px;
+  counter-increment: print-roster;
+  border-bottom: 1px solid #777;
+  padding: 7px 8px;
+}
+.print-group-card li::before {
+  content: counter(print-roster) ".";
+}
+.print-group-card li:last-child {
+  border-bottom: 0;
+}
+.print-group-card li span {
+  color: #333;
+}
+
+</style>
+<div id="print-root" class="print-root"></div>
+<script>
+(function () {
+  var O = window.CTTCOrganizer;
+  var root = document.getElementById('print-root');
+  var INSTRUCTIONS = [
+    'No pre-match warm-ups! All warm-ups must be done before the start of the competition.',
+    'Play each opponent a best-of-five 11-point-game match.',
+    'Record games won lost.',
+    'Winners are responsible for recording match results.',
+    'The table winner advances to a higher table the next week',
+    'Put your table away after completion of the last match.'
+  ];
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function longDate(value) {
+    return new Date(value + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  function header(sheet, label, detail, date) {
+    var top = el('div', 'print-sheet-header');
+    var left = el('div');
+    left.append(el('strong', '', 'CONCORD TABLE TENNIS CLUB'), el('span', '', label));
+    var right = el('div');
+    right.append(el('strong', '', longDate(date)), el('span', '', detail));
+    top.append(left, right);
+    sheet.appendChild(top);
+  }
+  function groupList(desk) {
+    var sheet = el('article', 'print-sheet print-group-list-sheet');
+    header(sheet, 'ROUND ROBIN GROUPS', desk.groups.length + (desk.groups.length === 1 ? ' group' : ' groups'), desk.date);
+    var grid = el('div', 'print-group-grid');
+    desk.groups.forEach(function (group) {
+      var card = el('section', 'print-group-card');
+      card.appendChild(el('h2', '', 'Group ' + group.groupNumber));
+      var list = el('ol');
+      group.playerIds.forEach(function (id) {
+        var item = el('li');
+        item.append(el('strong', '', desk.player(id).name), el('span', '', String(desk.player(id).currentRating)));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+      grid.appendChild(card);
+    });
+    sheet.appendChild(grid);
+    return [sheet];
+  }
+  function tournamentSheets(desk, records) {
+    return desk.groups.map(function (group) {
+      var sheet = el('article', 'print-sheet print-score-sheet print-tournament-sheet');
+      var columns = el('div', 'tournament-sheet-columns');
+      var left = el('div', 'tournament-sheet-left');
+      var meta = el('div', 'tournament-metadata');
+      meta.append(el('span', '', 'Date:  ' + longDate(desk.date)), el('span', '', 'Table #  ' + group.groupNumber));
+      var register = el('section', 'tournament-player-register');
+      register.appendChild(el('div', 'tournament-player-key', 'Player [Club Rating] (Club Record) (League Record)'));
+      group.playerIds.forEach(function (id) {
+        var p = desk.player(id);
+        var record = records[p.name];
+        register.appendChild(el('div', 'tournament-player-row', p.name + ' [' + p.currentRating + '] (' + (record ? record.totalWins + '/' + record.totalLosses : '--/--') + ') (--/--)'));
+      });
+      var list = el('ul', 'tournament-instructions');
+      INSTRUCTIONS.forEach(function (text) {
+        var item = el('li');
+        item.append(el('span', 'tournament-checkbox'), el('span', '', text));
+        list.appendChild(item);
+      });
+      left.append(meta, register, list);
+
+      var right = el('div', 'tournament-sheet-right');
+      var brand = el('div', 'tournament-brand');
+      var logo = el('img');
+      logo.src = 'https://concordtabletennisclub.com/assets/logo-transparent.png';
+      logo.alt = '';
+      var name = el('div');
+      name.append(el('span', '', 'Concord Table Tennis Club'), el('strong', '', 'Tournament Sheet'));
+      brand.append(logo, name);
+      var schedule = el('section', 'tournament-schedule');
+      var heading = el('div', 'tournament-schedule-heading');
+      var adj = el('span');
+      adj.append('Rating Adj.', el('br'), 'Expected/Upset');
+      heading.append(el('strong', '', 'Match Schedules/Results'), adj);
+      var rows = el('div', 'tournament-matches');
+      desk.matches.filter(function (m) { return m.groupNumber === group.groupNumber; }).forEach(function (m) {
+        var match = el('div', 'tournament-match');
+        var names = el('div', 'tournament-match-names');
+        names.append(el('span', '', desk.player(m.playerOneId).name), el('span', '', desk.player(m.playerTwoId).name));
+        var result = el('div', 'tournament-match-result');
+        result.append(el('span', '', m.playerOneGames == null ? '' : String(m.playerOneGames)), el('span', '', m.playerTwoGames == null ? '' : String(m.playerTwoGames)));
+        match.append(names, result, el('span', 'tournament-rating-adjustment', O.sheetAdjustment(desk.player(m.playerOneId).currentRating, desk.player(m.playerTwoId).currentRating)));
+        rows.appendChild(match);
+      });
+      schedule.append(heading, rows);
+      right.append(brand, schedule);
+      columns.append(left, right);
+      sheet.appendChild(columns);
+      return sheet;
+    });
+  }
+  async function print(kind) {
+    var desk = window.cttcDesk.print();
+    if (!desk.groups.length) return;
+    var records = {};
+    if (kind === 'sheets') {
+      try {
+        (await desk.siteJson('players.json')).players.forEach(function (p) { records[p.name] = p; });
+      } catch (error) {
+        document.getElementById('status').textContent = 'Club records unavailable; sheets show --/--.';
+      }
+    }
+    root.replaceChildren.apply(root, kind === 'sheets' ? tournamentSheets(desk, records) : groupList(desk));
+    document.body.classList.add('printing');
+    var images = [].slice.call(root.querySelectorAll('img')).filter(function (img) { return !img.complete; });
+    await Promise.all(images.map(function (img) { return new Promise(function (done) { img.onload = img.onerror = done; }); }));
+    window.print();
+  }
+  window.addEventListener('afterprint', function () {
+    document.body.classList.remove('printing');
+    root.replaceChildren();
+  });
+  document.getElementById('print-groups').addEventListener('click', function () { print('groups'); });
+  document.getElementById('print-sheets').addEventListener('click', function () { print('sheets'); });
+})();
+</script>

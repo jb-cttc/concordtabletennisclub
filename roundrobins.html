@@ -37,7 +37,13 @@
 
 <main>
 
-  <h1>Round Robins</h1>
+  <div class="page-title-row">
+    <h1>Round Robins</h1>
+    <a id="organizer-launch" class="organizer-launch" href="https://script.google.com/macros/s/AKfycbzXI7Kk4hz3JDF0DXJL_wmF6ibKp_Avz5uvwyRD-84OJJ23LfDf9yAZetS97L4zabvzDw/exec">
+      <span aria-hidden="true">&#128274;</span>
+      Organize
+    </a>
+  </div>
 
   <p>Every Monday and Wednesday night, players are divided into groups of 5 or 6 by rating and play a round robin against everyone in their group. Results are posted after each session. Ratings are updated based on wins and losses within the group.</p>
 
@@ -79,6 +85,7 @@
 </footer>
 
 <script src="navtoggle.js"></script>
+<script src="standings.js"></script>
 
 <script>
 (function () {
@@ -135,6 +142,13 @@
   }
 
   function appendRawLink(container, session) {
+    if (session.source === 'app') {
+      var provenance = document.createElement('p');
+      provenance.className = 'session-source';
+      provenance.textContent = 'Recorded in CTTC Round Robin Manager · Session ' + session.sessionId;
+      container.appendChild(provenance);
+      return;
+    }
     var raw = document.createElement("a");
     raw.className = "session-raw-link";
     raw.href = rawReportUrl(session.fileId);
@@ -166,7 +180,7 @@
     table.appendChild(thead);
 
     var tbody = document.createElement("tbody");
-    group.players.forEach(function (player, playerIndex) {
+    window.CTTCStandings.sortByGroupResult(group.players).forEach(function (player, playerIndex) {
       var row = document.createElement("tr");
       if (playerIndex === 0) row.className = "group-winner-row";
 
@@ -199,6 +213,28 @@
     });
     table.appendChild(tbody);
     section.appendChild(table);
+    if (group.players.some(function (player) { return player.matches && player.matches.length; })) {
+      var details = document.createElement('details');
+      details.className = 'session-match-details';
+      var summary = document.createElement('summary');
+      summary.textContent = 'Match scores and adjustments';
+      details.appendChild(summary);
+      var matches = document.createElement('ul');
+      var seen = new Set();
+      group.players.forEach(function (player) {
+        (player.matches || []).forEach(function (match) {
+          var key = [player.name, match.opponent].sort().join('::');
+          if (seen.has(key)) return;
+          seen.add(key);
+          var item = document.createElement('li');
+          item.textContent = player.name + ' ' + match.gamesWon + '-' + match.gamesLost + ' ' + match.opponent +
+            ' · ' + signed(match.adj) + ' / ' + signed(-match.adj) + (match.forfeit ? ' (forfeit)' : '');
+          matches.appendChild(item);
+        });
+      });
+      details.appendChild(matches);
+      section.appendChild(details);
+    }
     container.appendChild(section);
   }
 
@@ -496,7 +532,7 @@
     table.appendChild(thead);
 
     var tbody = document.createElement("tbody");
-    group.players.forEach(function (player, playerIndex) {
+    window.CTTCStandings.sortByGroupResult(group.players).forEach(function (player, playerIndex) {
       var row = document.createElement("tr");
       if (playerIndex === 0) row.className = "group-winner-row";
       var nc = document.createElement("td");
@@ -544,6 +580,12 @@
     al.textContent = "View in archive";
     archiveLink.appendChild(al);
     container.appendChild(archiveLink);
+    if (session.source === 'app') {
+      var provenance = document.createElement('p');
+      provenance.className = 'session-source';
+      provenance.textContent = 'Recorded session ' + session.sessionId + ' · finalized ' + session.finalizedAt;
+      container.appendChild(provenance);
+    }
 
     var grid = document.createElement("div");
     grid.className = "latest-results-groups";

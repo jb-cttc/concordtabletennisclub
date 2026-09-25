@@ -1,0 +1,192 @@
+<script>
+(function (root) {
+  function sizeGroups(count) {
+    if (!count) return [];
+    var min = Math.ceil(count / 6);
+    var max = Math.floor(count / 5);
+    var groupCount = min <= max ? min : Math.max(1, min);
+    var base = Math.floor(count / groupCount);
+    var larger = count % groupCount;
+    var sizes = [];
+    for (var i = 0; i < groupCount; i += 1) sizes.push(base + (i < larger ? 1 : 0));
+    return sizes;
+  }
+
+  function byRating(ids, player) {
+    return ids.slice().sort(function (a, b) {
+      return player(b).currentRating - player(a).currentRating || player(a).name.localeCompare(player(b).name);
+    });
+  }
+
+  function organize(ids, player) {
+    var ordered = byRating(ids, player);
+    var offset = 0;
+    return sizeGroups(ordered.length).map(function (size) {
+      var group = ordered.slice(offset, offset + size);
+      offset += size;
+      return group;
+    });
+  }
+
+  // Last same-weekday group winners are guaranteed one group above the group they won.
+  function applyPromotions(groups, winners, player) {
+    var promotions = {};
+    if (groups.length < 2) return promotions;
+    var eligible = {};
+    winners.forEach(function (winner) { eligible[winner.playerId] = true; });
+    winners.forEach(function (winner) {
+      var from = groups.findIndex(function (group) { return group.indexOf(winner.playerId) >= 0; });
+      var target = winner.groupNumber - 2;
+      if (from < 0 || target < 0 || target >= groups.length || from <= target) return;
+      var swap = -1;
+      for (var i = groups[target].length - 1; i >= 0; i -= 1) {
+        if (!eligible[groups[target][i]]) { swap = i; break; }
+      }
+      if (swap < 0) swap = groups[target].length - 1;
+      if (swap < 0) return;
+      var displaced = groups[target][swap];
+      groups[target][swap] = winner.playerId;
+      groups[from][groups[from].indexOf(winner.playerId)] = displaced;
+      groups[target] = byRating(groups[target], player);
+      groups[from] = byRating(groups[from], player);
+      promotions[winner.playerId] = { fromGroup: from + 1, toGroup: target + 1, wonGroup: winner.groupName, date: winner.date };
+    });
+    return promotions;
+  }
+
+  // Adds a late arrival by rating rank without reshuffling anyone already placed; promoted players are never bumped down.
+  function insert(groups, id, allIds, player, keep) {
+    keep = keep || {};
+    if (!groups.length) return [[id]];
+    var ordered = byRating(allIds, player);
+    var target = Math.min(groups.length - 1, Math.floor(ordered.indexOf(id) * groups.length / ordered.length));
+    groups[target] = byRating(groups[target].concat(id), player);
+    for (var i = target; i < groups.length && groups[i].length > 6; i += 1) {
+      var at = groups[i].length - 1;
+      while (at > 0 && keep[groups[i][at]]) at -= 1;
+      var bumped = groups[i].splice(at, 1)[0];
+      groups[i + 1] = byRating((groups[i + 1] || []).concat(bumped), player);
+    }
+    return groups;
+  }
+
+  function roundRobinPairs(ids) {
+    var rotation = ids.slice();
+    var pairs = [];
+    if (rotation.length % 2) rotation.push(null);
+    for (var round = 0; round < rotation.length - 1; round += 1) {
+      for (var i = 0; i < rotation.length / 2; i += 1) {
+        var a = rotation[i];
+        var b = rotation[rotation.length - 1 - i];
+        if (a && b) pairs.push(ids.indexOf(a) < ids.indexOf(b) ? [a, b] : [b, a]);
+      }
+      rotation = [rotation[0], rotation[rotation.length - 1]].concat(rotation.slice(1, -1));
+    }
+    return pairs;
+  }
+
+  function matchState(match) {
+    var a = match.playerOneGames;
+    var b = match.playerTwoGames;
+    if (a == null && b == null) return 'pending';
+    if (a == null || b == null) return 'incomplete';
+    return (a === 3 && b <= 2) || (b === 3 && a <= 2) ? 'complete' : 'invalid';
+  }
+
+  // Best win ratio; ties go to the lower session-start rating, then name.
+  function compareResults(left, right) {
+    var leftPlayed = left.wins + left.losses;
+    var rightPlayed = right.wins + right.losses;
+    if (leftPlayed && rightPlayed) {
+      return right.wins * leftPlayed - left.wins * rightPlayed || left.startRating - right.startRating || left.name.localeCompare(right.name);
+    }
+    if (leftPlayed !== rightPlayed) return leftPlayed ? -1 : 1;
+    return right.startRating - left.startRating || left.name.localeCompare(right.name);
+  }
+
+  function standings(ids, matches, player, adjustment) {
+    var rows = {};
+    ids.forEach(function (id) {
+      rows[id] = { playerId: id, name: player(id).name, startRating: player(id).currentRating, wins: 0, losses: 0, gamesWon: 0, gamesLost: 0, adjustment: 0 };
+    });
+    var complete = 0;
+    var total = 0;
+    matches.forEach(function (match) {
+      var one = rows[match.playerOneId];
+      var two = rows[match.playerTwoId];
+      if (!one || !two) return;
+      total += 1;
+      if (matchState(match) !== 'complete') return;
+      complete += 1;
+      var oneWon = match.playerOneGames > match.playerTwoGames;
+      var winner = oneWon ? one : two;
+      var loser = oneWon ? two : one;
+      one.gamesWon += match.playerOneGames;
+      one.gamesLost += match.playerTwoGames;
+      two.gamesWon += match.playerTwoGames;
+      two.gamesLost += match.playerOneGames;
+      winner.wins += 1;
+      loser.losses += 1;
+      var points = adjustment(winner.startRating, loser.startRating, !!match.forfeit);
+      winner.adjustment += points;
+      loser.adjustment -= points;
+    });
+    var list = Object.keys(rows).map(function (id) {
+      var row = rows[id];
+      row.projected = Math.max(0, row.startRating + row.adjustment);
+      return row;
+    }).sort(function (left, right) {
+      return right.wins - left.wins || left.losses - right.losses || left.startRating - right.startRating || left.name.localeCompare(right.name);
+    });
+    return { rows: list, complete: complete, total: total, finished: total > 0 && complete === total };
+  }
+
+  // Winner of a published group, using the same rule the public site shows.
+  function publishedWinner(players) {
+    var ranked = players.filter(function (p) { return Number.isInteger(p.wins) && Number.isInteger(p.losses) && p.wins + p.losses > 0; })
+      .map(function (p) { return { name: p.name, wins: p.wins, losses: p.losses, startRating: Number.isFinite(p.ratingBefore) ? p.ratingBefore : 0 }; })
+      .sort(compareResults);
+    if (ranked.length) return ranked[0].name;
+    var byAfter = players.filter(function (p) { return Number.isFinite(p.ratingAfter); }).sort(function (a, b) { return b.ratingAfter - a.ratingAfter; });
+    return byAfter.length ? byAfter[0].name : null;
+  }
+
+  function previousSameWeekday(dates, selected) {
+    var day = new Date(selected + 'T12:00:00Z').getUTCDay();
+    return dates.filter(function (date) { return date < selected && new Date(date + 'T12:00:00Z').getUTCDay() === day; }).sort().pop() || null;
+  }
+
+  // Expected/upset points printed on tournament sheets for a rating gap.
+  function sheetAdjustment(ratingA, ratingB) {
+    if (!Number.isFinite(ratingA) || !Number.isFinite(ratingB)) return '--/--';
+    var gap = Math.abs(ratingA - ratingB);
+    var bands = [[12, 8, 8], [37, 7, 10], [62, 6, 13], [87, 5, 16], [112, 4, 20], [137, 3, 25], [162, 2, 30], [187, 2, 35], [212, 1, 40], [237, 1, 45], [Infinity, 0, 50]];
+    var band = bands.find(function (entry) { return gap <= entry[0]; });
+    return band[1] + '/' + band[2];
+  }
+
+  // Same table as RatingEngine.js; winner gains and loser loses these points.
+  function ratingAdjustment(winnerRating, loserRating, forfeit) {
+    if (forfeit) return 0;
+    var difference = winnerRating - loserRating;
+    var steps = [[-238, 50], [-213, 45], [-188, 40], [-163, 35], [-138, 30], [-113, 25], [-88, 20], [-63, 16], [-38, 13], [-13, 10], [12, 8], [37, 7], [62, 6], [87, 5], [112, 4], [137, 3], [187, 2], [237, 1]];
+    var step = steps.find(function (entry) { return difference <= entry[0]; });
+    return step ? step[1] : 0;
+  }
+
+  root.CTTCOrganizer = {
+    ratingAdjustment: ratingAdjustment,
+    sizeGroups: sizeGroups,
+    byRating: byRating,
+    organize: organize,
+    applyPromotions: applyPromotions,
+    insert: insert,
+    roundRobinPairs: roundRobinPairs,
+    matchState: matchState,
+    standings: standings,
+    publishedWinner: publishedWinner,
+    previousSameWeekday: previousSameWeekday,
+    sheetAdjustment: sheetAdjustment
+  };
+})(window);
+</script>

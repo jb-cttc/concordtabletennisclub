@@ -12,6 +12,10 @@
   padding: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -447,6 +451,49 @@ td {
   padding: 8px 0;
 }
 
+/* ---- Round robin organizer ---- */
+
+.page-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.page-title-row h1 {
+  margin-bottom: 0;
+}
+
+.organizer-launch {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.organizer-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff;
+  padding: 7px 13px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.organizer-launch:hover {
+  border-color: #6b1414;
+  background: #6b1414;
+  color: #fff;
+}
+
 /* ---- Player profile ---- */
 
 .profile-back {
@@ -498,6 +545,7 @@ td {
 }
 
 .profile-adj[data-sign="pos"] { color: #2a6a2a; }
+
 .profile-adj[data-sign="neg"] { color: #8B1A1A; }
 
 /* ---- Leaderboard ---- */
@@ -723,6 +771,15 @@ footer {
     font-size: 1.5rem;
   }
 
+  .page-title-row {
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .organizer-launch {
+    padding: 6px 10px;
+  }
+
   .two-col {
     grid-template-columns: 1fr;
     gap: 0;
@@ -834,6 +891,23 @@ footer {
   }
 }
 
+@media print {
+  header,
+footer {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    font-size: 12pt;
+  }
+
+  @page {
+    size: letter portrait;
+    margin: 0;
+  }
+}
+
 .data-status {
   font-size: 0.8rem;
   color: var(--muted);
@@ -897,6 +971,7 @@ footer {
 }
 
 .improved-pos { color: #2a6a2a; font-weight: 600; }
+
 .improved-neg { color: var(--red); font-weight: 600; }
 
 /* Rank change on player profile */
@@ -943,9 +1018,11 @@ footer {
 }
 
 .match-win  { color: #2a6a2a; font-weight: 600; }
+
 .match-loss { color: var(--red); font-weight: 600; }
 
 .rank-change[data-dir="up"]   { color: #2a6a2a; }
+
 .rank-change[data-dir="down"] { color: var(--red); }
 
 /* Hall of Fame */

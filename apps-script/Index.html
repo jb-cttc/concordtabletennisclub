@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<style>
+:root{--ink:#17211b;--muted:#657069;--line:#d8ddd9;--paper:#f5f7f4;--panel:#fff;--green:#176b45;--green2:#0f5235;--gold:#c99934;--red:#a43831}*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#eef2ed,#f8f7f1 48%,#edf2f3);color:var(--ink);font-family:Georgia,"Times New Roman",serif;letter-spacing:0}button,input,select{font:inherit}button{cursor:pointer}.top{background:#123f2b;color:#fff;border-bottom:5px solid var(--gold)}.top-inner{max-width:1480px;margin:auto;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}.brand{font-size:24px;font-weight:700}.brand small{display:block;margin-top:3px;color:#dce9e1;font:12px Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase}.date-tools{display:flex;align-items:end;gap:10px}.date-tools label{font:12px Arial,sans-serif;color:#dce9e1}.date-tools input{display:block;margin-top:4px;border:1px solid #769181;background:#fff;color:var(--ink);padding:9px 11px;border-radius:4px}.shell{max-width:1480px;margin:auto;padding:24px 28px 48px}.statusbar{min-height:42px;padding:11px 14px;background:#e7eee9;border-left:4px solid var(--green);font:14px Arial,sans-serif;margin-bottom:18px}.statusbar.error{background:#f6e8e6;border-color:var(--red);color:#6f241f}.statusbar.busy{border-color:var(--gold)}.workspace{display:grid;grid-template-columns:minmax(270px,340px) 1fr;gap:22px;align-items:start}.sidebar{background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden;position:sticky;top:18px}.section{padding:18px;border-bottom:1px solid var(--line)}.section:last-child{border-bottom:0}h1,h2,h3,p{margin-top:0}h2{font-size:19px;margin-bottom:12px}h3{font-size:17px}.search{width:100%;border:1px solid #aeb7b1;padding:10px 11px;border-radius:4px}.results{list-style:none;margin:10px 0 0;padding:0;max-height:280px;overflow:auto}.results li,.roster-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #edf0ed}.identity strong{display:block;font-size:14px}.identity span{font:12px Arial,sans-serif;color:var(--muted)}.icon,.small{border:1px solid #aeb7b1;background:#fff;border-radius:4px;padding:6px 9px;color:var(--ink)}.icon:hover,.small:hover{border-color:var(--green);color:var(--green)}.primary{border:0;background:var(--green);color:#fff;border-radius:4px;padding:10px 15px;font-weight:700}.primary:hover{background:var(--green2)}.danger{background:var(--red)}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px}.toolbar-actions{display:flex;gap:9px;flex-wrap:wrap}.secondary{border:1px solid var(--green);background:#fff;color:var(--green);border-radius:4px;padding:9px 13px;font-weight:700}.count{font:12px Arial,sans-serif;background:#e5ece7;border-radius:12px;padding:3px 8px}.empty{padding:48px 20px;text-align:center;border:1px dashed #aab5ae;background:rgba(255,255,255,.6);color:var(--muted)}.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:14px}.group{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:hidden}.group-head{padding:13px 14px;background:#f7f9f7;display:flex;justify-content:space-between}.group-list{list-style:none;margin:0;padding:0}.group-list li{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:10px 13px;border-top:1px solid #edf0ed}.move{display:flex;gap:4px}.move button{width:30px;height:30px;padding:0}.matches{margin-top:22px}.match-group{margin:0 0 16px;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden}.match-group h3{padding:12px 14px;margin:0;background:#f0f4f1;border-bottom:1px solid var(--line)}.match{display:grid;grid-template-columns:minmax(120px,1fr) 58px 22px 58px minmax(120px,1fr) 90px;gap:8px;align-items:center;padding:9px 13px;border-bottom:1px solid #edf0ed}.match:last-child{border-bottom:0}.match select{width:58px;padding:7px;border:1px solid #aeb7b1;border-radius:4px}.match .right{text-align:right}.forfeit{font:12px Arial,sans-serif;color:var(--muted);display:flex;gap:5px;align-items:center}.new-player{display:grid;grid-template-columns:1fr 90px auto;gap:7px}.new-player input{min-width:0;border:1px solid #aeb7b1;padding:8px;border-radius:4px}.locked{opacity:.65;pointer-events:none}.hint{font:12px Arial,sans-serif;color:var(--muted);margin:7px 0 0}@media(max-width:850px){.top-inner,.toolbar{align-items:stretch;flex-direction:column}.date-tools{align-items:end}.workspace{grid-template-columns:1fr}.sidebar{position:static}.match{grid-template-columns:1fr 48px 16px 48px 1fr}.forfeit{justify-content:flex-end}.shell{padding:16px}.top-inner{padding:16px}.new-player{grid-template-columns:1fr 80px}.new-player button{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-inner"><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button></div></div></header>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section><section class="section"><h2>Roster <span id="roster-count" class="count">0</span></h2><div id="roster"></div></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-groups" class="secondary" type="button">Print groups</button><button id="print-sheets" class="secondary" type="button">Print sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="save" class="primary" type="button">Save draft</button><button id="finalize" class="primary danger" type="button">Finalize ratings</button></div></div><p id="promotion-context" class="hint promotion-context"></p><p id="group-summary" class="group-summary" hidden></p><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="groups" class="groups"></div><div id="matches" class="matches"></div></section></div></main>
+<style>
+@media (min-width: 761px){.sidebar{max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}}
+#network-activity{min-width:76px;color:#dce9e1;font:12px Arial,sans-serif}button.request-pending,select.request-pending,label.request-pending{position:relative;pointer-events:none;opacity:.7}button.request-pending:after,select.request-pending:after,label.request-pending:after{content:'';display:inline-block;width:10px;height:10px;margin-left:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:cttc-spin .7s linear infinite}@keyframes cttc-spin{to{transform:rotate(360deg)}}
+</style>
+<script>
+(function () {
+  var pending = 0;
+  var action = null;
+  var byControl = new WeakMap();
+  function capture(event) {
+    action = event.target.closest('button,select,label');
+    var current = action;
+    setTimeout(function () { if (action === current) action = null; }, 0);
+  }
+  document.addEventListener('click', capture, true);
+  document.addEventListener('change', capture, true);
+  window.cttcRequest = function (name) {
+    var args = [].slice.call(arguments, 1);
+    var control = action;
+    var activity = document.getElementById('network-activity');
+    pending += 1;
+    activity.textContent = 'Working...';
+    if (control) {
+      byControl.set(control, (byControl.get(control) || 0) + 1);
+      control.classList.add('request-pending');
+    }
+    return new Promise(function (resolve, reject) {
+      var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+      runner[name].apply(runner, args);
+    }).finally(function () {
+      pending -= 1;
+      if (!pending) activity.textContent = '';
+      if (control) {
+        var remaining = byControl.get(control) - 1;
+        byControl.set(control, remaining);
+        if (!remaining) control.classList.remove('request-pending');
+      }
+    });
+  };
+})();
+</script>
+<?!= include('Organizer') ?>
+<script>
+(function () {
+  var O = window.CTTCOrganizer;
+  var SITE = 'https://concordtabletennisclub.com';
+  var state = { players: [], archived: [], session: null, roster: [], groups: [], matches: [], promotions: {}, winners: [], previousDate: null, customized: false };
+  var byId = {};
+  var byName = {};
+  var siteCache = {};
+  var historyRequest = 0;
+  var date = document.getElementById('date');
+  var status = document.getElementById('status');
+  var search = document.getElementById('search');
+  var results = document.getElementById('results');
+  var roster = document.getElementById('roster');
+  var groups = document.getElementById('groups');
+  var matches = document.getElementById('matches');
+  var summary = document.getElementById('group-summary');
+  var context = document.getElementById('promotion-context');
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+  function call() {
+    return window.cttcRequest.apply(null, arguments).catch(function (error) { throw new Error(error && error.message || String(error)); });
+  }
+  function setStatus(message, type) {
+    status.textContent = message;
+    status.className = 'statusbar' + (type ? ' ' + type : '');
+  }
+  function today() {
+    var now = new Date();
+    return new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+  function shortDate(value) {
+    return new Date(value + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+  }
+  function longDate(value) {
+    return new Date(value + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  function player(id) {
+    return byId[id] || { name: 'Unknown player', currentRating: 0 };
+  }
+  function siteJson(file) {
+    if (!siteCache[file]) {
+      siteCache[file] = fetch(SITE + '/data/' + file).then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      }).catch(function (error) { delete siteCache[file]; throw error; });
+    }
+    return siteCache[file];
+  }
+  function locked() {
+    return !!state.session && state.session.status === 'finalized';
+  }
+  function groupArrays() {
+    return state.groups.map(function (group) { return group.playerIds.slice(); });
+  }
+
+  function setGroups(arrays) {
+    state.groups = arrays.filter(function (ids) { return ids.length; }).map(function (ids, index) {
+      return { groupNumber: index + 1, playerIds: ids };
+    });
+    Object.keys(state.promotions).forEach(function (id) {
+      var group = state.groups.find(function (entry) { return entry.playerIds.indexOf(id) >= 0; });
+      if (!group) delete state.promotions[id];
+      else state.promotions[id].toGroup = group.groupNumber;
+    });
+    buildMatches();
+    render();
+  }
+  function organize() {
+    var arrays = O.organize(state.roster, player);
+    state.promotions = O.applyPromotions(arrays, state.winners, player);
+    state.customized = false;
+    setGroups(arrays);
+  }
+  function pairKey(a, b) {
+    return [a, b].sort().join('::');
+  }
+  function buildMatches() {
+    var saved = {};
+    state.matches.forEach(function (match) { saved[pairKey(match.playerOneId, match.playerTwoId)] = match; });
+    state.matches = [];
+    state.groups.forEach(function (group) {
+      O.roundRobinPairs(group.playerIds).forEach(function (pair) {
+        var old = saved[pairKey(pair[0], pair[1])];
+        state.matches.push(old && old.playerOneId === pair[0]
+          ? Object.assign({}, old, { groupNumber: group.groupNumber })
+          : old
+            ? { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: old.playerTwoGames, playerTwoGames: old.playerOneGames, forfeit: old.forfeit }
+            : { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: null, playerTwoGames: null, forfeit: false });
+      });
+    });
+  }
+
+  function addToRoster(id, source) {
+    if (!byId[id] || state.roster.indexOf(id) >= 0 || locked()) return false;
+    state.roster.push(id);
+    if (state.customized) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions));
+    else organize();
+    setStatus(player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '. Save draft to keep this change.');
+    return true;
+  }
+  function removeFromRoster(id) {
+    if (state.roster.indexOf(id) < 0 || locked()) return false;
+    state.roster = state.roster.filter(function (other) { return other !== id; });
+    delete state.promotions[id];
+    if (state.customized) setGroups(groupArrays().map(function (ids) { return ids.filter(function (other) { return other !== id; }); }));
+    else organize();
+    setStatus(player(id).name + ' removed from RR draft. Save draft to keep this change.');
+    return true;
+  }
+  function move(id, direction) {
+    var arrays = groupArrays();
+    var from = arrays.findIndex(function (ids) { return ids.indexOf(id) >= 0; });
+    var to = from + direction;
+    if (from < 0 || to < 0 || to >= arrays.length) return;
+    arrays[from] = arrays[from].filter(function (other) { return other !== id; });
+    arrays[to] = O.byRating(arrays[to].concat(id), player);
+    delete state.promotions[id];
+    state.customized = true;
+    setGroups(arrays);
+  }
+
+  function renderDirectory() {
+    var query = search.value.trim().toLowerCase();
+    var matches = function (p) { return !query || p.name.toLowerCase().indexOf(query) >= 0; };
+    var html = state.players.filter(matches).slice(0, 50).map(function (p) {
+      var added = state.roster.indexOf(p.playerId) >= 0;
+      return '<li><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
+    });
+    if (query.length >= 2) {
+      html = html.concat(state.archived.filter(matches).slice(0, 25).map(function (p) {
+        return '<li data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + '</strong><span>Archived \u00b7 rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '">Add</button></li>';
+      }));
+    }
+    results.innerHTML = html.join('');
+  }
+
+  function renderGroups() {
+    var sizes = state.groups.map(function (group) { return group.playerIds.length; });
+    var unbalanced = sizes.some(function (size) { return size < 5 || size > 6; });
+    summary.hidden = !state.roster.length;
+    summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in ' + sizes.length + (sizes.length === 1 ? ' group' : ' groups') + ' · ' + sizes.join(' / ') + (unbalanced ? ' · rebalance recommended' : '');
+    summary.classList.toggle('warn', unbalanced);
+    groups.innerHTML = state.groups.map(function (group, index) {
+      var size = group.playerIds.length;
+      return '<article class="group' + (size < 5 || size > 6 ? ' needs-balance' : '') + '"><div class="group-head"><strong>Group ' + group.groupNumber + '</strong><span class="count">' + size + ' players</span></div><ul class="group-list">' + group.playerIds.map(function (id) {
+        var p = player(id);
+        var promo = state.promotions[id];
+        return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span>' +
+          (promo ? '<span class="promotion-badge">\u2191 ' + (promo.wonGroup ? 'Won ' + esc(promo.wonGroup) + ' on ' + shortDate(promo.date) : 'Promoted from Group ' + promo.fromGroup) + '</span>' : '') +
+          '</div><div class="move"><button class="icon" data-move="' + esc(id) + '" data-dir="-1" ' + (index === 0 ? 'disabled' : '') + ' title="Move up a group">\u2191</button><button class="icon" data-move="' + esc(id) + '" data-dir="1" ' + (index === state.groups.length - 1 ? 'disabled' : '') + ' title="Move down a group">\u2193</button></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from RR draft (save draft to keep)" aria-label="Remove ' + esc(p.name) + ' from RR draft">\u00d7</button></li>';
+      }).join('') + '</ul></article>';
+    }).join('');
+  }
+
+  var STATUS_TEXT = { complete: 'Complete', incomplete: 'Enter both', invalid: 'Winner needs 3', pending: 'Pending' };
+  function scoreSelect(index, side, value) {
+    var out = '<select data-score="' + index + '" data-side="' + side + '" aria-label="Games"><option value="">\u2013</option>';
+    for (var n = 0; n <= 3; n += 1) out += '<option value="' + n + '" ' + (value === n ? 'selected' : '') + '>' + n + '</option>';
+    return out + '</select>';
+  }
+  function renderMatches() {
+    var done = 0;
+    var total = state.matches.length;
+    var html = state.groups.map(function (group) {
+      var entries = [];
+      state.matches.forEach(function (match, index) { if (match.groupNumber === group.groupNumber) entries.push({ match: match, index: index }); });
+      var table = O.standings(group.playerIds, entries.map(function (entry) { return entry.match; }), player, O.ratingAdjustment);
+      done += table.complete;
+      var standings = '<table class="standings"><thead><tr><th>Player</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + table.rows.map(function (row, rank) {
+        var change = row.projected - row.startRating;
+        return '<tr' + (rank === 0 && table.finished ? ' class="leader"' : '') + '><td>' + (rank === 0 && table.finished ? '\uD83C\uDFC6 ' : '') + esc(row.name) + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+      return '<section class="match-group"><h3>Group ' + group.groupNumber + ' <span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3>' + standings + entries.map(function (entry) {
+        var m = entry.match;
+        var matchState = O.matchState(m);
+        return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + scoreSelect(entry.index, 'one', m.playerOneGames) + '<span>\u2013</span>' + scoreSelect(entry.index, 'two', m.playerTwoGames) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit"><input type="checkbox" data-forfeit="' + entry.index + '" ' + (m.forfeit ? 'checked' : '') + '> Forfeit</label></div></div>';
+      }).join('') + '</section>';
+    }).join('');
+    matches.innerHTML = (total ? '<p class="match-progress">' + done + ' of ' + total + ' matches complete</p>' : '') + html;
+  }
+
+  function renderContext() {
+    if (!state.previousDate) {
+      context.textContent = state.historyError ? 'Promotion history unavailable: ' + state.historyError : 'No earlier ' + longDate(date.value).split(',')[0] + ' session found for promotions.';
+      return;
+    }
+    var names = state.winners.length ? ' (' + state.winners.length + ' eligible)' : '';
+    context.textContent = 'Promotions from ' + longDate(state.previousDate) + names + ': group winners are guaranteed one group above the group they won, unless their rating already places them there. Rebuild by rating reapplies them.';
+  }
+
+  function render() {
+    var isLocked = locked();
+    document.querySelector('.workspace').classList.toggle('locked', isLocked);
+    document.getElementById('roster-count').textContent = state.roster.length;
+    document.getElementById('session-meta').textContent = (state.session ? 'Status: ' + state.session.status + ' · revision ' + state.session.revision : 'New unsaved session') + (state.ratingsSyncedThrough ? ' · ratings current through ' + state.ratingsSyncedThrough : '') + (state.ratingsCheckedAt ? ' (checked ' + new Date(state.ratingsCheckedAt).toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ')' : '');
+    roster.innerHTML = state.roster.slice().sort(function (a, b) { return player(a).name.localeCompare(player(b).name); }).map(function (id) {
+      var p = player(id);
+      return '<div class="roster-row"><div class="identity"><strong>' + esc(p.name) + '</strong><span>' + p.currentRating + '</span></div><button class="icon" data-remove="' + esc(id) + '" title="Remove player">\u00d7</button></div>';
+    }).join('');
+    document.getElementById('empty').hidden = state.roster.length > 0;
+    document.getElementById('clear-roster').disabled = !state.roster.length || isLocked;
+    ['print-groups', 'print-sheets'].forEach(function (id) { document.getElementById(id).disabled = !state.roster.length; });
+    renderGroups();
+    renderMatches();
+    renderContext();
+    renderDirectory();
+    var finalizeButton = document.getElementById('finalize');
+    finalizeButton.disabled = !state.session || isLocked || !state.closedLoop;
+    finalizeButton.textContent = state.closedLoop ? 'Finalize ratings' : 'Finalize off until go-live';
+    finalizeButton.title = state.closedLoop ? '' : 'MS Access is still the rating source. Turn on at cutover with enableClosedLoopMode in the Apps Script editor.';
+  }
+
+  var ratingsChecked = false;
+  async function syncRatings() {
+    if (ratingsChecked) return;
+    ratingsChecked = true;
+    try {
+      var result = await call('syncRatingsFromPublicSite');
+      state.ratingsCheckedAt = result.checkedAt;
+      if (result.skipped) return render();
+      state.ratingsSyncedThrough = result.syncedThrough;
+      var changed = result.changes;
+      Object.keys(changed).forEach(function (id) { if (byId[id]) byId[id].currentRating = changed[id]; });
+      render();
+      if (!result.updated) return;
+      document.dispatchEvent(new CustomEvent('cttc:ratings', { detail: changed }));
+      setStatus('Ratings updated from club results through ' + result.syncedThrough + ' (' + result.updated + ' players). Save the draft to use them.');
+    } catch (error) {
+      setStatus('Ratings could not be updated from the club site: ' + error.message, 'error');
+    }
+  }
+
+  async function loadHistory(sessionDate) {
+    var request = ++historyRequest;
+    state.winners = [];
+    state.previousDate = null;
+    state.historyError = '';
+    try {
+      var sessions = await siteJson('sessions.json');
+      var previous = O.previousSameWeekday(sessions.map(function (s) { return s.date; }), sessionDate);
+      if (!previous) return;
+      var details = (await siteJson('session-details-' + previous.slice(0, 4) + '.json')).find(function (s) { return s.date === previous; });
+      if (request !== historyRequest) return;
+      state.previousDate = previous;
+      (details && details.groups || []).forEach(function (group, index) {
+        var name = index > 0 && O.publishedWinner(group.players || []);
+        if (name && byName[name]) state.winners.push({ playerId: byName[name], groupNumber: index + 1, groupName: group.name, date: previous });
+      });
+    } catch (error) {
+      if (request === historyRequest) state.historyError = error.message;
+    }
+  }
+
+  async function load() {
+    var sessionDate = date.value;
+    setStatus('Loading ' + sessionDate + '...', 'busy');
+    try {
+      var data = await call('getAppState', sessionDate);
+      state.players = data.players;
+      byId = {};
+      byName = {};
+      state.players.forEach(function (p) { byId[p.playerId] = p; byName[p.name] = p.playerId; });
+      await loadHistory(sessionDate);
+      if (sessionDate !== date.value) return;
+      state.session = data.session;
+      state.ratingsSyncedThrough = data.ratingsSyncedThrough;
+      state.ratingsCheckedAt = data.ratingsCheckedAt;
+      state.closedLoop = !!data.closedLoop;
+      state.promotions = {};
+      state.matches = [];
+      state.roster = [];
+      state.customized = !!state.session;
+      var groupsFromSession = [];
+      if (state.session) {
+        var winnerById = {};
+        state.winners.forEach(function (w) { winnerById[w.playerId] = w; });
+        state.session.groups.forEach(function (group) {
+          groupsFromSession.push(group.players.map(function (entry) {
+            if (entry.promotionFromGroup) {
+              var won = winnerById[entry.playerId];
+              state.promotions[entry.playerId] = { fromGroup: entry.promotionFromGroup, toGroup: group.groupNumber, wonGroup: won && won.groupName, date: won && won.date };
+            }
+            return entry.playerId;
+          }));
+        });
+        state.roster = [].concat.apply([], groupsFromSession);
+        state.matches = (state.session.matches || []).map(function (match) {
+          return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit });
+        });
+      }
+      setGroups(groupsFromSession);
+      setStatus(state.session ? 'Session loaded. Changes are stored in Google Sheets.' : 'No session exists for this date. Add players to begin.');
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  }
+
+  async function save() {
+    if (!state.roster.length) { setStatus('Add at least one player before saving.', 'error'); return null; }
+    setStatus('Saving draft...', 'busy');
+    try {
+      if (!state.session) state.session = await call('createSession', date.value);
+      var promotions = {};
+      Object.keys(state.promotions).forEach(function (id) { promotions[id] = state.promotions[id].fromGroup; });
+      state.session = await call('saveSessionDraft', { sessionId: state.session.sessionId, revision: state.session.revision, groups: state.groups, matches: state.matches, promotions: promotions });
+      state.customized = true;
+      setStatus('Draft saved at ' + new Date().toLocaleTimeString() + '.');
+      render();
+      return state.session;
+    } catch (error) {
+      setStatus(error.message, 'error');
+      return null;
+    }
+  }
+
+  async function finalize() {
+    var saved = await save();
+    if (!saved) return;
+    var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
+    if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
+    if (!confirm('Finalize this session and update every player rating? This cannot be edited afterward.')) return;
+    setStatus('Finalizing ratings...', 'busy');
+    try {
+      state.session = await call('finalizeSession', saved.sessionId, saved.revision);
+      setStatus('Session finalized. Ratings are now authoritative.');
+      render();
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  }
+
+  window.cttcDesk = {
+    add: addToRoster,
+    remove: removeFromRoster,
+    has: function (id) { return state.roster.indexOf(id) >= 0; },
+    print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; }
+  };
+
+  results.addEventListener('click', async function (e) {
+    var button = e.target.closest('button');
+    var row = button && button.closest('[data-archived]');
+    if (!row) return;
+    e.stopImmediatePropagation();
+    var id = row.getAttribute('data-archived');
+    var wantsOpen = button.hasAttribute('data-open-add');
+    try {
+      var restored = await call('activatePlayer', id);
+      state.archived = state.archived.filter(function (p) { return p.playerId !== id; });
+      state.players.push(restored);
+      state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
+      byId[id] = restored;
+      byName[restored.name] = id;
+      document.dispatchEvent(new CustomEvent('cttc:players', { detail: restored }));
+      if (!wantsOpen) { addToRoster(id, 'the archive'); return; }
+      renderDirectory();
+      var open = results.querySelector('[data-open-add="' + CSS.escape(id) + '"]');
+      if (open) open.click();
+    } catch (error) {
+      setStatus('Could not restore ' + row.querySelector('strong').textContent + ': ' + error.message, 'error');
+    }
+  }, true);
+  results.addEventListener('click', function (e) { if (e.target.dataset.add) addToRoster(e.target.dataset.add); });
+  roster.addEventListener('click', function (e) { if (e.target.dataset.remove) removeFromRoster(e.target.dataset.remove); });
+  groups.addEventListener('click', function (e) {
+    var target = e.target.closest('[data-move], [data-drop]');
+    if (!target) return;
+    if (target.dataset.drop) removeFromRoster(target.dataset.drop);
+    else move(target.dataset.move, Number(target.dataset.dir));
+  });
+  matches.addEventListener('change', function (e) {
+    if (e.target.dataset.score != null) {
+      var m = state.matches[Number(e.target.dataset.score)];
+      m[e.target.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames'] = e.target.value === '' ? null : Number(e.target.value);
+    } else if (e.target.dataset.forfeit != null) {
+      state.matches[Number(e.target.dataset.forfeit)].forfeit = e.target.checked;
+    }
+    renderMatches();
+  });
+  search.addEventListener('input', renderDirectory);
+  document.getElementById('load').addEventListener('click', load);
+  date.addEventListener('change', load);
+  document.getElementById('rebuild').addEventListener('click', function () {
+    if (state.customized && !confirm('Rebuild groups by rating? Manual moves are replaced; promotions are reapplied.')) return;
+    organize();
+    setStatus('Groups rebuilt by rating' + (Object.keys(state.promotions).length ? ' with ' + Object.keys(state.promotions).length + ' promotion(s)' : '') + '. Save draft to keep this change.');
+  });
+  document.getElementById('clear-roster').addEventListener('click', function () {
+    if (!confirm('Remove everyone from the ' + shortDate(date.value) + ' RR draft?')) return;
+    state.roster = [];
+    state.promotions = {};
+    state.customized = false;
+    setGroups([]);
+    setStatus('RR draft cleared. Save draft to keep this change.');
+  });
+  document.getElementById('save').addEventListener('click', save);
+  document.getElementById('finalize').addEventListener('click', finalize);
+  document.getElementById('new-player').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var name = document.getElementById('new-name').value.trim();
+    var rating = document.getElementById('new-rating').value;
+    if (!name) return;
+    setStatus('Adding ' + name + '...', 'busy');
+    try {
+      var added = await call('addPlayer', name, rating === '' ? null : Number(rating));
+      e.target.reset();
+      state.players.push(added);
+      state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
+      byId[added.playerId] = added;
+      byName[added.name] = added.playerId;
+      addToRoster(added.playerId, 'new player');
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  });
+
+  var requestedDate = '<?= initialDate ?>';
+  date.value = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') ? requestedDate : today();
+  load().then(syncRatings);
+  call('listArchivedPlayers').then(function (list) {
+    state.archived = list;
+    if (search.value.trim().length >= 2) renderDirectory();
+  }).catch(function () {});
+})();
+</script>
+<style>
+.promotion-context{margin:-6px 0 10px}
+.group-summary{font:13px Arial,sans-serif;margin:0 0 12px;color:var(--muted)}
+.group-summary.warn,.group.needs-balance .count{color:#8a5a00;font-weight:700}
+.group.needs-balance{border-top-color:var(--gold)}
+.group-list li.promoted{background:#fbf6e6}
+.promotion-badge{display:block;margin-top:2px;font:11px Arial,sans-serif;color:#7a5200;font-weight:700}
+.match-progress{font:13px Arial,sans-serif;color:var(--muted);margin:0 0 10px}
+.match-group h3{display:flex;justify-content:space-between;align-items:center}
+.standings{width:100%;border-collapse:collapse;font:13px Arial,sans-serif}
+.standings th,.standings td{padding:6px 13px;text-align:left;border-bottom:1px solid #edf0ed}
+.standings th{font-weight:700;color:var(--muted);font-size:12px}
+.standings tr.leader td{background:#eef6f0;font-weight:700}
+.match-foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}
+.match-status{font:12px Arial,sans-serif;color:var(--muted)}
+.match-complete .match-status{color:var(--green);font-weight:700}
+.match-invalid .match-status,.match-incomplete .match-status{color:var(--red);font-weight:700}
+</style>
+<style>
+#groups .group-list li{grid-template-columns:minmax(0,1fr) auto auto auto}
+</style>
+<script>
+(function () {
+  var section = document.createElement('section');
+  section.className = 'open-play-section';
+  var heading = document.createElement('h2');
+  heading.textContent = 'Open Play / Coaching ';
+  var count = document.createElement('span');
+  count.className = 'count';
+  count.textContent = '0';
+  heading.appendChild(count);
+  var list = document.createElement('div');
+  list.id = 'open-roster';
+  list.className = 'group-list';
+  section.append(heading, list);
+  document.getElementById('matches').before(section);
+})();
+</script>
+<style>
+.payment-choice{min-width:112px;border:1px solid #c8d2ca;border-radius:3px;background:#fff;color:#17211b;padding:7px;margin-left:auto}
+.payment-choice.paid{background:#e4f3e9;border-color:#82be99;color:#125436;font-weight:700}
+.payment-choice:disabled{opacity:1}
+.group-list li{grid-template-columns:minmax(0,1fr) auto auto}
+.group-list .identity{min-width:0}
+.group-list .identity strong{display:inline}
+.group-list .identity > span:not(.member-badge){display:block}
+.group-list .member-badge{display:inline-grid;place-items:center;width:22px;height:22px;margin-left:7px;padding:0;border:0;border-radius:3px;background:#e9edeb;color:#46514b;font:700 12px Arial,sans-serif;vertical-align:middle;cursor:pointer}
+.group-list .member-badge.member{background:#e5f0f8;color:#164663}
+.group-list .member-badge.visitor{background:#fff0dc;color:#754712}
+
+.group{overflow:visible}
+.group:has(.payment-control:hover),.group:has(.payment-control:focus-within){position:relative;z-index:2}
+.payment-control{position:relative;font:13px Arial,sans-serif}
+.payment-trigger{min-width:86px;padding:7px;border:1px solid #aebbb2;border-radius:3px;background:#fff;color:#24392d}
+.payment-control.paid .payment-trigger{background:#e4f3e9;border-color:#82be99;color:#125436;font-weight:700}
+.payment-options{display:none;position:absolute;right:0;top:100%;min-width:108px;padding:4px;background:#fff;border:1px solid #b8c7bc;box-shadow:0 6px 14px #17211b2b;z-index:3}
+.payment-control:not(.pass):hover .payment-options,.payment-control:not(.pass):focus-within .payment-options,.payment-control.open .payment-options{display:grid;gap:3px}
+.payment-options button{padding:7px;text-align:left;border:0;background:#fff;color:#17211b}
+.payment-options button:hover,.payment-options button:focus{background:#e4f3e9}
+</style>
+<script>
+(function () {
+  var dateField = document.getElementById('date');
+  var rosterList = document.getElementById('roster');
+  var methods = {};
+  var covered = {};
+  var requestNumber = 0;
+  function request(name) {
+    return window.cttcRequest.apply(null, arguments);
+  }
+  function decorateRoster() {
+    [].forEach.call(document.querySelectorAll('#roster .roster-row, #open-roster .roster-row, #groups .group-list li'), function (row) {
+      var action = row.querySelector('[data-remove], [data-move]');
+      if (!action || row.querySelector('.payment-choice, .payment-control')) return;
+      var playerId = action.getAttribute('data-remove') || action.getAttribute('data-move');
+      if (row.matches('#groups li, #open-roster .roster-row')) {
+        var control = document.createElement('div');
+        control.className = 'payment-control';
+        control.setAttribute('data-payment-player', playerId);
+        var trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'payment-trigger';
+        trigger.addEventListener('click', function () { control.classList.toggle('open'); });
+        var options = document.createElement('div');
+        options.className = 'payment-options';
+        [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['zeffy', 'Zeffy']].forEach(function (option) {
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = option[1];
+          button.addEventListener('click', async function () {
+            control.classList.add('pending');
+            button.disabled = true;
+            try {
+              methods[playerId] = await request('setSessionPayment', dateField.value, playerId, option[0]);
+              syncPayment(playerId);
+              control.classList.remove('open');
+            } catch (error) {
+              document.getElementById('status').textContent = 'Payment not saved: ' + (error.message || error);
+            } finally {
+              button.disabled = false;
+              control.classList.remove('pending');
+            }
+          });
+          options.appendChild(button);
+        });
+        control.append(trigger, options);
+        row.insertBefore(control, row.querySelector('.move, [data-open-remove]'));
+        syncPayment(playerId);
+        return;
+      }
+      var select = document.createElement('select');
+      select.className = 'payment-choice';
+      select.setAttribute('aria-label', 'Payment for ' + row.querySelector('.identity strong').textContent);
+      var choices = [['', 'Unpaid'], ['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['zeffy', 'Zeffy']];
+      choices.forEach(function (choice) {
+        var option = document.createElement('option');
+        option.value = choice[0];
+        option.textContent = choice[1];
+        select.appendChild(option);
+      });
+      var method = methods[playerId] || '';
+      select.value = method;
+      select.disabled = !!covered[playerId];
+      select.classList.toggle('paid', !!method);
+      select.addEventListener('change', async function () {
+        var selectedDate = dateField.value;
+        var previous = methods[playerId] || '';
+        select.disabled = true;
+        try {
+          methods[playerId] = await request('setSessionPayment', selectedDate, playerId, select.value);
+          syncPayment(playerId);
+        } catch (error) {
+          select.value = previous;
+          document.getElementById('status').textContent = 'Payment not saved: ' + (error.message || error);
+        } finally {
+          select.disabled = !!covered[playerId];
+        }
+      });
+      row.insertBefore(select, action);
+    });
+  }
+  function syncPayment(playerId) {
+    var method = methods[playerId] || '';
+    document.querySelectorAll('.payment-control').forEach(function (control) {
+      if (control.getAttribute('data-payment-player') !== playerId) return;
+      control.classList.toggle('paid', !!method);
+      control.classList.toggle('pass', !!covered[playerId]);
+      var trigger = control.querySelector('.payment-trigger');
+      var label = method === 'zeffy' ? 'Zeffy \u2713' : method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : 'Payment';
+      if (trigger.textContent !== label) trigger.textContent = label;
+      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : method ? 'Paid by ' + method + '; change method on hover' : 'Choose payment method';
+      trigger.setAttribute('aria-label', 'Payment for ' + control.parentNode.querySelector('.identity strong').textContent + ': ' + (method || 'unpaid'));
+      trigger.disabled = !!covered[playerId];
+    });
+    document.querySelectorAll('.payment-choice').forEach(function (select) {
+      if (select.closest('.roster-row').querySelector('[data-remove]').getAttribute('data-remove') !== playerId) return;
+      select.value = method;
+      select.classList.toggle('paid', !!method);
+      select.disabled = !!covered[playerId];
+    });
+  }
+  function refreshPayments() {
+    var selectedDate = dateField.value;
+    var currentRequest = ++requestNumber;
+    methods = {};
+    Promise.all([request('getPrivatePaymentState', selectedDate), request('getZeffyCoveredPlayerIds')]).then(function (result) {
+      if (currentRequest !== requestNumber) return;
+      methods = result[0] || {};
+      covered = {};
+      result[1].forEach(function (playerId) { covered[playerId] = true; });
+      document.querySelectorAll('.payment-choice, .payment-control').forEach(function (control) { control.remove(); });
+      decorateRoster();
+    }).catch(function (error) {
+      document.getElementById('status').textContent = 'Payments unavailable: ' + (error.message || error);
+    });
+  }
+  new MutationObserver(decorateRoster).observe(rosterList, { childList: true, subtree: true });
+  new MutationObserver(decorateRoster).observe(document.getElementById('open-roster'), { childList: true, subtree: true });
+  new MutationObserver(decorateRoster).observe(document.getElementById('groups'), { childList: true, subtree: true });
+  document.getElementById('load').addEventListener('click', refreshPayments);
+  document.addEventListener('cttc:players', refreshPayments);
+  dateField.addEventListener('change', refreshPayments);
+  refreshPayments();
+})();
+</script>
+<style>
+.member-choice{min-width:96px;border:1px solid #c8d2ca;border-radius:3px;background:#fff;padding:7px;color:#17211b}
+.member-choice.member{background:#e5f0f8;border-color:#8ab4d0;color:#164663;font-weight:700}
+.member-choice.visitor{background:#fff0dc;border-color:#dbb373;color:#754712;font-weight:700}
+.member-choice.junior{background:#dceee7;border-color:#76b39a;color:#14563d;font-weight:700}
+.group-list .member-badge{position:relative}
+.group-list .member-badge.junior{background:#dceee7;color:#14563d;cursor:help}
+.member-badge[data-tip]:hover::after,.member-badge[data-tip]:focus-visible::after,.member-badge.open::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);width:max-content;max-width:240px;padding:7px 9px;background:#17211b;color:#fff;border-radius:4px;font:12px/1.35 Arial,sans-serif;text-align:left;white-space:normal;z-index:20;pointer-events:none}
+.group:has(.member-badge:hover),.group:has(.member-badge:focus-visible),.group:has(.member-badge.open){position:relative;z-index:3}
+</style>
+<script>
+(function () {
+  var statuses = {};
+  var notes = {};
+  var LABELS = { member: 'M', visitor: 'V', junior: 'J' };
+  function playerIdFor(row) {
+    var action = row.querySelector('[data-remove], [data-move]');
+    return action && (action.getAttribute('data-remove') || action.getAttribute('data-move'));
+  }
+  function tipFor(playerId) {
+    var current = statuses[playerId];
+    if (current === 'junior') return notes[playerId];
+    var base = current === 'member' ? 'Member' : 'Visitor';
+    var linked = notes[playerId] ? ' · ' + notes[playerId] : '';
+    return base + linked + ' · click to mark ' + (current === 'member' ? 'Visitor' : 'Member');
+  }
+  function apply(result) {
+    statuses = result.statuses || {};
+    notes = result.notes || {};
+    decorate();
+  }
+  function setStatus(message) {
+    document.getElementById('status').textContent = message;
+  }
+  async function save(playerId, next) {
+    try {
+      apply(await window.cttcRequest('setMemberStatus', playerId, next));
+    } catch (error) {
+      setStatus('Membership not saved: ' + (error.message || error));
+      decorate();
+    }
+  }
+  function decorateBadge(row, playerId) {
+    var badge = row.querySelector('.member-badge');
+    if (!badge) {
+      badge = document.createElement('button');
+      badge.type = 'button';
+      row.querySelector('.identity strong').after(badge);
+      badge.addEventListener('click', function (event) {
+        event.stopPropagation();
+        if (statuses[playerId] === 'junior') {
+          var wasOpen = badge.classList.contains('open');
+          document.querySelectorAll('.member-badge.open').forEach(function (other) { other.classList.remove('open'); });
+          badge.classList.toggle('open', !wasOpen);
+          return;
+        }
+        save(playerId, statuses[playerId] === 'member' ? 'visitor' : 'member');
+      });
+    }
+    var current = statuses[playerId] || '';
+    var label = LABELS[current] || '?';
+    if (badge.textContent !== label) badge.textContent = label;
+    var className = 'member-badge' + (current ? ' ' + current : '') + (badge.classList.contains('open') ? ' open' : '');
+    if (badge.className !== className) badge.className = className;
+    var tip = current ? tipFor(playerId) : 'Loading membership';
+    if (badge.getAttribute('data-tip') !== tip) {
+      badge.setAttribute('data-tip', tip);
+      badge.setAttribute('aria-label', tip);
+    }
+  }
+  function decorateSelect(row, playerId) {
+    var current = statuses[playerId] || '';
+    var select = row.querySelector('.member-choice');
+    if (select && select.getAttribute('data-status') === current + '|' + (notes[playerId] || '')) return;
+    if (select) select.remove();
+    select = document.createElement('select');
+    select.className = 'member-choice ' + current;
+    select.setAttribute('data-status', current + '|' + (notes[playerId] || ''));
+    select.setAttribute('aria-label', 'Membership for ' + row.querySelector('.identity strong').textContent);
+    var choices = current === 'junior' ? [['junior', 'Junior']] : [['member', 'Member'], ['visitor', 'Visitor']];
+    choices.forEach(function (choice) {
+      var option = document.createElement('option');
+      option.value = choice[0];
+      option.textContent = choice[1];
+      select.appendChild(option);
+    });
+    select.value = current;
+    select.disabled = current === 'junior' || !current;
+    select.title = current ? tipFor(playerId) : '';
+    select.addEventListener('change', function () { save(playerId, select.value); });
+    row.insertBefore(select, row.querySelector('[data-remove]'));
+  }
+  function decorate() {
+    document.querySelectorAll('#roster .roster-row, #open-roster .roster-row, #groups .group-list li').forEach(function (row) {
+      var playerId = playerIdFor(row);
+      if (!playerId) return;
+      if (row.closest('#roster')) decorateSelect(row, playerId);
+      else decorateBadge(row, playerId);
+    });
+  }
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.member-badge.open').forEach(function (badge) { badge.classList.remove('open'); });
+  });
+  ['roster', 'open-roster', 'groups'].forEach(function (id) {
+    new MutationObserver(decorate).observe(document.getElementById(id), { childList: true, subtree: true });
+  });
+  document.addEventListener('cttc:players', function () { window.cttcRequest('getMemberStatuses').then(apply); });
+  window.cttcRequest('getMemberStatuses').then(apply).catch(function (error) {
+    setStatus('Membership unavailable: ' + (error.message || error));
+  });
+})();
+</script>
+<script>
+(function () {
+  var roster = document.getElementById('roster');
+  var section = document.createElement('section');
+  section.className = 'section zeffy-passes';
+  var heading = document.createElement('h2');
+  heading.textContent = 'Zeffy Players - Monthly Play Pass';
+  var list = document.createElement('ul');
+  section.append(heading, list);
+  roster.parentNode.parentNode.insertBefore(section, roster.parentNode);
+  function request(name) {
+    return window.cttcRequest(name);
+  }
+  request('getZeffyPlayers').then(function (passes) {
+    list.replaceChildren();
+    passes.forEach(function (pass) {
+      var item = document.createElement('li');
+      item.textContent = pass.name;
+      list.appendChild(item);
+    });
+  }).catch(function () {
+    heading.textContent = 'Zeffy Players - Monthly Play Pass unavailable';
+  });
+  var links = document.createElement('section');
+  links.className = 'section';
+  var linksHeading = document.createElement('h2');
+  linksHeading.textContent = 'Linked names';
+  var linksList = document.createElement('ul');
+  links.append(linksHeading, linksList);
+  section.after(links);
+  request('getLinkedNameReview').then(function (review) {
+    linksList.replaceChildren();
+    review.confirmed.forEach(function (pair) {
+      var item = document.createElement('li');
+      item.textContent = pair.left.name + ' / ' + pair.right.name + ' (confirmed)';
+      linksList.appendChild(item);
+    });
+    review.candidates.forEach(function (pair) {
+      var item = document.createElement('li');
+      item.textContent = pair.left.name + ' / ' + pair.right.name + ' (review)';
+      linksList.appendChild(item);
+    });
+    review.unresolved.forEach(function (pair) {
+      var item = document.createElement('li');
+      item.textContent = pair.names.join(' / ') + ' (needs directory match)';
+      linksList.appendChild(item);
+    });
+    if (!linksList.children.length) linksHeading.textContent = 'Linked names: none found';
+  }).catch(function (error) {
+    linksHeading.textContent = 'Linked names unavailable: ' + (error.message || error);
+  });
+})();
+</script>
+<style>
+.directory-actions{display:flex;gap:6px;flex-shrink:0}
+.directory-actions [hidden]{display:none}
+.roster-status{font:13px Arial,sans-serif;color:var(--green);font-weight:700;white-space:nowrap}
+.open-play-section{margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
+.open-play-section .group-list{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:visible}
+.open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
+.open-play-section .identity{min-width:0}
+.locked .open-play-section,.locked .payment-choice,.locked .member-choice,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
+</style>
+<script>
+(function () {
+  var list = document.getElementById('open-roster');
+  var count = document.querySelector('.open-play-section .count');
+  var results = document.getElementById('results');
+  var roster = document.getElementById('roster');
+  var date = document.getElementById('date');
+  var open = [];
+  var names = {};
+  var ratings = {};
+  var requestNumber = 0;
+  function request(name) {
+    return window.cttcRequest.apply(null, arguments);
+  }
+  function decorateDirectory() {
+    [].forEach.call(results.querySelectorAll('li'), function (item) {
+      var rr = item.querySelector('[data-add]');
+      if (!rr) return;
+      var playerId = rr.getAttribute('data-add');
+      var actions = item.querySelector('.directory-actions');
+      if (!actions) {
+        actions = document.createElement('div');
+        actions.className = 'directory-actions';
+        item.appendChild(actions);
+        actions.appendChild(rr);
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'small';
+        button.textContent = 'Open';
+        button.setAttribute('data-open-add', playerId);
+        actions.appendChild(button);
+        var status = document.createElement('span');
+        status.className = 'roster-status';
+        actions.appendChild(status);
+      }
+      var inRoundRobin = !!roster.querySelector('[data-remove="' + CSS.escape(playerId) + '"]');
+      var inOpen = open.indexOf(playerId) >= 0;
+      if (rr.textContent !== 'RR') rr.textContent = 'RR';
+      rr.hidden = inRoundRobin || inOpen;
+      rr.disabled = rr.hidden;
+      var openButton = actions.querySelector('[data-open-add]');
+      if (openButton.textContent !== 'Open') openButton.textContent = 'Open';
+      openButton.hidden = inRoundRobin || inOpen;
+      openButton.disabled = openButton.hidden;
+      var status = actions.querySelector('.roster-status');
+      var label = inRoundRobin ? 'In RR' : inOpen ? 'In Open' : '';
+      if (status.textContent !== label) status.textContent = label;
+      status.hidden = !label;
+    });
+  }
+  function renderOpen() {
+    list.replaceChildren();
+    count.textContent = String(open.length);
+    open.forEach(function (playerId) {
+      var row = document.createElement('div');
+      row.className = 'roster-row';
+      var identity = document.createElement('div');
+      identity.className = 'identity';
+      var name = document.createElement('strong');
+      name.textContent = names[playerId] || 'Unknown player';
+      identity.appendChild(name);
+      var rating = document.createElement('span');
+      rating.textContent = 'Rating ' + (ratings[playerId] == null ? '—' : ratings[playerId]);
+      identity.appendChild(rating);
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'icon';
+      remove.textContent = '×';
+      remove.title = 'Remove from Open Play / Coaching';
+      remove.setAttribute('data-remove', playerId);
+      remove.setAttribute('data-open-remove', playerId);
+      row.append(identity, remove);
+      list.appendChild(row);
+    });
+    document.getElementById('search').dispatchEvent(new Event('input'));
+  }
+  async function loadOpen() {
+    var sessionDate = date.value;
+    var current = ++requestNumber;
+    open = [];
+    renderOpen();
+    try {
+      var values = await Promise.all([request('getOpenPlayParticipants', sessionDate), request('listPlayers')]);
+      if (current !== requestNumber || sessionDate !== date.value) return;
+      names = {};
+      ratings = {};
+      values[1].forEach(function (player) { names[player.playerId] = player.name; ratings[player.playerId] = player.currentRating; });
+      open = values[0];
+      renderOpen();
+    } catch (error) {
+      document.getElementById('status').textContent = 'Open play unavailable: ' + (error.message || error);
+    }
+  }
+  results.addEventListener('click', async function (event) {
+    var button = event.target.closest('[data-open-add]');
+    if (!button) return;
+    event.stopPropagation();
+    var playerId = button.getAttribute('data-open-add');
+    button.disabled = true;
+    try {
+      await request('setOpenPlayParticipant', date.value, playerId, true);
+      open.push(playerId);
+      renderOpen();
+      document.getElementById('status').textContent = 'Open play saved.';
+    } catch (error) {
+      button.disabled = false;
+      document.getElementById('status').textContent = 'Open play not saved: ' + (error.message || error);
+    }
+    }, true);
+  list.addEventListener('click', async function (event) {
+    var button = event.target.closest('[data-open-remove]');
+    if (!button) return;
+    var playerId = button.getAttribute('data-open-remove');
+    button.disabled = true;
+    try {
+      await request('setOpenPlayParticipant', date.value, playerId, false);
+      open = open.filter(function (id) { return id !== playerId; });
+      renderOpen();
+    } catch (error) {
+      button.disabled = false;
+      document.getElementById('status').textContent = 'Open play not removed: ' + (error.message || error);
+    }
+  });
+  new MutationObserver(decorateDirectory).observe(results, { childList: true, subtree: true });
+  document.addEventListener('cttc:players', function (event) {
+    names[event.detail.playerId] = event.detail.name;
+    ratings[event.detail.playerId] = event.detail.currentRating;
+  });
+  document.addEventListener('cttc:ratings', function (event) {
+    Object.assign(ratings, event.detail);
+    renderOpen();
+  });
+  new MutationObserver(decorateDirectory).observe(roster, { childList: true });
+  document.getElementById('load').addEventListener('click', loadOpen);
+  date.addEventListener('change', loadOpen);
+  loadOpen();
+})();
+</script>
+<style>
+.voice-suggestions ul{list-style:none;padding:0;margin:8px 0}
+.voice-suggestions li{padding:8px 0;border-bottom:1px solid #dce3df}
+.voice-sender{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.voice-candidate{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 0 3px 10px;font:13px Arial,sans-serif}
+.voice-candidate .roster-status{font-size:12px}
+.voice-candidate.muted{color:var(--muted)}
+.voice-suggestions .hint{margin:4px 0}
+.voice-preview-button{display:inline-flex;align-items:center;gap:3px;border:1px solid #aebbb2;border-radius:3px;background:#eef4f0;color:#125436;padding:2px 5px;font:15px Arial,sans-serif}
+.voice-preview-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 3px;border-radius:9px;background:#176b45;color:#fff;font:11px Arial,sans-serif}
+.voice-preview-text{display:none;position:fixed;left:var(--voice-preview-left,0px);top:var(--voice-preview-top,0px);width:min(360px,calc(100vw - 24px));max-height:min(300px,55vh);overflow:auto;padding:10px;background:#fff;border:1px solid #aebbb2;box-shadow:0 6px 14px #17211b2b;z-index:1000;font:13px Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}
+.voice-preview:hover .voice-preview-text,.voice-preview:focus-within .voice-preview-text,.voice-preview.open .voice-preview-text{display:block}
+.voice-preview-text time{display:block;margin-bottom:3px;color:var(--muted);font:11px Arial,sans-serif}
+.voice-preview-text p{margin:0 0 12px}.voice-preview-text p:last-child{margin:0}
+@keyframes cttc-added{from{background:#fff3c4}to{background:transparent}}
+.just-added{animation:cttc-added 2.5s ease-out}
+</style>
+<script>
+(function () {
+  var date = document.getElementById('date');
+  var roster = document.getElementById('roster');
+  var open = document.getElementById('open-roster');
+  var section = document.createElement('section');
+  section.className = 'section voice-suggestions';
+  var heading = document.createElement('h2');
+  heading.textContent = 'Voice signups';
+  var message = document.createElement('p');
+  message.className = 'hint';
+  var list = document.createElement('ul');
+  var refresh = document.createElement('button');
+  refresh.type = 'button';
+  refresh.className = 'small secondary';
+  refresh.textContent = 'Refresh';
+  section.append(heading, message, list, refresh);
+  document.getElementById('new-player').closest('.section').after(section);
+  var suggestions = [];
+  var names = {};
+  var requestNumber = 0;
+  var loaded = false;
+  var TIME_FORMAT = { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+
+  function messagePreview(suggestion) {
+    var preview = document.createElement('div');
+    preview.className = 'voice-preview';
+    var badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'voice-preview-button';
+    badge.title = 'Read messages';
+    badge.setAttribute('aria-label', suggestion.messages.length + ' messages from ' + suggestion.senderName);
+    badge.setAttribute('aria-expanded', 'false');
+    var icon = document.createElement('span');
+    icon.textContent = '\u2709';
+    icon.setAttribute('aria-hidden', 'true');
+    var count = document.createElement('span');
+    count.className = 'voice-preview-count';
+    count.textContent = String(suggestion.messages.length);
+    badge.append(icon, count);
+    var text = document.createElement('div');
+    text.className = 'voice-preview-text';
+    suggestion.messages.forEach(function (entry) {
+      var time = document.createElement('time');
+      time.dateTime = new Date(entry.receivedAt).toISOString();
+      time.textContent = new Date(entry.receivedAt).toLocaleString('en-US', TIME_FORMAT);
+      var line = document.createElement('p');
+      line.textContent = entry.text;
+      text.append(time, line);
+    });
+    function position() {
+      var bounds = badge.getBoundingClientRect();
+      var height = text.getBoundingClientRect().height || 300;
+      var width = Math.min(360, window.innerWidth - 24);
+      var top = bounds.bottom + height + 12 <= window.innerHeight ? bounds.bottom + 6 : bounds.top - height - 6;
+      text.style.setProperty('--voice-preview-left', Math.max(12, Math.min(bounds.left, window.innerWidth - width - 12)) + 'px');
+      text.style.setProperty('--voice-preview-top', Math.max(12, Math.min(top, window.innerHeight - height - 12)) + 'px');
+    }
+    preview.position = position;
+    badge.addEventListener('mouseenter', position);
+    badge.addEventListener('focus', position);
+    badge.addEventListener('click', function () {
+      preview.classList.toggle('open');
+      badge.setAttribute('aria-expanded', String(preview.classList.contains('open')));
+      position();
+    });
+    preview.append(badge, text);
+    return preview;
+  }
+
+  function rostered(playerId) {
+    return window.cttcDesk.has(playerId) ? 'In RR' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
+  }
+
+  function candidateRow(playerId, senderPlaced) {
+    var row = document.createElement('div');
+    row.className = 'voice-candidate';
+    var name = document.createElement('span');
+    name.textContent = names[playerId];
+    row.appendChild(name);
+    var placed = rostered(playerId);
+    if (placed) {
+      var status = document.createElement('span');
+      status.className = 'roster-status';
+      status.textContent = placed;
+      row.appendChild(status);
+    } else if (senderPlaced) {
+      row.classList.add('muted');
+    } else {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'small';
+      button.textContent = 'RR';
+      button.title = 'Add ' + names[playerId] + ' to the RR draft';
+      button.setAttribute('data-voice-add', playerId);
+      row.appendChild(button);
+    }
+    return row;
+  }
+
+  function render() {
+    list.replaceChildren();
+    suggestions.forEach(function (suggestion) {
+      var item = document.createElement('li');
+      var sender = document.createElement('div');
+      sender.className = 'voice-sender';
+      var name = document.createElement('span');
+      name.textContent = suggestion.senderName;
+      sender.append(name, messagePreview(suggestion));
+      item.appendChild(sender);
+      var candidates = suggestion.playerIds.filter(function (id) { return !!names[id]; });
+      if (!candidates.length) {
+        var none = document.createElement('p');
+        none.className = 'hint';
+        none.textContent = 'No directory match. Add them under Add a player if they are new.';
+        item.appendChild(none);
+      }
+      candidates.forEach(function (id) { item.appendChild(candidateRow(id, candidates.some(rostered))); });
+      list.appendChild(item);
+    });
+    if (loaded) message.textContent = suggestions.length ? 'Texts received on this date. Choose who to add to RR.' : 'No texts received on this date.';
+  }
+
+  async function load() {
+    var selectedDate = date.value;
+    var current = ++requestNumber;
+    suggestions = [];
+    loaded = false;
+    list.replaceChildren();
+    message.textContent = 'Checking forwarded texts...';
+    try {
+      var data = await Promise.all([window.cttcRequest('listVoiceSuggestions', selectedDate), window.cttcRequest('listPlayers')]);
+      if (current !== requestNumber || date.value !== selectedDate) return;
+      names = {};
+      data[1].forEach(function (player) { names[player.playerId] = player.name; });
+      suggestions = data[0];
+      loaded = true;
+      render();
+    } catch (error) {
+      if (current === requestNumber) message.textContent = 'Voice signups unavailable: ' + (error.message || error);
+    }
+  }
+
+  list.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-voice-add]');
+    if (!button) return;
+    var playerId = button.getAttribute('data-voice-add');
+    if (!window.cttcDesk.add(playerId, 'Voice signup')) return;
+    var added = document.querySelector('#groups [data-move="' + CSS.escape(playerId) + '"]');
+    if (!added) return;
+    added.closest('li').classList.add('just-added');
+    added.closest('li').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  new MutationObserver(function () { if (loaded) render(); }).observe(roster, { childList: true });
+  new MutationObserver(function () { if (loaded) render(); }).observe(open, { childList: true });
+  document.querySelector('.sidebar').addEventListener('scroll', function () {
+    var active = section.querySelector('.voice-preview:hover, .voice-preview:focus-within, .voice-preview.open');
+    if (active) active.position();
+    }, { passive: true });
+  document.getElementById('load').addEventListener('click', load);
+  date.addEventListener('change', load);
+  refresh.addEventListener('click', load);
+  load();
+})();
+</script>
+<?!= include('Print') ?>
+</body>
+</html>

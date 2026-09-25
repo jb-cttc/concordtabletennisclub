@@ -127,6 +127,10 @@ async function main() {
 
   const testOverride = (process.env.TEST_EMAIL_OVERRIDE || '').trim();
   const isTest = Boolean(testOverride);
+  if (!isTest && process.env.CTTC_LIVE_START_DATE && date < process.env.CTTC_LIVE_START_DATE) {
+    console.log('No finalized live session to email; skipping historical results.');
+    return;
+  }
 
   const subscribers = isTest ? [testOverride] : await loadSubscribers();
   if (!subscribers.length) {

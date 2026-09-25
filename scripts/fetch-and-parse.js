@@ -13,6 +13,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 const cheerio = require('cheerio');
+const { sortByGroupResult } = require('../standings');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
@@ -125,20 +126,6 @@ function readRows($, table) {
     rows.push({ rawName: rawName, cells: cells });
   });
   return rows;
-}
-
-// Most matches won first; ties (and groups with no match detail) fall back
-// to rating-after-adjustment descending; players with neither sort last.
-function sortByGroupResult(players) {
-  return players.slice().sort(function (a, b) {
-    if (a.wins !== null && b.wins !== null && a.wins !== b.wins) {
-      return b.wins - a.wins;
-    }
-    if (a.ratingAfter === null && b.ratingAfter === null) return 0;
-    if (a.ratingAfter === null) return 1;
-    if (b.ratingAfter === null) return -1;
-    return b.ratingAfter - a.ratingAfter;
-  });
 }
 
 function parseSummaryOnlyGroup(name, rows) {
@@ -542,6 +529,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  sortByGroupResult,
   parseSessionHtml,
   buildCanonicalizer,
   applyCanonicalNames,
