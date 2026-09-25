@@ -18,6 +18,16 @@ The jb-cttc repository is a staging copy. The workflow runs only in
 `CTTC_DEPLOY_ENABLED` is `true`, so neither jb-cttc nor any fork can deploy
 the site or email members alongside the live repository.
 
+## Club and Year Records
+
+The private Google Sheet holds the raw `AccessPlayers` import and a separate, record-only `RecordArchive` baseline with `RecordArchiveEvents`. Match records are wins/losses, not games won/lost. They are keyed by `player_id`, never matched by display name. The Access `Player` counters are the historical authority; they do not need to be reconstructed by summing old matches. Access league 17 is the 2026 season. The printed year follows the selected session date.
+
+The 1,642 imported Access player counters were last current through September 21, 2026. The local Access file includes 60 more matches on September 23, of which 58 are non-forfeits. Subtracting those 58 outcomes from the local Access counters reproduces the Sheet's **per-player** SHA-256 fingerprint exactly. The one-time archive seed verifies both fingerprints before writing the September 21 baselines and dated September 23 outcomes. For a sheet dated September 23, the printed records therefore exclude that day's matches; a later sheet includes them. Only finalized desk matches **after** September 23 contribute subsequently, with forfeits excluded. Drafts and the selected session itself never contribute.
+
+Run `recordArchiveStatus()` in the Apps Script editor to verify the archive, its cutoff, and player coverage. At migration time, 26 operational `Players` IDs had no matching Access Player ID. Their records remain unavailable (`--/--`) until independently verified; do not assign zero by assumption. After checking a player's source, `addVerifiedRecordBaseline(playerId, clubWins, clubLosses, yearWins, yearLosses, evidence)` stores the four counters and provenance in the private archive. `enableClosedLoopMode()` refuses cutover while any operational player lacks a baseline or the public ratings cutoff exceeds the archive's September 23 snapshot. If Access is used for another session, import and reconcile that session's records and update the archive cutoff before enabling the desk; the fixed September 23 seed does not do that automatically. Historical year-specific records before 2026 are not imported and will remain unavailable for historical print dates.
+
+The raw Access Match history and original VBA calculation code are not in the desk Sheet. The stored Access Player counters are reproduced for the current season, and future win/loss updates follow the non-forfeit match rule verified against league 17; this does **not** claim every older Access counter can be reconstructed from match rows (28 older club totals differed in the comparison). The rating engine is a separate calculation and must be verified on its own terms.
+
 ## Ratings
 
 Until cutover, the club's session reports are the rating authority.

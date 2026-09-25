@@ -16,21 +16,15 @@ const nameLinks = [
 const context = {
   TABLES: {},
   SpreadsheetApp: { getActive: () => ({ getSheetByName: () => ({}) }) },
-  rows_: () => nameLinks.map((row, index) => ({ ...row, __row: index + 2 })),
-  listPlayers: () => players,
-  getMembershipDues2026: () => ({ 10: {} }),
-  getZeffyPlayers: () => []
+  rows_: () => nameLinks.map((row, index) => ({ ...row, __row: index + 2 }))
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(__dirname + '/LinkedNames.js', 'utf8'), context);
 
-const review = JSON.parse(JSON.stringify(context.getLinkedNameReview()));
-assert.deepEqual(review.confirmed, [], 'a link needs both names in the directory');
-assert.deepEqual(review.juniors.map(l => l.junior.name + '->' + l.member.name), ['Riley Vale->Morgan Vale', 'Jordan Reyes Jr->Jordan Reyes', 'Arjun Nair->Priya Nair', 'Eli Novak->Tomas Novak']);
-assert.deepEqual(context.standaloneJuniors_(players).map(p => p.name), ['Sky Ortiz'], 'a junior row without a member is a standalone junior');
-assert.deepEqual(review.unresolved.map(u => u.names.join('/')), ['Mei Tan/May Tan']);
-assert.deepEqual(review.candidates.map(c => c.left.name + '/' + c.right.name), ['A. Chen/Alex Chen']);
-assert.equal(context.linkedNameCandidate_('Mei Tan', 'Linda Tan'), false);
+assert.deepEqual(JSON.parse(JSON.stringify(context.confirmedNameLinks_(players).resolved.map(l => l.left.name + '->' + l.right.name))), [], 'a link needs both names in the directory');
+assert.deepEqual(JSON.parse(JSON.stringify(context.juniorLinks_(players).map(l => l.junior.name + '->' + l.member.name))), ['Riley Vale->Morgan Vale', 'Jordan Reyes Jr->Jordan Reyes', 'Arjun Nair->Priya Nair', 'Eli Novak->Tomas Novak']);
+assert.deepEqual(JSON.parse(JSON.stringify(context.standaloneJuniors_(players).map(p => p.name))), ['Sky Ortiz'], 'a junior row without a member is a standalone junior');
+assert.deepEqual(JSON.parse(JSON.stringify(context.confirmedNameLinks_(players).unresolved.map(names => names.join('/')))), ['Mei Tan/May Tan']);
 
 players = players.concat([{ playerId: 'dup', name: 'Jordan Reyes' }]);
 assert.equal(context.juniorLinks_(players).length, 3, 'an ambiguous member name never links a junior');

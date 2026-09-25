@@ -60,7 +60,7 @@ function applyPublicRatings_(data) {
     // Once the app finalizes sessions the site hasn't posted, the app is the rating authority.
     var appLatest = latestFinalizedSessionDate_();
     if (appLatest && appLatest >= latest) return { skipped: true, syncedThrough: ratingsSyncedThrough_(), appFinalizedThrough: appLatest };
-    // The site may still use an older spelling recorded in Aliases.
+    // The site may still use an older spelling (e.g. Steve Cossman).
     var aliasRatings = {};
     var aliases = playerAliases_();
     Object.keys(aliases).forEach(function (alias) {
