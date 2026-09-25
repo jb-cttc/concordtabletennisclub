@@ -20,14 +20,14 @@ function nameLinkRows_() {
   });
 }
 
-function nameLinks_(kind, withLinkedName) {
-  return nameLinkRows_().filter(function (link) { return link.kind === kind && !!link.linked === withLinkedName; })
+function nameLinks_(kind, withLinkedName, linkRows) {
+  return (linkRows || nameLinkRows_()).filter(function (link) { return link.kind === kind && !!link.linked === withLinkedName; })
   .map(function (link) { return withLinkedName ? [link.name, link.linked] : link.name; });
 }
 
-function standaloneJuniors_(players) {
+function standaloneJuniors_(players, linkRows) {
   var byKey = playersByLinkedKey_(players);
-  return nameLinks_('junior', false).map(function (name) { return byKey[linkedNameKey_(name)] || []; })
+  return nameLinks_('junior', false, linkRows).map(function (name) { return byKey[linkedNameKey_(name)] || []; })
   .filter(function (matches) { return matches.length === 1; })
   .map(function (matches) { return matches[0]; });
 }
@@ -58,12 +58,12 @@ function resolveLinks_(links, players) {
   return { resolved: resolved, unresolved: unresolved };
 }
 
-function confirmedNameLinks_(players) {
-  return resolveLinks_(nameLinks_('same_person', true), players);
+function confirmedNameLinks_(players, linkRows) {
+  return resolveLinks_(nameLinks_('same_person', true, linkRows), players);
 }
 
-function juniorLinks_(players) {
-  return resolveLinks_(nameLinks_('junior', true), players).resolved.map(function (link) {
+function juniorLinks_(players, linkRows) {
+  return resolveLinks_(nameLinks_('junior', true, linkRows), players).resolved.map(function (link) {
     return { junior: link.left, member: link.right };
   });
 }
@@ -74,42 +74,4 @@ function linkedPartnerIds_(playerId, links) {
   }).map(function (link) {
     return link.left.playerId === playerId ? link.right.playerId : link.left.playerId;
   });
-}
-
-function linkedNameCandidate_(left, right) {
-  var first = linkedNameKey_(left).split(' ');
-  var second = linkedNameKey_(right).split(' ');
-  if (first.length < 2 || second.length < 2 || first[first.length - 1] !== second[second.length - 1]) return false;
-  if (first[0] !== second[0] && first[0][0] !== second[0][0]) return false;
-  return first.some(function (part) { return part.length === 1; }) || second.some(function (part) { return part.length === 1; });
-}
-
-function getLinkedNameReview() {
-  var players = listPlayers();
-  var dues = getMembershipDues2026();
-  var passes = getZeffyPlayers();
-  var links = confirmedNameLinks_(players);
-  var linkedPairs = {};
-  links.resolved.forEach(function (link) {
-    linkedPairs[[link.left.playerId, link.right.playerId].sort().join('|')] = true;
-  });
-  var associated = players.filter(function (player) {
-    return !!dues[player.playerId] || passes.some(function (pass) { return pass.playerId === player.playerId; });
-  });
-  var candidates = [];
-  associated.forEach(function (left) {
-    players.forEach(function (right) {
-      if (left.playerId === right.playerId || !linkedNameCandidate_(left.name, right.name)) return;
-      var key = [left.playerId, right.playerId].sort().join('|');
-      if (linkedPairs[key]) return;
-      linkedPairs[key] = true;
-      candidates.push({ left: left, right: right, status: 'review' });
-    });
-  });
-  return {
-    confirmed: links.resolved.map(function (link) { return { left: link.left, right: link.right, status: 'confirmed' }; }),
-    juniors: juniorLinks_(players),
-    candidates: candidates,
-    unresolved: links.unresolved.map(function (names) { return { names: names, status: 'needs directory match' }; })
-  };
 }

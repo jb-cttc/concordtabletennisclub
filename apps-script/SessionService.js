@@ -1,5 +1,5 @@
-function listPlayers() {
-  return rows_('Players')
+function listPlayers(playerRows) {
+  return (playerRows || rows_('Players'))
   .filter(function (player) { return asBoolean_(player.active); })
   .map(function (player) {
     return {
@@ -220,6 +220,10 @@ function closedLoopEnabled_() {
 }
 
 function enableClosedLoopMode() {
+  var records = recordArchiveStatus();
+  if (!records.readyForCutover) {
+    throw new Error('Record archive cutover blocked: ' + records.missingPlayers + ' player(s) lack verified baselines or the archive ends before published ratings (' + records.ratingsSyncedThrough + ').');
+  }
   PropertiesService.getScriptProperties().setProperty(CLOSED_LOOP_KEY, 'true');
   appendAudit_('closed_loop_enabled', 'database', CLOSED_LOOP_KEY, {});
   return closedLoopEnabled_();

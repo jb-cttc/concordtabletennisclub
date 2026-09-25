@@ -3,9 +3,11 @@ var OPEN_PLAY_HEADERS = ['session_date', 'player_id', 'updated_at'];
 function ensureOpenPlayTable_() {
   TABLES.OpenPlay = OPEN_PLAY_HEADERS;
   var spreadsheet = SpreadsheetApp.getActive();
-  var sheet = spreadsheet.getSheetByName('OpenPlay') || spreadsheet.insertSheet('OpenPlay');
+  var sheet = spreadsheet.getSheetByName('OpenPlay');
+  var created = !sheet;
+  if (created) sheet = spreadsheet.insertSheet('OpenPlay');
   ensureHeader_(sheet, OPEN_PLAY_HEADERS);
-  formatTable_(sheet, OPEN_PLAY_HEADERS.length);
+  if (created) formatTable_(sheet, OPEN_PLAY_HEADERS.length);
 }
 
 function getOpenPlayParticipants(sessionDate) {

@@ -3,14 +3,17 @@ var MEMBER_STATUS_HEADERS = ['player_id', 'status', 'updated_at'];
 function ensureMemberStatusTable_() {
   var spreadsheet = SpreadsheetApp.getActive();
   TABLES.MemberStatus = MEMBER_STATUS_HEADERS;
-  var sheet = spreadsheet.getSheetByName('MemberStatus') || spreadsheet.insertSheet('MemberStatus');
+  var sheet = spreadsheet.getSheetByName('MemberStatus');
+  var created = !sheet;
+  if (created) sheet = spreadsheet.insertSheet('MemberStatus');
   ensureHeader_(sheet, MEMBER_STATUS_HEADERS);
-  formatTable_(sheet, MEMBER_STATUS_HEADERS.length);
+  if (created) formatTable_(sheet, MEMBER_STATUS_HEADERS.length);
 }
 
 function getMemberStatuses() {
   ensureMemberStatusTable_();
   var players = listPlayers();
+  var linkRows = nameLinkRows_();
   var statuses = {};
   var notes = {};
   players.forEach(function (player) { statuses[player.playerId] = 'visitor'; });
@@ -22,18 +25,18 @@ function getMemberStatuses() {
     if (['', 'member', 'visitor'].indexOf(String(row.status)) < 0) throw new Error('Invalid member status for ' + playerId);
     if (Object.prototype.hasOwnProperty.call(statuses, playerId) && row.status) statuses[playerId] = String(row.status);
   });
-  confirmedNameLinks_(players).resolved.forEach(function (link) {
+  confirmedNameLinks_(players, linkRows).resolved.forEach(function (link) {
     var status = statuses[link.left.playerId] === 'member' || statuses[link.right.playerId] === 'member' ? 'member' : 'visitor';
     statuses[link.left.playerId] = status;
     statuses[link.right.playerId] = status;
     notes[link.left.playerId] = 'Also listed as ' + link.right.name;
     notes[link.right.playerId] = 'Also listed as ' + link.left.name;
   });
-  juniorLinks_(players).forEach(function (link) {
+  juniorLinks_(players, linkRows).forEach(function (link) {
     statuses[link.junior.playerId] = 'junior';
     notes[link.junior.playerId] = 'Junior linked to member ' + link.member.name;
   });
-  standaloneJuniors_(players).forEach(function (junior) {
+  standaloneJuniors_(players, linkRows).forEach(function (junior) {
     statuses[junior.playerId] = 'junior';
     notes[junior.playerId] = 'Junior member';
   });

@@ -1,3 +1,4 @@
+<!-- App source and change requests: https://github.com/jb-cttc/concordtabletennisclub. Review in GitHub; deploy to Google separately. -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,11 +9,20 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="top-inner"><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section><section class="section"><h2>Roster <span id="roster-count" class="count">0</span></h2><div id="roster"></div></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-groups" class="secondary" type="button">Print groups</button><button id="print-sheets" class="secondary" type="button">Print sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="save" class="primary" type="button">Save draft</button><button id="finalize" class="primary danger" type="button">Finalize ratings</button></div></div><p id="promotion-context" class="hint promotion-context"></p><p id="group-summary" class="group-summary" hidden></p><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="groups" class="groups"></div><div id="matches" class="matches"></div></section></div></main>
+<header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="save" class="primary" type="button">Save draft</button><button id="finalize" class="primary danger" type="button">Finalize ratings</button></div></div><p id="promotion-context" class="hint promotion-context"></p><p id="group-summary" class="group-summary" hidden></p><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="groups" class="groups"></div><div id="matches" class="matches"></div></section></div></main>
 <style>
+.top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
+@media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
 @media (min-width: 761px){.sidebar{max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}}
-#network-activity{min-width:76px;color:#dce9e1;font:12px Arial,sans-serif}button.request-pending,select.request-pending,label.request-pending{position:relative;pointer-events:none;opacity:.7}button.request-pending:after,select.request-pending:after,label.request-pending:after{content:'';display:inline-block;width:10px;height:10px;margin-left:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:cttc-spin .7s linear infinite}@keyframes cttc-spin{to{transform:rotate(360deg)}}
+#network-activity{min-width:76px;min-height:14px;color:#dce9e1;font:12px Arial,sans-serif}button.request-pending,select.request-pending,label.request-pending{position:relative;pointer-events:none;opacity:.7}button.request-pending:after,select.request-pending:after,label.request-pending:after{content:'';display:inline-block;width:10px;height:10px;margin-left:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:cttc-spin .7s linear infinite}@keyframes cttc-spin{to{transform:rotate(360deg)}}
+.date-tools label.request-pending:after{position:absolute;left:-24px;bottom:0;margin-left:0}
+.date-tools button.request-pending:after{position:absolute;right:0;top:-16px;margin-left:0}
+.shell{max-width:1650px}
+.workspace{grid-template-columns:minmax(270px,340px) minmax(0,1fr)}
+.groups{grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))}
+@media(max-width:850px){.workspace{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.date-tools{flex-wrap:wrap;justify-content:flex-start}#groups .group-list li{grid-template-columns:minmax(0,1fr) auto auto}#groups .group-list .identity{grid-column:1/-1}#groups .group-list .payment-control{justify-self:start}}
 </style>
 <script>
 (function () {
@@ -61,11 +71,11 @@
   var byName = {};
   var siteCache = {};
   var historyRequest = 0;
+  var savedPrintState = null;
   var date = document.getElementById('date');
   var status = document.getElementById('status');
   var search = document.getElementById('search');
   var results = document.getElementById('results');
-  var roster = document.getElementById('roster');
   var groups = document.getElementById('groups');
   var matches = document.getElementById('matches');
   var summary = document.getElementById('group-summary');
@@ -108,6 +118,10 @@
   }
   function groupArrays() {
     return state.groups.map(function (group) { return group.playerIds.slice(); });
+  }
+
+  function printState() {
+    return JSON.stringify({ roster: state.roster, groups: state.groups, matches: state.matches, promotions: state.promotions });
   }
 
   function setGroups(arrays) {
@@ -248,15 +262,10 @@
   function render() {
     var isLocked = locked();
     document.querySelector('.workspace').classList.toggle('locked', isLocked);
-    document.getElementById('roster-count').textContent = state.roster.length;
     document.getElementById('session-meta').textContent = (state.session ? 'Status: ' + state.session.status + ' · revision ' + state.session.revision : 'New unsaved session') + (state.ratingsSyncedThrough ? ' · ratings current through ' + state.ratingsSyncedThrough : '') + (state.ratingsCheckedAt ? ' (checked ' + new Date(state.ratingsCheckedAt).toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ')' : '');
-    roster.innerHTML = state.roster.slice().sort(function (a, b) { return player(a).name.localeCompare(player(b).name); }).map(function (id) {
-      var p = player(id);
-      return '<div class="roster-row"><div class="identity"><strong>' + esc(p.name) + '</strong><span>' + p.currentRating + '</span></div><button class="icon" data-remove="' + esc(id) + '" title="Remove player">\u00d7</button></div>';
-    }).join('');
     document.getElementById('empty').hidden = state.roster.length > 0;
     document.getElementById('clear-roster').disabled = !state.roster.length || isLocked;
-    ['print-groups', 'print-sheets'].forEach(function (id) { document.getElementById(id).disabled = !state.roster.length; });
+    document.getElementById('print-sheets').disabled = !state.roster.length;
     renderGroups();
     renderMatches();
     renderContext();
@@ -287,19 +296,29 @@
     }
   }
 
-  async function loadHistory(sessionDate) {
+  function fetchHistory(sessionDate) {
+    return siteJson('sessions.json').then(function (sessions) {
+      var previous = O.previousSameWeekday(sessions.map(function (session) { return session.date; }), sessionDate);
+      if (!previous) return null;
+      return siteJson('session-details-' + previous.slice(0, 4) + '.json').then(function (details) {
+        return { previous: previous, details: details.find(function (session) { return session.date === previous; }) };
+      });
+    }).then(function (value) { return { value: value }; }, function (error) { return { error: error }; });
+  }
+
+  async function loadHistory(sessionDate, pendingHistory) {
     var request = ++historyRequest;
     state.winners = [];
     state.previousDate = null;
     state.historyError = '';
     try {
-      var sessions = await siteJson('sessions.json');
-      var previous = O.previousSameWeekday(sessions.map(function (s) { return s.date; }), sessionDate);
-      if (!previous) return;
-      var details = (await siteJson('session-details-' + previous.slice(0, 4) + '.json')).find(function (s) { return s.date === previous; });
+      var outcome = await pendingHistory;
+      if (outcome.error) throw outcome.error;
       if (request !== historyRequest) return;
+      if (!outcome.value) return;
+      var previous = outcome.value.previous;
       state.previousDate = previous;
-      (details && details.groups || []).forEach(function (group, index) {
+      (outcome.value.details && outcome.value.details.groups || []).forEach(function (group, index) {
         var name = index > 0 && O.publishedWinner(group.players || []);
         if (name && byName[name]) state.winners.push({ playerId: byName[name], groupNumber: index + 1, groupName: group.name, date: previous });
       });
@@ -310,14 +329,18 @@
 
   async function load() {
     var sessionDate = date.value;
+    var pendingHistory = fetchHistory(sessionDate);
+    savedPrintState = null;
     setStatus('Loading ' + sessionDate + '...', 'busy');
     try {
-      var data = await call('getAppState', sessionDate);
+      var appStateRequest = call('getAppState', sessionDate);
+      if (!window.cttcInitialPlayers) window.cttcInitialPlayers = appStateRequest.then(function (data) { return data.players; });
+      var data = await appStateRequest;
       state.players = data.players;
       byId = {};
       byName = {};
       state.players.forEach(function (p) { byId[p.playerId] = p; byName[p.name] = p.playerId; });
-      await loadHistory(sessionDate);
+      await loadHistory(sessionDate, pendingHistory);
       if (sessionDate !== date.value) return;
       state.session = data.session;
       state.ratingsSyncedThrough = data.ratingsSyncedThrough;
@@ -346,9 +369,12 @@
         });
       }
       setGroups(groupsFromSession);
+      savedPrintState = printState();
       setStatus(state.session ? 'Session loaded. Changes are stored in Google Sheets.' : 'No session exists for this date. Add players to begin.');
+      document.dispatchEvent(new CustomEvent('cttc:session-loaded', { detail: { date: sessionDate, ready: !!state.session } }));
     } catch (error) {
       setStatus(error.message, 'error');
+      document.dispatchEvent(new CustomEvent('cttc:session-loaded', { detail: { date: sessionDate, ready: false } }));
     }
   }
 
@@ -359,8 +385,10 @@
       if (!state.session) state.session = await call('createSession', date.value);
       var promotions = {};
       Object.keys(state.promotions).forEach(function (id) { promotions[id] = state.promotions[id].fromGroup; });
+      var submittedState = printState();
       state.session = await call('saveSessionDraft', { sessionId: state.session.sessionId, revision: state.session.revision, groups: state.groups, matches: state.matches, promotions: promotions });
       state.customized = true;
+      savedPrintState = submittedState;
       setStatus('Draft saved at ' + new Date().toLocaleTimeString() + '.');
       render();
       return state.session;
@@ -390,7 +418,9 @@
     add: addToRoster,
     remove: removeFromRoster,
     has: function (id) { return state.roster.indexOf(id) >= 0; },
-    print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; }
+    print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
+    needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
+    saveDraft: save
   };
 
   results.addEventListener('click', async function (e) {
@@ -417,7 +447,6 @@
     }
   }, true);
   results.addEventListener('click', function (e) { if (e.target.dataset.add) addToRoster(e.target.dataset.add); });
-  roster.addEventListener('click', function (e) { if (e.target.dataset.remove) removeFromRoster(e.target.dataset.remove); });
   groups.addEventListener('click', function (e) {
     var target = e.target.closest('[data-move], [data-drop]');
     if (!target) return;
@@ -518,9 +547,6 @@
 })();
 </script>
 <style>
-.payment-choice{min-width:112px;border:1px solid #c8d2ca;border-radius:3px;background:#fff;color:#17211b;padding:7px;margin-left:auto}
-.payment-choice.paid{background:#e4f3e9;border-color:#82be99;color:#125436;font-weight:700}
-.payment-choice:disabled{opacity:1}
 .group-list li{grid-template-columns:minmax(0,1fr) auto auto}
 .group-list .identity{min-width:0}
 .group-list .identity strong{display:inline}
@@ -542,82 +568,51 @@
 <script>
 (function () {
   var dateField = document.getElementById('date');
-  var rosterList = document.getElementById('roster');
   var methods = {};
   var covered = {};
   var requestNumber = 0;
   function request(name) {
     return window.cttcRequest.apply(null, arguments);
   }
+  var initialPayment = request('getPrivatePaymentOverview', dateField.value);
+  window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
-    [].forEach.call(document.querySelectorAll('#roster .roster-row, #open-roster .roster-row, #groups .group-list li'), function (row) {
-      var action = row.querySelector('[data-remove], [data-move]');
-      if (!action || row.querySelector('.payment-choice, .payment-control')) return;
-      var playerId = action.getAttribute('data-remove') || action.getAttribute('data-move');
-      if (row.matches('#groups li, #open-roster .roster-row')) {
-        var control = document.createElement('div');
-        control.className = 'payment-control';
-        control.setAttribute('data-payment-player', playerId);
-        var trigger = document.createElement('button');
-        trigger.type = 'button';
-        trigger.className = 'payment-trigger';
-        trigger.addEventListener('click', function () { control.classList.toggle('open'); });
-        var options = document.createElement('div');
-        options.className = 'payment-options';
-        [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['zeffy', 'Zeffy']].forEach(function (option) {
-          var button = document.createElement('button');
-          button.type = 'button';
-          button.textContent = option[1];
-          button.addEventListener('click', async function () {
-            control.classList.add('pending');
-            button.disabled = true;
-            try {
-              methods[playerId] = await request('setSessionPayment', dateField.value, playerId, option[0]);
-              syncPayment(playerId);
-              control.classList.remove('open');
-            } catch (error) {
-              document.getElementById('status').textContent = 'Payment not saved: ' + (error.message || error);
-            } finally {
-              button.disabled = false;
-              control.classList.remove('pending');
-            }
-          });
-          options.appendChild(button);
+    [].forEach.call(document.querySelectorAll('#open-roster .roster-row, #groups .group-list li'), function (row) {
+      var action = row.querySelector('[data-open-remove], [data-move]');
+      if (!action || row.querySelector('.payment-control')) return;
+      var playerId = action.getAttribute('data-open-remove') || action.getAttribute('data-move');
+      var control = document.createElement('div');
+      control.className = 'payment-control';
+      control.setAttribute('data-payment-player', playerId);
+      var trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'payment-trigger';
+      trigger.addEventListener('click', function () { control.classList.toggle('open'); });
+      var options = document.createElement('div');
+      options.className = 'payment-options';
+      [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['zeffy', 'Zeffy']].forEach(function (option) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = option[1];
+        button.addEventListener('click', async function () {
+          control.classList.add('pending');
+          button.disabled = true;
+          try {
+            methods[playerId] = await request('setSessionPayment', dateField.value, playerId, option[0]);
+            syncPayment(playerId);
+            control.classList.remove('open');
+          } catch (error) {
+            document.getElementById('status').textContent = 'Payment not saved: ' + (error.message || error);
+          } finally {
+            button.disabled = false;
+            control.classList.remove('pending');
+          }
         });
-        control.append(trigger, options);
-        row.insertBefore(control, row.querySelector('.move, [data-open-remove]'));
-        syncPayment(playerId);
-        return;
-      }
-      var select = document.createElement('select');
-      select.className = 'payment-choice';
-      select.setAttribute('aria-label', 'Payment for ' + row.querySelector('.identity strong').textContent);
-      var choices = [['', 'Unpaid'], ['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['zeffy', 'Zeffy']];
-      choices.forEach(function (choice) {
-        var option = document.createElement('option');
-        option.value = choice[0];
-        option.textContent = choice[1];
-        select.appendChild(option);
+        options.appendChild(button);
       });
-      var method = methods[playerId] || '';
-      select.value = method;
-      select.disabled = !!covered[playerId];
-      select.classList.toggle('paid', !!method);
-      select.addEventListener('change', async function () {
-        var selectedDate = dateField.value;
-        var previous = methods[playerId] || '';
-        select.disabled = true;
-        try {
-          methods[playerId] = await request('setSessionPayment', selectedDate, playerId, select.value);
-          syncPayment(playerId);
-        } catch (error) {
-          select.value = previous;
-          document.getElementById('status').textContent = 'Payment not saved: ' + (error.message || error);
-        } finally {
-          select.disabled = !!covered[playerId];
-        }
-      });
-      row.insertBefore(select, action);
+      control.append(trigger, options);
+      row.insertBefore(control, row.querySelector('.move, [data-open-remove]'));
+      syncPayment(playerId);
     });
   }
   function syncPayment(playerId) {
@@ -633,29 +628,24 @@
       trigger.setAttribute('aria-label', 'Payment for ' + control.parentNode.querySelector('.identity strong').textContent + ': ' + (method || 'unpaid'));
       trigger.disabled = !!covered[playerId];
     });
-    document.querySelectorAll('.payment-choice').forEach(function (select) {
-      if (select.closest('.roster-row').querySelector('[data-remove]').getAttribute('data-remove') !== playerId) return;
-      select.value = method;
-      select.classList.toggle('paid', !!method);
-      select.disabled = !!covered[playerId];
-    });
   }
   function refreshPayments() {
     var selectedDate = dateField.value;
     var currentRequest = ++requestNumber;
     methods = {};
-    Promise.all([request('getPrivatePaymentState', selectedDate), request('getZeffyCoveredPlayerIds')]).then(function (result) {
+    var paymentRequest = initialPayment || request('getPrivatePaymentOverview', selectedDate);
+    initialPayment = null;
+    paymentRequest.then(function (result) {
       if (currentRequest !== requestNumber) return;
-      methods = result[0] || {};
+      methods = result.methods || {};
       covered = {};
-      result[1].forEach(function (playerId) { covered[playerId] = true; });
-      document.querySelectorAll('.payment-choice, .payment-control').forEach(function (control) { control.remove(); });
+      result.coveredIds.forEach(function (playerId) { covered[playerId] = true; });
+      document.querySelectorAll('.payment-control').forEach(function (control) { control.remove(); });
       decorateRoster();
     }).catch(function (error) {
       document.getElementById('status').textContent = 'Payments unavailable: ' + (error.message || error);
     });
   }
-  new MutationObserver(decorateRoster).observe(rosterList, { childList: true, subtree: true });
   new MutationObserver(decorateRoster).observe(document.getElementById('open-roster'), { childList: true, subtree: true });
   new MutationObserver(decorateRoster).observe(document.getElementById('groups'), { childList: true, subtree: true });
   document.getElementById('load').addEventListener('click', refreshPayments);
@@ -665,10 +655,6 @@
 })();
 </script>
 <style>
-.member-choice{min-width:96px;border:1px solid #c8d2ca;border-radius:3px;background:#fff;padding:7px;color:#17211b}
-.member-choice.member{background:#e5f0f8;border-color:#8ab4d0;color:#164663;font-weight:700}
-.member-choice.visitor{background:#fff0dc;border-color:#dbb373;color:#754712;font-weight:700}
-.member-choice.junior{background:#dceee7;border-color:#76b39a;color:#14563d;font-weight:700}
 .group-list .member-badge{position:relative}
 .group-list .member-badge.junior{background:#dceee7;color:#14563d;cursor:help}
 .member-badge[data-tip]:hover::after,.member-badge[data-tip]:focus-visible::after,.member-badge.open::after{content:attr(data-tip);position:absolute;left:0;top:calc(100% + 6px);width:max-content;max-width:240px;padding:7px 9px;background:#17211b;color:#fff;border-radius:4px;font:12px/1.35 Arial,sans-serif;text-align:left;white-space:normal;z-index:20;pointer-events:none}
@@ -680,8 +666,8 @@
   var notes = {};
   var LABELS = { member: 'M', visitor: 'V', junior: 'J' };
   function playerIdFor(row) {
-    var action = row.querySelector('[data-remove], [data-move]');
-    return action && (action.getAttribute('data-remove') || action.getAttribute('data-move'));
+    var action = row.querySelector('[data-move], [data-open-remove]');
+    return action && (action.getAttribute('data-move') || action.getAttribute('data-open-remove'));
   }
   function tipFor(playerId) {
     var current = statuses[playerId];
@@ -734,40 +720,16 @@
       badge.setAttribute('aria-label', tip);
     }
   }
-  function decorateSelect(row, playerId) {
-    var current = statuses[playerId] || '';
-    var select = row.querySelector('.member-choice');
-    if (select && select.getAttribute('data-status') === current + '|' + (notes[playerId] || '')) return;
-    if (select) select.remove();
-    select = document.createElement('select');
-    select.className = 'member-choice ' + current;
-    select.setAttribute('data-status', current + '|' + (notes[playerId] || ''));
-    select.setAttribute('aria-label', 'Membership for ' + row.querySelector('.identity strong').textContent);
-    var choices = current === 'junior' ? [['junior', 'Junior']] : [['member', 'Member'], ['visitor', 'Visitor']];
-    choices.forEach(function (choice) {
-      var option = document.createElement('option');
-      option.value = choice[0];
-      option.textContent = choice[1];
-      select.appendChild(option);
-    });
-    select.value = current;
-    select.disabled = current === 'junior' || !current;
-    select.title = current ? tipFor(playerId) : '';
-    select.addEventListener('change', function () { save(playerId, select.value); });
-    row.insertBefore(select, row.querySelector('[data-remove]'));
-  }
   function decorate() {
-    document.querySelectorAll('#roster .roster-row, #open-roster .roster-row, #groups .group-list li').forEach(function (row) {
+    document.querySelectorAll('#open-roster .roster-row, #groups .group-list li').forEach(function (row) {
       var playerId = playerIdFor(row);
-      if (!playerId) return;
-      if (row.closest('#roster')) decorateSelect(row, playerId);
-      else decorateBadge(row, playerId);
+      if (playerId) decorateBadge(row, playerId);
     });
   }
   document.addEventListener('click', function () {
     document.querySelectorAll('.member-badge.open').forEach(function (badge) { badge.classList.remove('open'); });
   });
-  ['roster', 'open-roster', 'groups'].forEach(function (id) {
+  ['open-roster', 'groups'].forEach(function (id) {
     new MutationObserver(decorate).observe(document.getElementById(id), { childList: true, subtree: true });
   });
   document.addEventListener('cttc:players', function () { window.cttcRequest('getMemberStatuses').then(apply); });
@@ -778,54 +740,26 @@
 </script>
 <script>
 (function () {
-  var roster = document.getElementById('roster');
+  var sidebar = document.querySelector('.sidebar');
   var section = document.createElement('section');
   section.className = 'section zeffy-passes';
   var heading = document.createElement('h2');
   heading.textContent = 'Zeffy Players - Monthly Play Pass';
   var list = document.createElement('ul');
   section.append(heading, list);
-  roster.parentNode.parentNode.insertBefore(section, roster.parentNode);
+  sidebar.appendChild(section);
   function request(name) {
     return window.cttcRequest(name);
   }
-  request('getZeffyPlayers').then(function (passes) {
+  window.cttcInitialPaymentOverview.then(function (result) {
     list.replaceChildren();
-    passes.forEach(function (pass) {
+    result.passes.forEach(function (pass) {
       var item = document.createElement('li');
       item.textContent = pass.name;
       list.appendChild(item);
     });
   }).catch(function () {
     heading.textContent = 'Zeffy Players - Monthly Play Pass unavailable';
-  });
-  var links = document.createElement('section');
-  links.className = 'section';
-  var linksHeading = document.createElement('h2');
-  linksHeading.textContent = 'Linked names';
-  var linksList = document.createElement('ul');
-  links.append(linksHeading, linksList);
-  section.after(links);
-  request('getLinkedNameReview').then(function (review) {
-    linksList.replaceChildren();
-    review.confirmed.forEach(function (pair) {
-      var item = document.createElement('li');
-      item.textContent = pair.left.name + ' / ' + pair.right.name + ' (confirmed)';
-      linksList.appendChild(item);
-    });
-    review.candidates.forEach(function (pair) {
-      var item = document.createElement('li');
-      item.textContent = pair.left.name + ' / ' + pair.right.name + ' (review)';
-      linksList.appendChild(item);
-    });
-    review.unresolved.forEach(function (pair) {
-      var item = document.createElement('li');
-      item.textContent = pair.names.join(' / ') + ' (needs directory match)';
-      linksList.appendChild(item);
-    });
-    if (!linksList.children.length) linksHeading.textContent = 'Linked names: none found';
-  }).catch(function (error) {
-    linksHeading.textContent = 'Linked names unavailable: ' + (error.message || error);
   });
 })();
 </script>
@@ -837,14 +771,14 @@
 .open-play-section .group-list{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:visible}
 .open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
 .open-play-section .identity{min-width:0}
-.locked .open-play-section,.locked .payment-choice,.locked .member-choice,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
+.locked .open-play-section,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
 </style>
 <script>
 (function () {
   var list = document.getElementById('open-roster');
   var count = document.querySelector('.open-play-section .count');
   var results = document.getElementById('results');
-  var roster = document.getElementById('roster');
+  var groups = document.getElementById('groups');
   var date = document.getElementById('date');
   var open = [];
   var names = {};
@@ -874,7 +808,7 @@
         status.className = 'roster-status';
         actions.appendChild(status);
       }
-      var inRoundRobin = !!roster.querySelector('[data-remove="' + CSS.escape(playerId) + '"]');
+      var inRoundRobin = !!groups.querySelector('[data-move="' + CSS.escape(playerId) + '"]');
       var inOpen = open.indexOf(playerId) >= 0;
       if (rr.textContent !== 'RR') rr.textContent = 'RR';
       rr.hidden = inRoundRobin || inOpen;
@@ -921,7 +855,9 @@
     open = [];
     renderOpen();
     try {
-      var values = await Promise.all([request('getOpenPlayParticipants', sessionDate), request('listPlayers')]);
+      var playerRequest = initialPlayers ? initialPlayers.catch(function () { return request('listPlayers'); }) : request('listPlayers');
+      initialPlayers = null;
+      var values = await Promise.all([request('getOpenPlayParticipants', sessionDate), playerRequest]);
       if (current !== requestNumber || sessionDate !== date.value) return;
       names = {};
       ratings = {};
@@ -971,9 +907,10 @@
     Object.assign(ratings, event.detail);
     renderOpen();
   });
-  new MutationObserver(decorateDirectory).observe(roster, { childList: true });
+  new MutationObserver(decorateDirectory).observe(groups, { childList: true });
   document.getElementById('load').addEventListener('click', loadOpen);
   date.addEventListener('change', loadOpen);
+  var initialPlayers = window.cttcInitialPlayers;
   loadOpen();
 })();
 </script>
@@ -997,7 +934,7 @@
 <script>
 (function () {
   var date = document.getElementById('date');
-  var roster = document.getElementById('roster');
+  var groups = document.getElementById('groups');
   var open = document.getElementById('open-roster');
   var section = document.createElement('section');
   section.className = 'section voice-suggestions';
@@ -1125,7 +1062,9 @@
     list.replaceChildren();
     message.textContent = 'Checking forwarded texts...';
     try {
-      var data = await Promise.all([window.cttcRequest('listVoiceSuggestions', selectedDate), window.cttcRequest('listPlayers')]);
+      var playerRequest = initialPlayers ? initialPlayers.catch(function () { return window.cttcRequest('listPlayers'); }) : window.cttcRequest('listPlayers');
+      initialPlayers = null;
+      var data = await Promise.all([window.cttcRequest('listVoiceSuggestions', selectedDate), playerRequest]);
       if (current !== requestNumber || date.value !== selectedDate) return;
       names = {};
       data[1].forEach(function (player) { names[player.playerId] = player.name; });
@@ -1147,7 +1086,7 @@
     added.closest('li').classList.add('just-added');
     added.closest('li').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
-  new MutationObserver(function () { if (loaded) render(); }).observe(roster, { childList: true });
+  new MutationObserver(function () { if (loaded) render(); }).observe(groups, { childList: true });
   new MutationObserver(function () { if (loaded) render(); }).observe(open, { childList: true });
   document.querySelector('.sidebar').addEventListener('scroll', function () {
     var active = section.querySelector('.voice-preview:hover, .voice-preview:focus-within, .voice-preview.open');
@@ -1156,9 +1095,230 @@
   document.getElementById('load').addEventListener('click', load);
   date.addEventListener('change', load);
   refresh.addEventListener('click', load);
+  var initialPlayers = window.cttcInitialPlayers;
   load();
 })();
 </script>
 <?!= include('Print') ?>
+<style>
+.tour-shield,.tour-shade,.tour-outline,.tour-dialog{position:fixed}.tour-shield{inset:0;z-index:1998}.tour-shade{background:rgba(10,19,17,.74);z-index:1999;pointer-events:none}.tour-outline{z-index:2000;pointer-events:none;border:3px solid #d4a544;border-radius:6px;box-shadow:0 0 0 3px #fff9}.tour-dialog{z-index:2001;width:min(380px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:20px;background:#fff;color:var(--ink);border:1px solid #b8c5bc;border-radius:6px;box-shadow:0 16px 45px #0006;font:15px/1.5 Arial,sans-serif}.tour-dialog h2{font:700 21px/1.25 Georgia,serif;margin:0 25px 10px 0}.tour-dialog p{margin:0 0 16px}.tour-dialog footer{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:13px}.tour-dialog .tour-progress{margin-right:auto;color:var(--muted);font-size:12px}.tour-dialog button{font:13px Arial,sans-serif}.tour-dialog .tour-close{position:absolute;right:12px;top:10px;background:transparent;border:0;color:var(--muted);font-size:22px;line-height:1}.tour-dialog .tour-next{background:var(--green);color:#fff;border:1px solid var(--green);border-radius:4px;padding:8px 12px}.tour-dialog .tour-next:disabled{opacity:.55;cursor:wait}.tour-dialog .tour-back,.tour-dialog .tour-skip{background:transparent;border:0;padding:8px 4px;color:var(--green)}.tour-dialog button:focus-visible,.tour-launch:focus-visible{outline:3px solid var(--gold);outline-offset:2px}body.tour-active{overflow:hidden}
+.tour-shade,.tour-outline{animation:tour-enter .35s ease-out both}body.tour-positioned .tour-shade,body.tour-positioned .tour-outline{transition:left .35s ease-in-out,top .35s ease-in-out,width .35s ease-in-out,height .35s ease-in-out}
+@keyframes tour-enter{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.tour-shade,.tour-outline{animation:none}body.tour-positioned .tour-shade,body.tour-positioned .tour-outline{transition:none}}
+.tour-dimmer{position:fixed;inset:0;width:100%;height:100%;z-index:1999;pointer-events:none;animation:tour-enter .35s ease-out both}body.tour-positioned .tour-hole{transition:x .35s ease-in-out,y .35s ease-in-out,width .35s ease-in-out,height .35s ease-in-out}
+@media(prefers-reduced-motion:reduce){.tour-dimmer{animation:none}body.tour-positioned .tour-hole{transition:none}}
+@media(max-width:520px){.tour-dialog{padding:16px}.tour-dialog h2{font-size:19px}}
+</style>
+<script>
+(function () {
+  var exampleDate = '2026-09-23';
+  var launcher = document.getElementById('show-tour');
+  var date = document.getElementById('date');
+  var steps = [
+    { title: 'Welcome to the desk', text: 'Use this question button whenever you want to revisit the tour. Starting the tour loaded the saved 9/23/2026 session. We will not save any changes during the tour.', target: '#show-tour' },
+    { title: 'Load a session', text: 'You can use this to load any saved sessions using the date picker and Load Session button.', target: '.date-tools label', also: '#load' },
+    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default; type at least two letters to include archived players.', target: '.sidebar .section:first-child' },
+    { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
+    { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
+    { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
+    { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, or Zeffy; monthly Zeffy passes show as covered automatically. Payment changes save immediately.', target: '#groups .payment-control' },
+    { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Save draft to keep roster and group changes.', target: '#groups .group-list li' },
+    { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change.', target: '.open-play-section' },
+    { title: 'Print the sheets', text: 'When the groups are ready, save any changes, then print the round robin sheets to record matches on paper.', target: '#print-sheets' },
+    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in. Save draft to keep the scores.', target: '#matches .match-group .match' },
+    { title: 'Finalize ratings', text: 'After checking every result, finalize to make ratings authoritative and lock the session. Finalization is disabled until the Access-to-desk cutover; do not use it for practice.', target: '#finalize' },
+    { title: 'Publish results', text: 'After cutover, the scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
+    { title: 'Questions or feedback?', text: 'Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
+  ];
+  var shield = document.createElement('div');
+  shield.className = 'tour-shield';
+  var dimmer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  dimmer.classList.add('tour-dimmer');
+  dimmer.innerHTML = '<defs><mask id="cttc-tour-mask" maskUnits="userSpaceOnUse"><rect width="100%" height="100%" fill="white"/><rect class="tour-hole" fill="black"/><rect class="tour-hole" fill="black"/></mask></defs><rect width="100%" height="100%" fill="rgba(10,19,17,.74)" mask="url(#cttc-tour-mask)"/>';
+  var holes = dimmer.querySelectorAll('.tour-hole');
+  var outline = document.createElement('div');
+  outline.className = 'tour-outline';
+  var secondOutline = outline.cloneNode();
+  var dialog = document.createElement('section');
+  dialog.className = 'tour-dialog';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.setAttribute('aria-labelledby', 'tour-title');
+  dialog.innerHTML = '<button class="tour-close" type="button" aria-label="Close tour" title="Close tour">&times;</button><h2 id="tour-title"></h2><p class="tour-text"></p><footer><span class="tour-progress"></span><button class="tour-back" type="button">Back</button><button class="tour-skip" type="button">Skip</button><button class="tour-next" type="button">Next</button></footer>';
+  var next = dialog.querySelector('.tour-next');
+  var stepIndex = 0;
+  var ready = false;
+  var loadFailed = false;
+  var open = false;
+  var frame = 0;
+  var positionFrame = 0;
+  var spawnFrame = 0;
+  var mergeTimer = 0;
+  var spawning = false;
+  var resizeObserver = new ResizeObserver(place);
+
+  function setSpotlight(hole, border, bounds) {
+    hole.style.cssText = 'x:' + bounds.left + 'px;y:' + bounds.top + 'px;width:' + (bounds.right - bounds.left) + 'px;height:' + (bounds.bottom - bounds.top) + 'px';
+    border.style.cssText = 'left:' + bounds.left + 'px;top:' + bounds.top + 'px;width:' + (bounds.right - bounds.left) + 'px;height:' + (bounds.bottom - bounds.top) + 'px';
+  }
+
+  function place() {
+    if (!open) return;
+    var step = steps[stepIndex];
+    var target = document.querySelector(step.target);
+    var rect = target && target.getBoundingClientRect();
+    var also = step.also && document.querySelector(step.also);
+    if (rect && also) {
+      var other = also.getBoundingClientRect();
+      rect = { left: Math.min(rect.left, other.left), top: Math.min(rect.top, other.top), right: Math.max(rect.right, other.right), bottom: Math.max(rect.bottom, other.bottom), width: Math.max(rect.right, other.right) - Math.min(rect.left, other.left), height: Math.max(rect.bottom, other.bottom) - Math.min(rect.top, other.top) };
+    }
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+    var visible = rect && rect.width && rect.height && rect.bottom > 0 && rect.top < height;
+    if (visible) {
+      var left = Math.max(8, Math.floor(rect.left - 6));
+      var top = Math.max(8, Math.floor(rect.top - 6));
+      var right = Math.min(width - 8, Math.ceil(rect.right + 6));
+      var bottom = Math.min(height - 8, Math.ceil(rect.bottom + 6));
+      var bounds = { left: left, top: top, right: right, bottom: bottom };
+      outline.style.display = '';
+      setSpotlight(holes[0], outline, bounds);
+      var secondBottom = bottom;
+      if (stepIndex === 0) {
+        var dateRect = document.querySelector('.date-tools label').getBoundingClientRect();
+        var loadRect = document.getElementById('load').getBoundingClientRect();
+        var secondRect = spawning ? rect : {
+          left: Math.min(dateRect.left, loadRect.left), top: Math.min(dateRect.top, loadRect.top),
+          right: Math.max(dateRect.right, loadRect.right), bottom: Math.max(dateRect.bottom, loadRect.bottom)
+        };
+        secondOutline.style.display = '';
+        var secondBounds = {
+          left: Math.max(8, Math.floor(secondRect.left - 6)), top: Math.max(8, Math.floor(secondRect.top - 6)),
+          right: Math.min(width - 8, Math.ceil(secondRect.right + 6)), bottom: Math.min(height - 8, Math.ceil(secondRect.bottom + 6))
+        };
+        setSpotlight(holes[1], secondOutline, secondBounds);
+        secondBottom = secondBounds.bottom;
+      } else {
+        setSpotlight(holes[1], secondOutline, bounds);
+      }
+      var cardWidth = dialog.offsetWidth;
+      var cardHeight = dialog.offsetHeight;
+      var cardLeft = Math.max(12, Math.min(width - cardWidth - 12, left));
+      var cardBottom = Math.max(bottom, secondBottom);
+      var cardTop = cardBottom + 14;
+      if (height - cardBottom < cardHeight + 26) cardTop = top - cardHeight - 14;
+      if (cardTop < 12) {
+        cardTop = Math.max(12, Math.min(height - cardHeight - 12, (height - cardHeight) / 2));
+        if (right + cardWidth + 24 < width) cardLeft = right + 12;
+        else if (left - cardWidth - 24 > 0) cardLeft = left - cardWidth - 12;
+      }
+      dialog.style.left = cardLeft + 'px';
+      dialog.style.top = cardTop + 'px';
+    } else {
+      holes.forEach(function (hole) { hole.style.cssText = 'width:0;height:0'; });
+      outline.style.display = 'none';
+      secondOutline.style.display = 'none';
+      dialog.style.left = Math.max(12, (width - dialog.offsetWidth) / 2) + 'px';
+      dialog.style.top = Math.max(12, (height - dialog.offsetHeight) / 2) + 'px';
+    }
+    if (!document.body.classList.contains('tour-positioned')) {
+      cancelAnimationFrame(positionFrame);
+      positionFrame = requestAnimationFrame(function () { if (open) document.body.classList.add('tour-positioned'); });
+    }
+  }
+
+  function showStep() {
+    clearTimeout(mergeTimer);
+    cancelAnimationFrame(spawnFrame);
+    if (stepIndex === 0) spawning = true;
+    dialog.querySelector('#tour-title').textContent = steps[stepIndex].title;
+    dialog.querySelector('.tour-text').textContent = loadFailed ? 'The example session could not load. Close the tour and try again.' : steps[stepIndex].text;
+    dialog.querySelector('.tour-progress').textContent = 'Step ' + (stepIndex + 1) + ' of ' + steps.length;
+    dialog.querySelector('.tour-back').hidden = stepIndex === 0;
+    next.textContent = loadFailed ? 'Loading failed' : !ready ? 'Loading session...' : stepIndex === steps.length - 1 ? 'Finish' : 'Next';
+    next.disabled = !ready;
+    var target = document.querySelector(steps[stepIndex].target);
+    if (target) {
+      var bounds = target.getBoundingClientRect();
+      if (bounds.top < 8 || bounds.bottom > window.innerHeight - 8) target.scrollIntoView({ block: 'center', inline: 'nearest' });
+    }
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(place);
+    if (stepIndex === 0) {
+      spawnFrame = requestAnimationFrame(function () {
+        spawnFrame = requestAnimationFrame(function () { spawning = false; place(); });
+      });
+    } else {
+      mergeTimer = setTimeout(function () { secondOutline.style.display = 'none'; }, 350);
+    }
+  }
+
+  function close() {
+    if (!open) return;
+    open = false;
+    cancelAnimationFrame(frame);
+    cancelAnimationFrame(positionFrame);
+    cancelAnimationFrame(spawnFrame);
+    clearTimeout(mergeTimer);
+    shield.remove();
+    dimmer.remove();
+    outline.remove();
+    secondOutline.remove();
+    dialog.remove();
+    document.body.classList.remove('tour-active', 'tour-positioned');
+    window.removeEventListener('resize', place);
+    window.removeEventListener('scroll', place, true);
+    resizeObserver.disconnect();
+    document.removeEventListener('keydown', onKey);
+    launcher.focus();
+  }
+
+  function onKey(event) {
+    if (event.key === 'Escape') { event.preventDefault(); close(); }
+    else if (event.key === 'ArrowRight' && ready) { event.preventDefault(); next.click(); }
+    else if (event.key === 'ArrowLeft' && stepIndex) { event.preventDefault(); dialog.querySelector('.tour-back').click(); }
+    else if (event.key === 'Tab') {
+      var buttons = Array.from(dialog.querySelectorAll('button:not([hidden]):not(:disabled)'));
+      var position = buttons.indexOf(document.activeElement);
+      if (event.shiftKey && position <= 0) { event.preventDefault(); buttons[buttons.length - 1].focus(); }
+      else if (!event.shiftKey && position === buttons.length - 1) { event.preventDefault(); buttons[0].focus(); }
+    }
+  }
+
+  document.addEventListener('cttc:session-loaded', function (event) {
+    if (!open || event.detail.date !== exampleDate) return;
+    ready = event.detail.ready;
+    loadFailed = !ready;
+    showStep();
+  });
+  launcher.addEventListener('click', function () {
+    if (open) return;
+    if (window.cttcDesk.needsPrintSave() && !confirm('Load the September 23 example? Unsaved roster or score changes will be lost.')) return;
+    stepIndex = 0;
+    ready = false;
+    loadFailed = false;
+    open = true;
+    document.body.classList.add('tour-active');
+    document.body.append(shield, dimmer, outline, secondOutline, dialog);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    resizeObserver.observe(document.querySelector('.top'));
+    resizeObserver.observe(document.querySelector('.date-tools'));
+    document.addEventListener('keydown', onKey);
+    showStep();
+    next.focus();
+    date.value = exampleDate;
+    date.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  dialog.querySelector('.tour-close').addEventListener('click', close);
+  dialog.querySelector('.tour-skip').addEventListener('click', close);
+  dialog.querySelector('.tour-back').addEventListener('click', function () { stepIndex -= 1; showStep(); next.focus(); });
+  next.addEventListener('click', function () {
+    if (!ready) return;
+    if (stepIndex === steps.length - 1) close();
+    else { stepIndex += 1; showStep(); next.focus(); }
+  });
+})();
+</script>
 </body>
 </html>

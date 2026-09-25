@@ -3,9 +3,11 @@ var MEMBERSHIP_DUES_HEADERS = ['player_id', 'membership_year', 'expires_on', 'pa
 function ensureMembershipDuesTable_() {
   TABLES.MembershipDues = MEMBERSHIP_DUES_HEADERS;
   var spreadsheet = SpreadsheetApp.getActive();
-  var sheet = spreadsheet.getSheetByName('MembershipDues') || spreadsheet.insertSheet('MembershipDues');
+  var sheet = spreadsheet.getSheetByName('MembershipDues');
+  var created = !sheet;
+  if (created) sheet = spreadsheet.insertSheet('MembershipDues');
   ensureHeader_(sheet, MEMBERSHIP_DUES_HEADERS);
-  formatTable_(sheet, MEMBERSHIP_DUES_HEADERS.length);
+  if (created) formatTable_(sheet, MEMBERSHIP_DUES_HEADERS.length);
 }
 
 function getMembershipDues2026() {

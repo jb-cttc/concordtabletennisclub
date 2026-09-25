@@ -22,12 +22,16 @@ const tables = {
     { kind: 'junior', name: 'Sky Ortiz', linked_name: '' }
   ]
 };
+const reads = {};
 const context = {
   TABLES: {},
   SpreadsheetApp: { getActive: () => ({ getSheetByName: () => ({}) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ensureHeader_() {}, formatTable_() {}, appendAudit_() {},
-  rows_: name => tables[name].map((row, index) => ({ ...row, __row: index + 2 })),
+  rows_: name => {
+    reads[name] = (reads[name] || 0) + 1;
+    return tables[name].map((row, index) => ({ ...row, __row: index + 2 }));
+  },
   appendObjects_: (name, rows) => tables[name].push(...rows),
   updateRow_: (name, rowNumber, changes) => Object.assign(tables[name][rowNumber - 2], changes),
   listPlayers: () => tables.Players.filter(p => p.active).map(p => ({ playerId: p.player_id, name: p.display_name }))
@@ -36,6 +40,7 @@ vm.createContext(context);
 for (const file of ['LinkedNames.js', 'MemberStatus.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 
 let state = context.getMemberStatuses();
+assert.equal(reads.NameLinks, 1, 'membership should read name links once');
 assert.equal(state.statuses.a, 'visitor');
 assert.equal(state.statuses.bo, 'member');
 assert.equal(state.statuses.j, 'junior');

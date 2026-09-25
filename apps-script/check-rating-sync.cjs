@@ -31,6 +31,17 @@ Object.assign(context, {
   displayDate_: value => String(value)
 });
 const site = players => ({ latestSessionDate: '2026-09-23', players });
+context.UrlFetchApp = { fetch: () => ({
+  getResponseCode: () => 200,
+  getContentText: () => JSON.stringify(site([{ name: 'Pat Lee', currentRating: 1413 }]))
+}) };
+const measured = context.syncRatingsFromPublicSite();
+assert.ok(measured.checkedAt, 'sync records a check time');
+for (const phase of ['fetchMs', 'applyMs', 'lockMs', 'sessionsMs', 'aliasesMs', 'playersMs', 'totalMs']) {
+  assert.ok(Number.isFinite(measured.timings[phase]) && measured.timings[phase] >= 0, phase + ' has a duration');
+}
+assert.ok(measured.timings.totalMs >= measured.timings.fetchMs + measured.timings.applyMs);
+assert.equal(props.CTTC_RATINGS_CHECKED_AT, measured.checkedAt);
 
 const result = context.applyPublicRatings_(site([{ name: 'Pat Lee', currentRating: 1449 }, { name: 'Chris Moss', currentRating: 1163 }, { name: 'Old Timer', currentRating: 1 }]));
 assert.equal(result.updated, 1, 'only changed active ratings are written');
