@@ -13,11 +13,18 @@ function ratingsCheckedAt_() {
 
 // Called by the hourly trigger and on desk load.
 function syncRatingsFromPublicSite() {
+  var started = Date.now();
   var response = UrlFetchApp.fetch(PUBLIC_PLAYERS_URL + '?t=' + Date.now(), { muteHttpExceptions: true });
+  var fetched = Date.now();
   if (response.getResponseCode() !== 200) throw new Error('Club site returned HTTP ' + response.getResponseCode());
-  var result = applyPublicRatings_(JSON.parse(response.getContentText()));
+  var timings = {};
+  var result = applyPublicRatings_(JSON.parse(response.getContentText()), timings);
+  timings.fetchMs = fetched - started;
+  timings.applyMs = Date.now() - fetched;
   result.checkedAt = new Date().toISOString();
   PropertiesService.getScriptProperties().setProperty(RATINGS_CHECKED_AT_KEY, result.checkedAt);
+  timings.totalMs = Date.now() - started;
+  result.timings = timings;
   return result;
 }
 
@@ -44,7 +51,7 @@ function latestFinalizedSessionDate_() {
     .map(function (session) { return displayDate_(session.session_date); }).sort().pop() || '';
 }
 
-function applyPublicRatings_(data) {
+function applyPublicRatings_(data, timings) {
   var latest = String(data && data.latestSessionDate || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(latest) || !Array.isArray(data.players)) throw new Error('Unexpected public ratings format');
   var published = {};
@@ -55,20 +62,27 @@ function applyPublicRatings_(data) {
     published[key] = player.currentRating;
   });
   var lock = LockService.getScriptLock();
+  var lockStarted = Date.now();
   lock.waitLock(30000);
+  if (timings) timings.lockMs = Date.now() - lockStarted;
   try {
     // Once the app finalizes sessions the site hasn't posted, the app is the rating authority.
+    var sheetStarted = Date.now();
     var appLatest = latestFinalizedSessionDate_();
+    if (timings) timings.sessionsMs = Date.now() - sheetStarted;
     if (appLatest && appLatest >= latest) return { skipped: true, syncedThrough: ratingsSyncedThrough_(), appFinalizedThrough: appLatest };
     // The site may still use an older spelling (e.g. Steve Cossman).
     var aliasRatings = {};
+    sheetStarted = Date.now();
     var aliases = playerAliases_();
+    if (timings) timings.aliasesMs = Date.now() - sheetStarted;
     Object.keys(aliases).forEach(function (alias) {
       if (published[alias] !== undefined) aliasRatings[aliases[alias]] = published[alias];
     });
     var now = new Date();
     var changes = {};
     var unmatched = 0;
+    sheetStarted = Date.now();
     rows_('Players').forEach(function (player) {
       if (!asBoolean_(player.active)) return;
       var playerId = String(player.player_id);
@@ -79,6 +93,7 @@ function applyPublicRatings_(data) {
       updateRow_('Players', player.__row, { current_rating: rating, updated_at: now });
       changes[playerId] = rating;
     });
+    if (timings) timings.playersMs = Date.now() - sheetStarted;
     var updated = Object.keys(changes).length;
     PropertiesService.getScriptProperties().setProperty(RATINGS_SYNCED_THROUGH_KEY, latest);
     if (updated) appendAudit_('ratings_synced', 'database', 'Players', { through: latest, updated: updated });

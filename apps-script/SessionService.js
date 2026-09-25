@@ -1,5 +1,5 @@
-function listPlayers() {
-  return rows_('Players')
+function listPlayers(playerRows) {
+  return (playerRows || rows_('Players'))
   .filter(function (player) { return asBoolean_(player.active); })
   .map(function (player) {
     return {

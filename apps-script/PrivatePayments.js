@@ -9,17 +9,19 @@ function ensurePrivatePaymentTables_() {
   Object.keys(PRIVATE_PAYMENT_TABLES).forEach(function (name) {
     var headers = PRIVATE_PAYMENT_TABLES[name];
     TABLES[name] = headers;
-    var sheet = spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
+    var sheet = spreadsheet.getSheetByName(name);
+    var created = !sheet;
+    if (created) sheet = spreadsheet.insertSheet(name);
     ensureHeader_(sheet, headers);
-    formatTable_(sheet, headers.length);
+    if (created) formatTable_(sheet, headers.length);
   });
 }
 
 // Zeffy is an optional monthly play pass; holders owe no per-session fee.
-function getZeffyPlayers() {
+function getZeffyPlayers(playerRows) {
   ensurePrivatePaymentTables_();
   var names = {};
-  rows_('Players').forEach(function (player) { names[String(player.player_id)] = String(player.display_name); });
+  (playerRows || rows_('Players')).forEach(function (player) { names[String(player.player_id)] = String(player.display_name); });
   var seen = {};
   return rows_('ZeffyPasses').filter(function (pass) { return asBoolean_(pass.active); }).map(function (pass) {
     var playerId = String(pass.player_id);
@@ -30,10 +32,10 @@ function getZeffyPlayers() {
   }).sort(function (left, right) { return left.name.localeCompare(right.name); });
 }
 
-function getZeffyCoveredPlayerIds() {
+function getZeffyCoveredPlayerIds(passes, players) {
   var covered = {};
-  getZeffyPlayers().forEach(function (player) { covered[player.playerId] = true; });
-  confirmedNameLinks_(listPlayers()).resolved.forEach(function (link) {
+  (passes || getZeffyPlayers()).forEach(function (player) { covered[player.playerId] = true; });
+  confirmedNameLinks_(players || listPlayers()).resolved.forEach(function (link) {
     if (covered[link.left.playerId] || covered[link.right.playerId]) {
       covered[link.left.playerId] = true;
       covered[link.right.playerId] = true;
@@ -63,10 +65,17 @@ function setZeffyPass(playerId, active) {
 }
 
 function getPrivatePaymentState(sessionDate) {
+  return getPrivatePaymentOverview(sessionDate).methods;
+}
+
+function getPrivatePaymentOverview(sessionDate) {
   validateSessionDate_(sessionDate);
-  ensurePrivatePaymentTables_();
+  var playerRows = rows_('Players');
+  var players = listPlayers(playerRows);
+  var passes = getZeffyPlayers(playerRows);
+  var coveredIds = getZeffyCoveredPlayerIds(passes, players);
   var covered = {};
-  getZeffyCoveredPlayerIds().forEach(function (playerId) { covered[playerId] = true; });
+  coveredIds.forEach(function (playerId) { covered[playerId] = true; });
   var sessionId = 'session-' + sessionDate;
   var paid = {};
   rows_('SessionPayments').forEach(function (row) {
@@ -78,10 +87,10 @@ function getPrivatePaymentState(sessionDate) {
     paid[playerId] = method;
   });
   var byPlayer = {};
-  listPlayers().forEach(function (player) {
+  players.forEach(function (player) {
     byPlayer[player.playerId] = covered[player.playerId] ? 'zeffy' : paid[player.playerId] || '';
   });
-  return byPlayer;
+  return { methods: byPlayer, coveredIds: coveredIds, passes: passes };
 }
 
 function setSessionPayment(sessionDate, playerId, method) {

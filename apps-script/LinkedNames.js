@@ -20,14 +20,14 @@ function nameLinkRows_() {
   });
 }
 
-function nameLinks_(kind, withLinkedName) {
-  return nameLinkRows_().filter(function (link) { return link.kind === kind && !!link.linked === withLinkedName; })
+function nameLinks_(kind, withLinkedName, linkRows) {
+  return (linkRows || nameLinkRows_()).filter(function (link) { return link.kind === kind && !!link.linked === withLinkedName; })
   .map(function (link) { return withLinkedName ? [link.name, link.linked] : link.name; });
 }
 
-function standaloneJuniors_(players) {
+function standaloneJuniors_(players, linkRows) {
   var byKey = playersByLinkedKey_(players);
-  return nameLinks_('junior', false).map(function (name) { return byKey[linkedNameKey_(name)] || []; })
+  return nameLinks_('junior', false, linkRows).map(function (name) { return byKey[linkedNameKey_(name)] || []; })
   .filter(function (matches) { return matches.length === 1; })
   .map(function (matches) { return matches[0]; });
 }
@@ -58,12 +58,12 @@ function resolveLinks_(links, players) {
   return { resolved: resolved, unresolved: unresolved };
 }
 
-function confirmedNameLinks_(players) {
-  return resolveLinks_(nameLinks_('same_person', true), players);
+function confirmedNameLinks_(players, linkRows) {
+  return resolveLinks_(nameLinks_('same_person', true, linkRows), players);
 }
 
-function juniorLinks_(players) {
-  return resolveLinks_(nameLinks_('junior', true), players).resolved.map(function (link) {
+function juniorLinks_(players, linkRows) {
+  return resolveLinks_(nameLinks_('junior', true, linkRows), players).resolved.map(function (link) {
     return { junior: link.left, member: link.right };
   });
 }
