@@ -280,15 +280,24 @@
     var desk = window.cttcDesk.print();
     if (!desk.groups.length) return;
     if (window.cttcDesk.needsPrintSave() && confirm('Save draft changes before printing RR sheets?')) {
-      if (!await window.cttcDesk.saveDraft()) return;
+      if (!await window.cttcDesk.saveDraft() && !confirm('Google save was not confirmed. Print this device draft anyway?')) return;
     }
     var ids = desk.groups.reduce(function (all, group) { return all.concat(group.playerIds); }, []);
-    var result;
-    try {
-      result = await window.cttcRequest('getPlayerRecordsForPrint', ids, desk.date);
-    } catch (error) {
-      document.getElementById('status').textContent = 'RR records unavailable: ' + (error.message || String(error));
-      return;
+    var result = { records: {}, missing: ids.length };
+    var recordsUnavailable = navigator.onLine === false;
+    if (!recordsUnavailable) {
+      var fetched = await new Promise(function (resolve) {
+        var timer = setTimeout(function () { resolve(null); }, 8000);
+        window.cttcRequest('getPlayerRecordsForPrint', ids, desk.date).then(function (value) {
+          clearTimeout(timer);
+          resolve(value);
+        }, function () {
+          clearTimeout(timer);
+          resolve(null);
+        });
+      });
+      if (fetched) result = fetched;
+      else recordsUnavailable = true;
     }
     var toolbar = el('div', 'print-preview-toolbar');
     var close = el('button', '', 'Close preview');
@@ -301,7 +310,8 @@
       document.getElementById('print-sheets').focus();
     });
     printButton.addEventListener('click', function () { window.print(); });
-    if (result.missing) toolbar.appendChild(el('span', 'print-preview-warning', result.missing + ' player record(s) unavailable in the archive.'));
+    if (recordsUnavailable) toolbar.appendChild(el('span', 'print-preview-warning', 'Club/year records unavailable. Print now; save to Google Sheets when connected.'));
+    else if (result.missing) toolbar.appendChild(el('span', 'print-preview-warning', result.missing + ' player record(s) unavailable in the archive.'));
     toolbar.append(close, printButton);
     root.replaceChildren.apply(root, [toolbar].concat(tournamentSheets(desk, result.records)));
     root.setAttribute('role', 'dialog');
