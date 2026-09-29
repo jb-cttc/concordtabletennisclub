@@ -39,33 +39,42 @@ function projectFinalizedSession(session, participants, matches, ledger, directo
     const first = entries.get(String(match.player_one_id));
     const second = entries.get(String(match.player_two_id));
     const number = integer(match.group_number, 'match group');
-    const firstGames = integer(match.player_one_games, 'first games');
-    const secondGames = integer(match.player_two_games, 'second games');
+    const forfeitedBy = String(match.forfeited_by || '');
+    // A forfeit needs no score: the opponent wins, or nobody does when neither played.
+    const unscored = forfeitedBy !== '' && String(match.player_one_games) === '' && String(match.player_two_games) === '';
+    const firstGames = unscored ? 0 : integer(match.player_one_games, 'first games');
+    const secondGames = unscored ? 0 : integer(match.player_two_games, 'second games');
     const key = [String(match.player_one_id), String(match.player_two_id)].sort().join('::');
-    const validScore = (firstGames === 3 && secondGames >= 0 && secondGames <= 2) ||
+    const validScore = unscored || (firstGames === 3 && secondGames >= 0 && secondGames <= 2) ||
       (secondGames === 3 && firstGames >= 0 && firstGames <= 2);
     if (String(match.session_id) !== sessionId || !first || !second || first === second ||
         first.number !== number || second.number !== number || seenMatches.has(key) || !validScore) {
       throw new Error('Invalid or duplicate match: ' + key);
     }
     seenMatches.add(key);
-    const winner = firstGames > secondGames ? first : second;
-    const loser = winner === first ? second : first;
-    const forfeit = match.forfeit === true || String(match.forfeit).toLowerCase() === 'true';
-    const forfeitedBy = String(match.forfeited_by || '');
-    if (forfeitedBy && forfeitedBy !== loser.id) throw new Error('Forfeiting player must have lost the match: ' + key);
-    const points = ratings.adjustment(winner.before, loser.before, forfeit);
-    winner.wins += 1;
-    loser.losses += 1;
+    const forfeit = match.forfeit === true || String(match.forfeit).toLowerCase() === 'true' || forfeitedBy !== '';
+    const bothForfeited = forfeitedBy === 'both';
+    if (bothForfeited && !unscored) throw new Error('A match that was not played cannot have a score: ' + key);
+    if (forfeitedBy && !bothForfeited && forfeitedBy !== first.id && forfeitedBy !== second.id) {
+      throw new Error('Forfeiting player is not in the match: ' + key);
+    }
+    const winner = bothForfeited ? null : unscored ? (forfeitedBy === first.id ? second : first) : firstGames > secondGames ? first : second;
+    const loser = winner === null ? null : winner === first ? second : first;
+    if (forfeitedBy && !unscored && !bothForfeited && forfeitedBy !== loser.id) throw new Error('Forfeiting player must have lost the match: ' + key);
+    const points = winner === null ? 0 : ratings.adjustment(winner.before, loser.before, forfeit);
+    if (winner) {
+      winner.wins += 1;
+      loser.losses += 1;
+      winner.adjustment += points;
+      loser.adjustment -= points;
+    }
     first.gamesWon += firstGames;
     first.gamesLost += secondGames;
     second.gamesWon += secondGames;
     second.gamesLost += firstGames;
-    winner.adjustment += points;
-    loser.adjustment -= points;
-    const forfeiter = forfeitedBy ? { forfeitedBy: String(playersById.get(forfeitedBy).display_name) } : {};
-    first.matches.push({ opponent: String(playersById.get(second.id).display_name), gamesWon: firstGames, gamesLost: secondGames, adj: winner === first ? points : -points, forfeit, ...forfeiter });
-    second.matches.push({ opponent: String(playersById.get(first.id).display_name), gamesWon: secondGames, gamesLost: firstGames, adj: winner === second ? points : -points, forfeit, ...forfeiter });
+    const forfeiter = forfeitedBy ? { forfeitedBy: bothForfeited ? 'both' : String(playersById.get(forfeitedBy).display_name) } : {};
+    first.matches.push({ opponent: String(playersById.get(second.id).display_name), gamesWon: firstGames, gamesLost: secondGames, adj: winner === first ? points : 0 - points, forfeit, ...forfeiter });
+    second.matches.push({ opponent: String(playersById.get(first.id).display_name), gamesWon: secondGames, gamesLost: firstGames, adj: winner === second ? points : 0 - points, forfeit, ...forfeiter });
   });
   groups.forEach(function (members) {
     if (members.length * (members.length - 1) / 2 !== members.reduce(function (sum, member) { return sum + member.matches.length; }, 0) / 2) {

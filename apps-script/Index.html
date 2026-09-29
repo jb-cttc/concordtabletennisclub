@@ -379,12 +379,13 @@
     }).join('');
   }
 
-  var STATUS_TEXT = { complete: 'Complete', incomplete: 'Enter both', invalid: 'Winner needs 3', pending: 'Pending', conflict: 'Forfeiter must be the loser' };
+  var STATUS_TEXT = { complete: 'Complete', incomplete: 'Enter both', invalid: 'Winner needs 3', pending: 'Pending', conflict: 'Forfeit and score disagree' };
   function forfeitSelect(index, m) {
     var out = '<select data-forfeit="' + index + '" aria-label="Who forfeited"><option value="">None</option>';
     [m.playerOneId, m.playerTwoId].forEach(function (id) {
       out += '<option value="' + esc(id) + '" ' + (m.forfeitedBy === id ? 'selected' : '') + '>' + esc(player(id).name) + ' forfeited</option>';
     });
+    out += '<option value="both" ' + (m.forfeitedBy === 'both' ? 'selected' : '') + '>Both forfeited (not played)</option>';
     if (m.forfeit && !m.forfeitedBy) out += '<option value="?" selected>Forfeit (who not recorded)</option>';
     return out + '</select>';
   }
@@ -661,9 +662,7 @@
       var m = state.matches[Number(e.target.dataset.score)];
       m[e.target.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames'] = e.target.value === '' ? null : Number(e.target.value);
     } else if (e.target.dataset.forfeit != null) {
-      var forfeited = state.matches[Number(e.target.dataset.forfeit)];
-      var filled = O.applyForfeit(forfeited, e.target.value);
-      if (filled) setStatus(player(forfeited.forfeitedBy).name + ' forfeited. ' + player(forfeited.forfeitedBy === forfeited.playerOneId ? forfeited.playerTwoId : forfeited.playerOneId).name + ' is credited 3-0 with no rating points; change the score if needed.');
+      O.applyForfeit(state.matches[Number(e.target.dataset.forfeit)], e.target.value);
     }
     renderMatches();
     persistDeviceDraft();
@@ -1363,7 +1362,7 @@
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is credited the win and no rating points move.', target: '#matches .match-group .match' },
+    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize ratings', text: 'After checking every result, finalize to make ratings authoritative and lock the session. Finalization is disabled until the Access-to-desk cutover; do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'After cutover, the scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }

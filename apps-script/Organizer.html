@@ -85,39 +85,38 @@
     return pairs;
   }
 
+  // forfeitedBy is a player id (the opponent wins), 'both' (never played), or empty.
   function matchState(match) {
     var a = match.playerOneGames;
     var b = match.playerTwoGames;
+    var by = match.forfeitedBy;
+    if (by) {
+      if (by !== 'both' && by !== match.playerOneId && by !== match.playerTwoId) return 'conflict';
+      if (a == null && b == null) return 'complete';
+      if (by === 'both') return 'conflict';
+    }
     if (a == null && b == null) return 'pending';
     if (a == null || b == null) return 'incomplete';
     if (!((a === 3 && b <= 2) || (b === 3 && a <= 2))) return 'invalid';
-    if (match.forfeitedBy) {
-      var loserId = a > b ? match.playerTwoId : match.playerOneId;
-      if (match.forfeitedBy !== loserId) return 'conflict';
-    }
+    if (by && by !== (a > b ? match.playerTwoId : match.playerOneId)) return 'conflict';
     return 'complete';
   }
 
   // '' clears the forfeit; '?' keeps a forfeit whose forfeiter was never recorded.
-  // With no score yet, the opponent is credited 3-0 so the match can be completed in one step.
   function applyForfeit(match, forfeiterId) {
     if (forfeiterId === '?') {
       match.forfeit = true;
       match.forfeitedBy = null;
-      return false;
+      return;
     }
     if (!forfeiterId) {
       match.forfeit = false;
       match.forfeitedBy = null;
-      return false;
+      return;
     }
-    if (forfeiterId !== match.playerOneId && forfeiterId !== match.playerTwoId) throw new Error('The forfeiting player is not in this match.');
+    if (forfeiterId !== 'both' && forfeiterId !== match.playerOneId && forfeiterId !== match.playerTwoId) throw new Error('The forfeiting player is not in this match.');
     match.forfeit = true;
     match.forfeitedBy = forfeiterId;
-    if (match.playerOneGames != null || match.playerTwoGames != null) return false;
-    match.playerOneGames = forfeiterId === match.playerOneId ? 0 : 3;
-    match.playerTwoGames = forfeiterId === match.playerTwoId ? 0 : 3;
-    return true;
   }
 
   // Best win ratio; ties go to the lower session-start rating, then name.
@@ -145,16 +144,20 @@
       total += 1;
       if (matchState(match) !== 'complete') return;
       complete += 1;
-      var oneWon = match.playerOneGames > match.playerTwoGames;
+      if (match.forfeitedBy === 'both') return;
+      var scored = match.playerOneGames != null;
+      var oneWon = match.forfeitedBy ? match.forfeitedBy === match.playerTwoId : match.playerOneGames > match.playerTwoGames;
       var winner = oneWon ? one : two;
       var loser = oneWon ? two : one;
-      one.gamesWon += match.playerOneGames;
-      one.gamesLost += match.playerTwoGames;
-      two.gamesWon += match.playerTwoGames;
-      two.gamesLost += match.playerOneGames;
+      if (scored) {
+        one.gamesWon += match.playerOneGames;
+        one.gamesLost += match.playerTwoGames;
+        two.gamesWon += match.playerTwoGames;
+        two.gamesLost += match.playerOneGames;
+      }
       winner.wins += 1;
       loser.losses += 1;
-      var points = adjustment(winner.startRating, loser.startRating, !!match.forfeit);
+      var points = adjustment(winner.startRating, loser.startRating, !!match.forfeit || !!match.forfeitedBy);
       winner.adjustment += points;
       loser.adjustment -= points;
     });

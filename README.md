@@ -264,10 +264,14 @@ npx --no-install @google/clasp redeploy <live-deployment-id> -V <version> -d "wh
 See [round-robin operations](docs/round-robin-operations.md) for details.
 
 **Forfeits:** a match records who forfeited in the private Sheet's `Matches.forfeited_by`
-column. The first desk save after this release adds that column to an existing `Matches`
-sheet (header only, nothing reordered or overwritten); a sheet with any other header
-is left untouched and the save stops. The desk requires the forfeiter to be the match
-loser and, at finalization, to be named. Publication still reads a `Matches` sheet
+column: a player id (the other player wins, no score needed) or `both` (never played: no
+winner, games or points). Following the USATT Tournament Guide, a forfeit win counts as a
+win and a loss in the group standings; it carries no games and, as in the club's Access
+records, moves no rating points and is left out of club/year records. The desk requires
+any score entered to agree with the forfeiter and, at finalization, requires the forfeiter
+to be named. The first desk save after this release adds the column to an existing
+`Matches` sheet (header only, nothing reordered or overwritten); a sheet with any other
+header is left untouched and the save stops. Publication still reads a `Matches` sheet
 that has not been upgraded yet.
 
 ## Session data
