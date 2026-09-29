@@ -125,3 +125,7 @@ function doGet(event) {
 function include(name) {
   return HtmlService.createHtmlOutputFromFile(name).getContent();
 }
+
+function checkDeskConnection() {
+  return true;
+}

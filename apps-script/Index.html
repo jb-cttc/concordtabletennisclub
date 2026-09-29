@@ -20,6 +20,7 @@
 .date-tools button.request-pending:after{position:absolute;right:0;top:-16px;margin-left:0}
 .draft-recovery{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;margin:-6px 0 18px;border-left:4px solid var(--gold);background:#fff3d9;font:14px Arial,sans-serif}.draft-recovery[hidden],.draft-recovery button[hidden]{display:none}.draft-actions{display:flex;gap:8px;flex-wrap:wrap}
 .workspace.draft-pending #groups,.workspace.draft-pending #matches,.workspace.draft-pending .toolbar-actions{pointer-events:none;opacity:.55}
+#save{position:relative}#save.sync-ready::after{content:'';position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#e8c06a;box-shadow:0 0 0 2px rgba(255,255,255,.45)}
 .shell{max-width:1650px}
 .workspace{grid-template-columns:minmax(270px,340px) minmax(0,1fr)}
 .groups{grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))}
@@ -78,8 +79,14 @@
   var pendingRecovery = null;
   var saveInFlight = false;
   var saveNeedsReload = false;
+  var deviceDraftUnsynced = false;
+  var connectionConfirmed = false;
+  var probeInFlight = false;
+  var probeSequence = 0;
+  var lastProbeAt = 0;
   var draftKeyPrefix = 'cttc-rr-draft-v1:';
   var date = document.getElementById('date');
+  var saveButton = document.getElementById('save');
   var status = document.getElementById('status');
   var draftNotice = document.getElementById('draft-recovery');
   var draftMessage = document.getElementById('draft-message');
@@ -144,6 +151,37 @@
     discardButton.hidden = !pendingRecovery;
     document.querySelector('.workspace').classList.toggle('draft-pending', !!pendingRecovery);
   }
+  function canSyncDeviceDraft() {
+    return deviceDraftUnsynced && !pendingRecovery && !saveNeedsReload && !saveInFlight && loadedDate === date.value;
+  }
+  function updateSyncCue() {
+    var ready = canSyncDeviceDraft() && connectionConfirmed;
+    saveButton.classList.toggle('sync-ready', ready);
+    saveButton.title = ready ? 'Device draft ready to save to Google Sheets' : '';
+    saveButton.setAttribute('aria-label', ready ? 'Save to Sheets; device draft ready to sync' : 'Save to Sheets');
+  }
+  function probeConnection(force) {
+    if (!canSyncDeviceDraft() || probeInFlight) return;
+    if (navigator.onLine === false) {
+      connectionConfirmed = false;
+      updateSyncCue();
+      return;
+    }
+    if (!force && Date.now() - lastProbeAt < 75000) return;
+    lastProbeAt = Date.now();
+    probeInFlight = true;
+    var sequence = ++probeSequence;
+    var timer = setTimeout(function () { settle(false); }, 10000);
+    function settle(online) {
+      if (!probeInFlight || sequence !== probeSequence) return;
+      probeInFlight = false;
+      clearTimeout(timer);
+      connectionConfirmed = online;
+      updateSyncCue();
+    }
+    google.script.run.withSuccessHandler(function (result) { settle(result === true); })
+      .withFailureHandler(function () { settle(false); }).checkDeskConnection();
+  }
   function readDeviceDraft(sessionDate) {
     var raw;
     try {
@@ -166,7 +204,10 @@
         promotions: state.promotions, customized: state.customized
       }));
       pendingRecovery = null;
+      deviceDraftUnsynced = true;
       showDraftNotice('Unsynced draft saved on this device. Save to Google Sheets when connected.', false);
+      updateSyncCue();
+      probeConnection();
       return true;
     } catch (error) {
       showDraftNotice('Device storage is unavailable. Keep this tab open until you can save to Google Sheets.', false);
@@ -177,7 +218,11 @@
     try { localStorage.removeItem(draftKeyPrefix + sessionDate); }
     catch (error) { showDraftNotice('Could not clear the device copy. Do not recover it after reloading.', false); return false; }
     pendingRecovery = null;
+    deviceDraftUnsynced = false;
+    connectionConfirmed = false;
+    lastProbeAt = 0;
     showDraftNotice('', false);
+    updateSyncCue();
     return true;
   }
   function canRecoverDraft(draft, session) {
@@ -188,7 +233,10 @@
   }
   function offerDeviceDraft(sessionDate) {
     pendingRecovery = null;
+    deviceDraftUnsynced = false;
+    connectionConfirmed = false;
     showDraftNotice('', false);
+    updateSyncCue();
     pendingRecovery = readDeviceDraft(sessionDate);
     if (!pendingRecovery) return;
     var recoverable = canRecoverDraft(pendingRecovery, state.session);
@@ -496,6 +544,7 @@
     if (!state.roster.length) { setStatus('Add at least one player before saving.', 'error'); return null; }
     if (navigator.onLine === false) return saveOnDevice();
     saveInFlight = true;
+    updateSyncCue();
     setStatus('Saving draft...', 'busy');
     try {
       if (!state.session) {
@@ -515,10 +564,12 @@
       return state.session;
     } catch (error) {
       saveNeedsReload = true;
+      updateSyncCue();
       setStatus('Google save not confirmed: ' + error.message + '. Check the device-copy notice, then reload after reconnect before retrying.', 'error');
       return null;
     } finally {
       saveInFlight = false;
+      updateSyncCue();
     }
   }
 
@@ -542,6 +593,7 @@
   async function finalize() {
     var saved = await save();
     if (!saved) return;
+    if (saved.deviceOnly) { setStatus('Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.', 'error'); return; }
     var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
     if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
     if (!confirm('Finalize this session and update every player rating? This cannot be edited afterward.')) return;
@@ -627,6 +679,16 @@
   });
   document.getElementById('save').addEventListener('click', save);
   document.getElementById('device-save').addEventListener('click', saveOnDevice);
+  setInterval(function () { probeConnection(true); }, 75000);
+  window.addEventListener('online', function () { probeConnection(true); });
+  window.addEventListener('offline', function () {
+    probeSequence += 1;
+    probeInFlight = false;
+    connectionConfirmed = false;
+    lastProbeAt = 0;
+    updateSyncCue();
+  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) probeConnection(true); });
   document.getElementById('finalize').addEventListener('click', finalize);
   document.getElementById('new-player').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -786,11 +848,14 @@
     paymentRequest.then(function (result) {
       if (currentRequest !== requestNumber) return;
       methods = result.methods || {};
+      document.dispatchEvent(new CustomEvent('cttc:payment-overview', { detail: result }));
       covered = {};
       result.coveredIds.forEach(function (playerId) { covered[playerId] = true; });
       document.querySelectorAll('.payment-control').forEach(function (control) { control.remove(); });
       decorateRoster();
     }).catch(function (error) {
+      if (currentRequest !== requestNumber) return;
+      document.dispatchEvent(new Event('cttc:payment-unavailable'));
       document.getElementById('status').textContent = 'Payments unavailable: ' + (error.message || error);
     });
   }
@@ -896,17 +961,29 @@
   var list = document.createElement('ul');
   section.append(heading, list);
   sidebar.appendChild(section);
+  var initialDate = document.getElementById('date').value;
   function request(name) {
     return window.cttcRequest(name);
   }
-  window.cttcInitialPaymentOverview.then(function (result) {
+  function showPasses(result) {
+    heading.textContent = 'Zeffy Players - Monthly Play Pass';
     list.replaceChildren();
     result.passes.forEach(function (pass) {
       var item = document.createElement('li');
       item.textContent = pass.name;
       list.appendChild(item);
     });
+  }
+  document.addEventListener('cttc:payment-overview', function (event) { showPasses(event.detail); });
+  document.addEventListener('cttc:payment-unavailable', function () {
+    list.replaceChildren();
+    heading.textContent = 'Zeffy Players - Monthly Play Pass unavailable';
+  });
+  window.cttcInitialPaymentOverview.then(function (result) {
+    if (document.getElementById('date').value === initialDate) showPasses(result);
   }).catch(function () {
+    if (document.getElementById('date').value !== initialDate) return;
+    list.replaceChildren();
     heading.textContent = 'Zeffy Players - Monthly Play Pass unavailable';
   });
 })();
@@ -1270,13 +1347,15 @@
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, or Zeffy; monthly Zeffy passes show as covered automatically. Payment changes save immediately.', target: '#groups .payment-control' },
-    { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Save draft to keep roster and group changes.', target: '#groups .group-list li' },
+    { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are kept on this device until you save to Sheets.', target: '#groups .group-list li' },
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change.', target: '.open-play-section' },
-    { title: 'Print the sheets', text: 'When the groups are ready, save any changes, then print the round robin sheets to record matches on paper.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in. Save draft to keep the scores.', target: '#matches .match-group .match' },
+    { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
+    { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
+    { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
+    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there.', target: '#matches .match-group .match' },
     { title: 'Finalize ratings', text: 'After checking every result, finalize to make ratings authoritative and lock the session. Finalization is disabled until the Access-to-desk cutover; do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'After cutover, the scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
-    { title: 'Questions or feedback?', text: 'Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
+    { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
   ];
   var shield = document.createElement('div');
   shield.className = 'tour-shield';

@@ -15,8 +15,21 @@ const tables = {
   NameLinks: [{ kind: 'same_person', name: 'Mei Tan', linked_name: 'May Tan' }]
 };
 const reads = {};
+let revenueDocumentId = '';
+let currentRevenueRows = [];
 const context = {
   TABLES: {},
+  PropertiesService: { getScriptProperties: () => ({ getProperty: () => revenueDocumentId }) },
+  DocumentApp: { openById: id => {
+    assert.equal(id, 'configured-document');
+    return { getBody: () => ({ getTables: () => [{
+      getNumRows: () => currentRevenueRows.length,
+      getRow: index => ({
+        getNumCells: () => currentRevenueRows[index].length,
+        getCell: cell => ({ getText: () => currentRevenueRows[index][cell] })
+      })
+    }] }) };
+  } },
   SpreadsheetApp: { getActive: () => ({ getSheetByName: () => ({}) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ensureHeader_() {}, formatTable_() {}, appendAudit_() {},
@@ -31,10 +44,22 @@ const context = {
   updateRow_: (name, rowNumber, changes) => Object.assign(tables[name][rowNumber - 2], changes),
   listPlayers: () => tables.Players.filter(p => p.active).map(p => ({ playerId: p.player_id, name: p.display_name }))
 };
+context.normalizeName_ = value => String(value || '').trim().replace(/\s+/g, ' ');
 vm.createContext(context);
 for (const file of ['LinkedNames.js', 'PrivatePayments.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 const date = '2026-09-23';
 const names = () => context.getZeffyPlayers().map(p => p.name).join(',');
+
+const revenueRows = [
+  ['M/Zeffy', ' Dana ', ' Chen ', '09/30/26'],
+  ['M/Zeffy', 'Avery', 'Park', '09/22/26'],
+  ['M/Zeffy', 'May', 'Tan', '02/30/27'],
+  ['Zeffy', 'Mei', 'Tan', '12/31/26'],
+  ['M/Zeffy', 'Unknown', 'Person', '12/31/26']
+];
+assert.deepEqual(Array.from(context.revenuePassesForDate_(revenueRows, tables.Players, date), pass => pass.playerId), ['b']);
+assert.deepEqual(Array.from(context.revenuePassesForDate_([['M/Zeffy', 'Dana', 'Chen', '09/23/26']], tables.Players, date), pass => pass.playerId), ['b'], 'expiry date remains covered');
+assert.equal(context.revenuePassesForDate_(revenueRows, tables.Players.concat({ player_id: 'duplicate', display_name: 'Dana Chen' }), date).length, 0, 'ambiguous directory names must not be marked covered');
 
 const overview = context.getPrivatePaymentOverview(date);
 assert.equal(overview.methods.a, '');
@@ -77,6 +102,22 @@ assert.equal(linkedOverview.passes.some(pass => pass.playerId === 'ml'), true);
 assert.equal(linkedOverview.coveredIds.includes('ll'), true);
 assert.equal(context.setSessionPayment(date, 'a', 'zeffy'), 'zeffy', 'Zeffy can be recorded for a single session');
 assert.equal(context.getPrivatePaymentState(date).a, 'zeffy');
+
+revenueDocumentId = 'configured-document';
+currentRevenueRows = [
+  ['Type', 'First', 'Last', 'Exp.Date'],
+  ['M/Zeffy', 'Avery', 'Park', '09/23/26'],
+  ['M/Zeffy', 'Dana', 'Chen', '09/30/26'],
+  ['M/Zeffy', 'May', 'Tan', '09/22/26']
+];
+const revenueOverview = context.getPrivatePaymentOverview(date);
+assert.equal(revenueOverview.methods.a, 'zeffy');
+assert.equal(revenueOverview.passes.filter(pass => pass.playerId === 'a').length, 1, 'manual and revenue passes are combined without duplicates');
+assert.equal(revenueOverview.passes.some(pass => pass.playerId === 'b'), true, 'revenue pass appears in sidebar list');
+assert.throws(() => context.setSessionPayment(date, 'b', 'cash'), /Zeffy play pass covers/);
+assert.equal(context.getPrivatePaymentOverview('2026-10-01').methods.b, '', 'expired revenue pass no longer covers a session');
+assert.equal(context.setSessionPayment('2026-10-01', 'b', 'cash'), 'cash');
+revenueDocumentId = '';
 
 assert.throws(() => context.setZeffyPass('missing', true), /Unknown/);
 tables.ZeffyPasses.push({ player_id: 'ron', player_name: 'Old Member', active: true });

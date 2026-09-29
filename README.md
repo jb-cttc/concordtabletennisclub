@@ -141,7 +141,9 @@ published. See [round-robin operations](docs/round-robin-operations.md#ratings).
 going to the club. Roster, group, and score edits are saved in that browser's
 device storage. **Save on device** confirms a local copy even if Wi-Fi appears
 connected but Google is unreachable; **Save to Sheets** needs a connection and
-is not automatic. The yellow notice distinguishes a device copy from a
+is not automatic. With an unsynced draft, the desk checks Google quietly every
+75 seconds and shows a small dot on **Save to Sheets** when it responds; click
+the button to sync without reloading the open tab. The yellow notice distinguishes a device copy from a
 confirmed Google Sheets save. Round-robin sheets can be previewed and printed
 offline, but club/year record figures show `--/--` when Google cannot supply
 them; the match schedule, names, and ratings remain. The logo may not load
