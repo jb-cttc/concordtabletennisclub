@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src https://script.google.com; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>CTTC Desk</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; height: 100dvh; background: #123f2b; }
+    iframe { flex: 1; display: block; width: 100%; border: 0; background: #fff; }
+    .fallback { margin: 0; padding: 5px 12px; font: 12px Arial, sans-serif; text-align: right; color: #dce9e1; }
+    .fallback a { color: #e8c06a; }
+  </style>
+</head>
+<body>
+  <iframe id="desk" title="CTTC Round Robin Desk"></iframe>
+  <p class="fallback">Desk not loading? <a id="direct" target="_blank" rel="noopener">Open it directly</a></p>
+  <script>
+    (function () {
+      // The desk is owner-only: this address is not a credential, and visitors without access see Google's sign-in page.
+      var url = new URL('https://script.google.com/macros/s/AKfycbzXI7Kk4hz3JDF0DXJL_wmF6ibKp_Avz5uvwyRD-84OJJ23LfDf9yAZetS97L4zabvzDw/exec');
+      var date = new URLSearchParams(location.search).get('date');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) url.searchParams.set('date', date);
+      document.getElementById('desk').src = url.toString();
+      document.getElementById('direct').href = url.toString();
+    })();
+  </script>
+</body>
+</html>

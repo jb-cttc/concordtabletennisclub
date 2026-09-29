@@ -263,18 +263,19 @@ npx --no-install @google/clasp redeploy <live-deployment-id> -V <version> -d "wh
 
 See [round-robin operations](docs/round-robin-operations.md) for details.
 
-**Mode pill:** the desk header shows `/dev` or `/exec` beside the session date. It is a plain
-label when the desk is opened directly; inside the local page below it also switches versions.
+**Mode pill:** the desk header shows `/dev` or `/exec` beside the session date as a plain label.
 
-**Local desk page (experimental):** `npm start`, then open `http://localhost:3000/desk`. It frames
-the desk so `/dev` and `/exec` can be switched without new tabs. Put your two web app addresses in
-`local/desk.config.json` (git-ignored) as `{"dev": "…/dev", "live": "…/exec"}`, or set
-`CTTC_DESK_DEV_URL` and `CTTC_DESK_EXEC_URL`. The page is served only to this computer. For the
-desk to be framed at all, `doGet` allows framing, which would let any website frame your signed-in
-desk, so the desk covers itself unless it is opened directly or by a `localhost` page. Tested in
-the integrated VS Code browser: a released `/exec` deployment frames fine (and shows no Google
-banner), but the `/dev` test address is refused ("You need access"), so the page cannot switch to
-`/dev` there. Browsers that block third-party cookies will not show a framed desk either.
+**Desk page on the club site:** `desk.html` (served at `/desk`) shows the live desk inside a frame, which
+hides the blue "created by a Google Apps Script user" banner that Google adds to a web app opened
+directly. Users open `/desk` on the club site; `?date=YYYY-MM-DD` opens a given session. It frames the
+released `/exec` address, never `/dev`: a released deployment frames fine, but Google refuses to
+frame `/dev` ("You need access", tested in the VS Code browser), so `/dev` keeps its banner. To
+allow framing, `doGet` uses `ALLOWALL`, which would let any website frame your signed-in desk, so the
+desk covers itself unless it is opened directly or framed by `https://concordtabletennisclub.com`
+(or `localhost`, for testing). If the desk moves to another address, update that list in
+`apps-script/Index.html`. The page has a small "Open it directly" link because browsers that block
+third-party cookies (Safari, Firefox) may show Google's sign-in page instead of a framed desk. The
+frame works only after `/exec` is redeployed with this code; until then `/exec` refuses framing.
 
 **Which tab is which:** the desk code always runs on Google, never on localhost, and `/dev` and
 `/exec` both use the same real Sheet. `/dev` is whatever was last pushed from the working branch;
