@@ -102,10 +102,19 @@ details) in the Sheet, and use made-up names in tests.
 
 Members and visitors pay a per-session fee ($10 or $15), recorded per date in
 `SessionPayments` as Venmo, Zelle, or Cash. **Zeffy** is an optional monthly
-play pass that covers every session fee for the month; holders are listed in
-`ZeffyPasses` by player ID and show a locked **Zeffy ✓** on every date. Zeffy is
-not a membership payment: `MembershipDues` records only the membership year.
-Archived players keep their pass and appear in the sidebar list.
+play pass. Manual holders in `ZeffyPasses` by player ID remain covered on every
+date; archived players keep their manual pass and appear in the sidebar list.
+To also recognize revenue-document passes, set the private Apps Script Script
+Property `CTTC_REVENUE_DOC_ID` to the Google Doc ID (never put the ID or member
+data in this repository). The first table must have marker, first name, last
+name, and expiry (`M/D/YY` or `M/D/YYYY`) in its first four columns. Only exact
+`M/Zeffy` rows with an unexpired date and one matching player display name
+appear as passes for the selected session date. The expiry is inclusive; the
+document has no start date, so it cannot enforce a purchase start date. Missing
+or ambiguous names require a directory correction. If the configured document
+cannot be read, the desk reports payments unavailable. Covered players show a
+locked **Zeffy ✓**. Zeffy is not a membership payment: `MembershipDues` records
+only the membership year.
 
 ## Voice signups
 

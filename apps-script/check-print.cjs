@@ -40,15 +40,20 @@ let saveCalls = 0;
 let prints = 0;
 let prompts = 0;
 let saveChoice = false;
+let printChoice = false;
 let recordsAvailable = true;
 let recordCalls = 0;
+let timeoutHandler = null;
 const context = {
+  navigator: { onLine: true },
+  setTimeout: function (handler) { timeoutHandler = handler; return 1; },
+  clearTimeout: function () { timeoutHandler = null; },
   document: {
     createElement: node,
     getElementById: function (id) { return id === 'print-root' ? root : id === 'print-sheets' ? button : status; },
     body: { classList: { add: function () {}, remove: function () {} } }
   },
-  confirm: function () { prompts += 1; return saveChoice; },
+  confirm: function (message) { prompts += 1; return message.includes('Print this device draft') ? printChoice : saveChoice; },
   window: {
     CTTCOrganizer: { sheetAdjustment: function () { return ''; } },
     cttcRequest: async function (name, ids, date) {
@@ -56,6 +61,7 @@ const context = {
       assert.deepEqual(Array.from(ids), ['one']);
       assert.equal(date, '2026-09-23');
       recordCalls += 1;
+      if (recordsAvailable === 'stall') return new Promise(function () {});
       if (!recordsAvailable) throw new Error('Archive missing');
       return { records: { one: { clubWins: 10, clubLosses: 8, yearWins: 3, yearLosses: 1 } }, missing: 0 };
     },
@@ -98,17 +104,40 @@ async function check() {
   assert.equal(classes.has('previewing'), false, 'do not open preview after a failed save');
   assert.equal(prints, 1, 'do not print after a failed save');
 
-  saveResult = { revision: 2 };
+  printChoice = true;
   await listeners.click();
   assert.equal(saveCalls, 2);
+  assert.equal(classes.has('previewing'), true, 'confirmed device draft remains printable after failed save');
+  root.children[0].children[0].click();
+  saveResult = { revision: 2 };
+  await listeners.click();
+  assert.equal(saveCalls, 3);
   assert.equal(classes.has('previewing'), true);
-  assert.equal(prompts, 3);
+  assert.equal(prompts, 6);
   root.children[0].children[0].click();
   recordsAvailable = false;
   await listeners.click();
-  assert.equal(classes.has('previewing'), false, 'failed archive reads never open preview');
-  assert.match(status.textContent, /RR records unavailable: Archive missing/);
-  assert.equal(recordCalls, 4);
+  assert.equal(classes.has('previewing'), true, 'failed archive reads still allow printing');
+  assert.match(root.children[0].children[0].textContent, /Club\/year records unavailable/);
+  assert.equal(recordCalls, 5);
+  root.children[0].children[1].click();
+  recordsAvailable = 'stall';
+  const stalledPrint = listeners.click();
+  await new Promise(setImmediate);
+  assert.equal(typeof timeoutHandler, 'function');
+  timeoutHandler();
+  await stalledPrint;
+  assert.equal(recordCalls, 6);
+  assert.equal(classes.has('previewing'), true, 'timed-out archive reads still allow printing');
+  root.children[0].children[1].click();
+  context.navigator.onLine = false;
+  await listeners.click();
+  assert.equal(recordCalls, 6, 'offline printing must not call Google');
+  assert.equal(classes.has('previewing'), true);
+  assert.match(root.children[0].children[0].textContent, /Club\/year records unavailable/);
+  assert.equal(root.children[1].children[0].children[0].children[1].children[1].textContent,
+    'Test Player [1000] (--/--) (--/--)');
+  root.children[0].children[1].click();
   console.log('RR sheet print checks passed');
 }
 
