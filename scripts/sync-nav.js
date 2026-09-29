@@ -46,7 +46,7 @@ function buildFooterBlock() {
   return '<footer>\n  ' + FOOTER_TEXT + '\n</footer>\n\n<script src="navtoggle.js"></script>';
 }
 
-var htmlFiles = fs.readdirSync(ROOT).filter(function (f) { return f.endsWith('.html'); });
+var htmlFiles = fs.readdirSync(ROOT).filter(function (f) { return f.endsWith('.html') && f !== 'desk.html'; });
 var updated = 0;
 var unchanged = 0;
 

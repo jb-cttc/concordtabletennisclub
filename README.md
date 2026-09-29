@@ -263,6 +263,37 @@ npx --no-install @google/clasp redeploy <live-deployment-id> -V <version> -d "wh
 
 See [round-robin operations](docs/round-robin-operations.md) for details.
 
+**Mode pill:** the desk header shows `/dev` or `/exec` beside the session date as a plain label.
+
+**Desk page on the club site:** `desk.html` (served at `/desk`) shows the live desk inside a frame, which
+hides the blue "created by a Google Apps Script user" banner that Google adds to a web app opened
+directly. Users open `/desk` on the club site; `?date=YYYY-MM-DD` opens a given session. It frames the
+released `/exec` address, never `/dev`: a released deployment frames fine, but Google refuses to
+frame `/dev` ("You need access", tested in the VS Code browser), so `/dev` keeps its banner. To
+allow framing, `doGet` uses `ALLOWALL`, which would let any website frame your signed-in desk, so the
+desk covers itself unless it is opened directly or framed by `https://concordtabletennisclub.com`
+(or `localhost`, for testing). If the desk moves to another address, update that list in
+`apps-script/Index.html`. The page has a small "Open it directly" link because browsers that block
+third-party cookies (Safari, Firefox) may show Google's sign-in page instead of a framed desk. The
+frame works only after `/exec` is redeployed with this code; until then `/exec` refuses framing.
+
+**Which tab is which:** the desk code always runs on Google, never on localhost, and `/dev` and
+`/exec` both use the same real Sheet. `/dev` is whatever was last pushed from the working branch;
+`/exec` changes only when a merged version is released. Keep two plain tabs open. The `/dev` tab is
+titled "DEV - CTTC Desk", has an amber strip across the header and an amber `/dev` pill; the `/exec`
+tab is titled "LIVE - CTTC Desk" with a green `/exec` pill.
+
+**Forfeits:** a match records who forfeited in the private Sheet's `Matches.forfeited_by`
+column: a player id (the other player wins, no score needed) or `both` (never played: no
+winner, games or points). Following the USATT Tournament Guide, a forfeit win counts as a
+win and a loss in the group standings; it carries no games and, as in the club's Access
+records, moves no rating points and is left out of club/year records. The desk requires
+any score entered to agree with the forfeiter and, at finalization, requires the forfeiter
+to be named. The first desk save after this release adds the column to an existing
+`Matches` sheet (header only, nothing reordered or overwritten); a sheet with any other
+header is left untouched and the save stops. Publication still reads a `Matches` sheet
+that has not been upgraded yet.
+
 ## Session data
 
 Until go-live, the scheduled workflow (after each Monday and Wednesday

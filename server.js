@@ -18,6 +18,7 @@ const TYPES = {
 const server = http.createServer(function (req, res) {
   let urlPath = req.url.split('?')[0];
   if (urlPath === '/') urlPath = '/index.html';
+  if (urlPath === '/desk') urlPath = '/desk.html';
 
   const filePath = path.join(ROOT, urlPath);
 

@@ -7,12 +7,15 @@ var TABLES = {
   Aliases: ['alias', 'player_id', 'created_at'],
   Sessions: ['session_id', 'session_date', 'status', 'revision', 'created_at', 'updated_at', 'finalized_at'],
   SessionPlayers: ['session_id', 'player_id', 'group_number', 'starting_rating', 'promotion_from_group'],
-  Matches: ['match_id', 'session_id', 'group_number', 'player_one_id', 'player_two_id', 'player_one_games', 'player_two_games', 'forfeit', 'updated_at'],
+  Matches: ['match_id', 'session_id', 'group_number', 'player_one_id', 'player_two_id', 'player_one_games', 'player_two_games', 'forfeit', 'updated_at', 'forfeited_by'],
   RecordArchive: ['player_id', 'record_year', 'club_wins', 'club_losses', 'year_wins', 'year_losses', 'through_date', 'source'],
   RecordArchiveEvents: ['event_date', 'player_id', 'wins', 'losses', 'source'],
   RatingLedger: ['event_id', 'session_id', 'player_id', 'rating_before', 'adjustment', 'rating_after', 'rule_version', 'created_at'],
   AuditLog: ['event_id', 'event_time', 'actor', 'action', 'entity_type', 'entity_id', 'details_json']
 };
+
+// Last column of a table that older Sheets lack; ensureHeader_ appends it once and never reorders.
+var ADDED_COLUMNS = { Matches: 'forfeited_by' };
 
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -62,8 +65,15 @@ function ensureHeader_(sheet, headers) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     return;
   }
+  if (sheet.getMaxColumns() < headers.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
   var existing = sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0];
   if (existing.join('|') !== headers.join('|')) {
+    var added = ADDED_COLUMNS[sheet.getName()];
+    var older = headers.slice(0, -1).join('|');
+    if (added && headers[headers.length - 1] === added && existing.slice(0, -1).join('|') === older && existing[existing.length - 1] === '') {
+      sheet.getRange(1, headers.length).setValue(added);
+      return;
+    }
     throw new Error('Unexpected header structure in ' + sheet.getName() + '. No changes were made to that sheet.');
   }
 }
@@ -117,9 +127,14 @@ function doGet(event) {
   var template = HtmlService.createTemplateFromFile('Index');
   var requestedDate = event && event.parameter && event.parameter.date;
   template.initialDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') ? requestedDate : '';
+  // Only the /dev and /exec URLs are recognised; anything else shows as unknown rather than guessing.
+  var deployedUrl = '';
+  try { deployedUrl = String(ScriptApp.getService().getUrl() || ''); } catch (error) { deployedUrl = ''; }
+  template.deskMode = /\/dev$/.test(deployedUrl) ? 'dev' : /\/exec$/.test(deployedUrl) ? 'live' : 'unknown';
   return template.evaluate()
-  .setTitle('CTTC Round Robin Manager')
-  .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  .setTitle(template.deskMode === 'dev' ? 'DEV - CTTC Desk' : template.deskMode === 'live' ? 'LIVE - CTTC Desk' : 'CTTC Round Robin Manager')
+  .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+  .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function include(name) {

@@ -265,7 +265,8 @@
         var names = el('div', 'tournament-match-names');
         names.append(el('span', '', desk.player(m.playerOneId).name), el('span', '', desk.player(m.playerTwoId).name));
         var result = el('div', 'tournament-match-result');
-        result.append(el('span', '', m.playerOneGames == null ? '' : String(m.playerOneGames)), el('span', '', m.playerTwoGames == null ? '' : String(m.playerTwoGames)));
+        var mark = function (games, id) { return games != null ? String(games) : m.forfeitedBy === 'both' || m.forfeitedBy === id ? 'F' : ''; };
+        result.append(el('span', '', mark(m.playerOneGames, m.playerOneId)), el('span', '', mark(m.playerTwoGames, m.playerTwoId)));
         match.append(names, result, el('span', 'tournament-rating-adjustment', O.sheetAdjustment(desk.player(m.playerOneId).currentRating, desk.player(m.playerTwoId).currentRating)));
         rows.appendChild(match);
       });

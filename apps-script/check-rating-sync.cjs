@@ -28,6 +28,7 @@ Object.assign(context, {
   rows_: name => tables[name].map((row, index) => ({ ...row, __row: index + 2 })),
   updateRow_: (name, rowNumber, changes) => { writes.push([name, rowNumber, changes]); Object.assign(tables[name][rowNumber - 2], changes); },
   replaceSessionRows_: (name, sessionId, rows) => { tables[name] = tables[name].filter(r => r.session_id !== sessionId).concat(rows); },
+  ensureMatchesColumns_() {},
   displayDate_: value => String(value)
 });
 const site = players => ({ latestSessionDate: '2026-09-23', players });

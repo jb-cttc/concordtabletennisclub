@@ -11,13 +11,18 @@ const HEADERS = {
   Players: ['player_id', 'display_name', 'current_rating', 'active', 'created_at', 'updated_at'],
   Sessions: ['session_id', 'session_date', 'status', 'revision', 'created_at', 'updated_at', 'finalized_at'],
   SessionPlayers: ['session_id', 'player_id', 'group_number', 'starting_rating', 'promotion_from_group'],
-  Matches: ['match_id', 'session_id', 'group_number', 'player_one_id', 'player_two_id', 'player_one_games', 'player_two_games', 'forfeit', 'updated_at'],
+  Matches: ['match_id', 'session_id', 'group_number', 'player_one_id', 'player_two_id', 'player_one_games', 'player_two_games', 'forfeit', 'updated_at', 'forfeited_by'],
   RatingLedger: ['event_id', 'session_id', 'player_id', 'rating_before', 'adjustment', 'rating_after', 'rule_version', 'created_at']
 };
 
+// Sheets created before this column existed are still accepted.
+const ADDED_COLUMNS = { Matches: 'forfeited_by' };
+
 function parseTable(table, rows) {
   const headers = HEADERS[table];
-  if (!rows.length || rows[0].join('|') !== headers.join('|')) {
+  const older = ADDED_COLUMNS[table] ? headers.slice(0, -1) : headers;
+  const actual = rows.length ? rows[0].join('|') : '';
+  if (actual !== headers.join('|') && actual !== older.join('|')) {
     throw new Error('Unexpected ' + table + ' header; publication stopped');
   }
   return rows.slice(1).filter(function (row) { return row.some(function (value) { return value !== ''; }); }).map(function (row) {
