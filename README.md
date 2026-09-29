@@ -263,6 +263,13 @@ npx --no-install @google/clasp redeploy <live-deployment-id> -V <version> -d "wh
 
 See [round-robin operations](docs/round-robin-operations.md) for details.
 
+**Forfeits:** a match records who forfeited in the private Sheet's `Matches.forfeited_by`
+column. The first desk save after this release adds that column to an existing `Matches`
+sheet (header only, nothing reordered or overwritten); a sheet with any other header
+is left untouched and the save stops. The desk requires the forfeiter to be the match
+loser and, at finalization, to be named. Publication still reads a `Matches` sheet
+that has not been upgraded yet.
+
 ## Session data
 
 Until go-live, the scheduled workflow (after each Monday and Wednesday

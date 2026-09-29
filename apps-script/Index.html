@@ -14,7 +14,8 @@
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
-@media (min-width: 761px){.sidebar{max-height:calc(100dvh - 36px);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}}
+.match-conflict .match-status{color:var(--red);font-weight:700}
+.match .forfeit select{width:auto;max-width:200px;padding:5px;font:12px Arial,sans-serif}
 #network-activity{min-width:76px;min-height:14px;color:#dce9e1;font:12px Arial,sans-serif}button.request-pending,select.request-pending,label.request-pending{position:relative;pointer-events:none;opacity:.7}button.request-pending:after,select.request-pending:after,label.request-pending:after{content:'';display:inline-block;width:10px;height:10px;margin-left:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:cttc-spin .7s linear infinite}@keyframes cttc-spin{to{transform:rotate(360deg)}}
 .date-tools label.request-pending:after{position:absolute;left:-24px;bottom:0;margin-left:0}
 .date-tools button.request-pending:after{position:absolute;right:0;top:-16px;margin-left:0}
@@ -306,8 +307,8 @@
         state.matches.push(old && old.playerOneId === pair[0]
           ? Object.assign({}, old, { groupNumber: group.groupNumber })
           : old
-            ? { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: old.playerTwoGames, playerTwoGames: old.playerOneGames, forfeit: old.forfeit }
-            : { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: null, playerTwoGames: null, forfeit: false });
+            ? { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: old.playerTwoGames, playerTwoGames: old.playerOneGames, forfeit: old.forfeit, forfeitedBy: old.forfeitedBy || null }
+            : { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: null, playerTwoGames: null, forfeit: false, forfeitedBy: null });
       });
     });
   }
@@ -378,7 +379,15 @@
     }).join('');
   }
 
-  var STATUS_TEXT = { complete: 'Complete', incomplete: 'Enter both', invalid: 'Winner needs 3', pending: 'Pending' };
+  var STATUS_TEXT = { complete: 'Complete', incomplete: 'Enter both', invalid: 'Winner needs 3', pending: 'Pending', conflict: 'Forfeiter must be the loser' };
+  function forfeitSelect(index, m) {
+    var out = '<select data-forfeit="' + index + '" aria-label="Who forfeited"><option value="">None</option>';
+    [m.playerOneId, m.playerTwoId].forEach(function (id) {
+      out += '<option value="' + esc(id) + '" ' + (m.forfeitedBy === id ? 'selected' : '') + '>' + esc(player(id).name) + ' forfeited</option>';
+    });
+    if (m.forfeit && !m.forfeitedBy) out += '<option value="?" selected>Forfeit (who not recorded)</option>';
+    return out + '</select>';
+  }
   function scoreSelect(index, side, value) {
     var out = '<select data-score="' + index + '" data-side="' + side + '" aria-label="Games"><option value="">\u2013</option>';
     for (var n = 0; n <= 3; n += 1) out += '<option value="' + n + '" ' + (value === n ? 'selected' : '') + '>' + n + '</option>';
@@ -399,7 +408,7 @@
       return '<section class="match-group"><h3>Group ' + group.groupNumber + ' <span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3>' + standings + entries.map(function (entry) {
         var m = entry.match;
         var matchState = O.matchState(m);
-        return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + scoreSelect(entry.index, 'one', m.playerOneGames) + '<span>\u2013</span>' + scoreSelect(entry.index, 'two', m.playerTwoGames) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit"><input type="checkbox" data-forfeit="' + entry.index + '" ' + (m.forfeit ? 'checked' : '') + '> Forfeit</label></div></div>';
+        return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + scoreSelect(entry.index, 'one', m.playerOneGames) + '<span>\u2013</span>' + scoreSelect(entry.index, 'two', m.playerTwoGames) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
       }).join('') + '</section>';
     }).join('');
     matches.innerHTML = (total ? '<p class="match-progress">' + done + ' of ' + total + ' matches complete</p>' : '') + html;
@@ -520,7 +529,7 @@
         });
         state.roster = [].concat.apply([], groupsFromSession);
         state.matches = (state.session.matches || []).map(function (match) {
-          return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit });
+          return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null });
         });
       }
       setGroups(groupsFromSession);
@@ -652,7 +661,9 @@
       var m = state.matches[Number(e.target.dataset.score)];
       m[e.target.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames'] = e.target.value === '' ? null : Number(e.target.value);
     } else if (e.target.dataset.forfeit != null) {
-      state.matches[Number(e.target.dataset.forfeit)].forfeit = e.target.checked;
+      var forfeited = state.matches[Number(e.target.dataset.forfeit)];
+      var filled = O.applyForfeit(forfeited, e.target.value);
+      if (filled) setStatus(player(forfeited.forfeitedBy).name + ' forfeited. ' + player(forfeited.forfeitedBy === forfeited.playerOneId ? forfeited.playerTwoId : forfeited.playerOneId).name + ' is credited 3-0 with no rating points; change the score if needed.');
     }
     renderMatches();
     persistDeviceDraft();
@@ -1313,7 +1324,7 @@
   });
   new MutationObserver(function () { if (loaded) render(); }).observe(groups, { childList: true });
   new MutationObserver(function () { if (loaded) render(); }).observe(open, { childList: true });
-  document.querySelector('.sidebar').addEventListener('scroll', function () {
+  window.addEventListener('scroll', function () {
     var active = section.querySelector('.voice-preview:hover, .voice-preview:focus-within, .voice-preview.open');
     if (active) active.position();
     }, { passive: true });
@@ -1352,7 +1363,7 @@
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there.', target: '#matches .match-group .match' },
+    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is credited the win and no rating points move.', target: '#matches .match-group .match' },
     { title: 'Finalize ratings', text: 'After checking every result, finalize to make ratings authoritative and lock the session. Finalization is disabled until the Access-to-desk cutover; do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'After cutover, the scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
@@ -1545,6 +1556,18 @@
     if (stepIndex === steps.length - 1) close();
     else { stepIndex += 1; showStep(); next.focus(); }
   });
+})();
+</script>
+<script>
+(function () {
+  var sidebar = document.querySelector('.sidebar');
+  // A sidebar taller than the window sticks only once its bottom edge is on screen, so the page scroll reaches all of it.
+  function stick() {
+    sidebar.style.top = Math.min(18, window.innerHeight - sidebar.offsetHeight - 18) + 'px';
+  }
+  new ResizeObserver(stick).observe(sidebar);
+  window.addEventListener('resize', stick);
+  stick();
 })();
 </script>
 </body>

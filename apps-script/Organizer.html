@@ -90,7 +90,34 @@
     var b = match.playerTwoGames;
     if (a == null && b == null) return 'pending';
     if (a == null || b == null) return 'incomplete';
-    return (a === 3 && b <= 2) || (b === 3 && a <= 2) ? 'complete' : 'invalid';
+    if (!((a === 3 && b <= 2) || (b === 3 && a <= 2))) return 'invalid';
+    if (match.forfeitedBy) {
+      var loserId = a > b ? match.playerTwoId : match.playerOneId;
+      if (match.forfeitedBy !== loserId) return 'conflict';
+    }
+    return 'complete';
+  }
+
+  // '' clears the forfeit; '?' keeps a forfeit whose forfeiter was never recorded.
+  // With no score yet, the opponent is credited 3-0 so the match can be completed in one step.
+  function applyForfeit(match, forfeiterId) {
+    if (forfeiterId === '?') {
+      match.forfeit = true;
+      match.forfeitedBy = null;
+      return false;
+    }
+    if (!forfeiterId) {
+      match.forfeit = false;
+      match.forfeitedBy = null;
+      return false;
+    }
+    if (forfeiterId !== match.playerOneId && forfeiterId !== match.playerTwoId) throw new Error('The forfeiting player is not in this match.');
+    match.forfeit = true;
+    match.forfeitedBy = forfeiterId;
+    if (match.playerOneGames != null || match.playerTwoGames != null) return false;
+    match.playerOneGames = forfeiterId === match.playerOneId ? 0 : 3;
+    match.playerTwoGames = forfeiterId === match.playerTwoId ? 0 : 3;
+    return true;
   }
 
   // Best win ratio; ties go to the lower session-start rating, then name.
@@ -183,6 +210,7 @@
     insert: insert,
     roundRobinPairs: roundRobinPairs,
     matchState: matchState,
+    applyForfeit: applyForfeit,
     standings: standings,
     publishedWinner: publishedWinner,
     previousSameWeekday: previousSameWeekday,

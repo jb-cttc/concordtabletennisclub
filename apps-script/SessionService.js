@@ -128,7 +128,8 @@ function getSession(sessionId) {
         playerTwoId: String(row.player_two_id),
         playerOneGames: row.player_one_games === '' ? null : Number(row.player_one_games),
         playerTwoGames: row.player_two_games === '' ? null : Number(row.player_two_games),
-        forfeit: asBoolean_(row.forfeit)
+        forfeit: asBoolean_(row.forfeit),
+        forfeitedBy: row.forfeited_by ? String(row.forfeited_by) : null
       };
     })
   };
@@ -184,6 +185,8 @@ function saveSessionDraft(payload) {
       var pair = [first, second].sort().join('::');
       if (pairKeys[pair]) throw new Error('Duplicate match: ' + pair);
       pairKeys[pair] = true;
+      var forfeitedBy = match.forfeitedBy ? String(match.forfeitedBy) : '';
+      if (forfeitedBy && forfeitedBy !== first && forfeitedBy !== second) throw new Error('The forfeiting player is not in the match: ' + pair);
       return {
         match_id: sessionId + ':' + pair,
         session_id: sessionId,
@@ -192,11 +195,13 @@ function saveSessionDraft(payload) {
         player_two_id: second,
         player_one_games: match.playerOneGames === null ? '' : Number(match.playerOneGames),
         player_two_games: match.playerTwoGames === null ? '' : Number(match.playerTwoGames),
-        forfeit: !!match.forfeit,
-        updated_at: new Date()
+        forfeit: !!match.forfeit || !!forfeitedBy,
+        updated_at: new Date(),
+        forfeited_by: forfeitedBy
       };
     });
 
+    ensureMatchesColumns_();
     replaceSessionRows_('SessionPlayers', sessionId, sessionPlayers);
     replaceSessionRows_('Matches', sessionId, matches);
     updateRow_('Sessions', session.__row, {
@@ -331,10 +336,19 @@ function validateCompleteRoundRobin_(sessionPlayers, matches) {
     var secondGames = Number(match.player_two_games);
     var complete = (firstGames === 3 && secondGames >= 0 && secondGames <= 2) || (secondGames === 3 && firstGames >= 0 && firstGames <= 2);
     if (!complete) throw new Error('Incomplete or invalid match: ' + key);
+    var forfeitedBy = String(match.forfeited_by || '');
+    if (asBoolean_(match.forfeit) && !forfeitedBy) throw new Error('Choose who forfeited before finalizing: ' + key);
+    if (forfeitedBy && forfeitedBy !== String(firstGames > secondGames ? match.player_two_id : match.player_one_id)) throw new Error('The forfeiting player must have lost the match: ' + key);
     delete expected[key];
   });
   var missing = Object.keys(expected);
   if (missing.length) throw new Error('Missing ' + missing.length + ' round-robin match' + (missing.length === 1 ? '' : 'es') + '.');
+}
+
+function ensureMatchesColumns_() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName('Matches');
+  if (!sheet) throw new Error('Missing database table: Matches');
+  ensureHeader_(sheet, TABLES.Matches);
 }
 
 function requireEditableSession_(sessionId, expectedRevision) {

@@ -52,6 +52,8 @@ function projectFinalizedSession(session, participants, matches, ledger, directo
     const winner = firstGames > secondGames ? first : second;
     const loser = winner === first ? second : first;
     const forfeit = match.forfeit === true || String(match.forfeit).toLowerCase() === 'true';
+    const forfeitedBy = String(match.forfeited_by || '');
+    if (forfeitedBy && forfeitedBy !== loser.id) throw new Error('Forfeiting player must have lost the match: ' + key);
     const points = ratings.adjustment(winner.before, loser.before, forfeit);
     winner.wins += 1;
     loser.losses += 1;
@@ -61,8 +63,9 @@ function projectFinalizedSession(session, participants, matches, ledger, directo
     second.gamesLost += firstGames;
     winner.adjustment += points;
     loser.adjustment -= points;
-    first.matches.push({ opponent: String(playersById.get(second.id).display_name), gamesWon: firstGames, gamesLost: secondGames, adj: winner === first ? points : -points, forfeit });
-    second.matches.push({ opponent: String(playersById.get(first.id).display_name), gamesWon: secondGames, gamesLost: firstGames, adj: winner === second ? points : -points, forfeit });
+    const forfeiter = forfeitedBy ? { forfeitedBy: String(playersById.get(forfeitedBy).display_name) } : {};
+    first.matches.push({ opponent: String(playersById.get(second.id).display_name), gamesWon: firstGames, gamesLost: secondGames, adj: winner === first ? points : -points, forfeit, ...forfeiter });
+    second.matches.push({ opponent: String(playersById.get(first.id).display_name), gamesWon: secondGames, gamesLost: firstGames, adj: winner === second ? points : -points, forfeit, ...forfeiter });
   });
   groups.forEach(function (members) {
     if (members.length * (members.length - 1) / 2 !== members.reduce(function (sum, member) { return sum + member.matches.length; }, 0) / 2) {
