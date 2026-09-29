@@ -131,26 +131,10 @@ function doGet(event) {
   var deployedUrl = '';
   try { deployedUrl = String(ScriptApp.getService().getUrl() || ''); } catch (error) { deployedUrl = ''; }
   template.deskMode = /\/dev$/.test(deployedUrl) ? 'dev' : /\/exec$/.test(deployedUrl) ? 'live' : 'unknown';
-  template.otherDeskUrl = deskLinks_(template.deskMode, deployedUrl);
   return template.evaluate()
-  .setTitle('CTTC Round Robin Manager')
+  .setTitle(template.deskMode === 'dev' ? 'DEV - CTTC Desk' : template.deskMode === 'live' ? 'LIVE - CTTC Desk' : 'CTTC Round Robin Manager')
   .addMetaTag('viewport', 'width=device-width, initial-scale=1')
   .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
-// Each deployment records its own address when visited, so the pill can offer the other one without ids living in the repo.
-var DESK_LINK_PATTERN = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/(dev|exec)$/;
-
-function deskLinks_(mode, ownUrl) {
-  if (mode === 'unknown' || !DESK_LINK_PATTERN.test(ownUrl)) return '';
-  try {
-    var properties = PropertiesService.getScriptProperties();
-    if (properties.getProperty('CTTC_DESK_URL_' + mode) !== ownUrl) properties.setProperty('CTTC_DESK_URL_' + mode, ownUrl);
-    var other = properties.getProperty('CTTC_DESK_URL_' + (mode === 'dev' ? 'live' : 'dev')) || '';
-    return DESK_LINK_PATTERN.test(other) && other !== ownUrl ? other : '';
-  } catch (error) {
-    return '';
-  }
 }
 
 function include(name) {

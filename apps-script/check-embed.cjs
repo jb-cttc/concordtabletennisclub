@@ -37,55 +37,44 @@ assert.equal(runGuard(undefined).cover, undefined, 'browsers that cannot report 
 // The mode pill.
 const pillScript = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]).find(source => source.includes("getElementById('mode-pill')"));
 function runPill(attributes, embed, unsaved) {
+  const body = {};
   const listeners = {};
   const messages = [];
   const navigation = {};
   const pill = { textContent: '', disabled: null, title: '', getAttribute: name => attributes[name], addEventListener: (name, handler) => { listeners[name] = handler; } };
   const window = { cttcEmbed: embed, cttcDesk: { needsPrintSave: () => unsaved === true }, top: { postMessage: (message, origin) => messages.push([message, origin]), location: navigation } };
-  const document = { getElementById: id => id === 'mode-pill' ? pill : { value: '2026-09-28' } };
+  const document = { body: { setAttribute: (name, value) => { body[name] = value; } }, getElementById: id => id === 'mode-pill' ? pill : { value: '2026-09-28' } };
   vm.runInNewContext(pillScript, { window, document, confirm: () => false });
-  return { pill, click: () => listeners.click(), messages, navigation };
+  return { pill, body, click: () => listeners.click(), messages, navigation };
 }
 const ownEmbed = { embedded: false, topOrigin: null };
-const other = 'https://script.google.com/macros/s/OTHER-id_1/exec';
-let pill = runPill({ 'data-mode': 'dev', 'data-other': other }, ownEmbed);
-assert.deepEqual([pill.pill.textContent, pill.pill.disabled], ['/dev', false]);
-pill.click();
-assert.equal(pill.navigation.href, other + '?authuser=0&date=2026-09-28', 'opened directly, it switches in the same tab and keeps the date');
-pill = runPill({ 'data-mode': 'live', 'data-other': '' }, ownEmbed);
+const framed = { embedded: true, topOrigin: 'http://localhost:3000' };
+let pill = runPill({ 'data-mode': 'dev' }, ownEmbed);
+assert.deepEqual([pill.pill.textContent, pill.pill.disabled], ['/dev', true], 'opened directly, the pill is a label');
+assert.equal(pill.body['data-mode'], 'dev', 'the page records which version it is');
+assert.equal(pill.pill.title, 'Running /dev.');
+pill = runPill({ 'data-mode': 'live' }, ownEmbed);
 assert.deepEqual([pill.pill.textContent, pill.pill.disabled], ['/exec', true]);
-assert.match(pill.pill.title, /Open \/dev once to enable switching/);
-pill = runPill({ 'data-mode': 'dev', 'data-other': 'https://evil.example/exec' }, ownEmbed);
-assert.equal(pill.pill.disabled, true, 'a stored address that is not a script deployment is never followed');
-pill = runPill({ 'data-mode': 'live', 'data-other': '' }, { embedded: true, topOrigin: 'http://localhost:3000' });
+assert.equal(pill.body['data-mode'], 'live');
+pill = runPill({ 'data-mode': 'live' }, framed);
 assert.equal(pill.pill.disabled, false, 'inside the local desk page the page does the switching');
+assert.equal(pill.pill.title, 'Running /exec. Click to switch to /dev.');
 pill.click();
 assert.deepEqual(JSON.parse(JSON.stringify(pill.messages)), [[{ type: 'cttc-switch', to: 'dev', date: '2026-09-28' }, 'http://localhost:3000']], 'the request goes only to the framing page');
-pill = runPill({ 'data-mode': 'unknown', 'data-other': '' }, { embedded: true, topOrigin: 'http://localhost:3000' });
+assert.equal(pill.navigation.href, undefined, 'the desk never navigates the page around it');
+pill = runPill({ 'data-mode': 'unknown' }, framed);
 assert.deepEqual([pill.pill.textContent, pill.pill.disabled], ['unknown', true]);
-pill = runPill({ 'data-mode': 'dev', 'data-other': other }, ownEmbed, true);
+pill = runPill({ 'data-mode': 'dev' }, framed, true);
 pill.click();
-assert.equal(pill.navigation.href, undefined, 'unsaved changes are not thrown away without asking');
-
-// Each deployment remembers its own address; the other one is only offered when it is a genuine deployment address.
-const props = {};
-const server = { PropertiesService: { getScriptProperties: () => ({ getProperty: key => props[key] === undefined ? null : props[key], setProperty: (key, value) => { props[key] = value; } }) } };
-vm.createContext(server);
-vm.runInContext(read('Code.js'), server);
-const dev = 'https://script.google.com/macros/s/DEV-id_1/dev';
-const live = 'https://script.google.com/macros/s/LIVE-id_2/exec';
-assert.equal(server.deskLinks_('dev', dev), '', 'nothing to offer until the other one has been opened');
-assert.equal(props.CTTC_DESK_URL_dev, dev);
-assert.equal(server.deskLinks_('live', live), dev, 'the other deployment is offered once known');
-assert.equal(server.deskLinks_('dev', dev), live);
-props.CTTC_DESK_URL_live = 'https://evil.example/exec';
-assert.equal(server.deskLinks_('dev', dev), '', 'a tampered stored value is dropped');
-assert.equal(server.deskLinks_('unknown', dev), '');
-assert.equal(server.deskLinks_('dev', 'https://evil.example/dev'), '', 'only script deployment addresses are stored');
-assert.notEqual(props.CTTC_DESK_URL_dev, 'https://evil.example/dev');
+assert.deepEqual(pill.messages, [], 'unsaved changes are not thrown away without asking');
+assert.doesNotMatch(read('Code.js'), /PropertiesService.*CTTC_DESK_URL|deskLinks_/, 'no deployment addresses are stored anywhere');
+assert.doesNotMatch(page, /data-other|top\.location\.href/);
 
 // Framing must be allowed for the local page to embed the desk; the guard above is what limits who may.
 assert.match(read('Code.js'), /\.setXFrameOptionsMode\(HtmlService\.XFrameOptionsMode\.ALLOWALL\)/);
 assert.match(page, /ALLOWALL framing lets any site embed this signed-in app/);
 
-console.log('Framing guard, mode pill, and deployment link checks passed');
+assert.match(page, /body\[data-mode=dev\] \.top\{box-shadow:inset 0 6px 0 #e8c06a\}/, 'only the dev desk gets the amber strip');
+assert.doesNotMatch(page, /body\[data-mode=live\]/);
+
+console.log('Framing guard and mode pill checks passed');

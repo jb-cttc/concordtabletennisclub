@@ -14,7 +14,7 @@ const context = {
           return {
             initialDate: this.initialDate,
             deskMode: this.deskMode,
-            setTitle: function () { return this; },
+            setTitle: function (title) { this.title = title; return this; },
             addMetaTag: function () { return this; },
             setXFrameOptionsMode: function (mode) { this.framing = mode; return this; }
           };
@@ -30,10 +30,13 @@ assert.equal(context.doGet({ parameter: { date: '2026-09-23\"' } }).initialDate,
 assert.equal(context.doGet().initialDate, '');
 context.deployedUrl = 'https://script.google.com/macros/s/EXAMPLE/dev';
 assert.equal(context.doGet().deskMode, 'dev');
+assert.equal(context.doGet().title, 'DEV - CTTC Desk', 'the dev tab says so');
 context.deployedUrl = 'https://script.google.com/macros/s/EXAMPLE/exec';
 assert.equal(context.doGet().deskMode, 'live');
+assert.equal(context.doGet().title, 'LIVE - CTTC Desk', 'the live tab says so');
 context.deployedUrl = 'https://script.google.com/a/macros/example.org/s/EXAMPLE/userweb';
 assert.equal(context.doGet().deskMode, 'unknown', 'an unrecognised address is never guessed');
+assert.equal(context.doGet().title, 'CTTC Round Robin Manager');
 context.deployedUrl = undefined;
 assert.equal(context.doGet().deskMode, 'unknown');
 assert.equal(context.doGet().framing, 'ALLOWALL', 'embedding needs framing allowed; the page itself limits who may embed');

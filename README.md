@@ -263,20 +263,24 @@ npx --no-install @google/clasp redeploy <live-deployment-id> -V <version> -d "wh
 
 See [round-robin operations](docs/round-robin-operations.md) for details.
 
-**Mode pill:** the desk header shows `/dev` or `/exec` beside the session date. When the other
-version's address is known, clicking the pill switches to it in the same tab and keeps the
-session date. Each version records its own address the first time it is opened, so open both
-once after a release. The addresses are stored in the script's private properties, not in this repo.
+**Mode pill:** the desk header shows `/dev` or `/exec` beside the session date. It is a plain
+label when the desk is opened directly; inside the local page below it also switches versions.
 
 **Local desk page (experimental):** `npm start`, then open `http://localhost:3000/desk`. It frames
 the desk so `/dev` and `/exec` can be switched without new tabs. Put your two web app addresses in
 `local/desk.config.json` (git-ignored) as `{"dev": "…/dev", "live": "…/exec"}`, or set
 `CTTC_DESK_DEV_URL` and `CTTC_DESK_EXEC_URL`. The page is served only to this computer. For the
 desk to be framed at all, `doGet` allows framing, which would let any website frame your signed-in
-desk, so the desk covers itself unless it is opened directly or by a `localhost` page. Google
-must also accept the framed request: in the integrated VS Code browser it answered "You need
-access" for `/dev` and refused `/exec` until this release, so check it in your own browser
-before relying on it. Browsers that block third-party cookies will not show a framed desk.
+desk, so the desk covers itself unless it is opened directly or by a `localhost` page. Tested in
+the integrated VS Code browser: a released `/exec` deployment frames fine (and shows no Google
+banner), but the `/dev` test address is refused ("You need access"), so the page cannot switch to
+`/dev` there. Browsers that block third-party cookies will not show a framed desk either.
+
+**Which tab is which:** the desk code always runs on Google, never on localhost, and `/dev` and
+`/exec` both use the same real Sheet. `/dev` is whatever was last pushed from the working branch;
+`/exec` changes only when a merged version is released. Keep two plain tabs open. The `/dev` tab is
+titled "DEV - CTTC Desk", has an amber strip across the header and an amber `/dev` pill; the `/exec`
+tab is titled "LIVE - CTTC Desk" with a green `/exec` pill.
 
 **Forfeits:** a match records who forfeited in the private Sheet's `Matches.forfeited_by`
 column: a player id (the other player wins, no score needed) or `both` (never played: no
