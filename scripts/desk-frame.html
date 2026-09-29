@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>CTTC Desk</title>
+<style nonce="__NONCE__">
+html,body{height:100%;margin:0;background:#17211b}
+iframe{display:block;width:100%;height:100%;border:0;background:#fff}
+.notice{box-sizing:border-box;max-width:640px;margin:0 auto;padding:48px 24px;color:#eef2ed;font:16px/1.5 Arial,sans-serif}
+.notice code{background:#25322a;padding:1px 5px;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="notice" class="notice" hidden></div>
+<iframe id="desk" title="CTTC Round Robin Desk" hidden></iframe>
+<script nonce="__NONCE__">
+(function () {
+  var config = __DESK_CONFIG__;
+  var frame = document.getElementById('desk');
+  var notice = document.getElementById('notice');
+  var sandbox = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+  var params = new URLSearchParams(location.search);
+  var stored = null;
+  try { stored = localStorage.getItem('cttc-desk-mode'); } catch (error) { stored = null; }
+
+  if (!config.dev || !config.live) {
+    notice.hidden = false;
+    notice.innerHTML = '<p><strong>Desk links are not set up.</strong></p><p>Create <code>local/desk.config.json</code> with your <code>/dev</code> and <code>/exec</code> web app URLs, or set <code>CTTC_DESK_DEV_URL</code> and <code>CTTC_DESK_EXEC_URL</code>, then reload. See the README.</p>';
+    return;
+  }
+
+  function open(mode, date) {
+    if (mode !== 'dev' && mode !== 'live') mode = 'live';
+    var url = new URL(config[mode]);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) url.searchParams.set('date', date);
+    frame.hidden = false;
+    frame.src = url.toString();
+    document.title = 'CTTC Desk (' + (mode === 'dev' ? '/dev' : '/exec') + ')';
+    try { localStorage.setItem('cttc-desk-mode', mode); } catch (error) { /* the choice is just not remembered */ }
+    history.replaceState(null, '', '?mode=' + mode);
+  }
+
+  // The desk asks to switch; only the desk's own sandbox origin is believed.
+  window.addEventListener('message', function (event) {
+    var data = event.data;
+    if (!sandbox.test(event.origin) || !data || data.type !== 'cttc-switch') return;
+    if (data.to !== 'dev' && data.to !== 'live') return;
+    open(data.to, typeof data.date === 'string' ? data.date : '');
+  });
+
+  open(params.get('mode') || stored, params.get('date'));
+})();
+</script>
+</body>
+</html>
