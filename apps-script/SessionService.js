@@ -141,7 +141,7 @@ function getSessionByDate(sessionDate) {
 }
 
 function getAppState(sessionDate) {
-  return { players: listPlayers(), session: getSessionByDate(sessionDate), ratingsSyncedThrough: ratingsSyncedThrough_(), ratingsCheckedAt: ratingsCheckedAt_(), closedLoop: closedLoopEnabled_() };
+  return { players: listPlayers(), session: getSessionByDate(sessionDate), ratingsSyncedThrough: ratingsSyncedThrough_(), ratingsCheckedAt: ratingsCheckedAt_() };
 }
 
 function saveSessionDraft(payload) {
@@ -216,32 +216,7 @@ function saveSessionDraft(payload) {
   }
 }
 
-// GO-LIVE SWITCH: finalizing stays off while MS Access is still the rating source.
-// At cutover run enableClosedLoopMode() from the Apps Script editor; see docs/round-robin-operations.md.
-var CLOSED_LOOP_KEY = 'CTTC_CLOSED_LOOP';
-
-function closedLoopEnabled_() {
-  return PropertiesService.getScriptProperties().getProperty(CLOSED_LOOP_KEY) === 'true';
-}
-
-function enableClosedLoopMode() {
-  var records = recordArchiveStatus();
-  if (!records.readyForCutover) {
-    throw new Error('Record archive cutover blocked: ' + records.missingPlayers + ' player(s) lack verified baselines or the archive ends before published ratings (' + records.ratingsSyncedThrough + ').');
-  }
-  PropertiesService.getScriptProperties().setProperty(CLOSED_LOOP_KEY, 'true');
-  appendAudit_('closed_loop_enabled', 'database', CLOSED_LOOP_KEY, {});
-  return closedLoopEnabled_();
-}
-
-function disableClosedLoopMode() {
-  PropertiesService.getScriptProperties().deleteProperty(CLOSED_LOOP_KEY);
-  appendAudit_('closed_loop_disabled', 'database', CLOSED_LOOP_KEY, {});
-  return closedLoopEnabled_();
-}
-
 function finalizeSession(sessionId, expectedRevision) {
-  if (!closedLoopEnabled_()) throw new Error('Finalizing is off until go-live (MS Access is still the rating source). Run enableClosedLoopMode in the Apps Script editor at cutover.');
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -310,6 +285,57 @@ function finalizeSession(sessionId, expectedRevision) {
       finalized_at: now
     });
     appendAudit_('session_finalized', 'session', sessionId, { revision: Number(session.revision) + 1, ratingEvents: ledger.length });
+    return getSession(sessionId);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+var PUBLIC_SESSIONS_URL = 'https://concordtabletennisclub.com/data/sessions.json';
+
+// A session the site already lists cannot be reopened: the site refuses to change a published session.
+function sessionOnSite_(sessionDate) {
+  var response = UrlFetchApp.fetch(PUBLIC_SESSIONS_URL + '?t=' + Date.now(), { muteHttpExceptions: true });
+  if (response.getResponseCode() !== 200) throw new Error('Could not check whether the club site already lists this session (HTTP ' + response.getResponseCode() + '). Try again.');
+  return JSON.parse(response.getContentText()).some(function (entry) { return String(entry.date) === sessionDate; });
+}
+
+// Reopens the most recent finalized session: restores each player's rating from the ledger, removes the
+// ledger rows, and makes the session editable again. It must be finalized again after the correction.
+function reopenSession(sessionId, expectedRevision) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    sessionId = String(sessionId);
+    var session = findRow_('Sessions', 'session_id', sessionId);
+    if (!session) throw new Error('Session not found: ' + sessionId);
+    if (String(session.status) !== 'finalized') throw new Error('Only a finalized session can be reopened.');
+    if (Number(session.revision) !== Number(expectedRevision)) throw new Error('This session changed on another device. Reload before reopening.');
+    var sessionDate = displayDate_(session.session_date);
+    var later = rows_('Sessions').filter(function (row) { return String(row.status) === 'finalized' && displayDate_(row.session_date) > sessionDate; });
+    if (later.length) throw new Error('The ' + displayDate_(later[0].session_date) + ' session is already finalized. Reopen the most recent session first.');
+    if (sessionOnSite_(sessionDate)) throw new Error('The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.');
+
+    var ledger = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
+    var players = indexBy_(rows_('Players'), 'player_id');
+    ledger.forEach(function (row) {
+      var player = players[String(row.player_id)];
+      if (!player) throw new Error('Player no longer exists: ' + row.player_id);
+      if (Number(player.current_rating) !== Number(row.rating_after)) {
+        throw new Error('The rating of ' + player.display_name + ' changed after this session was finalized, so it cannot be reversed safely.');
+      }
+    });
+
+    var now = new Date();
+    ledger.forEach(function (row) {
+      updateRow_('Players', players[String(row.player_id)].__row, { current_rating: Number(row.rating_before), updated_at: now });
+    });
+    replaceSessionRows_('RatingLedger', sessionId, []);
+    updateRow_('Sessions', session.__row, { status: 'active', revision: Number(session.revision) + 1, updated_at: now, finalized_at: '' });
+    appendAudit_('session_reopened', 'session', sessionId, {
+      revision: Number(session.revision) + 1,
+      reversed: ledger.map(function (row) { return [String(row.player_id), Number(row.rating_after), Number(row.rating_before)]; })
+    });
     return getSession(sessionId);
   } finally {
     lock.releaseLock();

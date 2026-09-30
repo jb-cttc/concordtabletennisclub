@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize ratings</button></div></div><p id="promotion-context" class="hint promotion-context"></p><p id="group-summary" class="group-summary" hidden></p><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="groups" class="groups"></div><div id="matches" class="matches"></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><p id="group-summary" class="group-summary" hidden></p><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="groups" class="groups"></div><div id="matches" class="matches"></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -456,9 +456,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     renderContext();
     renderDirectory();
     var finalizeButton = document.getElementById('finalize');
-    finalizeButton.disabled = !state.session || isLocked || !state.closedLoop;
-    finalizeButton.textContent = state.closedLoop ? 'Finalize ratings' : 'Finalize off until go-live';
-    finalizeButton.title = state.closedLoop ? '' : 'MS Access is still the rating source. Turn on at cutover with enableClosedLoopMode in the Apps Script editor.';
+    finalizeButton.disabled = !state.session;
+    finalizeButton.textContent = isLocked ? '\uD83D\uDD12 Finalized' : 'Finalize RR Results';
+    finalizeButton.title = isLocked ? 'Click to reopen this session and reverse its rating changes.' : '';
   }
 
   var ratingsChecked = false;
@@ -530,7 +530,6 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.session = data.session;
       state.ratingsSyncedThrough = data.ratingsSyncedThrough;
       state.ratingsCheckedAt = data.ratingsCheckedAt;
-      state.closedLoop = !!data.closedLoop;
       state.promotions = {};
       state.matches = [];
       state.roster = [];
@@ -626,12 +625,24 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (saved.deviceOnly) { setStatus('Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.', 'error'); return; }
     var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
     if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
-    if (!confirm('Finalize this session and update every player rating? This cannot be edited afterward.')) return;
+    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks. If you need to fix something afterwards, click the lock button to reopen it (only until the club site publishes it).')) return;
     setStatus('Finalizing ratings...', 'busy');
     try {
       state.session = await call('finalizeSession', saved.sessionId, saved.revision);
       setStatus('Session finalized. Ratings are now authoritative.');
       render();
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  }
+
+  async function reopen() {
+    if (!confirm('Reopen this session?\n\nThis will:\n\u2022 unlock the session so scores can be edited again\n\u2022 reverse every rating change from this session, using the rating ledger\n\nAfter you make your adjustments, click Finalize RR Results again to re-apply the rating changes.\n\nAre you sure?')) return;
+    setStatus('Reopening session...', 'busy');
+    try {
+      await call('reopenSession', state.session.sessionId, state.session.revision);
+      await load();
+      setStatus('Session reopened and ratings restored. Make your adjustments, then finalize again.');
     } catch (error) {
       setStatus(error.message, 'error');
     }
@@ -719,7 +730,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     updateSyncCue();
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) probeConnection(true); });
-  document.getElementById('finalize').addEventListener('click', finalize);
+  document.getElementById('finalize').addEventListener('click', function () { return locked() ? reopen() : finalize(); });
   document.getElementById('new-player').addEventListener('submit', async function (e) {
     e.preventDefault();
     var name = document.getElementById('new-name').value.trim();
@@ -1028,6 +1039,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
 .open-play-section .identity{min-width:0}
 .locked .open-play-section,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
+.locked #finalize{pointer-events:auto;opacity:1}
 </style>
 <script>
 (function () {
@@ -1384,8 +1396,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
     { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
-    { title: 'Finalize ratings', text: 'After checking every result, finalize to make ratings authoritative and lock the session. Finalization is disabled until the Access-to-desk cutover; do not use it for practice.', target: '#finalize' },
-    { title: 'Publish results', text: 'After cutover, the scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
+    { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
+    { title: 'Publish results', text: 'The scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
   ];
   var shield = document.createElement('div');

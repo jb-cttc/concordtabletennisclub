@@ -96,7 +96,8 @@
     if (result) {
       return { how: result.forfeit ? "forfeit" : "head-to-head", ordered: [result.winner, result.loser], detail: result };
     }
-    return { how: "rating", ordered: [a, b].sort(lowestRatingFirst) };
+    // No decisive match (double forfeit): same rule as a larger tie, game ratio then lowest rating.
+    return resolveMany([a, b]);
   }
 
   function gameRatio(won, lost) {

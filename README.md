@@ -13,12 +13,10 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 >   is its GitHub Pages custom domain (HTTPS enforced) and its workflow is
 >   enabled (`CTTC_DEPLOY_ENABLED=true`). Only one repository may publish and
 >   email, so Seth's workflow must be off (see [Going live](#going-live)).
-> - **MS Access is still the rating source until go-live.** Session results
->   come from the club's Access reports. Once live, Access keeps being
->   entered in parallel and is compared with the desk's results
->   ([parallel operations](docs/parallel-operations.md)); the site publishes
->   only from the desk. The desk's **Finalize ratings** button stays off
->   until go-live.
+> - **The desk is the record from 2026-09-30.** The site, the session email,
+>   and all rating changes come from sessions finalized in the desk. MS Access
+>   is still entered in parallel and only used to double-check the desk
+>   ([parallel operations](docs/parallel-operations.md)).
 
 ## What's in here
 
@@ -77,7 +75,7 @@ For effective agent-assisted changes:
       fixtures, and commits. Use synthetic examples when describing a bug.
 4. Distinguish a code release from a live-data edit. Before an agent changes
       a real session, have it inspect what is already saved and verify the result
-      afterward. Never use **Finalize ratings** as a test action.
+      afterward. Never use **Finalize RR Results** as a test action.
 5. Have a maintainer release only approved source: check the merged commit at
       `/dev`, create an Apps Script version, redeploy the existing `/exec` URL,
       and verify it there. Note the Git commit and Apps Script version in the
@@ -131,13 +129,14 @@ sheets show records before the selected session. Cutover remains blocked while
 26 operational player IDs still lack verified archive baselines. See
 [record archive operations](docs/round-robin-operations.md#club-and-year-records).
 
-**After cutover:** The desk's `RatingEngine.js` uses both players' ratings at
+**Since 2026-09-30:** The desk's `RatingEngine.js` uses both players' ratings at
 the start of the session to award points per match (forfeits award zero). On
 finalization, `SessionService.js` updates `Players.current_rating` and records
-the changes in `RatingLedger`. Its **Finalize ratings** action is off while
-Access remains authoritative. GitHub Actions will then read *finalized*
-Sheet sessions, check them against the matching `rating-engine.js` rule, and
-publish public JSON through GitHub Pages. A saved draft alone is never
+the changes in `RatingLedger`. The lock button on a finalized session reopens
+it and reverses those changes until the site publishes it. GitHub Actions
+reads *finalized*
+Sheet sessions, checks them against the matching `rating-engine.js` rule, and
+publishes public JSON through GitHub Pages. A saved draft alone is never
 published. See [round-robin operations](docs/round-robin-operations.md#ratings).
 
 **Connection-loss trial:** Open the desk and load the session online before
@@ -323,27 +322,25 @@ Track the single-sender email, subscriber, and credential transfer in
       `CTTC_DEPLOY_ENABLED` is `true`. The workflow runs only where this
       variable is set, so it never runs in forks.
       The first run here deployed the site successfully.
+- [x] Publishing from the desk (2026-09-30): the
+      `GOOGLE_ROUND_ROBIN_DATABASE_ID` secret is set, the service account has
+      Viewer access to the round-robin Sheet, and `CTTC_LIVE_START_DATE` is
+      `2026-09-30`. Still to do: run the workflow once to confirm it can read
+      the Sheet.
 - [ ] Confirm Seth's scheduled and manual workflow is disabled so only one
       repository deploys and emails. Reconcile
       `.cache/last-emailed-session.json` with the last email actually sent,
       and test with `TEST_EMAIL_OVERRIDE` before any real send; remove the
       override when done.
-- [ ] Add the `GOOGLE_ROUND_ROBIN_DATABASE_ID` secret, give the service
-      account Viewer access to the round-robin Sheet, set
-      `CTTC_LIVE_START_DATE` (after the last Drive report, 2026-09-28), and
-      run `npm run preflight:live`. Until this variable is set, the workflow
-      still scrapes Access reports and publishes no desk results.
 - [ ] **Parallel operations:** keep entering results in MS Access and review
       every session with `npm run compare:parallel` until the comparison has
       been clean for the period you agree on
       ([guide](docs/parallel-operations.md)). Stop Access entry only after that.
-- [ ] **Bring the record archive up to 9/28.** `enableClosedLoopMode` is
-      blocked while the club site has ratings through 9/28 but the archive
-      ends at 9/23 (see the go-live checklist in the operations guide).
-- [ ] **Turn finalizing back on in the desk:** in the Apps Script editor, open
-      `SessionService.gs`, choose `enableClosedLoopMode`, and click **Run**.
-      The desk's button changes from "Finalize off until go-live" to
-      "Finalize ratings".
+- [ ] **Bring the record archive up to 9/28** (printed records only; not
+      required to finalize).
+- [x] The desk's go-live switch is removed: **Finalize RR Results** is always
+      available, and the lock button reopens a finalized session until the
+      site publishes it.
 - [x] Remove the hard-coded `Latkecrszy/concordtabletennisclub` exception from
       `.github/workflows/update-data.yml`.
 

@@ -110,17 +110,4 @@ context.appendObjects_ = (name, objects) => {
 assert.throws(() => context.addVerifiedRecordBaseline('player-new', 0, 0, 0, 0, ''), /source description/);
 assert.equal(context.addVerifiedRecordBaseline('player-new', 0, 0, 0, 0, 'Reviewed source').readyForCutover, true);
 assert.equal(context.getPlayerRecordsForPrint(roster, '2026-09-24').records['player-new'].clubWins, 0);
-let enabled = 0;
-let ready = false;
-const guard = vm.createContext({
-  recordArchiveStatus: () => ({ readyForCutover: ready, missingPlayers: 26, ratingsSyncedThrough: '2026-09-23' }),
-  PropertiesService: { getScriptProperties: () => ({ setProperty: () => { enabled += 1; }, getProperty: () => 'true' }) },
-  appendAudit_: () => {}
-});
-vm.runInContext(fs.readFileSync(__dirname + '/SessionService.js', 'utf8'), guard);
-assert.throws(() => guard.enableClosedLoopMode(), /Record archive cutover blocked/);
-assert.equal(enabled, 0);
-ready = true;
-assert.equal(guard.enableClosedLoopMode(), true);
-assert.equal(enabled, 1);
 console.log('Access record archive checks passed');
