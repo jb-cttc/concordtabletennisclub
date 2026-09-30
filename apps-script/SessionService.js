@@ -292,6 +292,7 @@ function finalizeSession(sessionId, expectedRevision) {
       finalized_at: now
     });
     appendAudit_('session_finalized', 'session', sessionId, { revision: Number(session.revision) + 1, ratingEvents: ledger.length });
+    try { schedulePublish_(sessionId, sessionDate); } catch (error) { /* finalizing already succeeded; the workflow's scheduled run still publishes it */ }
     return getSession(sessionId);
   } finally {
     lock.releaseLock();
@@ -343,6 +344,7 @@ function reopenSession(sessionId, expectedRevision) {
       revision: Number(session.revision) + 1,
       reversed: ledger.map(function (row) { return [String(row.player_id), Number(row.rating_after), Number(row.rating_before)]; })
     });
+    try { cancelPublish_(sessionId); } catch (error) { /* nothing else publishes a session that is open */ }
     return getSession(sessionId);
   } finally {
     lock.releaseLock();

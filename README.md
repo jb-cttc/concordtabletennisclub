@@ -299,7 +299,7 @@ that has not been upgraded yet.
 ## Session data
 
 Until go-live, the scheduled workflow (after each Monday and Wednesday
-session, 10:30 PM Pacific with an 8 AM fallback) reads the club's Google
+session, 11:45 PM Pacific with an 8 AM fallback) reads the club's Google
 Drive session reports, rebuilds `data/`, deploys the site, and emails
 subscribers. `npm run refresh:data` does the same import locally.
 

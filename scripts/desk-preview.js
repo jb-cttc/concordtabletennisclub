@@ -64,6 +64,15 @@ function seedSession(date) {
 }
 seedSession('2026-09-28');
 
+// Publishing countdown stand-in: a short hold (PREVIEW_PUBLISH_SECONDS, default 20) instead of 15 minutes.
+const HOLD_MS = Number(process.env.PREVIEW_PUBLISH_SECONDS || 20) * 1000;
+let publishing = null;
+function publishPayload() {
+  if (publishing && publishing.state === 'dispatched' && Date.now() > publishing.doneAt) publishing.state = 'published';
+  const base = { now: Date.now(), tokenSet: !process.env.PREVIEW_NO_TOKEN, holdMinutes: 15 };
+  return publishing ? Object.assign({ message: '' }, publishing, base) : Object.assign({ state: 'none' }, base);
+}
+
 const rpc = {
   getAppState: function (date) {
     return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString() };
@@ -90,8 +99,15 @@ const rpc = {
     session.matches = payload.matches.map(function (match, index) { return Object.assign({ matchId: 'm' + index }, match); });
     return session;
   },
-  finalizeSession: function (id) { sessions[id].status = 'finalized'; sessions[id].revision += 1; return sessions[id]; },
-  reopenSession: function (id) { sessions[id].status = 'active'; sessions[id].revision += 1; return sessions[id]; },
+  finalizeSession: function (id) {
+    sessions[id].status = 'finalized'; sessions[id].revision += 1;
+    publishing = { sessionId: id, sessionDate: sessions[id].sessionDate, dueAt: Date.now() + HOLD_MS, state: 'pending' };
+    return sessions[id];
+  },
+  reopenSession: function (id) { sessions[id].status = 'active'; sessions[id].revision += 1; publishing = null; return sessions[id]; },
+  getPublishState: function () { return publishPayload(); },
+  publishNow: function () { if (publishing && publishing.state !== 'published') { publishing.state = 'dispatched'; publishing.doneAt = Date.now() + 6000; } return publishPayload(); },
+  publishDue: function () { return publishing && publishing.state === 'pending' && Date.now() >= publishing.dueAt ? rpc.publishNow() : publishPayload(); },
   getMemberStatuses: function () { return {}; },
   listVoiceSuggestions: function () { return []; },
   getOpenPlayParticipants: function () { return []; },

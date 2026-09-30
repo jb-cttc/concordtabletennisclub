@@ -34,8 +34,9 @@ Until cutover, the club's session reports are the rating authority.
 `RatingSync.js` pulls `data/players.json` from the live site hourly (and each
 time the desk loads) and updates `Players.current_rating` for exact name or
 `Aliases` matches, then records the latest posted session date as
-`CTTC_RATINGS_SYNCED_THROUGH`. The site publishes Mon/Wed around 10:30 PM PT
-(8 AM fallback), so ratings are current within an hour. Consequences:
+`CTTC_RATINGS_SYNCED_THROUGH`. A finalized session publishes about 15 minutes
+after it is finalized (or at once with Publish now), so ratings are current
+within minutes. Consequences:
 
 - Finalizing a desk session dated on or before that date is refused, since
   those matches are already counted in the club's results.
@@ -162,8 +163,23 @@ saved contact name show only the last four digits of their number.
 
 **Finalize RR Results** checks that every match is complete, updates every
 player's rating, writes the rating ledger, and locks the session. The button
-then reads **Finalized** with a lock. The scheduled website workflow publishes
-finalized sessions.
+then reads **Finalized** with a lock. A banner starts a 15-minute countdown;
+when it reaches zero the desk asks GitHub to run the "Update Data and Deploy"
+workflow, which publishes the session and sends the session email. **Publish
+now** in the banner skips the wait (after publishing, a session can no longer
+be reopened here). The countdown is stored on the server, so it survives a
+reload, and a backup trigger covers a closed tab. If publishing is not
+connected (see below) or GitHub refuses the request, the banner says so and the
+workflow's own fallback runs (11:45 PM and 8:00 AM Pacific on Mon/Wed nights)
+publish the session instead.
+
+**Connecting publishing (one time).** Create a fine-grained GitHub personal
+access token for the `jb-cttc/concordtabletennisclub` repository only, with the
+repository permission **Actions: Read and write** (nothing else), and save it
+in the Apps Script project under Project Settings, Script properties, as
+`CTTC_GITHUB_TOKEN`. Never put it in the repository or a chat. Then run
+`checkPublishSetup` from the editor to confirm the token can see the workflow.
+Rotate the token when it expires.
 
 Clicking the lock asks for confirmation and then **reopens** the session:
 every rating change from that session is reversed from the ledger, the ledger
