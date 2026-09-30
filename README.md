@@ -9,10 +9,10 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 > [Latkecrszy/concordtabletennisclub](https://github.com/Latkecrszy/concordtabletennisclub)
 > (built by Seth) to this repository. Until the hand-off is complete:
 >
-> - **The live site is still served from Seth's repository.** Transfer of the
->   `concordtabletennisclub.com` domain is pending. This repo is a staging
->   copy; its scheduled workflow is switched off (see
->   [Going live](#going-live)), so it cannot deploy the site or email members.
+> - **The site is now served from this repository.** `concordtabletennisclub.com`
+>   is its GitHub Pages custom domain (HTTPS enforced) and its workflow is
+>   enabled (`CTTC_DEPLOY_ENABLED=true`). Only one repository may publish and
+>   email, so Seth's workflow must be off (see [Going live](#going-live)).
 > - **MS Access is still the rating source.** Session results come from the
 >   club's Access reports. The desk organizes, prints, and scores sessions,
 >   but its **Finalize ratings** button is switched off until go-live.
@@ -43,8 +43,7 @@ earlier version. You do not need to know how to code to suggest an improvement.
       and submit a pull request for review. You do not need to edit the Google
       script or open a pull request yourself.
 
-During handoff the public website still runs from Seth's repository. Also,
-merging code on GitHub does not update the Google desk: a maintainer tests
+Merging code on GitHub does not update the Google desk: a maintainer tests
 the script and deploys a numbered Google version separately.
 
 ## Agentic Development Context & Tips
@@ -313,20 +312,27 @@ These steps finish the hand-off. Details are in the
 Track the single-sender email, subscriber, and credential transfer in
 [handoff issue #4](https://github.com/jb-cttc/concordtabletennisclub/issues/4).
 
-- [ ] Transfer the `concordtabletennisclub.com` domain and point it at this
-      repository's GitHub Pages site.
-- [ ] Add the repository secrets (Google service account, Gmail, subscriber
-      list) and set the `CTTC_DEPLOY_ENABLED` repository variable to `true`.
-      The workflow runs only in Seth's repository or where this variable is
-      set, so it never runs in forks.
-- [ ] Set `CTTC_LIVE_START_DATE` and run `npm run preflight:live`.
+- [x] Domain: `concordtabletennisclub.com` is this repository's Pages custom
+      domain, the DNS check passes, and HTTPS is enforced (2026-09-30).
+- [x] Secrets and switch (2026-09-30): the Google service account, Gmail,
+      subscriber Sheet, and `TEST_EMAIL_OVERRIDE` secrets are set, and
+      `CTTC_DEPLOY_ENABLED` is `true`. The workflow runs only in Seth's
+      repository or where this variable is set, so it never runs in forks.
+      The first run here deployed the site successfully.
+- [ ] Confirm Seth's scheduled and manual workflow is disabled so only one
+      repository deploys and emails. Reconcile
+      `.cache/last-emailed-session.json` with the last email actually sent,
+      and test with `TEST_EMAIL_OVERRIDE` before any real send; remove the
+      override when done.
+- [ ] Add the `GOOGLE_ROUND_ROBIN_DATABASE_ID` secret, set
+      `CTTC_LIVE_START_DATE`, and run `npm run preflight:live`.
 - [ ] Stop entering results in MS Access.
 - [ ] **Turn finalizing back on in the desk:** in the Apps Script editor, open
       `SessionService.gs`, choose `enableClosedLoopMode`, and click **Run**.
       The desk's button changes from "Finalize off until go-live" to
       "Finalize ratings".
-- [ ] Turn off the workflow in Seth's repository so the two don't both
-      publish.
+- [ ] After cutover, remove the hard-coded `Latkecrszy/concordtabletennisclub`
+      exception from `.github/workflows/update-data.yml`.
 
 ## Credits
 

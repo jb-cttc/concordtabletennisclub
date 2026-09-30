@@ -13,10 +13,11 @@
   `npx --no-install @google/clasp push` from `apps-script/`, then create a
   version and redeploy the existing `/exec` deployment.
 
-The jb-cttc repository is a staging copy. The workflow runs only in
-`Latkecrszy/concordtabletennisclub` or where the repository variable
-`CTTC_DEPLOY_ENABLED` is `true`, so neither jb-cttc nor any fork can deploy
-the site or email members alongside the live repository.
+The jb-cttc repository now serves `concordtabletennisclub.com`. The workflow
+runs only in `Latkecrszy/concordtabletennisclub` or where the repository
+variable `CTTC_DEPLOY_ENABLED` is `true` (set in jb-cttc on 2026-09-30), so
+forks cannot deploy or email. Seth's workflow must stay disabled so only one
+repository deploys and emails.
 
 ## Club and Year Records
 
@@ -63,14 +64,38 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
   rating rank without reshuffling anyone, and promoted players are never
   bumped down. **Rebuild by rating** resets groups and reapplies promotions.
 - Matches follow a rotation schedule so a 6-player group uses three tables
-  per round. Live standings show W-L, games, and projected rating; a group
-  winner is marked once all its matches are complete.
+  per round. Live standings show W-L, games, and projected rating in the
+  order the players are listed, so rows never move while scores are entered;
+  once all of a group's matches are complete the winner is marked (with a
+  note when a tie-break decided it).
 - **Print groups** and **Print sheets** produce the group list and one
   tournament sheet per group (club rating and record, instructions, match
   schedule with expected/upset points).
 
-Winner rule: best match-win ratio; ties go to the lower starting rating, then
-name. `standings.js` implements it for the site and emails.
+Group ranking (`standings.js`, used by the site, emails, and the desk):
+
+1. Match points: a win is 2, a played loss 1, and a forfeited or unplayed
+   match 0 for the loser (USATT Rule Interpretations 6.3). The winner of a
+   forfeit gets 2 points and a 3-0 game credit for tie-breaks; a double
+   forfeit gives neither player anything.
+2. Two players tied on points: head-to-head result (a forfeit win counts).
+3. Three or more tied: game ratio among the tied players, then the lowest
+   rating before the session, then name. Players who never met (double
+   forfeit) also go to the lowest pre-session rating.
+
+The site shows an asterisk and a one-line note under a group only when its
+winner needed more than the win count: same wins but different match points,
+or a tie on points. Other places in the group follow the same rules without
+a note.
+
+The Access reports print `F` in both cells for any forfeit, so who forfeited
+is lost. `data/forfeit-overrides.json` records it for sessions posted before
+the desk took over (9/28 only); `fetch-and-parse.js` applies it on every
+rebuild. Desk-finalized sessions carry `forfeit` and `forfeitedBy` on each
+match. The desk runs a copy of `standings.js` (`apps-script/Standings.html`):
+run `npm run sync:desk` after editing `standings.js`; `check-organizer.cjs`
+fails when the copy is stale.
+
 `rating-engine.js` (site) and `RatingEngine.js` (desk) use both players'
 session-start ratings for every match adjustment, with a zero floor.
 
