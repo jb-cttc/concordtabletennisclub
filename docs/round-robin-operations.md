@@ -166,7 +166,10 @@ saved contact name show only the last four digits of their number.
 3. Run `npm run preflight:live` with those settings in a trusted terminal.
    It only reads the Sheet and lists what it would publish.
 4. Confirm the club site's ratings match the desk (`ratingSyncStatus` shows
-   the latest Access session) and stop entering results in MS Access.
+   the latest Access session). Access entry continues in parallel; review
+   each session with `npm run compare:parallel` (see
+   [parallel operations](parallel-operations.md)) and stop Access only after
+   the agreed clean period.
 5. **Bring the record archive up to the last Access session.**
    `recordArchiveStatus().readyForCutover` is true only when no player lacks a
    baseline and the ratings sync date equals the archive cutoff, which is

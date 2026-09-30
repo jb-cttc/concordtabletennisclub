@@ -13,9 +13,12 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 >   is its GitHub Pages custom domain (HTTPS enforced) and its workflow is
 >   enabled (`CTTC_DEPLOY_ENABLED=true`). Only one repository may publish and
 >   email, so Seth's workflow must be off (see [Going live](#going-live)).
-> - **MS Access is still the rating source.** Session results come from the
->   club's Access reports. The desk organizes, prints, and scores sessions,
->   but its **Finalize ratings** button is switched off until go-live.
+> - **MS Access is still the rating source until go-live.** Session results
+>   come from the club's Access reports. Once live, Access keeps being
+>   entered in parallel and is compared with the desk's results
+>   ([parallel operations](docs/parallel-operations.md)); the site publishes
+>   only from the desk. The desk's **Finalize ratings** button stays off
+>   until go-live.
 
 ## What's in here
 
@@ -26,6 +29,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 | `scripts/` | Data import, publishing, email, and check scripts. |
 | `apps-script/` | Owner desk (Google Apps Script): roster, groups, promotions, scoring, printing, payments, Voice signups. |
 | `docs/round-robin-operations.md` | How the desk and site fit together, rating rules, and the go-live checklist. |
+| `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
 
 ## Request an app or website change
 
@@ -329,7 +333,10 @@ Track the single-sender email, subscriber, and credential transfer in
       `CTTC_LIVE_START_DATE` (after the last Drive report, 2026-09-28), and
       run `npm run preflight:live`. Until this variable is set, the workflow
       still scrapes Access reports and publishes no desk results.
-- [ ] Stop entering results in MS Access.
+- [ ] **Parallel operations:** keep entering results in MS Access and review
+      every session with `npm run compare:parallel` until the comparison has
+      been clean for the period you agree on
+      ([guide](docs/parallel-operations.md)). Stop Access entry only after that.
 - [ ] **Bring the record archive up to 9/28.** `enableClosedLoopMode` is
       blocked while the club site has ratings through 9/28 but the archive
       ends at 9/23 (see the go-live checklist in the operations guide).

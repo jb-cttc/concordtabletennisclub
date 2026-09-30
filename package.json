@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:standings && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk",
+    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:standings && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk",
     "build:sessions": "NODE_USE_SYSTEM_CA=1 node scripts/build-sessions.js",
     "build:data": "NODE_USE_SYSTEM_CA=1 node scripts/fetch-and-parse.js",
     "build:data:full": "NODE_USE_SYSTEM_CA=1 CTTC_FULL_REFRESH=true node scripts/fetch-and-parse.js",
@@ -15,6 +15,8 @@
     "check:app": "for f in apps-script/check-*; do node \"$f\" || exit 1; done",
     "check:ratings": "node scripts/check-rating-engine.js",
     "check:standings": "node scripts/check-standings.js",
+    "check:parallel": "node scripts/check-parallel-compare.js",
+    "compare:parallel": "node scripts/compare-parallel.js",
     "check:publication": "node scripts/check-finalized-publication.js",
     "check:disposable": "node scripts/check-disposable-session.js",
     "check:desk": "node scripts/check-desk-page.js",

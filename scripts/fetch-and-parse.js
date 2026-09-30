@@ -18,7 +18,10 @@ const { applyForfeitOverrides } = require('./lib/forfeit-overrides');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
-const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+// CTTC_ACCESS_DIR = parallel operations: read the Access session list from that directory and refresh
+// only the raw cache, leaving published data untouched.
+const PARALLEL_DIR = process.env.CTTC_ACCESS_DIR ? path.resolve(ROOT, process.env.CTTC_ACCESS_DIR) : null;
+const SESSIONS_FILE = path.join(PARALLEL_DIR || DATA_DIR, 'sessions.json');
 const ALIASES_FILE = path.join(DATA_DIR, 'player-aliases.json');
 const FORFEIT_OVERRIDES_FILE = path.join(DATA_DIR, 'forfeit-overrides.json');
 const CACHE_FILE = path.join(ROOT, '.cache', 'session-raw-cache.json');
@@ -315,7 +318,8 @@ function groupPlayerNames(group, canonicalName) {
   });
 }
 
-function applyCanonicalNames(sessions, canonicalName) {
+function applyCanonicalNames(sessions, canonicalName, options) {
+  const arrange = options && options.keepReportOrder ? function (players) { return players; } : sortByGroupResult;
   return sessions.map(function (session) {
     const canonicalSession = {
       date: session.date,
@@ -324,7 +328,7 @@ function applyCanonicalNames(sessions, canonicalName) {
         const names = groupPlayerNames(group, canonicalName);
         return {
           name: group.name,
-          players: sortByGroupResult(group.players.map(function (player, playerIndex) {
+          players: arrange(group.players.map(function (player, playerIndex) {
             const name = names[playerIndex];
             if (isIgnoredPlayer(name)) return null;
             const matchesUnavailable = Boolean(player.matchesUnavailable);
@@ -490,6 +494,11 @@ async function main() {
   await writeJson(CACHE_FILE, parsed.slice().sort(function (a, b) {
     return b.date.localeCompare(a.date);
   }));
+
+  if (PARALLEL_DIR) {
+    if (failures.length) process.stderr.write('Completed with ' + failures.length + ' unavailable session report(s).\n');
+    return;
+  }
 
   const canonicalName = buildCanonicalizer(parsed, aliases);
   const details = applyCanonicalNames(parsed, canonicalName).sort(function (a, b) {
