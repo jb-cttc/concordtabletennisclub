@@ -412,10 +412,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (m.forfeit && !m.forfeitedBy) out += '<option value="?" selected>Forfeit (who not recorded)</option>';
     return out + '</select>';
   }
-  function scoreSelect(index, side, value) {
-    var out = '<select data-score="' + index + '" data-side="' + side + '" aria-label="Games"><option value="">\u2013</option>';
-    for (var n = 0; n <= 3; n += 1) out += '<option value="' + n + '" ' + (value === n ? 'selected' : '') + '>' + n + '</option>';
-    return out + '</select>';
+  function ballScore(index, side, value, name) {
+    var label = esc(name);
+    var out = '<div class="score-set score-' + side + '" role="group" aria-label="Games won by ' + label + '"><span class="score-caption">Games won</span><div class="balls">';
+    for (var n = 0; n <= 3; n += 1) {
+      var on = value != null && (n === 0 ? value === 0 : value >= n);
+      var words = n + (n === 1 ? ' game' : ' games');
+      out += '<button type="button" class="ball' + (n === 0 ? ' zero' : '') + (on ? ' on' : '') + '" data-score="' + index + '" data-side="' + side + '" data-games="' + n + '" aria-pressed="' + on + '" aria-label="' + label + ' won ' + words + '" title="' + (n === 0 ? 'Won no games' : words + ' won') + '">' + n + '</button>';
+    }
+    return out + '</div></div>';
   }
   function renderMatches() {
     var done = 0;
@@ -434,7 +439,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return '<section class="match-group' + (collapsed ? ' collapsed' : '') + '"><h3 role="button" tabindex="0" data-toggle-group="' + group.groupNumber + '" aria-expanded="' + !collapsed + '"><span class="group-title"><span class="chev" aria-hidden="true">\u25BE</span>Group ' + group.groupNumber + '</span><span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3><div class="fold"><div class="fold-inner">' + standings + entries.map(function (entry) {
         var m = entry.match;
         var matchState = O.matchState(m);
-        return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + scoreSelect(entry.index, 'one', m.playerOneGames) + '<span>\u2013</span>' + scoreSelect(entry.index, 'two', m.playerTwoGames) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
+        return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + ballScore(entry.index, 'one', m.playerOneGames, player(m.playerOneId).name) + '<span class="dash">\u2013</span>' + ballScore(entry.index, 'two', m.playerTwoGames, player(m.playerTwoId).name) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
       }).join('') + '</div></div></section>';
     }).join('');
     matches.innerHTML = (total ? '<p class="match-progress">' + done + ' of ' + total + ' matches complete</p>' : '') + html;
@@ -692,7 +697,23 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (target.dataset.drop) removeFromRoster(target.dataset.drop);
     else move(target.dataset.move, Number(target.dataset.dir));
   });
+  // Clicking a ball sets that many games won (filling the balls to its left); clicking the same ball again clears it.
+  function setGames(ball, keyboard) {
+    if (pendingRecovery) return;
+    var m = state.matches[Number(ball.dataset.score)];
+    var key = ball.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames';
+    var games = Number(ball.dataset.games);
+    m[key] = m[key] === games ? null : games;
+    renderMatches();
+    persistDeviceDraft();
+    if (keyboard) {
+      var again = matches.querySelector('[data-score="' + ball.dataset.score + '"][data-side="' + ball.dataset.side + '"][data-games="' + ball.dataset.games + '"]');
+      if (again) again.focus();
+    }
+  }
   matches.addEventListener('click', function (e) {
+    var ball = e.target.closest('[data-games]');
+    if (ball) { setGames(ball, e.detail === 0); return; }
     var head = e.target.closest('[data-toggle-group]');
     if (head) toggleGroup(head.closest('.match-group'));
   });
@@ -735,12 +756,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   };
   matches.addEventListener('change', function (e) {
     if (pendingRecovery) return;
-    if (e.target.dataset.score != null) {
-      var m = state.matches[Number(e.target.dataset.score)];
-      m[e.target.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames'] = e.target.value === '' ? null : Number(e.target.value);
-    } else if (e.target.dataset.forfeit != null) {
-      O.applyForfeit(state.matches[Number(e.target.dataset.forfeit)], e.target.value);
-    }
+    if (e.target.dataset.forfeit == null) return;
+    O.applyForfeit(state.matches[Number(e.target.dataset.forfeit)], e.target.value);
     renderMatches();
     persistDeviceDraft();
   });
@@ -838,6 +855,19 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .tiebreak-note{margin:6px 0 10px;font:12px Arial,sans-serif;color:var(--muted)}
 .match-foot{grid-column:1/6;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
 .match-foot .forfeit{grid-column:2}
+.match{grid-template-columns:minmax(90px,1fr) auto 14px auto minmax(90px,1fr);column-gap:10px}
+.match .dash{text-align:center;color:var(--muted)}
+.score-set{display:flex;flex-direction:column;align-items:center;gap:3px}
+.score-caption{font:11px Arial,sans-serif;color:var(--muted)}
+.balls{display:flex;align-items:center;gap:5px}
+.ball{width:28px;height:28px;padding:0;border-radius:50%;border:2px solid #c9d0cb;background:#fff;color:#8a948d;font:700 12px Arial,sans-serif;line-height:1;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .1s ease}
+.ball:hover{border-color:#f58220}
+.ball:active{transform:scale(.9)}
+.ball:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.ball.on{background:radial-gradient(circle at 35% 30%,#ffc98a,#f58220 55%,#d96a0f);border-color:#c95f0a;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.ball.zero{width:22px;height:22px;border-style:dashed;font-size:11px}
+.ball.zero.on{background:#e4ece6;border:2px solid var(--green);color:var(--green);box-shadow:none}
+@media(max-width:560px){.match{grid-template-columns:minmax(0,1fr) auto}.match>strong:first-child{grid-column:1;grid-row:1}.match>.score-one{grid-column:2;grid-row:1}.match>.score-two{grid-column:2;grid-row:2}.match>strong.right{grid-column:1;grid-row:2;text-align:left}.match>.dash{display:none}.match-foot{grid-column:1/-1;grid-row:3}}
 @media(max-width:560px){.match-foot{grid-template-columns:1fr;justify-items:center;gap:4px}.match-foot .forfeit{grid-column:1}}
 .match-status{font:12px Arial,sans-serif;color:var(--muted)}
 .match-complete .match-status{color:var(--green);font-weight:700}
@@ -1460,7 +1490,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
+    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'The scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
