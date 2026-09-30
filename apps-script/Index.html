@@ -682,6 +682,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
   }
 
+  window.cttcDesk = {
+    add: addToRoster,
+    remove: removeFromRoster,
+    has: function (id) { return state.roster.indexOf(id) >= 0; },
+    print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
+    needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
+    saveDraft: save
+  };
+
   // After finalizing, the session is held for 15 minutes before it publishes; this banner shows the countdown.
   var publishBar = document.getElementById('publish-bar');
   var publish = { info: null, offset: 0, dueSent: false, lastPoll: 0 };
@@ -738,15 +747,6 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     try { publishApply(await call('publishNow', state.session.sessionId)); }
     catch (error) { setStatus(error.message, 'error'); button.disabled = false; }
   });
-
-  window.cttcDesk = {
-    add: addToRoster,
-    remove: removeFromRoster,
-    has: function (id) { return state.roster.indexOf(id) >= 0; },
-    print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
-    needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
-    saveDraft: save
-  };
 
   results.addEventListener('click', async function (e) {
     var button = e.target.closest('button');
