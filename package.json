@@ -17,6 +17,7 @@
     "check:standings": "node scripts/check-standings.js",
     "check:parallel": "node scripts/check-parallel-compare.js",
     "compare:parallel": "node scripts/compare-parallel.js",
+    "preview:desk": "node scripts/desk-preview.js",
     "check:publication": "node scripts/check-finalized-publication.js",
     "check:disposable": "node scripts/check-disposable-session.js",
     "check:desk": "node scripts/check-desk-page.js",
