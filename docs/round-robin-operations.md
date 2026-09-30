@@ -13,10 +13,10 @@
   `npx --no-install @google/clasp push` from `apps-script/`, then create a
   version and redeploy the existing `/exec` deployment.
 
-The jb-cttc repository is a staging copy. The workflow runs only in
-`Latkecrszy/concordtabletennisclub` or where the repository variable
-`CTTC_DEPLOY_ENABLED` is `true`, so neither jb-cttc nor any fork can deploy
-the site or email members alongside the live repository.
+The jb-cttc repository now serves `concordtabletennisclub.com`. The workflow
+runs only where the repository variable `CTTC_DEPLOY_ENABLED` is `true` (set
+in jb-cttc on 2026-09-30), so forks cannot deploy or email. Seth's workflow
+must stay disabled so only one repository deploys and emails.
 
 ## Club and Year Records
 
@@ -24,7 +24,7 @@ The private Google Sheet holds the raw `AccessPlayers` import and a separate, re
 
 The 1,642 imported Access player counters were last current through September 21, 2026. The local Access file includes 60 more matches on September 23, of which 58 are non-forfeits. Subtracting those 58 outcomes from the local Access counters reproduces the Sheet's **per-player** SHA-256 fingerprint exactly. The one-time archive seed verifies both fingerprints before writing the September 21 baselines and dated September 23 outcomes. For a sheet dated September 23, the printed records therefore exclude that day's matches; a later sheet includes them. Only finalized desk matches **after** September 23 contribute subsequently, with forfeits excluded. Drafts and the selected session itself never contribute.
 
-Run `recordArchiveStatus()` in the Apps Script editor to verify the archive, its cutoff, and player coverage. At migration time, 26 operational `Players` IDs had no matching Access Player ID. Their records remain unavailable (`--/--`) until independently verified; do not assign zero by assumption. After checking a player's source, `addVerifiedRecordBaseline(playerId, clubWins, clubLosses, yearWins, yearLosses, evidence)` stores the four counters and provenance in the private archive. `enableClosedLoopMode()` refuses cutover while any operational player lacks a baseline or the public ratings cutoff exceeds the archive's September 23 snapshot. If Access is used for another session, import and reconcile that session's records and update the archive cutoff before enabling the desk; the fixed September 23 seed does not do that automatically. Historical year-specific records before 2026 are not imported and will remain unavailable for historical print dates.
+Run `recordArchiveStatus()` in the Apps Script editor to verify the archive, its cutoff, and player coverage. At migration time, 26 operational `Players` IDs had no matching Access Player ID. Their records remain unavailable (`--/--`) until independently verified; do not assign zero by assumption. After checking a player's source, `addVerifiedRecordBaseline(playerId, clubWins, clubLosses, yearWins, yearLosses, evidence)` stores the four counters and provenance in the private archive. `recordArchiveStatus()` reports whether any player lacks a baseline and whether the archive ends before the latest Access session; it no longer gates finalizing. Records print as `--/--` for a player without a baseline and leave out any Access session after September 23 until its matches are added to `RecordArchiveEvents`. Because every entry is dated, adding them later corrects earlier printouts. Historical year-specific records before 2026 are not imported and will remain unavailable for historical print dates.
 
 The raw Access Match history and original VBA calculation code are not in the desk Sheet. The stored Access Player counters are reproduced for the current season, and future win/loss updates follow the non-forfeit match rule verified against league 17; this does **not** claim every older Access counter can be reconstructed from match rows (28 older club totals differed in the comparison). The rating engine is a separate calculation and must be verified on its own terms.
 
@@ -39,7 +39,8 @@ time the desk loads) and updates `Players.current_rating` for exact name or
 
 - Finalizing a desk session dated on or before that date is refused, since
   those matches are already counted in the club's results.
-- Finalizing is also off entirely until go-live; see the checklist below.
+- A finalized session can be reopened from the lock button (see
+  [Finalizing and reopening](#finalizing-and-reopening)).
 - Saving a draft refreshes every starting rating to the current rating, and
   finalizing is refused if a rating changed after the last save.
 - Once the desk has finalized a session newer than the site's latest, the
@@ -63,14 +64,45 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
   rating rank without reshuffling anyone, and promoted players are never
   bumped down. **Rebuild by rating** resets groups and reapplies promotions.
 - Matches follow a rotation schedule so a 6-player group uses three tables
-  per round. Live standings show W-L, games, and projected rating; a group
-  winner is marked once all its matches are complete.
+  per round. Live standings show W-L, games, and projected rating in the
+  order the players are listed, so rows never move while scores are entered;
+  once all of a group's matches are complete the winner is marked (with a
+  note when a tie-break decided it).
 - **Print groups** and **Print sheets** produce the group list and one
   tournament sheet per group (club rating and record, instructions, match
   schedule with expected/upset points).
 
-Winner rule: best match-win ratio; ties go to the lower starting rating, then
-name. `standings.js` implements it for the site and emails.
+Group ranking (`standings.js`, used by the site, emails, and the desk):
+
+1. Match points: a win is 2, a played loss 1, and a forfeited or unplayed
+   match 0 for the loser (USATT Rule Interpretations 6.3). The winner of a
+   forfeit gets 2 points and a 3-0 game credit for tie-breaks; a double
+   forfeit gives neither player anything.
+2. Two players tied on points: head-to-head result (a forfeit win counts).
+3. Three or more tied, or two players whose match was not played (double
+   forfeit): game ratio among the tied players, then the lowest rating before
+   the session, then name.
+
+The site shows an asterisk and a one-line note under a group only when its
+winner needed more than the win count: same wins but different match points,
+or a tie on points. Other places in the group follow the same rules without
+a note.
+
+The Access reports print `F` in both cells for any forfeit, so who forfeited
+is lost. `data/forfeit-overrides.json` records it for sessions posted before
+the desk took over (9/28 only); `fetch-and-parse.js` applies it on every
+rebuild. Desk-finalized sessions carry `forfeit` and `forfeitedBy` on each
+match. The desk runs a copy of `standings.js` (`apps-script/Standings.html`):
+run `npm run sync:desk` after editing `standings.js`; `check-organizer.cjs`
+fails when the copy is stale.
+
+The desk records games won with clickable balls per player. Three games win a
+match. If time runs short and a match is cut to best of 3, tap the 2 ball and
+then the gray Winner badge under that player; the other player's games default
+to 0 and can be changed to 1. The Matches sheet keeps this in `won_by`, it counts
+as an ordinary played win for ratings and records, and a 2-game score without
+a named winner cannot be finalized.
+
 `rating-engine.js` (site) and `RatingEngine.js` (desk) use both players'
 session-start ratings for every match adjustment, with a zero floor.
 
@@ -126,13 +158,30 @@ shows likely directory matches, including linked names; the organizer clicks
 **RR** to add one to the local draft, then saves the draft. Senders without a
 saved contact name show only the last four digits of their number.
 
+## Finalizing and reopening
+
+**Finalize RR Results** checks that every match is complete, updates every
+player's rating, writes the rating ledger, and locks the session. The button
+then reads **Finalized** with a lock. The scheduled website workflow publishes
+finalized sessions.
+
+Clicking the lock asks for confirmation and then **reopens** the session:
+every rating change from that session is reversed from the ledger, the ledger
+rows are removed, and the session is editable again. Finalize again after the
+correction. Reopening is refused when
+
+- the club site already lists the session (the site will not change a
+  published session),
+- a later session is already finalized (reopen the most recent one first), or
+- a player's rating changed after the session was finalized.
+
+The audit log records each reopen with the ratings it reversed.
+
 ## Live publication cutover (go-live checklist)
 
-> **Parallel run in progress.** MS Access is still the rating source, so the
-> desk's **Finalize ratings** button is switched off (it reads
-> "Finalize off until go-live") and `finalizeSession` refuses to run. Use
-> the desk to organize, print, and score, but not to finalize. The switch is
-> the `CTTC_CLOSED_LOOP` script property; step 5 below turns it on.
+> **The desk is the record.** Finalizing is always available. MS Access is
+> still entered in parallel and only used to double-check the desk's results
+> ([parallel operations](parallel-operations.md)).
 
 1. Give the service account (`GOOGLE_SERVICE_ACCOUNT_EMAIL`) Viewer access to
    the round-robin Sheet and enable the Sheets API for its project.
@@ -142,13 +191,18 @@ saved contact name show only the last four digits of their number.
 3. Run `npm run preflight:live` with those settings in a trusted terminal.
    It only reads the Sheet and lists what it would publish.
 4. Confirm the club site's ratings match the desk (`ratingSyncStatus` shows
-   the latest Access session) and stop entering results in MS Access.
-5. **Turn finalizing on:** in the Apps Script editor, open
-   `SessionService.gs`, choose `enableClosedLoopMode`, and click **Run**.
-   Reload the desk; the button reads **Finalize ratings** again.
-   (`disableClosedLoopMode` turns it back off.)
+   the latest Access session). Access entry continues in parallel; review
+   each session with `npm run compare:parallel` (see
+   [parallel operations](parallel-operations.md)) and stop Access only after
+   the agreed clean period.
+5. **Bring the record archive up to the last Access session** (not required
+   to finalize). Until the 9/28 Access matches are added to
+   `RecordArchiveEvents`, printed club and year records leave them out, and
+   players without a baseline print `--/--`. Run `recordArchiveStatus()` to
+   see the current values.
 6. After the first live session, verify the archive, winner, scores,
-   adjustments, and email against the desk's ledger.
+   adjustments, and email against the desk's ledger. Remove the
+   `TEST_EMAIL_OVERRIDE` secret once a test email has been checked.
 
 `npm run refresh:data` is the historical Drive importer; do not run it after
 cutover.

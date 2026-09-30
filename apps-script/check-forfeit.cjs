@@ -10,6 +10,7 @@ const read = file => fs.readFileSync(path.join(__dirname, file), 'utf8');
 // Shared match rules (desk page and print sheets).
 const desk = { window: {} };
 vm.createContext(desk);
+vm.runInContext(read('Standings.html').match(/<script>([\s\S]*)<\/script>/)[1], desk);
 vm.runInContext(read('Organizer.html').match(/<script>([\s\S]*)<\/script>/)[1], desk);
 const O = desk.window.CTTCOrganizer;
 const match = (g1, g2, extra) => ({ playerOneId: 'a', playerTwoId: 'b', playerOneGames: g1, playerTwoGames: g2, forfeit: false, forfeitedBy: null, ...extra });
@@ -129,11 +130,16 @@ function sheet(header, maxColumns, lastRow) {
   });
 }
 const wanted = server.TABLES.Matches;
-assert.equal(wanted[wanted.length - 1], 'forfeited_by');
+assert.equal(wanted[wanted.length - 1], 'won_by');
 const older = wanted.slice(0, -1);
 let upgraded = sheet(older, 26);
 server.ensureHeader_(upgraded, wanted);
-assert.deepEqual(upgraded.writes, [[wanted.length, 'forfeited_by']], 'only the new header cell is written');
+assert.deepEqual(upgraded.writes, [[wanted.length, 'won_by']], 'only the new header cell is written');
+assert.deepEqual(upgraded.header, wanted);
+const oldest = wanted.slice(0, -2);
+upgraded = sheet(oldest, 26);
+server.ensureHeader_(upgraded, wanted);
+assert.deepEqual(upgraded.writes, [[wanted.length - 1, 'forfeited_by'], [wanted.length, 'won_by']], 'a Sheet missing both columns gains both, in order');
 assert.deepEqual(upgraded.header, wanted);
 upgraded = sheet(older, older.length);
 server.ensureHeader_(upgraded, wanted);
@@ -152,9 +158,10 @@ server.ensureHeader_(empty, wanted);
 assert.deepEqual(empty.writes, [['all', wanted]]);
 
 // Publishing carries the forfeiter and still reads Sheets that predate the column.
-assert.equal(HEADERS.Matches[HEADERS.Matches.length - 1], 'forfeited_by');
-const publishedHeader = HEADERS.Matches.slice(0, -1);
+assert.equal(HEADERS.Matches[HEADERS.Matches.length - 1], 'won_by');
+const publishedHeader = HEADERS.Matches.slice(0, -2);
 assert.equal(parseTable('Matches', [publishedHeader, ['m', 's', 1, 'a', 'b', 3, 0, 'true', '']])[0].forfeited_by, '');
+assert.equal(parseTable('Matches', [HEADERS.Matches.slice(0, -1), ['m', 's', 1, 'a', 'b', 3, 0, 'true', '', 'b']])[0].won_by, '', 'a Sheet without won_by still publishes');
 assert.equal(parseTable('Matches', [HEADERS.Matches, ['m', 's', 1, 'a', 'b', 3, 0, 'true', '', 'b']])[0].forfeited_by, 'b');
 assert.throws(() => parseTable('Matches', [['match_id', 'oops']]), /Unexpected Matches header/);
 assert.throws(() => parseTable('Matches', []), /Unexpected Matches header/);

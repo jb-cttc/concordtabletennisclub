@@ -9,7 +9,9 @@ const path = require('path');
 const cheerio = require('cheerio');
 
 const ROOT = path.resolve(__dirname, '..');
-const SESSIONS_FILE = path.join(ROOT, 'data', 'sessions.json');
+// CTTC_ACCESS_DIR redirects the Access session list away from data/ (parallel operations).
+const OUTPUT_DIR = process.env.CTTC_ACCESS_DIR ? path.resolve(ROOT, process.env.CTTC_ACCESS_DIR) : path.join(ROOT, 'data');
+const SESSIONS_FILE = path.join(OUTPUT_DIR, 'sessions.json');
 const ROOT_DRIVE_FOLDER_ID = process.env.CTTC_ROOT_FOLDER_ID ||
   '1-AULcheVLrGzxi2hkRbErUBwaGDDqf7O';
 const ARCHIVE_URL = process.env.CTTC_ARCHIVE_URL ||
@@ -260,6 +262,7 @@ function assertNoSessionRemoval(discovered, existing) {
 }
 
 async function writeSessions(sessions) {
+  await fs.mkdir(path.dirname(SESSIONS_FILE), { recursive: true });
   const temporaryFile = SESSIONS_FILE + '.tmp';
   await fs.writeFile(temporaryFile, JSON.stringify(sessions, null, 2) + '\n');
   await fs.rename(temporaryFile, SESSIONS_FILE);

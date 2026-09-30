@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize ratings</button></div></div><p id="promotion-context" class="hint promotion-context"></p><p id="group-summary" class="group-summary" hidden></p><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="groups" class="groups"></div><div id="matches" class="matches"></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -83,6 +83,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   };
 })();
 </script>
+<?!= include('Standings') ?>
 <?!= include('Organizer') ?>
 <script>
 (function () {
@@ -117,6 +118,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var groups = document.getElementById('groups');
   var matches = document.getElementById('matches');
   var summary = document.getElementById('group-summary');
+  var summaryRow = document.getElementById('summary-row');
+  var organizerFold = document.getElementById('organizer-fold');
+  var organizerToggle = document.getElementById('toggle-organizer');
+  var collapsedGroups = {};
   var context = document.getElementById('promotion-context');
 
   function esc(value) {
@@ -325,8 +330,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         state.matches.push(old && old.playerOneId === pair[0]
           ? Object.assign({}, old, { groupNumber: group.groupNumber })
           : old
-            ? { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: old.playerTwoGames, playerTwoGames: old.playerOneGames, forfeit: old.forfeit, forfeitedBy: old.forfeitedBy || null }
-            : { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: null, playerTwoGames: null, forfeit: false, forfeitedBy: null });
+            ? { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: old.playerTwoGames, playerTwoGames: old.playerOneGames, forfeit: old.forfeit, forfeitedBy: old.forfeitedBy || null, wonBy: old.wonBy || null }
+            : { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: null, playerTwoGames: null, forfeit: false, forfeitedBy: null, wonBy: null });
       });
     });
   }
@@ -382,7 +387,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   function renderGroups() {
     var sizes = state.groups.map(function (group) { return group.playerIds.length; });
     var unbalanced = sizes.some(function (size) { return size < 5 || size > 6; });
-    summary.hidden = !state.roster.length;
+    summaryRow.hidden = !state.roster.length;
     summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in ' + sizes.length + (sizes.length === 1 ? ' group' : ' groups') + ' · ' + sizes.join(' / ') + (unbalanced ? ' · rebalance recommended' : '');
     summary.classList.toggle('warn', unbalanced);
     groups.innerHTML = state.groups.map(function (group, index) {
@@ -397,7 +402,28 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }).join('');
   }
 
-  var STATUS_TEXT = { complete: 'Complete', incomplete: 'Enter both', invalid: 'Winner needs 3', pending: 'Pending', conflict: 'Forfeit and score disagree' };
+  var STATUS_TEXT = { complete: '', incomplete: 'Enter the other player\u2019s games', invalid: 'Needs 3 games, or tap Winner for a best of 3', pending: '', conflict: 'Forfeit and score disagree' };
+  // Gray until a winner is known; green check for the winner; nothing for the loser. A best-of-3 win the desk was told about can be taken back.
+  function winnerBadge(index, side, m, winnerId) {
+    var id = side === 'one' ? m.playerOneId : m.playerTwoId;
+    var mine = side === 'one' ? m.playerOneGames : m.playerTwoGames;
+    var theirs = side === 'one' ? m.playerTwoGames : m.playerOneGames;
+    var attrs = ' data-winner="' + index + '" data-side="' + side + '"';
+    if (winnerId) {
+      if (id !== winnerId) return '';
+      var badge = 'Winner <span class="check" aria-hidden="true">\u2713</span>';
+      return m.wonBy === id
+        ? '<button type="button" class="winner-badge on"' + attrs + ' aria-pressed="true" title="Best of 3 winner. Tap to undo.">' + badge + '</button>'
+        : '<span class="winner-badge on">' + badge + '</span>';
+    }
+    if (m.forfeitedBy === 'both') return '';
+    if (mine === 2 && (theirs == null || theirs <= 1)) return '<button type="button" class="winner-badge"' + attrs + ' aria-pressed="false" title="Tap to record ' + esc(player(id).name) + ' as the winner of a best-of-3 match">Winner</button>';
+    return '<span class="winner-badge" title="Tap the 3 ball, or the 2 ball for a best-of-3 match">Winner</span>';
+  }
+  function playerCell(index, side, m, winnerId) {
+    var id = side === 'one' ? m.playerOneId : m.playerTwoId;
+    return '<div class="player-cell player-' + side + '"><strong>' + esc(player(id).name) + '</strong>' + winnerBadge(index, side, m, winnerId) + '</div>';
+  }
   function forfeitSelect(index, m) {
     var out = '<select data-forfeit="' + index + '" aria-label="Who forfeited"><option value="">None</option>';
     [m.playerOneId, m.playerTwoId].forEach(function (id) {
@@ -407,10 +433,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (m.forfeit && !m.forfeitedBy) out += '<option value="?" selected>Forfeit (who not recorded)</option>';
     return out + '</select>';
   }
-  function scoreSelect(index, side, value) {
-    var out = '<select data-score="' + index + '" data-side="' + side + '" aria-label="Games"><option value="">\u2013</option>';
-    for (var n = 0; n <= 3; n += 1) out += '<option value="' + n + '" ' + (value === n ? 'selected' : '') + '>' + n + '</option>';
-    return out + '</select>';
+  function ballScore(index, side, value, name) {
+    var label = esc(name);
+    var out = '<div class="score-set score-' + side + '" role="group" aria-label="Games won by ' + label + '"><span class="score-caption">Games won</span><div class="balls">';
+    for (var n = 0; n <= 3; n += 1) {
+      var on = value != null && (n === 0 ? value === 0 : value >= n);
+      var words = n + (n === 1 ? ' game' : ' games');
+      out += '<button type="button" class="ball' + (n === 0 ? ' zero' : '') + (on ? ' on' : '') + '" data-score="' + index + '" data-side="' + side + '" data-games="' + n + '" aria-pressed="' + on + '" aria-label="' + label + ' won ' + words + '" title="' + (n === 0 ? 'Won no games' : words + ' won') + '">' + n + '</button>';
+    }
+    return out + '</div></div>';
   }
   function renderMatches() {
     var done = 0;
@@ -420,15 +451,18 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.matches.forEach(function (match, index) { if (match.groupNumber === group.groupNumber) entries.push({ match: match, index: index }); });
       var table = O.standings(group.playerIds, entries.map(function (entry) { return entry.match; }), player, O.ratingAdjustment);
       done += table.complete;
-      var standings = '<table class="standings"><thead><tr><th>Player</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + table.rows.map(function (row, rank) {
+      var standings = '<table class="standings"><thead><tr><th>Player</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + table.rows.map(function (row) {
         var change = row.projected - row.startRating;
-        return '<tr' + (rank === 0 && table.finished ? ' class="leader"' : '') + '><td>' + (rank === 0 && table.finished ? '\uD83C\uDFC6 ' : '') + esc(row.name) + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
-      }).join('') + '</tbody></table>';
-      return '<section class="match-group"><h3>Group ' + group.groupNumber + ' <span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3>' + standings + entries.map(function (entry) {
+        var won = table.winnerId === row.playerId;
+        return '<tr' + (won ? ' class="leader"' : '') + '><td>' + (won ? '\uD83C\uDFC6 ' : '') + esc(row.name) + (won && table.note ? '*' : '') + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>' + (table.note ? '<p class="tiebreak-note">* ' + esc(table.note) + '</p>' : '');
+      var collapsed = !!collapsedGroups[group.groupNumber];
+      return '<section class="match-group' + (collapsed ? ' collapsed' : '') + '"><h3 role="button" tabindex="0" data-toggle-group="' + group.groupNumber + '" aria-expanded="' + !collapsed + '"><span class="group-title"><span class="chev" aria-hidden="true">\u25BE</span>Group ' + group.groupNumber + '</span><span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3><div class="fold"><div class="fold-inner">' + standings + entries.map(function (entry) {
         var m = entry.match;
         var matchState = O.matchState(m);
-        return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + scoreSelect(entry.index, 'one', m.playerOneGames) + '<span>\u2013</span>' + scoreSelect(entry.index, 'two', m.playerTwoGames) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
-      }).join('') + '</section>';
+        var winnerId = O.matchWinner(m);
+        return '<div class="match match-' + matchState + '">' + playerCell(entry.index, 'one', m, winnerId) + ballScore(entry.index, 'one', m.playerOneGames, player(m.playerOneId).name) + '<span class="dash">\u2013</span>' + ballScore(entry.index, 'two', m.playerTwoGames, player(m.playerTwoId).name) + playerCell(entry.index, 'two', m, winnerId) + '<div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
+      }).join('') + '</div></div></section>';
     }).join('');
     matches.innerHTML = (total ? '<p class="match-progress">' + done + ' of ' + total + ' matches complete</p>' : '') + html;
   }
@@ -454,9 +488,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     renderContext();
     renderDirectory();
     var finalizeButton = document.getElementById('finalize');
-    finalizeButton.disabled = !state.session || isLocked || !state.closedLoop;
-    finalizeButton.textContent = state.closedLoop ? 'Finalize ratings' : 'Finalize off until go-live';
-    finalizeButton.title = state.closedLoop ? '' : 'MS Access is still the rating source. Turn on at cutover with enableClosedLoopMode in the Apps Script editor.';
+    finalizeButton.disabled = !state.session;
+    finalizeButton.textContent = isLocked ? '\uD83D\uDD12 Finalized' : 'Finalize RR Results';
+    finalizeButton.title = isLocked ? 'Click to reopen this session and reverse its rating changes.' : '';
   }
 
   var ratingsChecked = false;
@@ -528,7 +562,6 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.session = data.session;
       state.ratingsSyncedThrough = data.ratingsSyncedThrough;
       state.ratingsCheckedAt = data.ratingsCheckedAt;
-      state.closedLoop = !!data.closedLoop;
       state.promotions = {};
       state.matches = [];
       state.roster = [];
@@ -548,7 +581,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         });
         state.roster = [].concat.apply([], groupsFromSession);
         state.matches = (state.session.matches || []).map(function (match) {
-          return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null });
+          return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null, wonBy: match.wonBy || null });
         });
       }
       setGroups(groupsFromSession);
@@ -624,12 +657,24 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (saved.deviceOnly) { setStatus('Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.', 'error'); return; }
     var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
     if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
-    if (!confirm('Finalize this session and update every player rating? This cannot be edited afterward.')) return;
+    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks. If you need to fix something afterwards, click the lock button to reopen it (only until the club site publishes it).')) return;
     setStatus('Finalizing ratings...', 'busy');
     try {
       state.session = await call('finalizeSession', saved.sessionId, saved.revision);
       setStatus('Session finalized. Ratings are now authoritative.');
       render();
+    } catch (error) {
+      setStatus(error.message, 'error');
+    }
+  }
+
+  async function reopen() {
+    if (!confirm('Reopen this session?\n\nThis will:\n\u2022 unlock the session so scores can be edited again\n\u2022 reverse every rating change from this session, using the rating ledger\n\nAfter you make your adjustments, click Finalize RR Results again to re-apply the rating changes.\n\nAre you sure?')) return;
+    setStatus('Reopening session...', 'busy');
+    try {
+      await call('reopenSession', state.session.sessionId, state.session.revision);
+      await load();
+      setStatus('Session reopened and ratings restored. Make your adjustments, then finalize again.');
     } catch (error) {
       setStatus(error.message, 'error');
     }
@@ -674,14 +719,124 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (target.dataset.drop) removeFromRoster(target.dataset.drop);
     else move(target.dataset.move, Number(target.dataset.dir));
   });
+  // Clicking a ball sets that many games won (filling the balls to its left); clicking the same ball again clears it.
+  function setGames(ball, keyboard) {
+    if (pendingRecovery) return;
+    var m = state.matches[Number(ball.dataset.score)];
+    var key = ball.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames';
+    var games = Number(ball.dataset.games);
+    m[key] = m[key] === games ? null : games;
+    if (m.wonBy && !O.shortWin(m)) m.wonBy = null;
+    renderMatches();
+    persistDeviceDraft();
+    if (keyboard) {
+      var again = matches.querySelector('[data-score="' + ball.dataset.score + '"][data-side="' + ball.dataset.side + '"][data-games="' + ball.dataset.games + '"]');
+      if (again) again.focus();
+    }
+  }
+  // A best-of-3 win needs exactly 2 games; the other player's games default to 0 and can still be changed to 1.
+  function setWinner(badge, keyboard) {
+    if (pendingRecovery) return;
+    var m = state.matches[Number(badge.dataset.winner)];
+    var id = badge.dataset.side === 'one' ? m.playerOneId : m.playerTwoId;
+    var mineKey = badge.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames';
+    var theirKey = badge.dataset.side === 'one' ? 'playerTwoGames' : 'playerOneGames';
+    if (m.wonBy === id) m.wonBy = null;
+    else if (m[mineKey] === 2 && (m[theirKey] == null || m[theirKey] <= 1) && !m.forfeitedBy) {
+      if (m[theirKey] == null) m[theirKey] = 0;
+      m.wonBy = id;
+    } else return;
+    renderMatches();
+    persistDeviceDraft();
+    if (keyboard) {
+      var again = matches.querySelector('[data-winner="' + badge.dataset.winner + '"][data-side="' + badge.dataset.side + '"]');
+      if (again) again.focus();
+    }
+  }
+  matches.addEventListener('click', function (e) {
+    var ball = e.target.closest('[data-games]');
+    if (ball) { setGames(ball, e.detail === 0); return; }
+    var badge = e.target.closest('button[data-winner]');
+    if (badge) { setWinner(badge, e.detail === 0); return; }
+    var head = e.target.closest('[data-toggle-group]');
+    if (head) toggleGroup(head.closest('.match-group'));
+  });
+  matches.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-toggle-group]')) {
+      e.preventDefault();
+      toggleGroup(e.target.closest('.match-group'));
+    }
+  });
+  // Setting `instant` for one frame lets a fold jump without animating (tour, programmatic reveal).
+  function foldInstantly(fold, change) {
+    fold.classList.add('instant');
+    change();
+    void fold.offsetHeight;
+    fold.classList.remove('instant');
+  }
+  function setGroupCollapsed(card, collapsed, instant) {
+    var number = Number(card.querySelector('[data-toggle-group]').dataset.toggleGroup);
+    var apply = function () { card.classList.toggle('collapsed', collapsed); };
+    if (instant) foldInstantly(card.querySelector('.fold'), apply); else apply();
+    card.querySelector('[data-toggle-group]').setAttribute('aria-expanded', String(!collapsed));
+    collapsedGroups[number] = collapsed;
+  }
+  function toggleGroup(card) { setGroupCollapsed(card, !card.classList.contains('collapsed'), false); }
+  function setOrganizerCollapsed(collapsed, instant) {
+    var apply = function () { organizerFold.classList.toggle('collapsed', collapsed); };
+    if (instant) foldInstantly(organizerFold, apply);
+    else { organizerFold.classList.add('folding'); apply(); }
+    organizerToggle.textContent = collapsed ? 'Expand organizer' : 'Collapse organizer';
+    organizerToggle.setAttribute('aria-expanded', String(!collapsed));
+  }
+  organizerFold.addEventListener('transitionend', function (e) {
+    if (e.target === organizerFold) organizerFold.classList.remove('folding');
+  });
+  organizerToggle.addEventListener('click', function () { setOrganizerCollapsed(!organizerFold.classList.contains('collapsed'), false); });
+  var workspaceEl = document.querySelector('.workspace');
+  var sidePanel = document.querySelector('.sidebar');
+  var sideToggle = document.getElementById('toggle-side');
+  // The panel's height is pinned while it animates so it can shrink to a full-height bar and grow back.
+  function sidePanelNaturalHeight() {
+    return Array.prototype.reduce.call(sidePanel.children, function (sum, el) { return el.classList.contains('section') ? sum + el.offsetHeight : sum; }, 2);
+  }
+  function setSideCollapsed(collapsed, instant) {
+    var natural = sidePanelNaturalHeight();
+    var rail = Math.min(natural, window.innerHeight - 36);
+    if (instant) workspaceEl.classList.add('instant');
+    sidePanel.style.height = sidePanel.offsetHeight + 'px';
+    void sidePanel.offsetHeight;
+    workspaceEl.classList.toggle('side-collapsed', collapsed);
+    sidePanel.style.height = (collapsed ? rail : natural) + 'px';
+    if (instant) {
+      void sidePanel.offsetHeight;
+      workspaceEl.classList.remove('instant');
+      if (!collapsed) sidePanel.style.height = '';
+    }
+    sideToggle.innerHTML = collapsed ? '&raquo;' : '&laquo;';
+    sideToggle.setAttribute('aria-expanded', String(!collapsed));
+    var label = collapsed ? 'Show the player panel' : 'Hide the player panel';
+    sideToggle.title = label;
+    sideToggle.setAttribute('aria-label', label);
+  }
+  sidePanel.addEventListener('transitionend', function (e) {
+    if (e.target === sidePanel && e.propertyName === 'height' && !workspaceEl.classList.contains('side-collapsed')) sidePanel.style.height = '';
+  });
+  sideToggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setSideCollapsed(!workspaceEl.classList.contains('side-collapsed'), false);
+  });
+  sidePanel.addEventListener('click', function () { if (workspaceEl.classList.contains('side-collapsed')) setSideCollapsed(false, false); });
+  window.cttcReveal = function (target) {
+    if (target.closest('.sidebar') && workspaceEl.classList.contains('side-collapsed')) setSideCollapsed(false, true);
+    if (target.closest('#organizer-fold') && organizerFold.classList.contains('collapsed')) setOrganizerCollapsed(false, true);
+    var card = target.closest('.match-group');
+    if (card && card.classList.contains('collapsed')) setGroupCollapsed(card, false, true);
+  };
   matches.addEventListener('change', function (e) {
     if (pendingRecovery) return;
-    if (e.target.dataset.score != null) {
-      var m = state.matches[Number(e.target.dataset.score)];
-      m[e.target.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames'] = e.target.value === '' ? null : Number(e.target.value);
-    } else if (e.target.dataset.forfeit != null) {
-      O.applyForfeit(state.matches[Number(e.target.dataset.forfeit)], e.target.value);
-    }
+    if (e.target.dataset.forfeit == null) return;
+    O.applyForfeit(state.matches[Number(e.target.dataset.forfeit)], e.target.value);
     renderMatches();
     persistDeviceDraft();
   });
@@ -717,7 +872,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     updateSyncCue();
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) probeConnection(true); });
-  document.getElementById('finalize').addEventListener('click', finalize);
+  document.getElementById('finalize').addEventListener('click', function () { return locked() ? reopen() : finalize(); });
   document.getElementById('new-player').addEventListener('submit', async function (e) {
     e.preventDefault();
     var name = document.getElementById('new-name').value.trim();
@@ -755,11 +910,52 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .promotion-badge{display:block;margin-top:2px;font:11px Arial,sans-serif;color:#7a5200;font-weight:700}
 .match-progress{font:13px Arial,sans-serif;color:var(--muted);margin:0 0 10px}
 .match-group h3{display:flex;justify-content:space-between;align-items:center}
+.summary-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.summary-row[hidden]{display:none}
+.summary-row .group-summary{margin:0}
+.fold{display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s ease}
+.fold>.fold-inner{min-height:0;transition:opacity .25s ease}
+.fold.collapsed,.match-group.collapsed>.fold{grid-template-rows:0fr}
+.fold.collapsed>.fold-inner,.fold.folding>.fold-inner,.match-group>.fold>.fold-inner{overflow:hidden}
+.fold.collapsed>.fold-inner,.match-group.collapsed>.fold>.fold-inner{opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s .3s}
+.fold.instant,.fold.instant>.fold-inner{transition:none}
+.match-group h3[data-toggle-group]{cursor:pointer;user-select:none;transition:background .15s ease,border-color .3s ease}
+.match-group h3[data-toggle-group]:hover{background:#e4ece6}
+.match-group h3[data-toggle-group]:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
+.match-group.collapsed h3{border-bottom-color:transparent}
+.group-title{display:inline-flex;align-items:center}
+.chev{display:inline-block;width:1.2em;color:var(--green);transition:transform .3s ease}
+.match-group.collapsed .chev{transform:rotate(-90deg)}
+@media(prefers-reduced-motion:reduce){.fold,.fold>.fold-inner,.chev{transition:none}}
 .standings{width:100%;border-collapse:collapse;font:13px Arial,sans-serif}
 .standings th,.standings td{padding:6px 13px;text-align:left;border-bottom:1px solid #edf0ed}
 .standings th{font-weight:700;color:var(--muted);font-size:12px}
 .standings tr.leader td{background:#eef6f0;font-weight:700}
-.match-foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}
+.tiebreak-note{margin:6px 0 10px;font:12px Arial,sans-serif;color:var(--muted)}
+.match-foot{grid-column:1/6;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
+.match-foot .forfeit{grid-column:2}
+.match{grid-template-columns:minmax(90px,1fr) auto 14px auto minmax(90px,1fr);column-gap:10px}
+.match .dash{text-align:center;color:var(--muted)}
+.score-set{display:flex;flex-direction:column;align-items:center;gap:3px}
+.score-caption{font:11px Arial,sans-serif;color:var(--muted)}
+.balls{display:flex;align-items:center;gap:5px}
+.ball{width:28px;height:28px;padding:0;border-radius:50%;border:2px solid #c9d0cb;background:#fff;color:#8a948d;font:700 12px Arial,sans-serif;line-height:1;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .1s ease}
+.ball:hover{border-color:#f58220}
+.ball:active{transform:scale(.9)}
+.ball:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.ball.on{background:radial-gradient(circle at 35% 30%,#ffc98a,#f58220 55%,#d96a0f);border-color:#c95f0a;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.ball.zero{width:22px;height:22px;border-style:dashed;font-size:11px}
+.ball.zero.on{background:#e4ece6;border:2px solid var(--green);color:var(--green);box-shadow:none}
+@media(max-width:560px){.match{grid-template-columns:minmax(0,1fr) auto}.match>.player-one{grid-column:1;grid-row:1}.match>.score-one{grid-column:2;grid-row:1}.match>.score-two{grid-column:2;grid-row:2}.match>.player-two{grid-column:1;grid-row:2;text-align:left;align-items:flex-start}.match>.dash{display:none}.match-foot{grid-column:1/-1;grid-row:3}}
+.player-cell{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.player-two{align-items:flex-end;text-align:right}
+.winner-badge{font:700 11px Arial,sans-serif;line-height:1.4;padding:1px 9px;border-radius:999px;border:1px solid #d3d9d5;background:#eef0ee;color:#8a948d}
+button.winner-badge{cursor:pointer}
+button.winner-badge:hover{border-color:var(--green);color:var(--green)}
+button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.winner-badge.on{background:#fff;border-color:#b9d8c5;color:var(--ink)}
+.winner-badge .check{color:#1a9b4e;font-size:13px}
+@media(max-width:560px){.match-foot{grid-template-columns:1fr;justify-items:center;gap:4px}.match-foot .forfeit{grid-column:1}}
 .match-status{font:12px Arial,sans-serif;color:var(--muted)}
 .match-complete .match-status{color:var(--green);font-weight:700}
 .match-invalid .match-status,.match-incomplete .match-status{color:var(--red);font-weight:700}
@@ -781,7 +977,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   list.id = 'open-roster';
   list.className = 'group-list';
   section.append(heading, list);
-  document.getElementById('matches').before(section);
+  document.querySelector('#organizer-fold .fold-inner').append(section);
 })();
 </script>
 <style>
@@ -1025,6 +1221,22 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
 .open-play-section .identity{min-width:0}
 .locked .open-play-section,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
+.locked #finalize,.locked #toggle-organizer,.locked #toggle-side,.locked .match-group h3{pointer-events:auto;opacity:1}
+.side-toggle{position:absolute;top:14px;right:8px;z-index:2;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--green);font:700 16px Arial,sans-serif;line-height:1;cursor:pointer}
+.side-toggle:hover{border-color:var(--green);background:#eef6f0}
+.side-toggle:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.side-label{position:absolute;top:58px;left:50%;transform:translateX(-50%);writing-mode:vertical-rl;white-space:nowrap;font:700 14px Georgia,serif;color:var(--muted);opacity:0;pointer-events:none;transition:opacity .2s ease}
+.side-collapsed .side-label{opacity:1;transition-delay:.15s}
+.side-collapsed .sidebar{cursor:pointer}
+@media(min-width:851px){
+.workspace{grid-template-columns:340px minmax(0,1fr);transition:grid-template-columns .3s ease}
+.workspace.side-collapsed{grid-template-columns:48px minmax(0,1fr)}
+.sidebar{transition:height .3s ease}
+.sidebar>.section{min-width:338px;transition:opacity .2s ease}
+.side-collapsed .sidebar>.section{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s .3s}
+.workspace.instant,.workspace.instant .sidebar,.workspace.instant .sidebar>.section,.workspace.instant .side-label{transition:none}
+}
+@media(prefers-reduced-motion:reduce){.workspace,.sidebar,.sidebar>.section,.side-label{transition:none!important}}
 </style>
 <script>
 (function () {
@@ -1370,7 +1582,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var steps = [
     { title: 'Welcome to the desk', text: 'Use this question button whenever you want to revisit the tour. Starting the tour loaded the saved 9/23/2026 session. We will not save any changes during the tour.', target: '#show-tour' },
     { title: 'Load a session', text: 'You can use this to load any saved sessions using the date picker and Load Session button.', target: '.date-tools label', also: '#load' },
-    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default; type at least two letters to include archived players.', target: '.sidebar .section:first-child' },
+    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default; type at least two letters to include archived players.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
@@ -1380,9 +1592,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, enter the games won in each match. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
-    { title: 'Finalize ratings', text: 'After checking every result, finalize to make ratings authoritative and lock the session. Finalization is disabled until the Access-to-desk cutover; do not use it for practice.', target: '#finalize' },
-    { title: 'Publish results', text: 'After cutover, the scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
+    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
+    { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
+    { title: 'Publish results', text: 'The scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
   ];
   var shield = document.createElement('div');
@@ -1493,6 +1705,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     next.textContent = loadFailed ? 'Loading failed' : !ready ? 'Loading session...' : stepIndex === steps.length - 1 ? 'Finish' : 'Next';
     next.disabled = !ready;
     var target = document.querySelector(steps[stepIndex].target);
+    if (target && window.cttcReveal) window.cttcReveal(target);
     if (target) {
       var bounds = target.getBoundingClientRect();
       if (bounds.top < 8 || bounds.bottom > window.innerHeight - 8) target.scrollIntoView({ block: 'center', inline: 'nearest' });

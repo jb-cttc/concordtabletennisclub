@@ -9,13 +9,14 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 > [Latkecrszy/concordtabletennisclub](https://github.com/Latkecrszy/concordtabletennisclub)
 > (built by Seth) to this repository. Until the hand-off is complete:
 >
-> - **The live site is still served from Seth's repository.** Transfer of the
->   `concordtabletennisclub.com` domain is pending. This repo is a staging
->   copy; its scheduled workflow is switched off (see
->   [Going live](#going-live)), so it cannot deploy the site or email members.
-> - **MS Access is still the rating source.** Session results come from the
->   club's Access reports. The desk organizes, prints, and scores sessions,
->   but its **Finalize ratings** button is switched off until go-live.
+> - **The site is now served from this repository.** `concordtabletennisclub.com`
+>   is its GitHub Pages custom domain (HTTPS enforced) and its workflow is
+>   enabled (`CTTC_DEPLOY_ENABLED=true`). Only one repository may publish and
+>   email, so Seth's workflow must be off (see [Going live](#going-live)).
+> - **The desk is the record from 2026-09-30.** The site, the session email,
+>   and all rating changes come from sessions finalized in the desk. MS Access
+>   is still entered in parallel and only used to double-check the desk
+>   ([parallel operations](docs/parallel-operations.md)).
 
 ## What's in here
 
@@ -26,6 +27,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 | `scripts/` | Data import, publishing, email, and check scripts. |
 | `apps-script/` | Owner desk (Google Apps Script): roster, groups, promotions, scoring, printing, payments, Voice signups. |
 | `docs/round-robin-operations.md` | How the desk and site fit together, rating rules, and the go-live checklist. |
+| `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
 
 ## Request an app or website change
 
@@ -43,8 +45,7 @@ earlier version. You do not need to know how to code to suggest an improvement.
       and submit a pull request for review. You do not need to edit the Google
       script or open a pull request yourself.
 
-During handoff the public website still runs from Seth's repository. Also,
-merging code on GitHub does not update the Google desk: a maintainer tests
+Merging code on GitHub does not update the Google desk: a maintainer tests
 the script and deploys a numbered Google version separately.
 
 ## Agentic Development Context & Tips
@@ -74,7 +75,7 @@ For effective agent-assisted changes:
       fixtures, and commits. Use synthetic examples when describing a bug.
 4. Distinguish a code release from a live-data edit. Before an agent changes
       a real session, have it inspect what is already saved and verify the result
-      afterward. Never use **Finalize ratings** as a test action.
+      afterward. Never use **Finalize RR Results** as a test action.
 5. Have a maintainer release only approved source: check the merged commit at
       `/dev`, create an Apps Script version, redeploy the existing `/exec` URL,
       and verify it there. Note the Git commit and Apps Script version in the
@@ -128,13 +129,14 @@ sheets show records before the selected session. Cutover remains blocked while
 26 operational player IDs still lack verified archive baselines. See
 [record archive operations](docs/round-robin-operations.md#club-and-year-records).
 
-**After cutover:** The desk's `RatingEngine.js` uses both players' ratings at
+**Since 2026-09-30:** The desk's `RatingEngine.js` uses both players' ratings at
 the start of the session to award points per match (forfeits award zero). On
 finalization, `SessionService.js` updates `Players.current_rating` and records
-the changes in `RatingLedger`. Its **Finalize ratings** action is off while
-Access remains authoritative. GitHub Actions will then read *finalized*
-Sheet sessions, check them against the matching `rating-engine.js` rule, and
-publish public JSON through GitHub Pages. A saved draft alone is never
+the changes in `RatingLedger`. The lock button on a finalized session reopens
+it and reverses those changes until the site publishes it. GitHub Actions
+reads *finalized*
+Sheet sessions, checks them against the matching `rating-engine.js` rule, and
+publishes public JSON through GitHub Pages. A saved draft alone is never
 published. See [round-robin operations](docs/round-robin-operations.md#ratings).
 
 **Connection-loss trial:** Open the desk and load the session online before
@@ -313,20 +315,34 @@ These steps finish the hand-off. Details are in the
 Track the single-sender email, subscriber, and credential transfer in
 [handoff issue #4](https://github.com/jb-cttc/concordtabletennisclub/issues/4).
 
-- [ ] Transfer the `concordtabletennisclub.com` domain and point it at this
-      repository's GitHub Pages site.
-- [ ] Add the repository secrets (Google service account, Gmail, subscriber
-      list) and set the `CTTC_DEPLOY_ENABLED` repository variable to `true`.
-      The workflow runs only in Seth's repository or where this variable is
-      set, so it never runs in forks.
-- [ ] Set `CTTC_LIVE_START_DATE` and run `npm run preflight:live`.
-- [ ] Stop entering results in MS Access.
-- [ ] **Turn finalizing back on in the desk:** in the Apps Script editor, open
-      `SessionService.gs`, choose `enableClosedLoopMode`, and click **Run**.
-      The desk's button changes from "Finalize off until go-live" to
-      "Finalize ratings".
-- [ ] Turn off the workflow in Seth's repository so the two don't both
-      publish.
+- [x] Domain: `concordtabletennisclub.com` is this repository's Pages custom
+      domain, the DNS check passes, and HTTPS is enforced (2026-09-30).
+- [x] Secrets and switch (2026-09-30): the Google service account, Gmail,
+      subscriber Sheet, and `TEST_EMAIL_OVERRIDE` secrets are set, and
+      `CTTC_DEPLOY_ENABLED` is `true`. The workflow runs only where this
+      variable is set, so it never runs in forks.
+      The first run here deployed the site successfully.
+- [x] Publishing from the desk (2026-09-30): the
+      `GOOGLE_ROUND_ROBIN_DATABASE_ID` secret is set, the service account has
+      Viewer access to the round-robin Sheet, and `CTTC_LIVE_START_DATE` is
+      `2026-09-30`. Still to do: run the workflow once to confirm it can read
+      the Sheet.
+- [ ] Confirm Seth's scheduled and manual workflow is disabled so only one
+      repository deploys and emails. Reconcile
+      `.cache/last-emailed-session.json` with the last email actually sent,
+      and test with `TEST_EMAIL_OVERRIDE` before any real send; remove the
+      override when done.
+- [ ] **Parallel operations:** keep entering results in MS Access and review
+      every session with `npm run compare:parallel` until the comparison has
+      been clean for the period you agree on
+      ([guide](docs/parallel-operations.md)). Stop Access entry only after that.
+- [ ] **Bring the record archive up to 9/28** (printed records only; not
+      required to finalize).
+- [x] The desk's go-live switch is removed: **Finalize RR Results** is always
+      available, and the lock button reopens a finalized session until the
+      site publishes it.
+- [x] Remove the hard-coded `Latkecrszy/concordtabletennisclub` exception from
+      `.github/workflows/update-data.yml`.
 
 ## Credits
 

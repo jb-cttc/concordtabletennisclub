@@ -59,8 +59,6 @@ assert.throws(() => context.applyPublicRatings_(site([{ name: 'X', currentRating
 assert.throws(() => context.applyPublicRatings_(site([{ name: 'X', currentRating: -5 }])), /Invalid public rating/);
 assert.throws(() => context.applyPublicRatings_({ players: [] }), /Unexpected/);
 
-assert.throws(() => context.finalizeSession('session-2026-09-23', 4), /off until go-live/, 'finalize is off until the go-live switch is set');
-props.CTTC_CLOSED_LOOP = 'true';
 assert.throws(() => context.finalizeSession('session-2026-09-23', 4), /already has results through 2026-09-23.*twice/);
 assert.equal(tables.Sessions[0].status, 'active', 'blocked finalize changes nothing');
 

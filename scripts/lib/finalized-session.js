@@ -45,7 +45,11 @@ function projectFinalizedSession(session, participants, matches, ledger, directo
     const firstGames = unscored ? 0 : integer(match.player_one_games, 'first games');
     const secondGames = unscored ? 0 : integer(match.player_two_games, 'second games');
     const key = [String(match.player_one_id), String(match.player_two_id)].sort().join('::');
-    const validScore = unscored || (firstGames === 3 && secondGames >= 0 && secondGames <= 2) ||
+    const wonBy = String(match.won_by || '');
+    const shortWin = wonBy !== '' && !forfeitedBy && (
+      (wonBy === String(match.player_one_id) && firstGames === 2 && secondGames <= 1) ||
+      (wonBy === String(match.player_two_id) && secondGames === 2 && firstGames <= 1));
+    const validScore = unscored || shortWin || (firstGames === 3 && secondGames >= 0 && secondGames <= 2) ||
       (secondGames === 3 && firstGames >= 0 && firstGames <= 2);
     if (String(match.session_id) !== sessionId || !first || !second || first === second ||
         first.number !== number || second.number !== number || seenMatches.has(key) || !validScore) {

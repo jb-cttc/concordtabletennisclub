@@ -55,4 +55,9 @@ assert.match(fs.readFileSync(path.join(root, '.github', 'workflows', 'update-dat
 const source = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 assert.match(source, /if \(urlPath === '\/desk'\) urlPath = '\/desk\.html';/);
 
+// The Organize button opens the framed desk page, never the raw Google address (which shows Google's banner).
+const roundRobins = fs.readFileSync(path.join(root, 'roundrobins.html'), 'utf8');
+assert.match(roundRobins, /<a id="organizer-launch"[^>]*href="desk\.html"/);
+assert.doesNotMatch(roundRobins, /script\.google\.com/);
+
 console.log('Club site desk page checks passed');

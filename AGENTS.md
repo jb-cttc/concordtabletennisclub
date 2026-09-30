@@ -1,10 +1,10 @@
 # CTTC code workflow
 
-This repository (`jb-cttc/concordtabletennisclub`) is the intended home for
+This repository (`jb-cttc/concordtabletennisclub`) is the home for
 both the website and the Google Apps Script desk. GitHub is where changes are
-reviewed, tested, and recorded. The public website is still served from
-Seth's repository during the handoff; a GitHub merge does not deploy the
-Google desk.
+reviewed, tested, and recorded. The public website is served from this
+repository (custom domain `concordtabletennisclub.com`); a GitHub merge does
+not deploy the Google desk.
 
 - Direct club members who want changes, including nontechnical requests, to
   [New issue](https://github.com/jb-cttc/concordtabletennisclub/issues/new).
