@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><p id="group-summary" class="group-summary" hidden></p><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="groups" class="groups"></div><div id="matches" class="matches"></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -118,6 +118,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var groups = document.getElementById('groups');
   var matches = document.getElementById('matches');
   var summary = document.getElementById('group-summary');
+  var summaryRow = document.getElementById('summary-row');
+  var organizerFold = document.getElementById('organizer-fold');
+  var organizerToggle = document.getElementById('toggle-organizer');
+  var collapsedGroups = {};
   var context = document.getElementById('promotion-context');
 
   function esc(value) {
@@ -383,7 +387,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   function renderGroups() {
     var sizes = state.groups.map(function (group) { return group.playerIds.length; });
     var unbalanced = sizes.some(function (size) { return size < 5 || size > 6; });
-    summary.hidden = !state.roster.length;
+    summaryRow.hidden = !state.roster.length;
     summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in ' + sizes.length + (sizes.length === 1 ? ' group' : ' groups') + ' · ' + sizes.join(' / ') + (unbalanced ? ' · rebalance recommended' : '');
     summary.classList.toggle('warn', unbalanced);
     groups.innerHTML = state.groups.map(function (group, index) {
@@ -426,11 +430,12 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         var won = table.winnerId === row.playerId;
         return '<tr' + (won ? ' class="leader"' : '') + '><td>' + (won ? '\uD83C\uDFC6 ' : '') + esc(row.name) + (won && table.note ? '*' : '') + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
       }).join('') + '</tbody></table>' + (table.note ? '<p class="tiebreak-note">* ' + esc(table.note) + '</p>' : '');
-      return '<section class="match-group"><h3>Group ' + group.groupNumber + ' <span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3>' + standings + entries.map(function (entry) {
+      var collapsed = !!collapsedGroups[group.groupNumber];
+      return '<section class="match-group' + (collapsed ? ' collapsed' : '') + '"><h3 role="button" tabindex="0" data-toggle-group="' + group.groupNumber + '" aria-expanded="' + !collapsed + '"><span class="group-title"><span class="chev" aria-hidden="true">\u25BE</span>Group ' + group.groupNumber + '</span><span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3><div class="fold"><div class="fold-inner">' + standings + entries.map(function (entry) {
         var m = entry.match;
         var matchState = O.matchState(m);
         return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + scoreSelect(entry.index, 'one', m.playerOneGames) + '<span>\u2013</span>' + scoreSelect(entry.index, 'two', m.playerTwoGames) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
-      }).join('') + '</section>';
+      }).join('') + '</div></div></section>';
     }).join('');
     matches.innerHTML = (total ? '<p class="match-progress">' + done + ' of ' + total + ' matches complete</p>' : '') + html;
   }
@@ -687,6 +692,47 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (target.dataset.drop) removeFromRoster(target.dataset.drop);
     else move(target.dataset.move, Number(target.dataset.dir));
   });
+  matches.addEventListener('click', function (e) {
+    var head = e.target.closest('[data-toggle-group]');
+    if (head) toggleGroup(head.closest('.match-group'));
+  });
+  matches.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-toggle-group]')) {
+      e.preventDefault();
+      toggleGroup(e.target.closest('.match-group'));
+    }
+  });
+  // Setting `instant` for one frame lets a fold jump without animating (tour, programmatic reveal).
+  function foldInstantly(fold, change) {
+    fold.classList.add('instant');
+    change();
+    void fold.offsetHeight;
+    fold.classList.remove('instant');
+  }
+  function setGroupCollapsed(card, collapsed, instant) {
+    var number = Number(card.querySelector('[data-toggle-group]').dataset.toggleGroup);
+    var apply = function () { card.classList.toggle('collapsed', collapsed); };
+    if (instant) foldInstantly(card.querySelector('.fold'), apply); else apply();
+    card.querySelector('[data-toggle-group]').setAttribute('aria-expanded', String(!collapsed));
+    collapsedGroups[number] = collapsed;
+  }
+  function toggleGroup(card) { setGroupCollapsed(card, !card.classList.contains('collapsed'), false); }
+  function setOrganizerCollapsed(collapsed, instant) {
+    var apply = function () { organizerFold.classList.toggle('collapsed', collapsed); };
+    if (instant) foldInstantly(organizerFold, apply);
+    else { organizerFold.classList.add('folding'); apply(); }
+    organizerToggle.textContent = collapsed ? 'Expand organizer' : 'Collapse organizer';
+    organizerToggle.setAttribute('aria-expanded', String(!collapsed));
+  }
+  organizerFold.addEventListener('transitionend', function (e) {
+    if (e.target === organizerFold) organizerFold.classList.remove('folding');
+  });
+  organizerToggle.addEventListener('click', function () { setOrganizerCollapsed(!organizerFold.classList.contains('collapsed'), false); });
+  window.cttcReveal = function (target) {
+    if (target.closest('#organizer-fold') && organizerFold.classList.contains('collapsed')) setOrganizerCollapsed(false, true);
+    var card = target.closest('.match-group');
+    if (card && card.classList.contains('collapsed')) setGroupCollapsed(card, false, true);
+  };
   matches.addEventListener('change', function (e) {
     if (pendingRecovery) return;
     if (e.target.dataset.score != null) {
@@ -768,6 +814,23 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .promotion-badge{display:block;margin-top:2px;font:11px Arial,sans-serif;color:#7a5200;font-weight:700}
 .match-progress{font:13px Arial,sans-serif;color:var(--muted);margin:0 0 10px}
 .match-group h3{display:flex;justify-content:space-between;align-items:center}
+.summary-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.summary-row[hidden]{display:none}
+.summary-row .group-summary{margin:0}
+.fold{display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s ease}
+.fold>.fold-inner{min-height:0;transition:opacity .25s ease}
+.fold.collapsed,.match-group.collapsed>.fold{grid-template-rows:0fr}
+.fold.collapsed>.fold-inner,.fold.folding>.fold-inner,.match-group>.fold>.fold-inner{overflow:hidden}
+.fold.collapsed>.fold-inner,.match-group.collapsed>.fold>.fold-inner{opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s .3s}
+.fold.instant,.fold.instant>.fold-inner{transition:none}
+.match-group h3[data-toggle-group]{cursor:pointer;user-select:none;transition:background .15s ease,border-color .3s ease}
+.match-group h3[data-toggle-group]:hover{background:#e4ece6}
+.match-group h3[data-toggle-group]:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
+.match-group.collapsed h3{border-bottom-color:transparent}
+.group-title{display:inline-flex;align-items:center}
+.chev{display:inline-block;width:1.2em;color:var(--green);transition:transform .3s ease}
+.match-group.collapsed .chev{transform:rotate(-90deg)}
+@media(prefers-reduced-motion:reduce){.fold,.fold>.fold-inner,.chev{transition:none}}
 .standings{width:100%;border-collapse:collapse;font:13px Arial,sans-serif}
 .standings th,.standings td{padding:6px 13px;text-align:left;border-bottom:1px solid #edf0ed}
 .standings th{font-weight:700;color:var(--muted);font-size:12px}
@@ -795,7 +858,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   list.id = 'open-roster';
   list.className = 'group-list';
   section.append(heading, list);
-  document.getElementById('matches').before(section);
+  document.querySelector('#organizer-fold .fold-inner').append(section);
 })();
 </script>
 <style>
@@ -1039,7 +1102,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
 .open-play-section .identity{min-width:0}
 .locked .open-play-section,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
-.locked #finalize{pointer-events:auto;opacity:1}
+.locked #finalize,.locked #toggle-organizer,.locked .match-group h3{pointer-events:auto;opacity:1}
 </style>
 <script>
 (function () {
@@ -1508,6 +1571,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     next.textContent = loadFailed ? 'Loading failed' : !ready ? 'Loading session...' : stepIndex === steps.length - 1 ? 'Finish' : 'Next';
     next.disabled = !ready;
     var target = document.querySelector(steps[stepIndex].target);
+    if (target && window.cttcReveal) window.cttcReveal(target);
     if (target) {
       var bounds = target.getBoundingClientRect();
       if (bounds.top < 8 || bounds.bottom > window.innerHeight - 8) target.scrollIntoView({ block: 'center', inline: 'nearest' });
