@@ -181,8 +181,6 @@
     var t = tally(player);
     var parts = [plural(t.wins, "win")];
     if (t.losses) parts.push(plural(t.losses, "loss", "losses"));
-    if (t.forfeitLosses) parts.push(plural(t.forfeitLosses, "forfeit loss", "forfeit losses"));
-    if (t.doubleForfeits) parts.push(plural(t.doubleForfeits, "double forfeit"));
     return parts.join(", ");
   }
 
@@ -230,9 +228,10 @@
 
     var parts = [];
     if (rivals.length) {
-      parts.push("Match points: " + [winner].concat(rivals).map(function (player) {
-        return player.name + " " + tally(player).points;
-      }).join(", ") + " (a played loss scores 1, a forfeit 0)");
+      parts.push(winner.name + " " + plural(winnerTally.points, "pt") + " (" + recordText(winner) + ") vs " +
+        rivals.map(function (rival) {
+          return rival.name + " " + plural(tally(rival).points, "pt") + " (" + recordText(rival) + ")";
+        }).join("; "));
     }
     if (tie) parts.push(tieText(tie));
     return { winner: winner.name, text: parts.join(" ") };

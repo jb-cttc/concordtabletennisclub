@@ -392,7 +392,7 @@ td {
 }
 
 .group-tiebreak-note {
-  font-size: 0.78rem;
+  font-size: calc(0.82rem - 1pt);
   color: var(--muted);
   margin: 0 0 8px;
 }

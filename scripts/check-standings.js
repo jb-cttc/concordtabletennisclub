@@ -27,7 +27,7 @@ assert.deepEqual(names(group5).slice(-2), ['Shiva Shadloo', 'William Craig Jr'],
 const group6 = sortByGroupResult(findGroup('2026-09-28', 'Group 6').players);
 assert.deepEqual(names(group6).slice(0, 2), ['Peggy Alden', 'Amin Hasan'], 'Peggy: 5 wins and a loss (11 pts) beats Amin: 5 wins and a double forfeit (10 pts)');
 assert.equal(describeWinner(findGroup('2026-09-28', 'Group 6').players).text,
-  'Match points: Peggy Alden 11, Amin Hasan 10 (a played loss scores 1, a forfeit 0)');
+  'Peggy Alden 11 pts (5 wins, 1 loss) vs Amin Hasan 10 pts (5 wins)');
 assert.equal(describeWinner(findGroup('2026-09-28', 'Group 2').players).text, 'Tie-Breaker: Yaroslav Shneikin beat Victor Lee 3-2 head-to-head');
 assert.equal(describeWinner(findGroup('2026-09-28', 'Group 1').players), null, 'no note when the winner was clear');
 

@@ -100,7 +100,7 @@ const forfeit = (one, two, by) => ({ playerOneId: one, playerTwoId: two, playerO
 table = O.standings(['b', 'a', 'c', 'd'], [m('a', 'b', 2, 3), m('a', 'c', 3, 0), m('a', 'd', 3, 0), forfeit('b', 'c', 'both'), m('b', 'd', 3, 0), m('c', 'd', 3, 0)], player, O.ratingAdjustment);
 assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ben', 'Ava', 'Cy', 'Dee'], 'the listed order is kept even when the ranking differs');
 assert.equal(table.winnerId, 'a', 'Ava: two wins and a loss (5 pts) beats Ben: two wins and a double forfeit (4 pts)');
-assert.match(table.note, /^Match points: Ava 5, Ben 4 /);
+assert.match(table.note, /^Ava 5 pts \(2 wins, 1 loss\) vs Ben 4 pts \(2 wins\)$/);
 table = O.standings(['a', 'b'], [forfeit('a', 'b', 'a')], player, O.ratingAdjustment);
 assert.equal(table.winnerId, 'b', 'a win by forfeit wins the group');
 
