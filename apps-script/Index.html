@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -793,7 +793,42 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (e.target === organizerFold) organizerFold.classList.remove('folding');
   });
   organizerToggle.addEventListener('click', function () { setOrganizerCollapsed(!organizerFold.classList.contains('collapsed'), false); });
+  var workspaceEl = document.querySelector('.workspace');
+  var sidePanel = document.querySelector('.sidebar');
+  var sideToggle = document.getElementById('toggle-side');
+  // The panel's height is pinned while it animates so it can shrink to a full-height bar and grow back.
+  function sidePanelNaturalHeight() {
+    return Array.prototype.reduce.call(sidePanel.children, function (sum, el) { return el.classList.contains('section') ? sum + el.offsetHeight : sum; }, 2);
+  }
+  function setSideCollapsed(collapsed, instant) {
+    var natural = sidePanelNaturalHeight();
+    var rail = Math.min(natural, window.innerHeight - 36);
+    if (instant) workspaceEl.classList.add('instant');
+    sidePanel.style.height = sidePanel.offsetHeight + 'px';
+    void sidePanel.offsetHeight;
+    workspaceEl.classList.toggle('side-collapsed', collapsed);
+    sidePanel.style.height = (collapsed ? rail : natural) + 'px';
+    if (instant) {
+      void sidePanel.offsetHeight;
+      workspaceEl.classList.remove('instant');
+      if (!collapsed) sidePanel.style.height = '';
+    }
+    sideToggle.innerHTML = collapsed ? '&raquo;' : '&laquo;';
+    sideToggle.setAttribute('aria-expanded', String(!collapsed));
+    var label = collapsed ? 'Show the player panel' : 'Hide the player panel';
+    sideToggle.title = label;
+    sideToggle.setAttribute('aria-label', label);
+  }
+  sidePanel.addEventListener('transitionend', function (e) {
+    if (e.target === sidePanel && e.propertyName === 'height' && !workspaceEl.classList.contains('side-collapsed')) sidePanel.style.height = '';
+  });
+  sideToggle.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setSideCollapsed(!workspaceEl.classList.contains('side-collapsed'), false);
+  });
+  sidePanel.addEventListener('click', function () { if (workspaceEl.classList.contains('side-collapsed')) setSideCollapsed(false, false); });
   window.cttcReveal = function (target) {
+    if (target.closest('.sidebar') && workspaceEl.classList.contains('side-collapsed')) setSideCollapsed(false, true);
     if (target.closest('#organizer-fold') && organizerFold.classList.contains('collapsed')) setOrganizerCollapsed(false, true);
     var card = target.closest('.match-group');
     if (card && card.classList.contains('collapsed')) setGroupCollapsed(card, false, true);
@@ -1186,7 +1221,22 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
 .open-play-section .identity{min-width:0}
 .locked .open-play-section,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
-.locked #finalize,.locked #toggle-organizer,.locked .match-group h3{pointer-events:auto;opacity:1}
+.locked #finalize,.locked #toggle-organizer,.locked #toggle-side,.locked .match-group h3{pointer-events:auto;opacity:1}
+.side-toggle{position:absolute;top:14px;right:8px;z-index:2;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--green);font:700 16px Arial,sans-serif;line-height:1;cursor:pointer}
+.side-toggle:hover{border-color:var(--green);background:#eef6f0}
+.side-toggle:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.side-label{position:absolute;top:58px;left:50%;transform:translateX(-50%);writing-mode:vertical-rl;white-space:nowrap;font:700 14px Georgia,serif;color:var(--muted);opacity:0;pointer-events:none;transition:opacity .2s ease}
+.side-collapsed .side-label{opacity:1;transition-delay:.15s}
+.side-collapsed .sidebar{cursor:pointer}
+@media(min-width:851px){
+.workspace{grid-template-columns:340px minmax(0,1fr);transition:grid-template-columns .3s ease}
+.workspace.side-collapsed{grid-template-columns:48px minmax(0,1fr)}
+.sidebar{transition:height .3s ease}
+.sidebar>.section{min-width:338px;transition:opacity .2s ease}
+.side-collapsed .sidebar>.section{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s .3s}
+.workspace.instant,.workspace.instant .sidebar,.workspace.instant .sidebar>.section,.workspace.instant .side-label{transition:none}
+}
+@media(prefers-reduced-motion:reduce){.workspace,.sidebar,.sidebar>.section,.side-label{transition:none!important}}
 </style>
 <script>
 (function () {
@@ -1532,7 +1582,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var steps = [
     { title: 'Welcome to the desk', text: 'Use this question button whenever you want to revisit the tour. Starting the tour loaded the saved 9/23/2026 session. We will not save any changes during the tour.', target: '#show-tour' },
     { title: 'Load a session', text: 'You can use this to load any saved sessions using the date picker and Load Session button.', target: '.date-tools label', also: '#load' },
-    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default; type at least two letters to include archived players.', target: '.sidebar .section:first-child' },
+    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default; type at least two letters to include archived players.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
@@ -1542,7 +1592,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player's name. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
+    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'The scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
