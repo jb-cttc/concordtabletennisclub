@@ -158,6 +158,32 @@
     container.appendChild(raw);
   }
 
+  function addTiebreakNote(section, tbody, group) {
+    var note = window.CTTCStandings.describeWinner(group.players);
+    if (!note || !tbody.firstChild) return;
+    var mark = document.createElement("span");
+    mark.className = "group-tiebreak-mark";
+    mark.textContent = "*";
+    tbody.firstChild.firstChild.appendChild(mark);
+    var text = document.createElement("p");
+    text.className = "group-tiebreak-note";
+    text.textContent = "* " + note.text;
+    section.appendChild(text);
+  }
+
+  function matchSummary(player, match) {
+    var unplayed = !match.gamesWon && !match.gamesLost;
+    if (unplayed && match.forfeitedBy === "both") return player.name + " and " + match.opponent + " both forfeited (not played)";
+    if (unplayed && match.forfeitedBy) {
+      return match.forfeitedBy === player.name
+        ? match.opponent + " won by forfeit over " + player.name
+        : player.name + " won by forfeit over " + match.opponent;
+    }
+    if (unplayed) return player.name + " and " + match.opponent + " did not play (forfeit)";
+    return player.name + " " + match.gamesWon + "-" + match.gamesLost + " " + match.opponent +
+      " · " + signed(match.adj) + " / " + signed(-match.adj) + (match.forfeit ? " (forfeit)" : "");
+  }
+
   function renderGroup(container, group) {
     var section = document.createElement("section");
     section.className = "session-group";
@@ -213,6 +239,7 @@
     });
     table.appendChild(tbody);
     section.appendChild(table);
+    addTiebreakNote(section, tbody, group);
     if (group.players.some(function (player) { return player.matches && player.matches.length; })) {
       var details = document.createElement('details');
       details.className = 'session-match-details';
@@ -227,8 +254,7 @@
           if (seen.has(key)) return;
           seen.add(key);
           var item = document.createElement('li');
-          item.textContent = player.name + ' ' + match.gamesWon + '-' + match.gamesLost + ' ' + match.opponent +
-            ' · ' + signed(match.adj) + ' / ' + signed(-match.adj) + (match.forfeit ? ' (forfeit)' : '');
+          item.textContent = matchSummary(player, match);
           matches.appendChild(item);
         });
       });
@@ -514,6 +540,19 @@
 
   function signed(n) { return n > 0 ? "+" + n : String(n); }
 
+  function addRecentTiebreakNote(section, tbody, group) {
+    var note = window.CTTCStandings.describeWinner(group.players);
+    if (!note || !tbody.firstChild) return;
+    var mark = document.createElement("span");
+    mark.className = "group-tiebreak-mark";
+    mark.textContent = "*";
+    tbody.firstChild.firstChild.appendChild(mark);
+    var text = document.createElement("p");
+    text.className = "group-tiebreak-note";
+    text.textContent = "* " + note.text;
+    section.appendChild(text);
+  }
+
   function renderRecentGroup(group) {
     var section = document.createElement("section");
     section.className = "session-group";
@@ -563,6 +602,7 @@
     });
     table.appendChild(tbody);
     section.appendChild(table);
+    addRecentTiebreakNote(section, tbody, group);
     return section;
   }
 

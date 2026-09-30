@@ -21,6 +21,7 @@
     "publish:finalized": "node scripts/publish-finalized-sessions.js",
     "preflight:live": "node scripts/preflight-live-publication.js",
     "sync:nav": "node scripts/sync-nav.js",
+    "sync:desk": "node scripts/sync-desk-standings.js",
     "refresh:data": "npm run build:sessions && npm run build:data && npm run build:roster && npm run build:player-index && npm run check:data",
     "email:preview": "node scripts/build-session-email.js",
     "email:send": "node scripts/send-session-email.js"

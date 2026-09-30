@@ -14,11 +14,13 @@ const fs = require('fs/promises');
 const path = require('path');
 const cheerio = require('cheerio');
 const { sortByGroupResult } = require('../standings');
+const { applyForfeitOverrides } = require('./lib/forfeit-overrides');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const ALIASES_FILE = path.join(DATA_DIR, 'player-aliases.json');
+const FORFEIT_OVERRIDES_FILE = path.join(DATA_DIR, 'forfeit-overrides.json');
 const CACHE_FILE = path.join(ROOT, '.cache', 'session-raw-cache.json');
 const FULL_REFRESH = process.env.CTTC_FULL_REFRESH === 'true' || process.argv.includes('--full');
 const REQUEST_DELAY_MS = Number(process.env.CTTC_FETCH_DELAY_MS || 1000);
@@ -493,6 +495,7 @@ async function main() {
   const details = applyCanonicalNames(parsed, canonicalName).sort(function (a, b) {
     return b.date.localeCompare(a.date);
   });
+  applyForfeitOverrides(details, await readJson(FORFEIT_OVERRIDES_FILE, {}));
 
   const years = new Map();
   details.forEach(function (session) {

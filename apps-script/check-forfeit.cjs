@@ -10,6 +10,7 @@ const read = file => fs.readFileSync(path.join(__dirname, file), 'utf8');
 // Shared match rules (desk page and print sheets).
 const desk = { window: {} };
 vm.createContext(desk);
+vm.runInContext(read('Standings.html').match(/<script>([\s\S]*)<\/script>/)[1], desk);
 vm.runInContext(read('Organizer.html').match(/<script>([\s\S]*)<\/script>/)[1], desk);
 const O = desk.window.CTTCOrganizer;
 const match = (g1, g2, extra) => ({ playerOneId: 'a', playerTwoId: 'b', playerOneGames: g1, playerTwoGames: g2, forfeit: false, forfeitedBy: null, ...extra });

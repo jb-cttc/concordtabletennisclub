@@ -6,6 +6,9 @@ const vm = require('node:vm');
 const context = { window: {} };
 vm.createContext(context);
 const html = fs.readFileSync(path.join(__dirname, 'Organizer.html'), 'utf8');
+const standingsCopy = fs.readFileSync(path.join(__dirname, 'Standings.html'), 'utf8');
+assert.equal(standingsCopy, require('../scripts/sync-desk-standings').deskCopy(), 'Standings.html is stale: run npm run sync:desk');
+vm.runInContext(standingsCopy.match(/<script>([\s\S]*)<\/script>/)[1], context);
 vm.runInContext(html.match(/<script>([\s\S]*)<\/script>/)[1], context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'RatingEngine.js'), 'utf8'), context);
 const O = context.window.CTTCOrganizer;
@@ -76,16 +79,30 @@ people.b = { name: 'Ben', currentRating: 1300 };
 people.c = { name: 'Cy', currentRating: 1350 };
 const m = (one, two, g1, g2, forfeit) => ({ playerOneId: one, playerTwoId: two, playerOneGames: g1, playerTwoGames: g2, forfeit: !!forfeit });
 let table = O.standings(['a', 'b', 'c'], [m('a', 'b', 3, 1), m('b', 'c', 3, 0), m('a', 'c', 0, 3)], player, O.ratingAdjustment);
-assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ben', 'Cy', 'Ava'], 'three-way 1-1 tie goes to the lowest starting rating');
+assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ava', 'Ben', 'Cy'], 'the live table keeps the listed order');
+assert.equal(table.winnerId, 'b', 'three-way 1-1 tie: best game ratio among the tied players');
+assert.match(table.note, /3-way tie/);
 assert.equal(table.finished, true);
 assert.equal(table.rows.find(r => r.name === 'Ava').gamesWon, 3);
 table = O.standings(['a', 'b'], [m('a', 'b', 3, 0, true)], player, O.ratingAdjustment);
 assert.equal(table.rows[0].adjustment, 0, 'forfeits carry no rating change');
 table = O.standings(['a', 'b'], [m('a', 'b', 0, 3)], player, O.ratingAdjustment);
-assert.deepEqual(plain(table.rows.map(r => [r.name, r.projected])), [['Ben', 1320], ['Ava', 1380]], 'a 100-point upset is worth 20');
+assert.deepEqual(plain(table.rows.map(r => [r.name, r.projected])), [['Ava', 1380], ['Ben', 1320]], 'a 100-point upset is worth 20');
+assert.equal(table.winnerId, 'b');
 assert.equal(O.standings(['a', 'b'], [m('a', 'b', 3, null)], player, O.ratingAdjustment).finished, false);
-table = O.standings(['a', 'b', 'c'], [m('a', 'b', 0, 3)], player, O.ratingAdjustment);
-assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ben', 'Cy', 'Ava'], 'mid-session: unplayed players sit above players with losses');
+table = O.standings(['a', 'b', 'c'], [m('a', 'b', 0, 3), m('a', 'c', null, null)], player, O.ratingAdjustment);
+assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ava', 'Ben', 'Cy'], 'mid-session: nobody moves while scores are entered');
+assert.equal(table.winnerId, null, 'no winner until every match is complete');
+
+// Same wins, but the player with a played loss outranks the player with a double forfeit (USATT match points).
+people.d = { name: 'Dee', currentRating: 1250 };
+const forfeit = (one, two, by) => ({ playerOneId: one, playerTwoId: two, playerOneGames: null, playerTwoGames: null, forfeit: true, forfeitedBy: by });
+table = O.standings(['b', 'a', 'c', 'd'], [m('a', 'b', 2, 3), m('a', 'c', 3, 0), m('a', 'd', 3, 0), forfeit('b', 'c', 'both'), m('b', 'd', 3, 0), m('c', 'd', 3, 0)], player, O.ratingAdjustment);
+assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ben', 'Ava', 'Cy', 'Dee'], 'the listed order is kept even when the ranking differs');
+assert.equal(table.winnerId, 'a', 'Ava: two wins and a loss (5 pts) beats Ben: two wins and a double forfeit (4 pts)');
+assert.match(table.note, /Ava 5 pts \(2 wins, 1 loss\) vs Ben 4 pts \(2 wins, 1 double forfeit\)/);
+table = O.standings(['a', 'b'], [forfeit('a', 'b', 'a')], player, O.ratingAdjustment);
+assert.equal(table.winnerId, 'b', 'a win by forfeit wins the group');
 
 for (let gap = -400; gap <= 400; gap += 1) {
   assert.equal(O.ratingAdjustment(1500 + gap, 1500, false), context.ratingAdjustment_(1500 + gap, 1500, false), 'gap ' + gap);

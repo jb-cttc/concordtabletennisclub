@@ -1,0 +1,19 @@
+{
+  "2026-09-28": {
+    "Group 4": [
+      { "players": ["Enver Sedolli", "Samia Bendi"], "forfeitedBy": "Enver Sedolli" },
+      { "players": ["Enver Sedolli", "Iman Mukherjee"], "forfeitedBy": "Enver Sedolli" },
+      { "players": ["Enver Sedolli", "Constantine Dinkov"], "forfeitedBy": "Enver Sedolli" }
+    ],
+    "Group 5": [
+      { "players": ["Eden Bryce-Peck", "Musa Hasan"], "forfeitedBy": "both" },
+      { "players": ["Ron Buxton", "Lily Ming Li"], "forfeitedBy": "both" },
+      { "players": ["Ron Buxton", "William Craig Jr"], "forfeitedBy": "both" },
+      { "players": ["Musa Hasan", "William Craig Jr"], "forfeitedBy": "both" }
+    ],
+    "Group 6": [
+      { "players": ["Amin Hasan", "Reyan Mukherjee"], "forfeitedBy": "both" },
+      { "players": ["Graham Zajac", "Susie Epstein"], "forfeitedBy": "both" }
+    ]
+  }
+}

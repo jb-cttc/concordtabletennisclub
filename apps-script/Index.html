@@ -83,6 +83,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   };
 })();
 </script>
+<?!= include('Standings') ?>
 <?!= include('Organizer') ?>
 <script>
 (function () {
@@ -420,10 +421,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.matches.forEach(function (match, index) { if (match.groupNumber === group.groupNumber) entries.push({ match: match, index: index }); });
       var table = O.standings(group.playerIds, entries.map(function (entry) { return entry.match; }), player, O.ratingAdjustment);
       done += table.complete;
-      var standings = '<table class="standings"><thead><tr><th>Player</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + table.rows.map(function (row, rank) {
+      var standings = '<table class="standings"><thead><tr><th>Player</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + table.rows.map(function (row) {
         var change = row.projected - row.startRating;
-        return '<tr' + (rank === 0 && table.finished ? ' class="leader"' : '') + '><td>' + (rank === 0 && table.finished ? '\uD83C\uDFC6 ' : '') + esc(row.name) + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
-      }).join('') + '</tbody></table>';
+        var won = table.winnerId === row.playerId;
+        return '<tr' + (won ? ' class="leader"' : '') + '><td>' + (won ? '\uD83C\uDFC6 ' : '') + esc(row.name) + (won && table.note ? '*' : '') + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>' + (table.note ? '<p class="tiebreak-note">* ' + esc(table.note) + '</p>' : '');
       return '<section class="match-group"><h3>Group ' + group.groupNumber + ' <span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3>' + standings + entries.map(function (entry) {
         var m = entry.match;
         var matchState = O.matchState(m);
@@ -759,6 +761,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .standings th,.standings td{padding:6px 13px;text-align:left;border-bottom:1px solid #edf0ed}
 .standings th{font-weight:700;color:var(--muted);font-size:12px}
 .standings tr.leader td{background:#eef6f0;font-weight:700}
+.tiebreak-note{margin:6px 0 10px;font:12px Arial,sans-serif;color:var(--muted)}
 .match-foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}
 .match-status{font:12px Arial,sans-serif;color:var(--muted)}
 .match-complete .match-status{color:var(--green);font-weight:700}

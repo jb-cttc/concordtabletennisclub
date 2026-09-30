@@ -119,21 +119,20 @@
     match.forfeitedBy = forfeiterId;
   }
 
-  // Best win ratio; ties go to the lower session-start rating, then name.
-  function compareResults(left, right) {
-    var leftPlayed = left.wins + left.losses;
-    var rightPlayed = right.wins + right.losses;
-    if (leftPlayed && rightPlayed) {
-      return right.wins * leftPlayed - left.wins * rightPlayed || left.startRating - right.startRating || left.name.localeCompare(right.name);
-    }
-    if (leftPlayed !== rightPlayed) return leftPlayed ? -1 : 1;
-    return right.startRating - left.startRating || left.name.localeCompare(right.name);
-  }
-
+  // The live table keeps the order the players were listed in while scores are entered, so nothing jumps.
+  // When every match is complete, the winner and any tie-break note come from standings.js, the same
+  // ranking the public site uses.
   function standings(ids, matches, player, adjustment) {
     var rows = {};
+    var rank = {};
+    var keys = {};
+    var names = {};
+    ids.forEach(function (id) { names[player(id).name] = (names[player(id).name] || 0) + 1; });
     ids.forEach(function (id) {
-      rows[id] = { playerId: id, name: player(id).name, startRating: player(id).currentRating, wins: 0, losses: 0, gamesWon: 0, gamesLost: 0, adjustment: 0 };
+      var info = player(id);
+      keys[id] = names[info.name] > 1 ? info.name + ' (' + id + ')' : info.name;
+      rows[id] = { playerId: id, name: info.name, startRating: info.currentRating, wins: 0, losses: 0, gamesWon: 0, gamesLost: 0, adjustment: 0 };
+      rank[id] = { name: keys[id], wins: 0, losses: 0, ratingBefore: info.currentRating, matches: [] };
     });
     var complete = 0;
     var total = 0;
@@ -144,12 +143,18 @@
       total += 1;
       if (matchState(match) !== 'complete') return;
       complete += 1;
+      var named = match.forfeitedBy && match.forfeitedBy !== 'both';
+      var scored = match.playerOneGames != null && !named;
+      var by = match.forfeitedBy === 'both' ? 'both' : named ? keys[match.forfeitedBy] : undefined;
+      var oneGames = scored ? match.playerOneGames : 0;
+      var twoGames = scored ? match.playerTwoGames : 0;
+      rank[match.playerOneId].matches.push({ opponent: keys[match.playerTwoId], gamesWon: oneGames, gamesLost: twoGames, forfeitedBy: by });
+      rank[match.playerTwoId].matches.push({ opponent: keys[match.playerOneId], gamesWon: twoGames, gamesLost: oneGames, forfeitedBy: by });
       if (match.forfeitedBy === 'both') return;
-      var scored = match.playerOneGames != null;
       var oneWon = match.forfeitedBy ? match.forfeitedBy === match.playerTwoId : match.playerOneGames > match.playerTwoGames;
       var winner = oneWon ? one : two;
       var loser = oneWon ? two : one;
-      if (scored) {
+      if (match.playerOneGames != null) {
         one.gamesWon += match.playerOneGames;
         one.gamesLost += match.playerTwoGames;
         two.gamesWon += match.playerTwoGames;
@@ -161,24 +166,29 @@
       winner.adjustment += points;
       loser.adjustment -= points;
     });
-    var list = Object.keys(rows).map(function (id) {
+    var list = ids.map(function (id) {
       var row = rows[id];
       row.projected = Math.max(0, row.startRating + row.adjustment);
+      rank[id].wins = row.wins;
+      rank[id].losses = row.losses;
       return row;
-    }).sort(function (left, right) {
-      return right.wins - left.wins || left.losses - right.losses || left.startRating - right.startRating || left.name.localeCompare(right.name);
     });
-    return { rows: list, complete: complete, total: total, finished: total > 0 && complete === total };
+    var finished = total > 0 && complete === total;
+    var result = { rows: list, complete: complete, total: total, finished: finished, winnerId: null, note: null };
+    if (finished && root.CTTCStandings) {
+      var entries = ids.map(function (id) { return rank[id]; });
+      var winnerKey = root.CTTCStandings.sortByGroupResult(entries)[0].name;
+      result.winnerId = ids.filter(function (id) { return keys[id] === winnerKey; })[0];
+      var described = root.CTTCStandings.describeWinner(entries);
+      result.note = described ? described.text : null;
+    }
+    return result;
   }
 
   // Winner of a published group, using the same rule the public site shows.
   function publishedWinner(players) {
-    var ranked = players.filter(function (p) { return Number.isInteger(p.wins) && Number.isInteger(p.losses) && p.wins + p.losses > 0; })
-      .map(function (p) { return { name: p.name, wins: p.wins, losses: p.losses, startRating: Number.isFinite(p.ratingBefore) ? p.ratingBefore : 0 }; })
-      .sort(compareResults);
-    if (ranked.length) return ranked[0].name;
-    var byAfter = players.filter(function (p) { return Number.isFinite(p.ratingAfter); }).sort(function (a, b) { return b.ratingAfter - a.ratingAfter; });
-    return byAfter.length ? byAfter[0].name : null;
+    var ranked = root.CTTCStandings.sortByGroupResult(players);
+    return ranked.length ? ranked[0].name : null;
   }
 
   function previousSameWeekday(dates, selected) {
