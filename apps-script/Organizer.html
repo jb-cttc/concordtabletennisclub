@@ -86,10 +86,31 @@
   }
 
   // forfeitedBy is a player id (the opponent wins), 'both' (never played), or empty.
+  // wonBy marks a match cut short to best of 3: its winner has exactly 2 games and the other player at most 1.
+  function shortWin(match) {
+    var a = match.playerOneGames;
+    var b = match.playerTwoGames;
+    if (a == null || b == null || !match.wonBy) return false;
+    return (match.wonBy === match.playerOneId && a === 2 && b <= 1) || (match.wonBy === match.playerTwoId && b === 2 && a <= 1);
+  }
+
+  // The winner as soon as it is known, even before the loser's games are entered.
+  function matchWinner(match) {
+    var by = match.forfeitedBy;
+    if (by === 'both') return null;
+    if (by) return by === match.playerOneId ? match.playerTwoId : by === match.playerTwoId ? match.playerOneId : null;
+    var a = match.playerOneGames;
+    var b = match.playerTwoGames;
+    if (a === 3 && (b == null || b <= 2)) return match.playerOneId;
+    if (b === 3 && (a == null || a <= 2)) return match.playerTwoId;
+    return shortWin(match) ? match.wonBy : null;
+  }
+
   function matchState(match) {
     var a = match.playerOneGames;
     var b = match.playerTwoGames;
     var by = match.forfeitedBy;
+    if (match.wonBy && by) return 'conflict';
     if (by) {
       if (by !== 'both' && by !== match.playerOneId && by !== match.playerTwoId) return 'conflict';
       if (a == null && b == null) return 'complete';
@@ -97,6 +118,7 @@
     }
     if (a == null && b == null) return 'pending';
     if (a == null || b == null) return 'incomplete';
+    if (shortWin(match)) return 'complete';
     if (!((a === 3 && b <= 2) || (b === 3 && a <= 2))) return 'invalid';
     if (by && by !== (a > b ? match.playerTwoId : match.playerOneId)) return 'conflict';
     return 'complete';
@@ -117,6 +139,7 @@
     if (forfeiterId !== 'both' && forfeiterId !== match.playerOneId && forfeiterId !== match.playerTwoId) throw new Error('The forfeiting player is not in this match.');
     match.forfeit = true;
     match.forfeitedBy = forfeiterId;
+    match.wonBy = null;
   }
 
   // The live table keeps the order the players were listed in while scores are entered, so nothing jumps.
@@ -223,6 +246,8 @@
     insert: insert,
     roundRobinPairs: roundRobinPairs,
     matchState: matchState,
+    matchWinner: matchWinner,
+    shortWin: shortWin,
     applyForfeit: applyForfeit,
     standings: standings,
     publishedWinner: publishedWinner,

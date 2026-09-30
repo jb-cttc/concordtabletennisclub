@@ -330,8 +330,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         state.matches.push(old && old.playerOneId === pair[0]
           ? Object.assign({}, old, { groupNumber: group.groupNumber })
           : old
-            ? { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: old.playerTwoGames, playerTwoGames: old.playerOneGames, forfeit: old.forfeit, forfeitedBy: old.forfeitedBy || null }
-            : { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: null, playerTwoGames: null, forfeit: false, forfeitedBy: null });
+            ? { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: old.playerTwoGames, playerTwoGames: old.playerOneGames, forfeit: old.forfeit, forfeitedBy: old.forfeitedBy || null, wonBy: old.wonBy || null }
+            : { groupNumber: group.groupNumber, playerOneId: pair[0], playerTwoId: pair[1], playerOneGames: null, playerTwoGames: null, forfeit: false, forfeitedBy: null, wonBy: null });
       });
     });
   }
@@ -402,7 +402,28 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }).join('');
   }
 
-  var STATUS_TEXT = { complete: 'Complete', incomplete: 'Enter both', invalid: 'Winner needs 3', pending: 'Pending', conflict: 'Forfeit and score disagree' };
+  var STATUS_TEXT = { complete: '', incomplete: 'Enter the other player\u2019s games', invalid: 'Needs 3 games, or tap Winner for a best of 3', pending: '', conflict: 'Forfeit and score disagree' };
+  // Gray until a winner is known; green check for the winner; nothing for the loser. A best-of-3 win the desk was told about can be taken back.
+  function winnerBadge(index, side, m, winnerId) {
+    var id = side === 'one' ? m.playerOneId : m.playerTwoId;
+    var mine = side === 'one' ? m.playerOneGames : m.playerTwoGames;
+    var theirs = side === 'one' ? m.playerTwoGames : m.playerOneGames;
+    var attrs = ' data-winner="' + index + '" data-side="' + side + '"';
+    if (winnerId) {
+      if (id !== winnerId) return '';
+      var badge = 'Winner <span class="check" aria-hidden="true">\u2713</span>';
+      return m.wonBy === id
+        ? '<button type="button" class="winner-badge on"' + attrs + ' aria-pressed="true" title="Best of 3 winner. Tap to undo.">' + badge + '</button>'
+        : '<span class="winner-badge on">' + badge + '</span>';
+    }
+    if (m.forfeitedBy === 'both') return '';
+    if (mine === 2 && (theirs == null || theirs <= 1)) return '<button type="button" class="winner-badge"' + attrs + ' aria-pressed="false" title="Tap to record ' + esc(player(id).name) + ' as the winner of a best-of-3 match">Winner</button>';
+    return '<span class="winner-badge" title="Tap the 3 ball, or the 2 ball for a best-of-3 match">Winner</span>';
+  }
+  function playerCell(index, side, m, winnerId) {
+    var id = side === 'one' ? m.playerOneId : m.playerTwoId;
+    return '<div class="player-cell player-' + side + '"><strong>' + esc(player(id).name) + '</strong>' + winnerBadge(index, side, m, winnerId) + '</div>';
+  }
   function forfeitSelect(index, m) {
     var out = '<select data-forfeit="' + index + '" aria-label="Who forfeited"><option value="">None</option>';
     [m.playerOneId, m.playerTwoId].forEach(function (id) {
@@ -439,7 +460,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return '<section class="match-group' + (collapsed ? ' collapsed' : '') + '"><h3 role="button" tabindex="0" data-toggle-group="' + group.groupNumber + '" aria-expanded="' + !collapsed + '"><span class="group-title"><span class="chev" aria-hidden="true">\u25BE</span>Group ' + group.groupNumber + '</span><span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3><div class="fold"><div class="fold-inner">' + standings + entries.map(function (entry) {
         var m = entry.match;
         var matchState = O.matchState(m);
-        return '<div class="match match-' + matchState + '"><strong>' + esc(player(m.playerOneId).name) + '</strong>' + ballScore(entry.index, 'one', m.playerOneGames, player(m.playerOneId).name) + '<span class="dash">\u2013</span>' + ballScore(entry.index, 'two', m.playerTwoGames, player(m.playerTwoId).name) + '<strong class="right">' + esc(player(m.playerTwoId).name) + '</strong><div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
+        var winnerId = O.matchWinner(m);
+        return '<div class="match match-' + matchState + '">' + playerCell(entry.index, 'one', m, winnerId) + ballScore(entry.index, 'one', m.playerOneGames, player(m.playerOneId).name) + '<span class="dash">\u2013</span>' + ballScore(entry.index, 'two', m.playerTwoGames, player(m.playerTwoId).name) + playerCell(entry.index, 'two', m, winnerId) + '<div class="match-foot"><span class="match-status">' + STATUS_TEXT[matchState] + '</span><label class="forfeit">Forfeit ' + forfeitSelect(entry.index, m) + '</label></div></div>';
       }).join('') + '</div></div></section>';
     }).join('');
     matches.innerHTML = (total ? '<p class="match-progress">' + done + ' of ' + total + ' matches complete</p>' : '') + html;
@@ -559,7 +581,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         });
         state.roster = [].concat.apply([], groupsFromSession);
         state.matches = (state.session.matches || []).map(function (match) {
-          return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null });
+          return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null, wonBy: match.wonBy || null });
         });
       }
       setGroups(groupsFromSession);
@@ -704,6 +726,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var key = ball.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames';
     var games = Number(ball.dataset.games);
     m[key] = m[key] === games ? null : games;
+    if (m.wonBy && !O.shortWin(m)) m.wonBy = null;
     renderMatches();
     persistDeviceDraft();
     if (keyboard) {
@@ -711,9 +734,30 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       if (again) again.focus();
     }
   }
+  // A best-of-3 win needs exactly 2 games; the other player's games default to 0 and can still be changed to 1.
+  function setWinner(badge, keyboard) {
+    if (pendingRecovery) return;
+    var m = state.matches[Number(badge.dataset.winner)];
+    var id = badge.dataset.side === 'one' ? m.playerOneId : m.playerTwoId;
+    var mineKey = badge.dataset.side === 'one' ? 'playerOneGames' : 'playerTwoGames';
+    var theirKey = badge.dataset.side === 'one' ? 'playerTwoGames' : 'playerOneGames';
+    if (m.wonBy === id) m.wonBy = null;
+    else if (m[mineKey] === 2 && (m[theirKey] == null || m[theirKey] <= 1) && !m.forfeitedBy) {
+      if (m[theirKey] == null) m[theirKey] = 0;
+      m.wonBy = id;
+    } else return;
+    renderMatches();
+    persistDeviceDraft();
+    if (keyboard) {
+      var again = matches.querySelector('[data-winner="' + badge.dataset.winner + '"][data-side="' + badge.dataset.side + '"]');
+      if (again) again.focus();
+    }
+  }
   matches.addEventListener('click', function (e) {
     var ball = e.target.closest('[data-games]');
     if (ball) { setGames(ball, e.detail === 0); return; }
+    var badge = e.target.closest('button[data-winner]');
+    if (badge) { setWinner(badge, e.detail === 0); return; }
     var head = e.target.closest('[data-toggle-group]');
     if (head) toggleGroup(head.closest('.match-group'));
   });
@@ -867,7 +911,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .ball.on{background:radial-gradient(circle at 35% 30%,#ffc98a,#f58220 55%,#d96a0f);border-color:#c95f0a;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .ball.zero{width:22px;height:22px;border-style:dashed;font-size:11px}
 .ball.zero.on{background:#e4ece6;border:2px solid var(--green);color:var(--green);box-shadow:none}
-@media(max-width:560px){.match{grid-template-columns:minmax(0,1fr) auto}.match>strong:first-child{grid-column:1;grid-row:1}.match>.score-one{grid-column:2;grid-row:1}.match>.score-two{grid-column:2;grid-row:2}.match>strong.right{grid-column:1;grid-row:2;text-align:left}.match>.dash{display:none}.match-foot{grid-column:1/-1;grid-row:3}}
+@media(max-width:560px){.match{grid-template-columns:minmax(0,1fr) auto}.match>.player-one{grid-column:1;grid-row:1}.match>.score-one{grid-column:2;grid-row:1}.match>.score-two{grid-column:2;grid-row:2}.match>.player-two{grid-column:1;grid-row:2;text-align:left;align-items:flex-start}.match>.dash{display:none}.match-foot{grid-column:1/-1;grid-row:3}}
+.player-cell{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.player-two{align-items:flex-end;text-align:right}
+.winner-badge{font:700 11px Arial,sans-serif;line-height:1.4;padding:1px 9px;border-radius:999px;border:1px solid #d3d9d5;background:#eef0ee;color:#8a948d}
+button.winner-badge{cursor:pointer}
+button.winner-badge:hover{border-color:var(--green);color:var(--green)}
+button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.winner-badge.on{background:#fff;border-color:#b9d8c5;color:var(--ink)}
+.winner-badge .check{color:#1a9b4e;font-size:13px}
 @media(max-width:560px){.match-foot{grid-template-columns:1fr;justify-items:center;gap:4px}.match-foot .forfeit{grid-column:1}}
 .match-status{font:12px Arial,sans-serif;color:var(--muted)}
 .match-complete .match-status{color:var(--green);font-weight:700}
@@ -1490,7 +1542,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
+    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player's name. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'The scheduled website workflow publishes finalized sessions and sends the session email. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }

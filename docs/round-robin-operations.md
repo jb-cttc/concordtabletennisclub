@@ -96,6 +96,13 @@ match. The desk runs a copy of `standings.js` (`apps-script/Standings.html`):
 run `npm run sync:desk` after editing `standings.js`; `check-organizer.cjs`
 fails when the copy is stale.
 
+The desk records games won with clickable balls per player. Three games win a
+match. If time runs short and a match is cut to best of 3, tap the 2 ball and
+then the gray Winner badge under that player; the other player's games default
+to 0 and can be changed to 1. The Matches sheet keeps this in `won_by`, it counts
+as an ordinary played win for ratings and records, and a 2-game score without
+a named winner cannot be finalized.
+
 `rating-engine.js` (site) and `RatingEngine.js` (desk) use both players'
 session-start ratings for every match adjustment, with a zero floor.
 

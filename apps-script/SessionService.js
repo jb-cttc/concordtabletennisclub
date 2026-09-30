@@ -129,7 +129,8 @@ function getSession(sessionId) {
         playerOneGames: row.player_one_games === '' ? null : Number(row.player_one_games),
         playerTwoGames: row.player_two_games === '' ? null : Number(row.player_two_games),
         forfeit: asBoolean_(row.forfeit),
-        forfeitedBy: row.forfeited_by ? String(row.forfeited_by) : null
+        forfeitedBy: row.forfeited_by ? String(row.forfeited_by) : null,
+        wonBy: row.won_by ? String(row.won_by) : null
       };
     })
   };
@@ -187,6 +188,11 @@ function saveSessionDraft(payload) {
       pairKeys[pair] = true;
       var forfeitedBy = match.forfeitedBy ? String(match.forfeitedBy) : '';
       if (forfeitedBy && forfeitedBy !== 'both' && forfeitedBy !== first && forfeitedBy !== second) throw new Error('The forfeiting player is not in the match: ' + pair);
+      var wonBy = match.wonBy ? String(match.wonBy) : '';
+      if (wonBy) {
+        if (forfeitedBy) throw new Error('A forfeited match cannot also be a best-of-3 win: ' + pair);
+        if (!shortWinValid_(wonBy, first, second, match.playerOneGames, match.playerTwoGames)) throw new Error('A best-of-3 winner needs exactly 2 games and the other player at most 1: ' + pair);
+      }
       return {
         match_id: sessionId + ':' + pair,
         session_id: sessionId,
@@ -197,7 +203,8 @@ function saveSessionDraft(payload) {
         player_two_games: match.playerTwoGames === null ? '' : Number(match.playerTwoGames),
         forfeit: !!match.forfeit || !!forfeitedBy,
         updated_at: new Date(),
-        forfeited_by: forfeitedBy
+        forfeited_by: forfeitedBy,
+        won_by: wonBy
       };
     });
 
@@ -370,6 +377,13 @@ function validateCompleteRoundRobin_(sessionPlayers, matches) {
       return;
     }
     var complete = (firstGames === 3 && secondGames >= 0 && secondGames <= 2) || (secondGames === 3 && firstGames >= 0 && firstGames <= 2);
+    var wonBy = String(match.won_by || '');
+    if (wonBy) {
+      if (forfeitedBy) throw new Error('A forfeited match cannot also be a best-of-3 win: ' + key);
+      if (!shortWinValid_(wonBy, String(match.player_one_id), String(match.player_two_id), match.player_one_games === '' ? null : firstGames, match.player_two_games === '' ? null : secondGames)) throw new Error('Incomplete or invalid best-of-3 match: ' + key);
+      delete expected[key];
+      return;
+    }
     if (!complete) throw new Error('Incomplete or invalid match: ' + key);
     if (asBoolean_(match.forfeit) && !forfeitedBy) throw new Error('Choose who forfeited before finalizing: ' + key);
     if (forfeitedBy === 'both') throw new Error('A match that was not played cannot have a score: ' + key);
@@ -456,6 +470,14 @@ function validateSessionDate_(value) {
 
 function displayDate_(value) {
   return value instanceof Date ? Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(value);
+}
+
+// A match cut short to best of 3: the winner has exactly 2 games and the other player has 0 or 1.
+function shortWinValid_(wonBy, first, second, firstGames, secondGames) {
+  if (firstGames === null || secondGames === null || firstGames === undefined || secondGames === undefined) return false;
+  if (wonBy === first) return firstGames === 2 && secondGames <= 1;
+  if (wonBy === second) return secondGames === 2 && firstGames <= 1;
+  return false;
 }
 
 function validGames_(value) {
