@@ -658,7 +658,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (saved.deviceOnly) { setStatus('Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.', 'error'); return; }
     var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
     if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
-    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks and publishes to the club site in 15 minutes. Until then you can click the lock button to reopen and correct it, or use Publish now to go out immediately.')) return;
+    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks and publishes to the club site in 15 minutes, and the results email goes out 15 minutes after that. Until publishing you can click the lock button to reopen and correct it, or use Publish now to go out immediately.')) return;
     setStatus('Finalizing ratings...', 'busy');
     try {
       state.session = await call('finalizeSession', saved.sessionId, saved.revision);
@@ -712,29 +712,39 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var show = !!info && info.state !== 'none' && info.sessionDate === date.value && !!state.session && state.session.status === 'finalized';
     publishBar.hidden = !show;
     if (!show) return;
-    publishBar.className = 'publish-bar' + (info.state === 'published' ? ' done' : info.state === 'failed' ? ' failed' : '');
+    var done = info.state === 'emailed';
+    var failed = info.state === 'failed' || info.state === 'email_failed';
+    publishBar.className = 'publish-bar' + (done ? ' done' : failed ? ' failed' : '');
+    var clock = function (at) { return '<span class="publish-clock" id="publish-clock">' + clockText(at - (Date.now() + publish.offset)) + '</span>'; };
+    var hint = function (text) { return '<span class="hint">' + text + '</span>'; };
+    var button = function (call, label) { return '<button id="publish-now" class="small" type="button" data-call="' + call + '">' + label + '</button>'; };
     if (info.state === 'pending') {
-      publishBar.innerHTML = '<strong>Publishing to the club site in <span class="publish-clock" id="publish-clock">' + clockText(info.dueAt - (Date.now() + publish.offset)) + '</span></strong><span class="hint">Reopen the session (lock button) to cancel and make changes, or publish right now.' + (info.tokenSet ? '' : ' Publishing is not connected yet, so it will go out with the next scheduled run.') + '</span><button id="publish-now" class="small" type="button">Publish now</button>';
+      publishBar.innerHTML = '<strong>Publishing to the club site in ' + clock(info.dueAt) + '</strong>' + hint('Reopen the session (lock button) to cancel and make changes, or publish right now.' + (info.tokenSet ? '' : ' Publishing is not connected yet, so it will go out with the next scheduled run.')) + button('publishNow', 'Publish now');
     } else if (info.state === 'dispatched') {
-      publishBar.innerHTML = '<strong>Publishing started.</strong><span class="hint">Checking the club site; results usually appear within a few minutes.</span>';
-    } else if (info.state === 'published') {
-      publishBar.innerHTML = '<strong>Published to the club site.</strong>';
+      publishBar.innerHTML = '<strong>Publishing started.</strong>' + hint('Checking the club site; results usually appear within a few minutes.');
+    } else if (info.state === 'email_pending') {
+      publishBar.innerHTML = '<strong>Published. Emailing the results in ' + clock(info.emailDueAt) + '</strong>' + hint('The results email goes to the distribution list, or send it right now.') + button('sendEmailNow', 'Send now');
+    } else if (info.state === 'email_dispatched') {
+      publishBar.innerHTML = '<strong>Sending the results email.</strong>' + hint('Checking that it finished.');
+    } else if (info.state === 'emailed') {
+      publishBar.innerHTML = '<strong>Published and emailed.</strong>' + hint('Both steps finished successfully.');
     } else {
-      publishBar.innerHTML = '<strong>Could not start publishing.</strong><span class="hint">' + esc(info.message) + '</span><button id="publish-now" class="small" type="button">Try again</button>';
+      publishBar.innerHTML = '<strong>' + (info.state === 'email_failed' ? 'Could not send the email.' : 'Could not start publishing.') + '</strong>' + hint(esc(info.message)) + button(info.state === 'email_failed' ? 'sendEmailNow' : 'publishNow', 'Try again');
     }
   }
   setInterval(function () {
     var info = publish.info;
     if (!info) return;
-    if (info.state === 'pending') {
-      var left = info.dueAt - (Date.now() + publish.offset);
+    var dueAt = info.state === 'pending' ? info.dueAt : info.state === 'email_pending' ? info.emailDueAt : null;
+    if (dueAt) {
+      var left = dueAt - (Date.now() + publish.offset);
       var clock = document.getElementById('publish-clock');
       if (clock) clock.textContent = clockText(left);
       if (left <= 0 && !publish.dueSent) {
         publish.dueSent = true;
         call('publishDue').then(publishApply).catch(function () { publish.dueSent = false; });
       }
-    } else if (info.state === 'dispatched' && Date.now() - publish.lastPoll > 15000) {
+    } else if ((info.state === 'dispatched' || info.state === 'email_dispatched') && Date.now() - publish.lastPoll > 15000) {
       publish.lastPoll = Date.now();
       refreshPublish();
     }
@@ -742,9 +752,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   publishBar.addEventListener('click', async function (e) {
     var button = e.target.closest('#publish-now');
     if (!button || !state.session) return;
-    if (!confirm('Publish this session to the club site now?\n\nOnce it is published it can no longer be reopened here.')) return;
+    var name = button.dataset.call;
+    var question = name === 'sendEmailNow'
+      ? 'Send the results email to the distribution list now?'
+      : 'Publish this session to the club site now?\n\nOnce it is published it can no longer be reopened here.';
+    if (!confirm(question)) return;
     button.disabled = true;
-    try { publishApply(await call('publishNow', state.session.sessionId)); }
+    try { publishApply(await call(name, state.session.sessionId)); }
     catch (error) { setStatus(error.message, 'error'); button.disabled = false; }
   });
 
@@ -1659,7 +1673,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
     { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
-    { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site (and the session email goes out) in 15 minutes. Reopen the session before then to correct it, or press Publish now to go out right away. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
+    { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site in 15 minutes; once the site is updated, a second 15-minute countdown sends the results email. Reopen the session before publishing to correct it, or press Publish now or Send now to skip a wait. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
   ];
   var shield = document.createElement('div');

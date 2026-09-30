@@ -173,6 +173,18 @@ connected (see below) or GitHub refuses the request, the banner says so and the
 workflow's own fallback runs (11:45 PM and 8:00 AM Pacific on Mon/Wed nights)
 publish the session instead.
 
+**Results email.** When the desk sees the club site list the session, the banner
+starts a second 15-minute countdown. At zero (or with **Send now**) the desk
+runs the workflow again with `send_email` on, which sends the session summary
+email to the distribution list, then reports when that run finishes. Only that
+run, and the scheduled fallback runs, send the email; pushes and plain manual
+runs never do. The email's group winners and tie-breaker notes come from the
+same `standings.js` as the Round Robins page, so ranking or wording changes
+reach it automatically (`npm run check:email` enforces this). The distribution
+list lives in the private subscribers Sheet (or the `EMAIL_SUBSCRIBERS` secret),
+never in the repository, and `TEST_EMAIL_OVERRIDE`, while set, sends only to
+that one address.
+
 **Connecting publishing (one time).** Create a fine-grained GitHub personal
 access token for the `jb-cttc/concordtabletennisclub` repository only, with the
 repository permission **Actions: Read and write** (nothing else), and save it

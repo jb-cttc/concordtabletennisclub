@@ -68,8 +68,13 @@ seedSession('2026-09-28');
 const HOLD_MS = Number(process.env.PREVIEW_PUBLISH_SECONDS || 20) * 1000;
 let publishing = null;
 function publishPayload() {
-  if (publishing && publishing.state === 'dispatched' && Date.now() > publishing.doneAt) publishing.state = 'published';
-  const base = { now: Date.now(), tokenSet: !process.env.PREVIEW_NO_TOKEN, holdMinutes: 15 };
+  const now = Date.now();
+  if (publishing && publishing.state === 'dispatched' && now > publishing.doneAt) {
+    publishing.state = 'email_pending';
+    publishing.emailDueAt = now + HOLD_MS;
+  }
+  if (publishing && publishing.state === 'email_dispatched' && now > publishing.doneAt) publishing.state = 'emailed';
+  const base = { now, tokenSet: !process.env.PREVIEW_NO_TOKEN, holdMinutes: 15 };
   return publishing ? Object.assign({ message: '' }, publishing, base) : Object.assign({ state: 'none' }, base);
 }
 
@@ -106,8 +111,14 @@ const rpc = {
   },
   reopenSession: function (id) { sessions[id].status = 'active'; sessions[id].revision += 1; publishing = null; return sessions[id]; },
   getPublishState: function () { return publishPayload(); },
-  publishNow: function () { if (publishing && publishing.state !== 'published') { publishing.state = 'dispatched'; publishing.doneAt = Date.now() + 6000; } return publishPayload(); },
-  publishDue: function () { return publishing && publishing.state === 'pending' && Date.now() >= publishing.dueAt ? rpc.publishNow() : publishPayload(); },
+  publishNow: function () { if (publishing && (publishing.state === 'pending' || publishing.state === 'failed')) { publishing.state = 'dispatched'; publishing.doneAt = Date.now() + 6000; } return publishPayload(); },
+  sendEmailNow: function () { if (publishing && publishing.state === 'email_pending') { publishing.state = 'email_dispatched'; publishing.doneAt = Date.now() + 6000; } return publishPayload(); },
+  publishDue: function () {
+    publishPayload();
+    if (publishing && publishing.state === 'pending' && Date.now() >= publishing.dueAt) return rpc.publishNow();
+    if (publishing && publishing.state === 'email_pending' && Date.now() >= publishing.emailDueAt) return rpc.sendEmailNow();
+    return publishPayload();
+  },
   getMemberStatuses: function () { return {}; },
   listVoiceSuggestions: function () { return []; },
   getOpenPlayParticipants: function () { return []; },

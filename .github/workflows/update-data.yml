@@ -7,9 +7,15 @@ on:
         description: "Full hard refresh: refetch and reparse every session (ignores the raw data cache)"
         type: boolean
         default: false
+      send_email:
+        description: "Also send the session summary email (the desk sets this 15 minutes after the site is published)"
+        type: boolean
+        default: false
   schedule:
-    # Normally the desk starts this workflow itself 15 minutes after a session is
-    # finalized (or sooner with "Publish now"). These runs are the fallback for when
+    # Normally the desk starts this workflow itself: 15 minutes after a session is
+    # finalized (publish only), then again 15 minutes after the site lists it with
+    # send_email=true (the results email). Pushes and plain manual runs never email.
+    # These scheduled runs publish and email, and are the fallback for when
     # that does not happen (no GitHub token, desk tab closed, late entry): 11:45 PM
     # Pacific after Monday and Wednesday sessions (later than any 15-minute hold that
     # started by 11:30 PM), and 8:00 AM Pacific the next morning. A run that finds
@@ -134,7 +140,7 @@ jobs:
         uses: actions/deploy-pages@v4.0.5
 
       - name: Send session summary email
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.send_email == 'true')
         run: npm run email:send
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
@@ -148,7 +154,7 @@ jobs:
           CTTC_LIVE_START_DATE: ${{ vars.CTTC_LIVE_START_DATE }}
 
       - name: Commit sent marker
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.send_email == 'true')
         run: |
           if [ -f .cache/last-emailed-session.json ] && [ -n "$(git status --porcelain .cache/last-emailed-session.json)" ]; then
             git config user.name "github-actions[bot]"
