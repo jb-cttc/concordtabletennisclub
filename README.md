@@ -316,23 +316,29 @@ Track the single-sender email, subscriber, and credential transfer in
       domain, the DNS check passes, and HTTPS is enforced (2026-09-30).
 - [x] Secrets and switch (2026-09-30): the Google service account, Gmail,
       subscriber Sheet, and `TEST_EMAIL_OVERRIDE` secrets are set, and
-      `CTTC_DEPLOY_ENABLED` is `true`. The workflow runs only in Seth's
-      repository or where this variable is set, so it never runs in forks.
+      `CTTC_DEPLOY_ENABLED` is `true`. The workflow runs only where this
+      variable is set, so it never runs in forks.
       The first run here deployed the site successfully.
 - [ ] Confirm Seth's scheduled and manual workflow is disabled so only one
       repository deploys and emails. Reconcile
       `.cache/last-emailed-session.json` with the last email actually sent,
       and test with `TEST_EMAIL_OVERRIDE` before any real send; remove the
       override when done.
-- [ ] Add the `GOOGLE_ROUND_ROBIN_DATABASE_ID` secret, set
-      `CTTC_LIVE_START_DATE`, and run `npm run preflight:live`.
+- [ ] Add the `GOOGLE_ROUND_ROBIN_DATABASE_ID` secret, give the service
+      account Viewer access to the round-robin Sheet, set
+      `CTTC_LIVE_START_DATE` (after the last Drive report, 2026-09-28), and
+      run `npm run preflight:live`. Until this variable is set, the workflow
+      still scrapes Access reports and publishes no desk results.
 - [ ] Stop entering results in MS Access.
+- [ ] **Bring the record archive up to 9/28.** `enableClosedLoopMode` is
+      blocked while the club site has ratings through 9/28 but the archive
+      ends at 9/23 (see the go-live checklist in the operations guide).
 - [ ] **Turn finalizing back on in the desk:** in the Apps Script editor, open
       `SessionService.gs`, choose `enableClosedLoopMode`, and click **Run**.
       The desk's button changes from "Finalize off until go-live" to
       "Finalize ratings".
-- [ ] After cutover, remove the hard-coded `Latkecrszy/concordtabletennisclub`
-      exception from `.github/workflows/update-data.yml`.
+- [x] Remove the hard-coded `Latkecrszy/concordtabletennisclub` exception from
+      `.github/workflows/update-data.yml`.
 
 ## Credits
 

@@ -44,8 +44,8 @@ concurrency:
 
 jobs:
   update-and-deploy:
-    # Runs only in the live repo, or where CTTC_DEPLOY_ENABLED is set (jb-cttc at domain cutover); never in forks.
-    if: ${{ github.repository == 'Latkecrszy/concordtabletennisclub' || vars.CTTC_DEPLOY_ENABLED == 'true' }}
+    # Runs only where CTTC_DEPLOY_ENABLED is set to true, so forks never deploy or email.
+    if: ${{ vars.CTTC_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

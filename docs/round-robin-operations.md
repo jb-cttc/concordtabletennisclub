@@ -14,10 +14,9 @@
   version and redeploy the existing `/exec` deployment.
 
 The jb-cttc repository now serves `concordtabletennisclub.com`. The workflow
-runs only in `Latkecrszy/concordtabletennisclub` or where the repository
-variable `CTTC_DEPLOY_ENABLED` is `true` (set in jb-cttc on 2026-09-30), so
-forks cannot deploy or email. Seth's workflow must stay disabled so only one
-repository deploys and emails.
+runs only where the repository variable `CTTC_DEPLOY_ENABLED` is `true` (set
+in jb-cttc on 2026-09-30), so forks cannot deploy or email. Seth's workflow
+must stay disabled so only one repository deploys and emails.
 
 ## Club and Year Records
 
@@ -157,7 +156,7 @@ saved contact name show only the last four digits of their number.
 > desk's **Finalize ratings** button is switched off (it reads
 > "Finalize off until go-live") and `finalizeSession` refuses to run. Use
 > the desk to organize, print, and score, but not to finalize. The switch is
-> the `CTTC_CLOSED_LOOP` script property; step 5 below turns it on.
+> the `CTTC_CLOSED_LOOP` script property; step 6 below turns it on.
 
 1. Give the service account (`GOOGLE_SERVICE_ACCOUNT_EMAIL`) Viewer access to
    the round-robin Sheet and enable the Sheets API for its project.
@@ -168,12 +167,20 @@ saved contact name show only the last four digits of their number.
    It only reads the Sheet and lists what it would publish.
 4. Confirm the club site's ratings match the desk (`ratingSyncStatus` shows
    the latest Access session) and stop entering results in MS Access.
-5. **Turn finalizing on:** in the Apps Script editor, open
+5. **Bring the record archive up to the last Access session.**
+   `recordArchiveStatus().readyForCutover` is true only when no player lacks a
+   baseline and the ratings sync date equals the archive cutoff, which is
+   hard-coded to 2026-09-23 (`RecordArchive.js`). The club site now has
+   results through 2026-09-28, so `enableClosedLoopMode` refuses until the
+   9/28 Access matches are added to `RecordArchiveEvents` and the cutoff is
+   moved. Run `recordArchiveStatus()` to see the current values.
+6. **Turn finalizing on:** in the Apps Script editor, open
    `SessionService.gs`, choose `enableClosedLoopMode`, and click **Run**.
    Reload the desk; the button reads **Finalize ratings** again.
    (`disableClosedLoopMode` turns it back off.)
-6. After the first live session, verify the archive, winner, scores,
-   adjustments, and email against the desk's ledger.
+7. After the first live session, verify the archive, winner, scores,
+   adjustments, and email against the desk's ledger. Remove the
+   `TEST_EMAIL_OVERRIDE` secret once a test email has been checked.
 
 `npm run refresh:data` is the historical Drive importer; do not run it after
 cutover.
