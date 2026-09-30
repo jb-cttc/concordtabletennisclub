@@ -81,7 +81,7 @@ const m = (one, two, g1, g2, forfeit) => ({ playerOneId: one, playerTwoId: two, 
 let table = O.standings(['a', 'b', 'c'], [m('a', 'b', 3, 1), m('b', 'c', 3, 0), m('a', 'c', 0, 3)], player, O.ratingAdjustment);
 assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ava', 'Ben', 'Cy'], 'the live table keeps the listed order');
 assert.equal(table.winnerId, 'b', 'three-way 1-1 tie: best game ratio among the tied players');
-assert.match(table.note, /3-way tie/);
+assert.match(table.note, /^Tie-Breaker: game ratio among the tied/);
 assert.equal(table.finished, true);
 assert.equal(table.rows.find(r => r.name === 'Ava').gamesWon, 3);
 table = O.standings(['a', 'b'], [m('a', 'b', 3, 0, true)], player, O.ratingAdjustment);
@@ -100,7 +100,7 @@ const forfeit = (one, two, by) => ({ playerOneId: one, playerTwoId: two, playerO
 table = O.standings(['b', 'a', 'c', 'd'], [m('a', 'b', 2, 3), m('a', 'c', 3, 0), m('a', 'd', 3, 0), forfeit('b', 'c', 'both'), m('b', 'd', 3, 0), m('c', 'd', 3, 0)], player, O.ratingAdjustment);
 assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ben', 'Ava', 'Cy', 'Dee'], 'the listed order is kept even when the ranking differs');
 assert.equal(table.winnerId, 'a', 'Ava: two wins and a loss (5 pts) beats Ben: two wins and a double forfeit (4 pts)');
-assert.match(table.note, /Ava 5 pts \(2 wins, 1 loss\) vs Ben 4 pts \(2 wins, 1 double forfeit\)/);
+assert.match(table.note, /^Match points: Ava 5, Ben 4 /);
 table = O.standings(['a', 'b'], [forfeit('a', 'b', 'a')], player, O.ratingAdjustment);
 assert.equal(table.winnerId, 'b', 'a win by forfeit wins the group');
 

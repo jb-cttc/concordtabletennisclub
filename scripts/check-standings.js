@@ -20,15 +20,15 @@ assert.deepEqual([august24Order.at(-1).wins, august24Order.at(-1).losses], [0, 0
 const group4 = sortByGroupResult(findGroup('2026-09-28', 'Group 4').players);
 assert.deepEqual(names(group4).slice(0, 3), ['Samia Bendi', 'Iman Mukherjee', 'Ryan Beavers'], 'win by forfeit counts as a win: 4-1 beats 3-2');
 assert.equal(group4.at(-1).name, 'Enver Sedolli');
-assert.equal(describeWinner(findGroup('2026-09-28', 'Group 4').players).text, 'Tied at 9 pts: Samia Bendi beat Iman Mukherjee 3-2 head-to-head.');
+assert.equal(describeWinner(findGroup('2026-09-28', 'Group 4').players).text, 'Tie-Breaker: Samia Bendi beat Iman Mukherjee 3-2 head-to-head');
 const group5 = sortByGroupResult(findGroup('2026-09-28', 'Group 5').players);
 assert.equal(group5[0].name, 'Creig Murtha', '4-2 (10 pts) beats 4-1 plus a double forfeit (9 pts)');
 assert.deepEqual(names(group5).slice(-2), ['Shiva Shadloo', 'William Craig Jr'], 'a played loss scores 1, so 0-6 (6 pts) beats 1-3 plus two double forfeits (5 pts)');
 const group6 = sortByGroupResult(findGroup('2026-09-28', 'Group 6').players);
 assert.deepEqual(names(group6).slice(0, 2), ['Peggy Alden', 'Amin Hasan'], 'Peggy: 5 wins and a loss (11 pts) beats Amin: 5 wins and a double forfeit (10 pts)');
 assert.equal(describeWinner(findGroup('2026-09-28', 'Group 6').players).text,
-  'Peggy Alden 11 pts (5 wins, 1 loss) vs Amin Hasan 10 pts (5 wins, 1 double forfeit). A played loss scores 1 point; a forfeit or unplayed match scores 0.');
-assert.equal(describeWinner(findGroup('2026-09-28', 'Group 2').players).text, 'Tied at 9 pts: Yaroslav Shneikin beat Victor Lee 3-2 head-to-head.');
+  'Match points: Peggy Alden 11, Amin Hasan 10 (a played loss scores 1, a forfeit 0)');
+assert.equal(describeWinner(findGroup('2026-09-28', 'Group 2').players).text, 'Tie-Breaker: Yaroslav Shneikin beat Victor Lee 3-2 head-to-head');
 assert.equal(describeWinner(findGroup('2026-09-28', 'Group 1').players), null, 'no note when the winner was clear');
 
 // Builds a group from results: [a, b, gamesA, gamesB, forfeitedBy?]
@@ -48,12 +48,12 @@ const cycle = group([['A', 1500], ['B', 1400], ['C', 1300], ['D', 1200]], [
   ['A', 'B', 3, 2], ['C', 'A', 3, 1], ['B', 'C', 3, 0], ['A', 'D', 3, 0], ['B', 'D', 3, 0], ['C', 'D', 3, 0]
 ]);
 assert.deepEqual(names(sortByGroupResult(cycle)), ['B', 'A', 'C', 'D']);
-assert.match(describeWinner(cycle).text, /^3-way tie at 5 pts\. Game ratio among the tied players \(games won\/lost\): B 5\/3, A 4\/5, C 3\/4\. B is highest\.$/);
+assert.match(describeWinner(cycle).text, /^Tie-Breaker: game ratio among the tied \(B 5\/3, A 4\/5, C 3\/4\)$/);
 
 // Three-way tie with equal game ratios: the lowest pre-session rating wins.
 const even = group([['A', 1500], ['B', 1400], ['C', 1300]], [['A', 'B', 3, 2], ['B', 'C', 3, 2], ['C', 'A', 3, 2]]);
 assert.deepEqual(names(sortByGroupResult(even)), ['C', 'B', 'A']);
-assert.match(describeWinner(even).text, /level .*lowest pre-session rating wins: C 1300\.$/);
+assert.match(describeWinner(even).text, /level .*lowest rating wins: C 1300$/);
 
 // Two-way tie decided by a forfeit: the forfeit winner wins the head-to-head even though the rating is higher.
 const byForfeit = group([['A', 1500], ['B', 1400], ['C', 1300], ['D', 1200]], [
@@ -62,12 +62,12 @@ const byForfeit = group([['A', 1500], ['B', 1400], ['C', 1300], ['D', 1200]], [
 ]);
 assert.equal(tally(byForfeit[1]).points, 4, 'a forfeit loss scores 0, not 1');
 assert.deepEqual(names(sortByGroupResult(byForfeit)).slice(0, 2), ['A', 'B']);
-assert.equal(describeWinner(byForfeit).text, 'Tied at 4 pts: A beat B by forfeit.');
+assert.equal(describeWinner(byForfeit).text, 'Tie-Breaker: A beat B by forfeit');
 
 // Two players who never played each other: the lower rating wins.
 const neverMet = group([['X', 1200], ['Y', 1100], ['Z', 1000]], [['X', 'Z', 0, 0, 'Z'], ['Y', 'Z', 0, 0, 'Z'], ['X', 'Y', 0, 0, 'both']]);
 assert.deepEqual(names(sortByGroupResult(neverMet)).slice(0, 2), ['Y', 'X']);
-assert.match(describeWinner(neverMet).text, /did not play each other, so the lower pre-session rating wins \(Y 1100 vs X 1200\)/);
+assert.match(describeWinner(neverMet).text, /no head-to-head, lower rating wins \(Y 1100 vs X 1200\)/);
 
 // Records without match lists (summary-only reports and older tests) fall back to wins and losses.
 assert.deepEqual(names(sortByGroupResult([
