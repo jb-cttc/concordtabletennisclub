@@ -180,8 +180,6 @@
     var t = tally(player);
     var parts = [plural(t.wins, "win")];
     if (t.losses) parts.push(plural(t.losses, "loss", "losses"));
-    if (t.forfeitLosses) parts.push(plural(t.forfeitLosses, "forfeit loss", "forfeit losses"));
-    if (t.doubleForfeits) parts.push(plural(t.doubleForfeits, "double forfeit"));
     return parts.join(", ");
   }
 
@@ -191,27 +189,20 @@
 
   function tieText(tie) {
     var winner = tie.ordered[0];
-    var prefix = "Tied at " + plural(tie.points, "pt") + ": ";
     if (tie.ordered.length === 2) {
       var loser = tie.ordered[1];
       if (tie.how === "head-to-head") {
-        return prefix + winner.name + " beat " + loser.name + " " + tie.detail.gamesWon + "-" + tie.detail.gamesLost + " head-to-head.";
+        return winner.name + " beat " + loser.name + " " + tie.detail.gamesWon + "-" + tie.detail.gamesLost + " head-to-head";
       }
-      if (tie.how === "forfeit") {
-        return prefix + winner.name + " beat " + loser.name + " by forfeit.";
-      }
-      return prefix + "they did not play each other, so the lower pre-session rating wins (" +
-        winner.name + " " + ratingText(winner) + " vs " + loser.name + " " + ratingText(loser) + ").";
+      if (tie.how === "forfeit") return winner.name + " beat " + loser.name + " by forfeit";
+      return "no head-to-head, lower rating wins (" +
+        winner.name + " " + ratingText(winner) + " vs " + loser.name + " " + ratingText(loser) + ")";
     }
     var list = tie.stats.map(function (item) {
       return item.player.name + " " + item.gamesWon + "/" + item.gamesLost;
     }).join(", ");
-    var size = tie.ordered.length + "-way tie at " + plural(tie.points, "pt") + ". ";
-    if (tie.how === "game-ratio") {
-      return size + "Game ratio among the tied players (games won/lost): " + list + ". " + winner.name + " is highest.";
-    }
-    return size + "Game ratios among the tied players are level (" + list + "), so the lowest pre-session rating wins: " +
-      winner.name + " " + ratingText(winner) + ".";
+    if (tie.how === "game-ratio") return "game ratio among the tied (" + list + ")";
+    return "game ratios level (" + list + "), lowest rating wins: " + winner.name + " " + ratingText(winner);
   }
 
   // Explains the first-place finish when it needed more than the win count: same wins with different
@@ -233,13 +224,10 @@
 
     var parts = [];
     if (rivals.length) {
-      parts.push(winner.name + " " + plural(winnerTally.points, "pt") + " (" + recordText(winner) + ") vs " +
-        rivals.map(function (rival) {
-          return rival.name + " " + plural(tally(rival).points, "pt") + " (" + recordText(rival) + ")";
-        }).join("; ") + ". A played loss scores 1 point; a forfeit or unplayed match scores 0.");
+      parts.push(winner.name + " highest USATT match-point total, " + plural(winnerTally.points, "pt") + " (" + recordText(winner) + ")");
     }
     if (tie) parts.push(tieText(tie));
-    return { winner: winner.name, text: parts.join(" ") };
+    return { winner: winner.name, text: "Tie-breaker: " + parts.join("; ") };
   }
 
   return {

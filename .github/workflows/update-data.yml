@@ -7,13 +7,20 @@ on:
         description: "Full hard refresh: refetch and reparse every session (ignores the raw data cache)"
         type: boolean
         default: false
+      send_email:
+        description: "Also send the session summary email (the desk sets this 15 minutes after the site is published)"
+        type: boolean
+        default: false
   schedule:
-    # Primary: 10:30 PM Pacific, after Monday and Wednesday sessions.
-    # Fallback: 8:00 AM Pacific the next morning, in case results weren't
-    # posted yet by 10:30 PM the night before (e.g. entered late) — a run
-    # that finds nothing new is a safe no-op (fetching is incremental, and
-    # send-session-email.js has its own already-sent guard), so this just
-    # gives late data a second chance to go out without ever double-sending.
+    # Normally the desk starts this workflow itself: 15 minutes after a session is
+    # finalized (publish only), then again 15 minutes after the site lists it with
+    # send_email=true (the results email). Pushes and plain manual runs never email.
+    # These scheduled runs publish and email, and are the fallback for when
+    # that does not happen (no GitHub token, desk tab closed, late entry): 11:45 PM
+    # Pacific after Monday and Wednesday sessions (later than any 15-minute hold that
+    # started by 11:30 PM), and 8:00 AM Pacific the next morning. A run that finds
+    # nothing new is a safe no-op (send-session-email.js has its own already-sent
+    # guard), so these never double-send.
     #
     # GitHub Actions cron doesn't support timezones, so both possible UTC
     # offsets are scheduled for each slot (PDT and PST).
@@ -25,8 +32,8 @@ on:
     # is what happened to the Wednesday 2026-08-26 session). Every firing
     # now just runs — safe because fetching is a no-op when nothing's
     # new, and emailing is blocked by the already-sent marker.
-    - cron: "30 5 * * 2,4"  # 10:30 PM PDT (UTC-7)
-    - cron: "30 6 * * 2,4"  # 10:30 PM PST (UTC-8)
+    - cron: "45 6 * * 2,4"  # 11:45 PM PDT (UTC-7)
+    - cron: "45 7 * * 2,4"  # 11:45 PM PST (UTC-8)
     - cron: "0 15 * * 2,4"  # 8:00 AM PDT (UTC-7)
     - cron: "0 16 * * 2,4"  # 8:00 AM PST (UTC-8)
   push:
@@ -133,7 +140,7 @@ jobs:
         uses: actions/deploy-pages@v4.0.5
 
       - name: Send session summary email
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.send_email == 'true')
         run: npm run email:send
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
@@ -147,7 +154,7 @@ jobs:
           CTTC_LIVE_START_DATE: ${{ vars.CTTC_LIVE_START_DATE }}
 
       - name: Commit sent marker
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.send_email == 'true')
         run: |
           if [ -f .cache/last-emailed-session.json ] && [ -n "$(git status --porcelain .cache/last-emailed-session.json)" ]; then
             git config user.name "github-actions[bot]"
