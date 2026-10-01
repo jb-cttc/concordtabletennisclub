@@ -145,6 +145,7 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          UNSUBSCRIBE_TOKEN_SECRET: ${{ secrets.UNSUBSCRIBE_TOKEN_SECRET }}
           EMAIL_SUBSCRIBERS: ${{ secrets.EMAIL_SUBSCRIBERS }}
           GOOGLE_SHEETS_SUBSCRIBERS_ID: ${{ secrets.GOOGLE_ROUND_ROBIN_DATABASE_ID }}
           GOOGLE_SHEETS_SUBSCRIBERS_RANGE: Subscribers!A:A

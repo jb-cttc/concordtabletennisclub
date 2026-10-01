@@ -103,7 +103,7 @@ function escapeHtml(str) {
   });
 }
 
-function buildHtml(session, winners, movers, totals, footer) {
+function buildHtml(session, winners, movers, totals, footer, unsubscribeUrl) {
   const dateLabel = formatDate(session.date);
   const archiveLink = SITE_URL + '/roundrobins.html#s-' + session.date;
 
@@ -150,11 +150,11 @@ function buildHtml(session, winners, movers, totals, footer) {
 
     '<p style="font-size:0.85rem;"><a href="' + archiveLink + '" style="color:#8B1A1A;">See full results →</a></p>' +
     '<p style="font-size:0.75rem;color:#999;margin-top:24px;">Concord Table Tennis Club &middot; Walnut Creek, CA</p>' +
-    (footer ? '<p style="font-size:0.72rem;color:#999;margin-top:8px;">You are receiving this because this address subscribed to CTTC results. <a href="' + UNSUBSCRIBE_URL + '" style="color:#999;">Unsubscribe</a></p>' : '') +
+    (footer ? '<p style="font-size:0.72rem;color:#999;margin-top:8px;">You are receiving this because this address subscribed to CTTC results. <a href="' + unsubscribeUrl + '" style="color:#999;">Unsubscribe</a></p>' : '') +
     '</div>';
 }
 
-function buildText(session, winners, movers, totals, footer) {
+function buildText(session, winners, movers, totals, footer, unsubscribeUrl) {
   const dateLabel = formatDate(session.date);
   const archiveLink = SITE_URL + '/roundrobins.html#s-' + session.date;
   const lines = [];
@@ -183,7 +183,7 @@ function buildText(session, winners, movers, totals, footer) {
   if (footer) {
     lines.push('');
     lines.push('You are receiving this because this address subscribed to CTTC results.');
-    lines.push('Unsubscribe: ' + UNSUBSCRIBE_URL);
+    lines.push('Unsubscribe: ' + unsubscribeUrl);
   }
 
   return lines.join('\n');
@@ -201,11 +201,12 @@ function buildSessionEmail(date, options) {
   const movers = biggestMovers(session, moverCount);
   const totals = sessionTotals(session);
   const footer = !options || options.footer !== false;
+  const unsubscribeUrl = (options && options.unsubscribeUrl) || UNSUBSCRIBE_URL;
 
   return {
     subject: 'CTTC Results - ' + formatDate(session.date),
-    html: buildHtml(session, winners, movers, totals, footer),
-    text: buildText(session, winners, movers, totals, footer)
+    html: buildHtml(session, winners, movers, totals, footer, unsubscribeUrl),
+    text: buildText(session, winners, movers, totals, footer, unsubscribeUrl)
   };
 }
 

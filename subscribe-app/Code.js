@@ -16,6 +16,9 @@ var UNSUBSCRIBE_PAGE = SITE_URL + '/unsubscribe.html';
 var LATEST_EMAIL_URL = SITE_URL + '/data/latest-session-email.json';
 var FROM_NAME = 'Concord Table Tennis Club';
 var TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+// Links inside results emails are read days or weeks later, so they last a year. They can only ever unsubscribe
+// the one address they were made for.
+var EMAIL_LINK_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 var LINK_COOLDOWN_SECONDS = 600;
 var MIN_QUOTA_WELCOME = 30;
 var MIN_QUOTA_UNSUBSCRIBE = 5;
@@ -227,8 +230,8 @@ function sameText_(left, right) {
   return difference === 0;
 }
 
-function makeToken_(address) {
-  var payload = encode_(JSON.stringify({ e: address, p: 'unsubscribe', x: Date.now() + TOKEN_TTL_MS }));
+function makeToken_(address, ttl) {
+  var payload = encode_(JSON.stringify({ e: address, p: 'unsubscribe', x: Date.now() + (ttl || TOKEN_TTL_MS) }));
   return payload + '.' + sign_(payload);
 }
 
@@ -280,8 +283,9 @@ function sendWelcome_(address) {
     var intro = latest
       ? "You're subscribed! You'll get an email that looks similar to this after each Round Robin Session. We've included the most recent CTTC Round Robin results below."
       : "You're subscribed! You'll get an email with the results after each Round Robin Session.";
-    var footerText = 'You are receiving this because this address was signed up for CTTC results. To stop, go to ' + UNSUBSCRIBE_PAGE;
-    var footerHtml = '<p style="font-family:Georgia,serif;font-size:0.72rem;color:#999;max-width:560px;margin:8px auto 0;">You are receiving this because this address was signed up for CTTC results. <a href="' + UNSUBSCRIBE_PAGE + '" style="color:#999;">Unsubscribe</a></p>';
+    var personal = UNSUBSCRIBE_PAGE + '?t=' + makeToken_(address, EMAIL_LINK_TTL_MS);
+    var footerText = 'You are receiving this because this address was signed up for CTTC results. To stop, open ' + personal;
+    var footerHtml = '<p style="font-family:Georgia,serif;font-size:0.72rem;color:#999;max-width:560px;margin:8px auto 0;">You are receiving this because this address was signed up for CTTC results. <a href="' + personal + '" style="color:#999;">Unsubscribe</a></p>';
     sendMail_(address, "You're subscribed to CTTC results",
       intro + (latest ? '\n\n' + latest.text : '') + '\n\n' + footerText,
       '<p style="font-family:Georgia,serif;max-width:560px;margin:0 auto 20px;color:#1a1a1a;"><strong>' + intro + '</strong></p>' + (latest ? latest.html : '') + footerHtml);

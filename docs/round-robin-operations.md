@@ -192,13 +192,22 @@ app (`subscribe-app/`, deployed with its own `/exec` address and a
 de-duplicated address; it cannot read the list or reach the desk. A new
 address gets a welcome email with the latest results (the pipeline publishes
 `data/latest-session-email.json` for this), and every results email ends with
-an **Unsubscribe** link to `unsubscribe.html`. Unsubscribing is deliberately
-three steps so nobody can remove someone else: the address is typed in, a
-link valid for 24 hours is emailed to that address only (the page gives the
-same answer whether or not the address is on the list), and opening it shows
-a question that must be answered **Yes** before the row is deleted and a
-confirmation email is sent. Links are signed with a `TOKEN_SECRET` script
-property that the app creates itself on first use. These emails go out through
+an **Unsubscribe** link to `unsubscribe.html`. The link in a results or welcome
+email is personal: it carries a token signed for that one address (valid a
+year), so it opens a question page that names the address, and only a click on
+**Yes** deletes the row and sends a confirmation email. A link that was altered,
+forged, or signed with another secret does nothing, and merely opening it
+removes nobody, so mail scanners are harmless. Someone without the email types
+their address on `unsubscribe.html` instead: a link valid for 24 hours is emailed
+to that address only (the page gives the same answer whether or not the address
+is on the list). Links are signed with a `TOKEN_SECRET` script
+property. The results job signs its links with the same secret, kept as the
+GitHub Actions secret `UNSUBSCRIBE_TOKEN_SECRET`; set both to one long random
+value (for example the output of `openssl rand -base64 48`, pasted into both
+places and never into chat or a commit). Without the GitHub secret the results
+emails fall back to the plain page where the address is typed. The results job
+sends one message per subscriber and prints only counts and error codes, never
+addresses, because the Actions log is public. The welcome and unsubscribe emails go out through
 Apps Script `MailApp` from the account that owns the sign-up project, so after
 this project gains the mail permission, open it in the editor and run
 `authorizeEmail` once and approve the prompt; until then `/exec` must not be

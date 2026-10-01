@@ -130,6 +130,43 @@ assert.deepEqual([sent[0].to, sent[0].subject, sent[0].name], ['new@example.com'
 assert.ok(sent[0].body.startsWith("You're subscribed! You'll get an email that looks similar to this after each Round Robin Session. We've included the most recent CTTC Round Robin results below."));
 assert.ok(sent[0].body.includes('RESULTS TEXT') && sent[0].htmlBody.includes('<div id="results">RESULTS</div>'), 'the latest results are included');
 assert.ok(sent[0].htmlBody.includes('https://concordtabletennisclub.com/unsubscribe.html') && sent[0].body.includes('/unsubscribe.html'), 'every email says how to stop');
+// The welcome email's own link is already personal: it unsubscribes that address in two clicks, and lasts a year.
+const welcomeLink = /unsubscribe\.html\?t=([A-Za-z0-9_.-]+)/.exec(sent[0].body);
+assert.ok(welcomeLink && sent[0].htmlBody.includes(welcomeLink[0]), 'the welcome email carries a personal unsubscribe link');
+templates.length = 0;
+context.doGet({ parameter: { page: 'confirm', t: welcomeLink[1] } });
+assert.equal(templates[0].email, 'new@example.com');
+clockOffset = 300 * 24 * 60 * 60 * 1000;
+templates.length = 0;
+context.doGet({ parameter: { page: 'confirm', t: welcomeLink[1] } });
+assert.equal(templates[0].email, 'new@example.com', 'a link in an email still works months later');
+clockOffset = 366 * 24 * 60 * 60 * 1000;
+templates.length = 0;
+context.doGet({ parameter: { page: 'confirm', t: welcomeLink[1] } });
+assert.equal(templates[0].email, '', 'but not forever');
+clockOffset = 0;
+
+// Tokens made by the mailing job (scripts/lib/unsubscribe-token.js) verify here with the shared secret, and only with it.
+{
+  const { makeUnsubscribeToken } = require('../scripts/lib/unsubscribe-token');
+  const saved = properties.TOKEN_SECRET;
+  properties.TOKEN_SECRET = 'shared-test-secret-shared-test-secret-shared-test-secret';
+  const mailed = makeUnsubscribeToken('Mailed@Example.com', properties.TOKEN_SECRET);
+  templates.length = 0;
+  context.doGet({ parameter: { page: 'confirm', t: mailed } });
+  assert.equal(templates[0].email, 'mailed@example.com', 'a token from the mailing job names its own address');
+  const wrongSecret = makeUnsubscribeToken('mailed@example.com', 'some-other-secret-some-other-secret-some-other-secret');
+  templates.length = 0;
+  context.doGet({ parameter: { page: 'confirm', t: wrongSecret } });
+  assert.equal(templates[0].email, '', 'a token signed with a different secret is refused');
+  const [mailedPayload, mailedSignature] = mailed.split('.');
+  const swapped = Buffer.from(JSON.stringify({ e: 'victim@example.com', p: 'unsubscribe', x: Date.now() + 1e9 })).toString('base64url') + '.' + mailedSignature;
+  templates.length = 0;
+  context.doGet({ parameter: { page: 'confirm', t: swapped } });
+  assert.equal(templates[0].email, '', 'changing the address inside a mailed token breaks it');
+  assert.ok(mailedPayload.length < 600, 'tokens fit the pattern the pages accept');
+  properties.TOKEN_SECRET = saved;
+}
 context.subscribe('NEW@example.com', '');
 assert.equal(sent.length, 1, 'an address already on the list gets no second welcome');
 mailFails = true;

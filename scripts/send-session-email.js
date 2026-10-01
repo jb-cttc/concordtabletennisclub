@@ -50,6 +50,7 @@
 const fs = require('fs');
 const path = require('path');
 const { buildSessionEmail, latestSessionDate, UNSUBSCRIBE_URL } = require('./build-session-email');
+const { sendPersonalized, LINK_MARK } = require('./lib/personalized-send');
 
 const ROOT = path.join(__dirname, '..');
 const LAST_SENT_FILE = path.join(ROOT, '.cache', 'last-emailed-session.json');
@@ -162,29 +163,39 @@ async function main() {
     return;
   }
 
-  const email = buildSessionEmail(date);
+  const secret = process.env.UNSUBSCRIBE_TOKEN_SECRET;
+  if (!secret) console.log('UNSUBSCRIBE_TOKEN_SECRET is not set; every message links to the plain unsubscribe page.');
+  const template = buildSessionEmail(date, { unsubscribeUrl: LINK_MARK });
+  const subject = (isTest ? '[Test] ' : '') + template.subject;
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
+    pool: true,
+    maxConnections: 1,
     auth: { user: gmailUser, pass: gmailPass }
   });
+  const from = 'Concord Table Tennis Club <' + gmailUser + '>';
 
-  await transporter.sendMail({
-    from: 'Concord Table Tennis Club <' + gmailUser + '>',
-    to: gmailUser,
-    bcc: subscribers,
-    subject: (isTest ? '[Test] ' : '') + email.subject,
-    headers: { 'List-Unsubscribe': '<' + UNSUBSCRIBE_URL + '>' },
-    text: email.text,
-    html: email.html
-  });
+  const result = await sendPersonalized(transporter, { from, subject, template, subscribers, secret, unsubscribeUrl: UNSUBSCRIBE_URL });
+  if (!result.sent) {
+    transporter.close();
+    console.error('No message could be sent (' + JSON.stringify(result.failures) + '); the session stays unmarked so the next run tries again.');
+    process.exitCode = 1;
+    return;
+  }
+
+  // A copy for the sender, so the club can see exactly what went out; it never carries a personal token.
+  await sendPersonalized(transporter, { from, subject, template, subscribers: [gmailUser], unsubscribeUrl: UNSUBSCRIBE_URL });
+  transporter.close();
 
   if (!isTest) {
     writeJson(LAST_SENT_FILE, { date: date, sentAt: new Date().toISOString() });
   }
-  console.log('Sent "' + email.subject + '" to ' + subscribers.length + ' subscriber(s)' + (isTest ? ' (test send)' : '') + '.');
+  console.log('Sent "' + template.subject + '" to ' + result.sent + ' subscriber(s)' + (isTest ? ' (test send)' : '') + '.');
+  // Not a failed step: the sent marker must still be committed, or the next run would email everyone twice.
+  if (result.failed) console.log('::warning::' + result.failed + ' message(s) were not delivered (' + JSON.stringify(result.failures) + ').');
 }
 
 main().catch(function (err) {
