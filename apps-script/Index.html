@@ -236,6 +236,18 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var probeInFlight = false;
   var probeSequence = 0;
   var lastProbeAt = 0;
+  var AUTO_SYNC_DELAY_MS = 1500;
+  var AUTO_RETRY_MS = [5000, 15000, 30000, 60000];
+  var AUTO_RETRY_LIMIT = 6;
+  var autoSyncTimer = null;
+  var syncBlocked = false;
+  var syncConflict = false;
+  var reconcileNeeded = false;
+  var reconciling = false;
+  var syncFailures = 0;
+  var lastSyncError = '';
+  var saveDone = null;
+  var releaseSave = function () {};
   var draftKeyPrefix = 'cttc-rr-draft-v1:';
   var date = document.getElementById('date');
   var saveButton = document.getElementById('save');
@@ -316,6 +328,31 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     saveButton.title = ready ? 'Device draft ready to save to Google Sheets' : '';
     saveButton.setAttribute('aria-label', ready ? 'Save to Sheets; device draft ready to sync' : 'Save to Sheets');
   }
+  // The draft is sent to Google Sheets a moment after each change. The device copy and this notice only matter
+  // while that is not working.
+  function blockedMessage() {
+    if (navigator.onLine === false) return 'Unsynced draft saved on this device. Offline: it will sync to Google Sheets automatically when the connection returns.';
+    if (syncFailures >= AUTO_RETRY_LIMIT) return 'Unsynced draft saved on this device. Google Sheets did not accept the save' + (lastSyncError ? ' (' + lastSyncError + ')' : '') + '. Click Save to Sheets to try again.';
+    return 'Unsynced draft saved on this device. Google Sheets could not be reached; retrying automatically.';
+  }
+  function canAutoSync() {
+    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && loadedDate === date.value && !locked() && state.roster.length > 0 && (!saveNeedsReload || reconcileNeeded);
+  }
+  function scheduleAutoSync(delay) {
+    clearTimeout(autoSyncTimer);
+    if (!canAutoSync()) return;
+    if (navigator.onLine === false) {
+      syncBlocked = true;
+      showDraftNotice(blockedMessage(), false);
+      return;
+    }
+    autoSyncTimer = setTimeout(runAutoSync, delay == null ? AUTO_SYNC_DELAY_MS : delay);
+  }
+  function scheduleRetry() {
+    clearTimeout(autoSyncTimer);
+    if (syncFailures >= AUTO_RETRY_LIMIT) return;
+    autoSyncTimer = setTimeout(runAutoSync, AUTO_RETRY_MS[Math.min(syncFailures, AUTO_RETRY_MS.length) - 1]);
+  }
   function probeConnection(force) {
     if (!canSyncDeviceDraft() || probeInFlight) return;
     if (navigator.onLine === false) {
@@ -361,9 +398,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       }));
       pendingRecovery = null;
       deviceDraftUnsynced = true;
-      showDraftNotice('Unsynced draft saved on this device. Save to Google Sheets when connected.', false);
+      if (syncBlocked || navigator.onLine === false) showDraftNotice(blockedMessage(), false);
       updateSyncCue();
-      probeConnection();
+      scheduleAutoSync();
       return true;
     } catch (error) {
       showDraftNotice('Device storage is unavailable. Keep this tab open until you can save to Google Sheets.', false);
@@ -377,6 +414,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     deviceDraftUnsynced = false;
     connectionConfirmed = false;
     lastProbeAt = 0;
+    syncBlocked = false;
+    syncFailures = 0;
+    reconcileNeeded = false;
     showDraftNotice('', false);
     updateSyncCue();
     return true;
@@ -416,7 +456,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     setGroups(draft.groups.map(function (group) { return group.playerIds; }));
     pendingRecovery = null;
     persistDeviceDraft();
-    setStatus('Device draft recovered. Review it, then save to Google Sheets.');
+    setStatus('Device draft recovered. It will sync to Google Sheets automatically.');
   });
   exportButton.addEventListener('click', function () {
     if (!pendingRecovery) return;
@@ -474,7 +514,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (state.customized) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions));
     else organize();
     persistDeviceDraft();
-    setStatus(player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '. Save draft to keep this change.');
+    setStatus(player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '.');
     return true;
   }
   function removeFromRoster(id) {
@@ -484,7 +524,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (state.customized) setGroups(groupArrays().map(function (ids) { return ids.filter(function (other) { return other !== id; }); }));
     else organize();
     persistDeviceDraft();
-    setStatus(player(id).name + ' removed from RR draft. Save draft to keep this change.');
+    setStatus(player(id).name + ' removed from RR draft.');
     return true;
   }
   function move(id, direction) {
@@ -529,7 +569,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         var promo = state.promotions[id];
         return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span>' +
           (promo ? '<span class="promotion-badge">\u2191 ' + (promo.wonGroup ? 'Won ' + esc(promo.wonGroup) + ' on ' + shortDate(promo.date) : 'Promoted from Group ' + promo.fromGroup) + '</span>' : '') +
-          '</div><div class="move"><button class="icon" data-move="' + esc(id) + '" data-dir="-1" ' + (index === 0 ? 'disabled' : '') + ' title="Move up a group">\u2191</button><button class="icon" data-move="' + esc(id) + '" data-dir="1" ' + (index === state.groups.length - 1 ? 'disabled' : '') + ' title="Move down a group">\u2193</button></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from RR draft (save draft to keep)" aria-label="Remove ' + esc(p.name) + ' from RR draft">\u00d7</button></li>';
+          '</div><div class="move"><button class="icon" data-move="' + esc(id) + '" data-dir="-1" ' + (index === 0 ? 'disabled' : '') + ' title="Move up a group">\u2191</button><button class="icon" data-move="' + esc(id) + '" data-dir="1" ' + (index === state.groups.length - 1 ? 'disabled' : '') + ' title="Move down a group">\u2193</button></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from RR draft" aria-label="Remove ' + esc(p.name) + ' from RR draft">\u00d7</button></li>';
       }).join('') + '</ul></article>';
     }).join('');
   }
@@ -639,7 +679,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       render();
       if (!result.updated) return;
       document.dispatchEvent(new CustomEvent('cttc:ratings', { detail: changed }));
-      setStatus('Ratings updated from club results through ' + result.syncedThrough + ' (' + result.updated + ' players). Save the draft to use them.');
+      setStatus('Ratings updated from club results through ' + result.syncedThrough + ' (' + result.updated + ' players).');
     } catch (error) {
       setStatus('Ratings could not be updated from the club site: ' + error.message, 'error');
     }
@@ -721,6 +761,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       loadedDate = sessionDate;
       offerDeviceDraft(sessionDate);
       saveNeedsReload = false;
+      syncConflict = false;
+      reconcileNeeded = false;
+      syncBlocked = false;
+      syncFailures = 0;
+      clearTimeout(autoSyncTimer);
       setStatus(state.session ? 'Session loaded. Changes are stored in Google Sheets.' : 'No session exists for this date. Add players to begin.');
       refreshPublish();
       document.dispatchEvent(new CustomEvent('cttc:session-loaded', { detail: { date: sessionDate, ready: !!state.session } }));
@@ -731,15 +776,29 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
   }
 
-  async function save() {
-    if (loadedDate !== date.value || pendingRecovery) { setStatus('Load and resolve the device draft before saving.', 'error'); return null; }
-    if (saveNeedsReload && navigator.onLine !== false) { setStatus('Reload this session to check Google Sheets before saving again.', 'error'); return null; }
-    if (saveInFlight) return null;
-    if (!state.roster.length) { setStatus('Add at least one player before saving.', 'error'); return null; }
-    if (navigator.onLine === false) return saveOnDevice();
+  async function save(options) {
+    var auto = !!(options && options.auto);
+    if (loadedDate !== date.value || pendingRecovery) { if (!auto) setStatus('Load and resolve the device draft before saving.', 'error'); return null; }
+    if (saveInFlight) {
+      if (auto) return null;
+      await saveDone;
+      if (state.session && !deviceDraftUnsynced && savedPrintState === printState()) return state.session;
+    }
+    if (saveNeedsReload && navigator.onLine !== false) {
+      if (auto) return null;
+      if (reconcileNeeded) {
+        syncFailures = 0;
+        setStatus('Checking Google Sheets before saving again...', 'busy');
+        scheduleAutoSync(0);
+      } else setStatus('Reload this session to check Google Sheets before saving again.', 'error');
+      return null;
+    }
+    if (!state.roster.length) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
+    if (navigator.onLine === false) return auto ? null : saveOnDevice();
     saveInFlight = true;
+    saveDone = new Promise(function (resolve) { releaseSave = resolve; });
     updateSyncCue();
-    setStatus('Saving draft...', 'busy');
+    if (!auto) setStatus('Saving draft...', 'busy');
     try {
       if (!state.session) {
         state.session = await withSaveTimeout(call('createSession', date.value));
@@ -753,16 +812,23 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       savedPrintState = submittedState;
       if (printState() === submittedState) clearDeviceDraft(loadedDate);
       else persistDeviceDraft();
-      setStatus('Draft saved at ' + new Date().toLocaleTimeString() + (printState() === submittedState ? '.' : '; newer edits remain on this device.'));
+      if (!auto) setStatus('Draft saved at ' + new Date().toLocaleTimeString() + (printState() === submittedState ? '.' : '; newer edits remain on this device.'));
       render();
       return state.session;
     } catch (error) {
       saveNeedsReload = true;
+      reconcileNeeded = true;
       updateSyncCue();
-      setStatus('Google save not confirmed: ' + error.message + '. Check the device-copy notice, then reload after reconnect before retrying.', 'error');
+      if (!auto) setStatus('Google save not confirmed: ' + error.message + '. Your changes are kept on this device; checking again automatically.', 'error');
+      syncBlocked = true;
+      syncFailures += 1;
+      lastSyncError = error && error.message || '';
+      showDraftNotice(blockedMessage(), false);
+      scheduleRetry();
       return null;
     } finally {
       saveInFlight = false;
+      releaseSave();
       updateSyncCue();
     }
   }
@@ -773,7 +839,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return null;
     }
     if (!persistDeviceDraft()) { setStatus('Device save failed. Keep this tab open until you can save to Google Sheets.', 'error'); return null; }
-    setStatus('Draft saved on this device only. Save to Google Sheets when connected.');
+    setStatus('Draft saved on this device only. It will sync to Google Sheets automatically when the connection returns.');
     return { deviceOnly: true };
   }
 
@@ -782,6 +848,82 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var timer = setTimeout(function () { reject(new Error('Google did not respond in 10 seconds')); }, 10000);
       request.then(resolve, reject).finally(function () { clearTimeout(timer); });
     });
+  }
+
+  function contentKey(groupIds, matchList) {
+    var pairs = matchList.map(function (m) {
+      var swap = String(m.playerOneId) > String(m.playerTwoId);
+      var one = swap ? m.playerTwoGames : m.playerOneGames;
+      var two = swap ? m.playerOneGames : m.playerTwoGames;
+      return [swap ? m.playerTwoId : m.playerOneId, swap ? m.playerOneId : m.playerTwoId, one == null ? '' : one, two == null ? '' : two, m.forfeit ? 1 : 0, m.forfeitedBy || '', m.wonBy || ''].join('|');
+    }).sort();
+    var groupKeys = groupIds.map(function (ids) { return ids.slice().sort().join(','); }).sort();
+    return JSON.stringify({ groups: groupKeys, matches: pairs });
+  }
+  // After an unconfirmed save, ask Google what it holds before sending anything again, so a write that did arrive
+  // is never repeated blindly and a different version made elsewhere is never overwritten.
+  async function reconcile() {
+    var sessionDate = loadedDate;
+    var retryNow = false;
+    reconciling = true;
+    try {
+      var data;
+      try { data = await withSaveTimeout(call('getAppState', sessionDate)); }
+      catch (error) {
+        syncFailures += 1;
+        lastSyncError = error && error.message || '';
+        showDraftNotice(blockedMessage(), false);
+        scheduleRetry();
+        return;
+      }
+      if (sessionDate !== loadedDate || sessionDate !== date.value) return;
+      var server = data.session;
+      var mine = state.session;
+      var serverGroups = server ? server.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); }) : [];
+      if (server && server.status !== 'finalized' && contentKey(serverGroups, server.matches || []) === contentKey(groupArrays(), state.matches)) {
+        state.session = server;
+        state.customized = true;
+        savedPrintState = printState();
+        reconcileNeeded = false;
+        saveNeedsReload = false;
+        clearDeviceDraft(loadedDate);
+        setStatus('Changes saved to Google Sheets at ' + new Date().toLocaleTimeString() + '.');
+        render();
+        return;
+      }
+      var sameBase = server ? (!!mine && Number(server.revision) === Number(mine.revision)) || (!mine && Number(server.revision) === 1 && !serverGroups.length && !(server.matches || []).length) : !mine;
+      if (server && server.status !== 'finalized' && sameBase) {
+        if (!mine) state.session = server;
+        reconcileNeeded = false;
+        saveNeedsReload = false;
+        retryNow = true;
+        return;
+      }
+      if (!server && sameBase) {
+        reconcileNeeded = false;
+        saveNeedsReload = false;
+        retryNow = true;
+        return;
+      }
+      reconcileNeeded = false;
+      syncConflict = true;
+      saveNeedsReload = true;
+      setStatus('Google Sheets has a different version of this session. Nothing was overwritten; your edits are kept on this device. Reload to review it.', 'error');
+      showDraftNotice('Unsynced draft saved on this device. Google Sheets has a different version of this session, so nothing was overwritten. Reload this page to review it.', false);
+    } finally {
+      reconciling = false;
+      if (retryNow) scheduleAutoSync(0);
+    }
+  }
+  async function runAutoSync() {
+    if (!canAutoSync() || navigator.onLine === false) return;
+    if (reconcileNeeded) { await reconcile(); return; }
+    var wasBlocked = syncBlocked;
+    var saved = await save({ auto: true });
+    if (!saved) return;
+    syncFailures = 0;
+    if (wasBlocked) setStatus('Changes saved to Google Sheets at ' + new Date().toLocaleTimeString() + '.');
+    if (deviceDraftUnsynced) scheduleAutoSync();
   }
 
   async function finalize() {
@@ -1053,7 +1195,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (state.customized && !confirm('Rebuild groups by rating? Manual moves are replaced; promotions are reapplied.')) return;
     organize();
     persistDeviceDraft();
-    setStatus('Groups rebuilt by rating' + (Object.keys(state.promotions).length ? ' with ' + Object.keys(state.promotions).length + ' promotion(s)' : '') + '. Save draft to keep this change.');
+    setStatus('Groups rebuilt by rating' + (Object.keys(state.promotions).length ? ' with ' + Object.keys(state.promotions).length + ' promotion(s)' : '') + '.');
   });
   document.getElementById('clear-roster').addEventListener('click', function () {
     if (pendingRecovery) return;
@@ -1063,12 +1205,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     state.customized = false;
     setGroups([]);
     persistDeviceDraft();
-    setStatus('RR draft cleared. Save draft to keep this change.');
+    setStatus('RR draft cleared.');
   });
   document.getElementById('save').addEventListener('click', save);
   document.getElementById('device-save').addEventListener('click', saveOnDevice);
   setInterval(function () { probeConnection(true); }, 75000);
-  window.addEventListener('online', function () { probeConnection(true); });
+  window.addEventListener('online', function () {
+    probeConnection(true);
+    if (syncBlocked) { syncFailures = 0; scheduleAutoSync(0); }
+  });
   window.addEventListener('offline', function () {
     probeSequence += 1;
     probeInFlight = false;
@@ -1076,7 +1221,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     lastProbeAt = 0;
     updateSyncCue();
   });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) probeConnection(true); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    probeConnection(true);
+    if (syncBlocked) scheduleAutoSync(0);
+  });
   document.getElementById('finalize').addEventListener('click', function () { return locked() ? reopen() : finalize(); });
   document.getElementById('new-player').addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -1914,12 +2063,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
-    { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are kept on this device until you save to Sheets.', target: '#groups .group-list li' },
+    { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are saved to Google Sheets automatically a moment after you make them, and kept on this device if the connection drops.', target: '#groups .group-list li' },
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change.', target: '.open-play-section' },
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
-    { title: 'Reconnect and save', text: 'Keep the tab open. When Google responds again, a small dot appears on Save to Sheets; click it and wait for confirmation. If you reopened the tab, load this date and recover the device draft first. If a Sheets save was not confirmed, reload to check for conflicts before retrying.', target: '#save' },
+    { title: 'If the connection drops', text: 'Nothing to do: changes sync to Google Sheets by themselves. If Google cannot be reached, a yellow notice says your draft is kept on this device and syncs automatically when the connection returns. If you reopened the tab, load this date and recover the device draft first. If Google holds a different version of the session, nothing is overwritten; reload to review it.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
-    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in; reconnect and save to Sheets to keep the scores there. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
+    { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in, and the scores sync to Google Sheets automatically. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site in 15 minutes; once the site is updated, a second 15-minute countdown sends the results email. Reopen the session before publishing to correct it, or press Publish now or Send now to skip a wait. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
