@@ -63,7 +63,11 @@ const context = {
     getRemainingDailyQuota: () => quota,
     sendEmail: message => { if (mailFails) throw new Error('mail refused'); sent.push(message); }
   },
-  UrlFetchApp: { fetch: () => ({ getResponseCode: () => latestStatus, getContentText: () => latestBody }) },
+  UrlFetchApp: { fetch: (url, options) => {
+    // Google accepts only these methods; "head" is refused at run time, which a lenient fake would hide.
+    assert.ok(!options || !options.method || ['get', 'delete', 'patch', 'post', 'put'].includes(options.method), 'UrlFetchApp method must be one Google accepts');
+    return { getResponseCode: () => latestStatus, getContentText: () => latestBody };
+  } },
   Utilities: {
     DigestAlgorithm: { SHA_256: 'sha256' },
     getUuid: () => crypto.randomUUID(),
@@ -243,6 +247,11 @@ quota = 100; mailFails = true;
 assert.equal(context.requestUnsubscribe('keep@example.com', '').ok, false);
 mailFails = false;
 assert.equal(locks, 0, 'the lock is always released');
+
+// The one-time permission step runs without sending anything.
+sent.length = 0;
+context.authorizeEmail();
+assert.equal(sent.length, 0, 'authorizeEmail sends nothing');
 
 // The pages: no outside scripts or styles, and anything shown from a link is escaped by the template engine.
 for (const name of ['Unsubscribe', 'Confirm']) {

@@ -178,7 +178,7 @@ function confirmUnsubscribe(token) {
 // consent and sends nothing.
 function authorizeEmail() {
   MailApp.getRemainingDailyQuota();
-  UrlFetchApp.fetch(SITE_URL, { method: 'head', muteHttpExceptions: true });
+  UrlFetchApp.fetch(SITE_URL, { muteHttpExceptions: true });
 }
 
 function subscriberRows_(address) {
