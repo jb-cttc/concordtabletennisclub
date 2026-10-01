@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Unsubscribe from results emails - Concord Table Tennis Club</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
+  <style>
+    .unsubscribe-card { max-width: 440px; margin: 1.5rem auto; border: 1px solid #ddd8d0; border-radius: 6px; overflow: hidden; background: #fff; }
+    .unsubscribe-card iframe { display: block; width: 100%; height: 360px; border: 0; }
+  </style>
+  <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="site-title"><a href="index.html"><img src="assets/logo-transparent.png" alt="Concord Table Tennis Club" class="site-logo"></a></div>
+        <nav>
+      <button class="nav-toggle" aria-label="Open navigation" aria-expanded="false">&#9776;</button>
+      <a href="index.html">Home</a>
+      <a href="firstvisit.html">First Visit</a>
+      <a href="about.html">About</a>
+      <a href="roundrobins.html">Round Robins</a>
+      <a href="leaderboard.html">Leaderboard</a>
+      <a href="halloffame.html">Hall of Fame</a>
+      <a href="membership.html">Membership</a>
+      <a href="coaching.html">Coaching</a>
+      <a href="rules.html">Rules</a>
+      <a href="pictures.html">Pictures</a>
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSdbpyuHfnAEMRjwcA4fM1cgb75ieaa8xzXpKImt8ljRoC1WZA/viewform" target="_blank" rel="noopener">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <h1>Unsubscribe from results emails</h1>
+
+  <div class="unsubscribe-card">
+    <iframe id="unsubscribe-frame" title="Unsubscribe from results emails"></iframe>
+  </div>
+
+</main>
+
+<footer>
+  Concord Table Tennis Club, Walnut Creek, CA. Open since 1972. A 501(c)(3) nonprofit, sanctioned by USATT.
+</footer>
+
+<script src="navtoggle.js"></script>
+
+<script>
+  (function () {
+    // The sign-up app (subscribe-app/) shows the form. A link from the confirmation email carries a signed token,
+    // which is passed on only if it has the expected shape.
+    var APP_URL = 'https://script.google.com/macros/s/AKfycbysF4ypVNa37kOGN5HiXW19FCUInzOfGcW7eHzOp61vybjzfWcJK1X7XsuCxn5kdG04Kw/exec';
+    var token = new URLSearchParams(location.search).get('t') || '';
+    var valid = /^[A-Za-z0-9_-]{10,600}\.[A-Za-z0-9_-]{20,100}$/.test(token);
+    document.getElementById('unsubscribe-frame').src = APP_URL + (valid ? '?page=confirm&t=' + token : '?page=unsubscribe');
+  })();
+</script>
+</body>
+</html>

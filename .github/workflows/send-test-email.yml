@@ -6,6 +6,13 @@ on:
       date:
         description: "Session date to email (YYYY-MM-DD)"
         default: "2026-09-28"
+      scope:
+        description: "Who gets the test"
+        type: choice
+        options:
+          - sender-only
+          - everyone
+        default: sender-only
 
 permissions:
   contents: read
@@ -32,8 +39,10 @@ jobs:
         env:
           SESSION_DATE: ${{ github.event.inputs.date }}
           CTTC_TEST_SEND: "true"
+          CTTC_TEST_SCOPE: ${{ github.event.inputs.scope }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          UNSUBSCRIBE_TOKEN_SECRET: ${{ secrets.UNSUBSCRIBE_TOKEN_SECRET }}
           GOOGLE_SHEETS_SUBSCRIBERS_ID: ${{ secrets.GOOGLE_ROUND_ROBIN_DATABASE_ID }}
           GOOGLE_SHEETS_SUBSCRIBERS_RANGE: Subscribers!A:A
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}

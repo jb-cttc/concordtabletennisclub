@@ -166,17 +166,24 @@ desk from scratch while offline is unsupported.
 **Session email:** The scheduled workflow refreshes published results, then
 `scripts/build-session-email.js` makes the summary from `data/*.json` and
 `scripts/send-session-email.js` sends it by Gmail SMTP using a GitHub Actions
-secret. Recipients are BCC'd; a sent-date marker prevents repeat sends for
+secret. Each subscriber gets their own message, so the Unsubscribe link in it carries a signed token for that address; a sent-date marker prevents repeat sends for
 the same session. The recipients are the `Subscribers` tab of the private
 database Sheet (column A, one address per row); visitors add themselves with
 the green **Subscribe** button on the Round Robins page, served by the
 separate public app in `subscribe-app/`. The "Send Test Email" workflow sends
-to the whole list with a "[Test]" subject and without advancing the
+to the sending account only (or the whole list if you choose "everyone") with a "[Test]" subject and without advancing the
 sent-date marker. The roster, membership status, and subscriber list are
 separate: joining a round robin does not subscribe someone to email.
 
-To remove a recipient, a maintainer deletes the row in the private
-`Subscribers` tab. There is no public unsubscribe control yet. Never put
+To remove a recipient, a subscriber uses the **Unsubscribe** link at the
+bottom of their results email. It opens `unsubscribe.html` with their address
+already known (the link is signed, so it cannot be changed or forged), asks
+"Unsubscribe?", and a click on **Yes** removes the address and sends a
+confirmation. Anyone without the email can still type their address there and
+we email a 24-hour link to that address only.
+New subscribers get a welcome email that includes the most recent results
+(`data/latest-session-email.json`, built by the data workflow). A maintainer
+can still delete a row in the private `Subscribers` tab. Never put
 addresses in an issue, commit, or the published `data/` directory.
 
 ## Backlog and roadmap

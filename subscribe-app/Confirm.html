@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 20px; font: 16px/1.5 Arial, sans-serif; color: #1c1c1c; background: #fff; }
+  h1 { margin: 0 0 8px; font-size: 1.25rem; }
+  p { margin: 0 0 14px; color: #555; font-size: 0.95rem; }
+  strong { color: #1c1c1c; word-break: break-all; }
+  button { margin: 4px 8px 0 0; padding: 9px 16px; border: 1px solid #8b1a1a; border-radius: 4px; background: #8b1a1a; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button.keep { border-color: #1f6b3a; background: #fff; color: #1f6b3a; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  #status { margin-top: 12px; min-height: 1.4em; font-size: 0.95rem; }
+  #status.error { color: #8b1a1a; }
+  #status.ok { color: #1f6b3a; font-weight: 600; }
+</style>
+</head>
+<body>
+<? if (email) { ?>
+<div id="ask" data-token="<?= token ?>">
+  <h1>Unsubscribe?</h1>
+  <p>Stop sending Concord Table Tennis Club results emails to <strong><?= email ?></strong>?</p>
+  <button id="yes" type="button">Yes, unsubscribe me</button>
+  <button id="no" class="keep" type="button">No, keep me subscribed</button>
+</div>
+<div id="status" role="status" aria-live="polite"></div>
+<script>
+  var ask = document.getElementById('ask');
+  var statusBox = document.getElementById('status');
+  var yes = document.getElementById('yes');
+  var no = document.getElementById('no');
+  function show(text, kind) { statusBox.textContent = text; statusBox.className = kind || ''; }
+  yes.addEventListener('click', function () {
+    yes.disabled = true;
+    no.disabled = true;
+    show('Unsubscribing...');
+    google.script.run
+      .withSuccessHandler(function (result) {
+        if (result && result.ok) {
+          ask.style.display = 'none';
+          show('You are unsubscribed. We have sent you an email to confirm.', 'ok');
+        } else {
+          show((result && result.message) || 'Something went wrong. Please try again.', 'error');
+        }
+      })
+      .withFailureHandler(function () {
+        yes.disabled = false;
+        no.disabled = false;
+        show('Something went wrong. Please try again.', 'error');
+      })
+      .confirmUnsubscribe(ask.getAttribute('data-token'));
+  });
+  no.addEventListener('click', function () {
+    ask.style.display = 'none';
+    show('No problem. You are still subscribed.', 'ok');
+  });
+</script>
+<? } else { ?>
+<h1>This link has expired</h1>
+<p>The unsubscribe link is not valid any more. Links in a results email last a year, and links we send after you type your address last 24 hours.</p>
+<p><a href="https://concordtabletennisclub.com/unsubscribe.html" target="_top">Ask for a new link</a></p>
+<? } ?>
+</body>
+</html>

@@ -102,11 +102,11 @@ jobs:
           CTTC_FETCH_DELAY_MS: 250
 
       - name: Refresh public indexes and verify data
-        run: npm run build:roster && npm run build:player-index && npm run check:data
+        run: npm run build:roster && npm run build:player-index && npm run build:latest-email && npm run check:data
 
       - name: Commit generated data
         run: |
-          FILES="data/sessions.json data/session-details-*.json data/players.json data/site-status.json data/session-roster.json data/player-index.json data/session-summaries.json data/parse-report.json .cache/session-raw-cache.json .cache/access-parallel/sessions.json"
+          FILES="data/sessions.json data/session-details-*.json data/players.json data/site-status.json data/session-roster.json data/player-index.json data/session-summaries.json data/latest-session-email.json data/parse-report.json .cache/session-raw-cache.json .cache/access-parallel/sessions.json"
           EXISTING=""
           for f in $FILES; do
             [ -e "$f" ] && EXISTING="$EXISTING $f"
@@ -145,6 +145,7 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          UNSUBSCRIBE_TOKEN_SECRET: ${{ secrets.UNSUBSCRIBE_TOKEN_SECRET }}
           EMAIL_SUBSCRIBERS: ${{ secrets.EMAIL_SUBSCRIBERS }}
           GOOGLE_SHEETS_SUBSCRIBERS_ID: ${{ secrets.GOOGLE_ROUND_ROBIN_DATABASE_ID }}
           GOOGLE_SHEETS_SUBSCRIBERS_RANGE: Subscribers!A:A

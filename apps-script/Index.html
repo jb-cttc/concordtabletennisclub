@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players, including archive" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -221,7 +221,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 (function () {
   var O = window.CTTCOrganizer;
   var SITE = 'https://concordtabletennisclub.com';
-  var state = { players: [], archived: [], session: null, roster: [], groups: [], matches: [], promotions: {}, winners: [], previousDate: null, customized: false };
+  var state = { players: [], archived: [], session: null, roster: [], groups: [], matches: [], promotions: {}, winners: [], previousDate: null, customized: false, showArchived: false };
   var byId = {};
   var byName = {};
   var siteCache = {};
@@ -336,7 +336,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return 'Unsynced draft saved on this device. Google Sheets could not be reached; retrying automatically.';
   }
   function canAutoSync() {
-    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && loadedDate === date.value && !locked() && state.roster.length > 0 && (!saveNeedsReload || reconcileNeeded);
+    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
   }
   function scheduleAutoSync(delay) {
     clearTimeout(autoSyncTimer);
@@ -541,6 +541,41 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     persistDeviceDraft();
   }
 
+  function pendingActivations() {
+    return window.cttcOutbox.entries('activatePlayer').length > 0;
+  }
+  // The player is usable at once; Google catches up in the background (the outbox keeps it across reloads and offline spells).
+  function activateLocally(p) {
+    state.archived = state.archived.filter(function (other) { return other.playerId !== p.playerId; });
+    if (state.players.some(function (other) { return other.playerId === p.playerId; })) return;
+    state.players.push(p);
+    state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    byId[p.playerId] = byId[p.playerId] || p;
+    byName[p.name] = p.playerId;
+    document.dispatchEvent(new CustomEvent('cttc:players', { detail: p }));
+  }
+  function applyPendingActivations() {
+    window.cttcOutbox.entries('activatePlayer').forEach(function (entry) {
+      activateLocally({ playerId: entry.args[0], name: entry.args[1], currentRating: entry.args[2] });
+    });
+  }
+  window.cttcOutbox.register('activatePlayer', {
+    rejected: /Unknown player/,
+    describe: function (entry) { return (entry.args[1] || 'A player') + ' could not be made active'; },
+    rejectedFn: function (entry) {
+      var id = entry.args[0];
+      removeFromRoster(id);
+      state.players = state.players.filter(function (p) { return p.playerId !== id; });
+      state.archived.push({ playerId: id, name: entry.args[1], currentRating: entry.args[2] });
+      renderDirectory();
+    }
+  });
+  var hadActivations = false;
+  window.cttcOutbox.onChange(function () {
+    var now = pendingActivations();
+    if (hadActivations && !now) scheduleAutoSync(0);
+    hadActivations = now;
+  });
   function renderDirectory() {
     var query = search.value.trim().toLowerCase();
     var matches = function (p) { return !query || p.name.toLowerCase().indexOf(query) >= 0; };
@@ -548,9 +583,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var added = state.roster.indexOf(p.playerId) >= 0;
       return '<li><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
     });
-    if (query.length >= 2) {
-      html = html.concat(state.archived.filter(matches).slice(0, 25).map(function (p) {
-        return '<li data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + '</strong><span>Archived \u00b7 rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '">Add</button></li>';
+    var archivedMatches = query.length >= 2 ? state.archived.filter(matches) : [];
+    if (archivedMatches.length && !state.showArchived) {
+      html.unshift('<li class="archived-toggle"><button type="button" class="small" data-show-archived>Show archived players (' + archivedMatches.length + ')</button></li>');
+    }
+    if (state.showArchived && archivedMatches.length) {
+      html = html.concat(archivedMatches.slice(0, 25).map(function (p) {
+        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span><span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
       }));
     }
     results.innerHTML = html.join('');
@@ -729,6 +768,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       byId = {};
       byName = {};
       state.players.forEach(function (p) { byId[p.playerId] = p; byName[p.name] = p.playerId; });
+      applyPendingActivations();
       await loadHistory(sessionDate, pendingHistory);
       if (sessionDate !== date.value) return;
       state.session = data.session;
@@ -795,6 +835,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
     if (!state.roster.length) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
     if (navigator.onLine === false) return auto ? null : saveOnDevice();
+    if (pendingActivations()) {
+      window.cttcOutbox.flush();
+      if (!auto) setStatus('A player is still being made active on Google. The draft syncs as soon as that finishes.', 'error');
+      return null;
+    }
     saveInFlight = true;
     saveDone = new Promise(function (resolve) { releaseSave = resolve; });
     updateSyncCue();
@@ -1036,30 +1081,21 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     catch (error) { setStatus(error.message, 'error'); button.disabled = false; }
   });
 
-  results.addEventListener('click', async function (e) {
-    var button = e.target.closest('button');
-    var row = button && button.closest('[data-archived]');
-    if (!row) return;
-    e.stopImmediatePropagation();
-    var id = row.getAttribute('data-archived');
-    var wantsOpen = button.hasAttribute('data-open-add');
-    try {
-      var restored = await call('activatePlayer', id);
-      state.archived = state.archived.filter(function (p) { return p.playerId !== id; });
-      state.players.push(restored);
-      state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
-      byId[id] = restored;
-      byName[restored.name] = id;
-      document.dispatchEvent(new CustomEvent('cttc:players', { detail: restored }));
-      if (!wantsOpen) { addToRoster(id, 'the archive'); return; }
-      renderDirectory();
-      var open = results.querySelector('[data-open-add="' + CSS.escape(id) + '"]');
-      if (open) open.click();
-    } catch (error) {
-      setStatus('Could not restore ' + row.querySelector('strong').textContent + ': ' + error.message, 'error');
-    }
-  }, true);
-  results.addEventListener('click', function (e) { if (e.target.dataset.add) addToRoster(e.target.dataset.add); });
+  results.addEventListener('click', function (e) {
+    var button = e.target.closest('[data-activate]');
+    if (!button) return;
+    var id = button.getAttribute('data-activate');
+    var archivedPlayer = state.archived.find(function (p) { return p.playerId === id; });
+    if (!archivedPlayer) return;
+    activateLocally(archivedPlayer);
+    window.cttcOutbox.enqueue('activate:' + id, 'activatePlayer', [id, archivedPlayer.name, archivedPlayer.currentRating]);
+    setStatus(archivedPlayer.name + ' is active again.');
+    renderDirectory();
+  });
+  results.addEventListener('click', function (e) {
+    if (e.target.closest('[data-show-archived]')) { state.showArchived = true; renderDirectory(); return; }
+    if (e.target.dataset.add) addToRoster(e.target.dataset.add);
+  });
   groups.addEventListener('click', function (e) {
     var target = e.target.closest('[data-move], [data-drop]');
     if (!target) return;
@@ -1251,6 +1287,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   load().then(syncRatings);
   call('listArchivedPlayers').then(function (list) {
     state.archived = list;
+    applyPendingActivations();
     if (search.value.trim().length >= 2) renderDirectory();
   }).catch(function () {});
 })();
@@ -1655,7 +1692,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .open-play-section .group-list{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:visible}
 .open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
 .open-play-section .identity{min-width:0}
-.locked .open-play-section,.locked #results [data-open-add]{pointer-events:auto;opacity:1}
+.results li.archived{background:#eceeed;border-radius:4px;padding-left:8px;padding-right:8px}
+.results li.archived strong{color:#6b726d;font-weight:600}
+.identity span.archived-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;background:#d3d8d4;color:#4c534e;font:700 11px Arial,sans-serif;text-transform:uppercase;letter-spacing:.03em}
+.results li.archived .make-active{border-color:#2f6b45;color:#2f6b45;white-space:nowrap}
+.locked .open-play-section,.locked #results [data-open-add],.locked #results [data-show-archived],.locked #results [data-activate]{pointer-events:auto;opacity:1}
 .locked #finalize,.locked #toggle-organizer,.locked #toggle-side,.locked .match-group h3{pointer-events:auto;opacity:1}
 .side-toggle{position:absolute;top:14px;right:8px;z-index:2;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--green);font:700 16px Arial,sans-serif;line-height:1;cursor:pointer}
 .side-toggle:hover{border-color:var(--green);background:#eef6f0}
@@ -1786,6 +1827,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       names = {};
       ratings = {};
       values[1].forEach(function (player) { names[player.playerId] = player.name; ratings[player.playerId] = player.currentRating; });
+      outbox.entries('activatePlayer').forEach(function (entry) { names[entry.args[0]] = entry.args[1]; ratings[entry.args[0]] = entry.args[2]; });
       withWaiting(values[0], sessionDate);
       loadedDate = sessionDate;
       renderOpen();
@@ -2058,7 +2100,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var steps = [
     { title: 'Welcome to the desk', text: 'Use this question button whenever you want to revisit the tour. Starting the tour loaded the saved 9/23/2026 session. We will not save any changes during the tour.', target: '#show-tour' },
     { title: 'Load a session', text: 'You can use this to load any saved sessions using the date picker and Load Session button.', target: '.date-tools label', also: '#load' },
-    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default; type at least two letters to include archived players.', target: '.sidebar section.section:first-of-type' },
+    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. When a search also matches archived players, press Show archived players to include them until the page reloads.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },

@@ -189,10 +189,34 @@ repository. Visitors join with the green **Subscribe** button on the Round
 Robins page, which opens a small form served by a separate public Apps Script
 app (`subscribe-app/`, deployed with its own `/exec` address and a
 `DATABASE_ID` script property). That app can only add one validated,
-de-duplicated address; it cannot read the list or reach the desk. To send a
-check email to the whole list without touching the sent marker, run the
+de-duplicated address; it cannot read the list or reach the desk. A new
+address gets a welcome email with the latest results (the pipeline publishes
+`data/latest-session-email.json` for this), and every results email ends with
+an **Unsubscribe** link to `unsubscribe.html`. The link in a results or welcome
+email is personal: it carries a token signed for that one address (valid a
+year), so it opens a question page that names the address, and only a click on
+**Yes** deletes the row and sends a confirmation email. A link that was altered,
+forged, or signed with another secret does nothing, and merely opening it
+removes nobody, so mail scanners are harmless. Someone without the email types
+their address on `unsubscribe.html` instead: a link valid for 24 hours is emailed
+to that address only (the page gives the same answer whether or not the address
+is on the list). Links are signed with a `TOKEN_SECRET` script
+property. The results job signs its links with the same secret, kept as the
+GitHub Actions secret `UNSUBSCRIBE_TOKEN_SECRET`; set both to one long random
+value (for example the output of `openssl rand -base64 48`, pasted into both
+places and never into chat or a commit). Without the GitHub secret the results
+emails fall back to the plain page where the address is typed. The results job
+sends one message per subscriber and prints only counts and error codes, never
+addresses, because the Actions log is public. The welcome and unsubscribe emails go out through
+Apps Script `MailApp` from the account that owns the sign-up project, so after
+this project gains the mail permission, open it in the editor and run
+`authorizeEmail` once and approve the prompt; until then `/exec` must not be
+redeployed. The daily mail quota is shared, and the last few messages are kept
+for unsubscribe confirmations. To send a
+check email without touching the sent marker, run the
 "Send Test Email" workflow from the Actions tab (subject starts with
-"[Test]").
+"[Test]"). Its scope defaults to **sender-only**, one message to the sending
+account with a real personal link; choose **everyone** to send to the whole list.
 
 **Connecting publishing (one time).** Create a fine-grained GitHub personal
 access token for the `jb-cttc/concordtabletennisclub` repository only, with the
