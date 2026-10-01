@@ -37,11 +37,10 @@
 //   Option B - plain list, no sheet:
 //        EMAIL_SUBSCRIBERS     recipient addresses, comma or newline separated
 //
-//   Testing before going live:
-//        TEST_EMAIL_OVERRIDE   when set, sends ONLY to this address - skips
-//        the sheet and EMAIL_SUBSCRIBERS entirely, and skips (does not
-//        update) the already-sent marker, so test sends can be repeated
-//        freely without affecting the real send once this is unset.
+//   Testing:
+//        CTTC_TEST_SEND=true   sends to the real subscriber list with "[Test] " in the
+//        subject, ignores the live-start date, and skips (does not update) the
+//        already-sent marker, so a test never affects the real send.
 //
 // Run: node scripts/send-session-email.js [date]
 // (date defaults to the latest session; omit it for normal/scheduled runs)
@@ -125,21 +124,20 @@ async function main() {
     return;
   }
 
-  const testOverride = (process.env.TEST_EMAIL_OVERRIDE || '').trim();
-  const isTest = Boolean(testOverride);
+  const isTest = process.env.CTTC_TEST_SEND === 'true';
   if (!isTest && process.env.CTTC_LIVE_START_DATE && date < process.env.CTTC_LIVE_START_DATE) {
     console.log('No finalized live session to email; skipping historical results.');
     return;
   }
 
-  const subscribers = isTest ? [testOverride] : await loadSubscribers();
+  const subscribers = await loadSubscribers();
   if (!subscribers.length) {
     console.log('No subscribers found (checked Google Sheet and EMAIL_SUBSCRIBERS); skipping send.');
     return;
   }
 
   if (isTest) {
-    console.log('TEST MODE: sending only to ' + testOverride + ' (sheet/EMAIL_SUBSCRIBERS and the already-sent marker are both bypassed).');
+    console.log('TEST MODE: sending to the subscriber list; the already-sent marker is bypassed.');
   } else {
     const lastSent = loadJson(LAST_SENT_FILE, { date: null });
     if (lastSent.date === date) {
@@ -177,7 +175,7 @@ async function main() {
     from: 'Concord Table Tennis Club <' + gmailUser + '>',
     to: gmailUser,
     bcc: subscribers,
-    subject: email.subject,
+    subject: (isTest ? '[Test] ' : '') + email.subject,
     text: email.text,
     html: email.html
   });

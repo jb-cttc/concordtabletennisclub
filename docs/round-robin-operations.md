@@ -181,9 +181,15 @@ run, and the scheduled fallback runs, send the email; pushes and plain manual
 runs never do. The email's group winners and tie-breaker notes come from the
 same `standings.js` as the Round Robins page, so ranking or wording changes
 reach it automatically (`npm run check:email` enforces this). The distribution
-list lives in the private subscribers Sheet (or the `EMAIL_SUBSCRIBERS` secret),
-never in the repository, and `TEST_EMAIL_OVERRIDE`, while set, sends only to
-that one address.
+list is the `Subscribers` tab of the private database Sheet, never the
+repository. Visitors join with the green **Subscribe** button on the Round
+Robins page, which opens a small form served by a separate public Apps Script
+app (`subscribe-app/`, deployed with its own `/exec` address and a
+`DATABASE_ID` script property). That app can only add one validated,
+de-duplicated address; it cannot read the list or reach the desk. To send a
+check email to the whole list without touching the sent marker, run the
+"Send Test Email" workflow from the Actions tab (subject starts with
+"[Test]").
 
 **Connecting publishing (one time).** Create a fine-grained GitHub personal
 access token for the `jb-cttc/concordtabletennisclub` repository only, with the
@@ -229,8 +235,7 @@ The audit log records each reopen with the ratings it reversed.
    players without a baseline print `--/--`. Run `recordArchiveStatus()` to
    see the current values.
 6. After the first live session, verify the archive, winner, scores,
-   adjustments, and email against the desk's ledger. Remove the
-   `TEST_EMAIL_OVERRIDE` secret once a test email has been checked.
+   adjustments, and email against the desk's ledger.
 
 `npm run refresh:data` is the historical Drive importer; do not run it after
 cutover.

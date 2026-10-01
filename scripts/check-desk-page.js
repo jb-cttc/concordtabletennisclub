@@ -58,6 +58,13 @@ assert.match(source, /if \(urlPath === '\/desk'\) urlPath = '\/desk\.html';/);
 // The Organize button opens the framed desk page, never the raw Google address (which shows Google's banner).
 const roundRobins = fs.readFileSync(path.join(root, 'roundrobins.html'), 'utf8');
 assert.match(roundRobins, /<a id="organizer-launch"[^>]*href="desk\.html"/);
-assert.doesNotMatch(roundRobins, /script\.google\.com/);
+// The only Google address on the page is the public sign-up form, never the desk.
+assert.doesNotMatch(roundRobins.replace(/SUBSCRIBE_URL = '[^']+'/, ''), /script\.google\.com/);
 
 console.log('Club site desk page checks passed');
+
+// The Subscribe button sits left of Organize and opens the public sign-up form (a separate app, not the desk).
+assert.match(roundRobins, /<button id="subscribe-launch"[\s\S]*?Subscribe[\s\S]*?<a id="organizer-launch"/, 'Subscribe comes before Organize');
+const subscribeUrl = /SUBSCRIBE_URL = '([^']+)'/.exec(roundRobins)[1];
+assert.match(subscribeUrl, /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/);
+assert.ok(!html.includes(subscribeUrl.split('/s/')[1]), 'the public form is a different app from the owner-only desk');

@@ -161,18 +161,17 @@ require internet. Opening the desk from scratch while offline is unsupported.
 `scripts/build-session-email.js` makes the summary from `data/*.json` and
 `scripts/send-session-email.js` sends it by Gmail SMTP using a GitHub Actions
 secret. Recipients are BCC'd; a sent-date marker prevents repeat sends for
-the same session. If configured, a *private subscriber Google Sheet* supplies
-the addresses; otherwise the `EMAIL_SUBSCRIBERS` GitHub Actions secret does.
-`TEST_EMAIL_OVERRIDE` sends only to a test address without advancing the
+the same session. The recipients are the `Subscribers` tab of the private
+database Sheet (column A, one address per row); visitors add themselves with
+the green **Subscribe** button on the Round Robins page, served by the
+separate public app in `subscribe-app/`. The "Send Test Email" workflow sends
+to the whole list with a "[Test]" subject and without advancing the
 sent-date marker. The roster, membership status, and subscriber list are
 separate: joining a round robin does not subscribe someone to email.
 
-To add or remove a recipient, a maintainer updates the private subscriber
-Sheet (one address per row, usually `Subscribers!A:A`) **or**, if the Sheet is
-not configured, the `EMAIL_SUBSCRIBERS` secret in the repository's Actions
-settings. Check which source is configured before making a change; there is
-no public self-service signup/unsubscribe control here. Never put addresses
-in an issue, commit, or the published `data/` directory.
+To remove a recipient, a maintainer deletes the row in the private
+`Subscribers` tab. There is no public unsubscribe control yet. Never put
+addresses in an issue, commit, or the published `data/` directory.
 
 ## Backlog and roadmap
 
@@ -318,7 +317,7 @@ Track the single-sender email, subscriber, and credential transfer in
 - [x] Domain: `concordtabletennisclub.com` is this repository's Pages custom
       domain, the DNS check passes, and HTTPS is enforced (2026-09-30).
 - [x] Secrets and switch (2026-09-30): the Google service account, Gmail,
-      subscriber Sheet, and `TEST_EMAIL_OVERRIDE` secrets are set, and
+      subscriber Sheet access secrets are set, and
       `CTTC_DEPLOY_ENABLED` is `true`. The workflow runs only where this
       variable is set, so it never runs in forks.
       The first run here deployed the site successfully.
@@ -330,8 +329,8 @@ Track the single-sender email, subscriber, and credential transfer in
 - [ ] Confirm Seth's scheduled and manual workflow is disabled so only one
       repository deploys and emails. Reconcile
       `.cache/last-emailed-session.json` with the last email actually sent,
-      and test with `TEST_EMAIL_OVERRIDE` before any real send; remove the
-      override when done.
+      and test with the "Send Test Email" workflow before any real send.
+      The `TEST_EMAIL_OVERRIDE` secret is no longer used and can be deleted.
 - [ ] **Parallel operations:** keep entering results in MS Access and review
       every session with `npm run compare:parallel` until the comparison has
       been clean for the period you agree on

@@ -533,6 +533,70 @@ td {
   color: #fff;
 }
 
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subscribe-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #1f6b3a;
+  border-radius: 4px;
+  background: #1f6b3a;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  padding: 7px 13px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.subscribe-launch:hover {
+  border-color: #174f2b;
+  background: #174f2b;
+}
+
+.subscribe-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(440px, calc(100vw - 24px));
+  height: min(380px, calc(100vh - 24px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.subscribe-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.subscribe-dialog iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.subscribe-close {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
 /* ---- Player profile ---- */
 
 .profile-back {
@@ -815,7 +879,8 @@ footer {
     margin-bottom: 24px;
   }
 
-  .organizer-launch {
+  .organizer-launch,
+  .subscribe-launch {
     padding: 6px 10px;
   }
 

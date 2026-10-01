@@ -9,7 +9,7 @@
   <meta property="og:title" content="Round Robin Archive - Concord Table Tennis Club">
   <meta property="og:description" content="Browse results from 240+ round robin sessions at Concord Table Tennis Club, going back to January 2024.">
   <meta property="og:url" content="https://latkecrszy.github.io/concordtabletennisclub/roundrobins.html">
-  <link rel="stylesheet" href="style.css?v=20260930e">
+  <link rel="stylesheet" href="style.css?v=20260930f">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
 </head>
@@ -39,11 +39,22 @@
 
   <div class="page-title-row">
     <h1>Round Robins</h1>
-    <a id="organizer-launch" class="organizer-launch" href="desk.html" target="_blank" rel="noopener">
-      <span aria-hidden="true">&#128274;</span>
-      Organize
-    </a>
+    <div class="title-actions">
+      <button id="subscribe-launch" class="subscribe-launch" type="button" aria-haspopup="dialog">
+        <span aria-hidden="true">&#9993;</span>
+        Subscribe
+      </button>
+      <a id="organizer-launch" class="organizer-launch" href="desk.html" target="_blank" rel="noopener">
+        <span aria-hidden="true">&#128274;</span>
+        Organize
+      </a>
+    </div>
   </div>
+
+  <dialog id="subscribe-dialog" class="subscribe-dialog" aria-label="Get results by email">
+    <button id="subscribe-close" class="subscribe-close" type="button" aria-label="Close">&times;</button>
+    <iframe id="subscribe-frame" title="Get results by email"></iframe>
+  </dialog>
 
   <p>Every Monday and Wednesday night, players are divided into groups of 5 or 6 by rating and play a round robin against everyone in their group. Results are posted after each session. Ratings are updated based on wins and losses within the group.</p>
 
@@ -85,6 +96,20 @@
 </footer>
 
 <script src="navtoggle.js"></script>
+<script>
+  (function () {
+    // Public sign-up form: a separate Apps Script app that can only add an address to the email list.
+    var SUBSCRIBE_URL = 'https://script.google.com/macros/s/AKfycbysF4ypVNa37kOGN5HiXW19FCUInzOfGcW7eHzOp61vybjzfWcJK1X7XsuCxn5kdG04Kw/exec';
+    var dialog = document.getElementById('subscribe-dialog');
+    var frame = document.getElementById('subscribe-frame');
+    document.getElementById('subscribe-launch').addEventListener('click', function () {
+      if (!frame.getAttribute('src')) frame.setAttribute('src', SUBSCRIBE_URL);
+      dialog.showModal();
+    });
+    document.getElementById('subscribe-close').addEventListener('click', function () { dialog.close(); });
+    dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
+  })();
+</script>
 <script src="standings.js?v=20260930e"></script>
 
 <script>
