@@ -22,20 +22,20 @@ let notes = 0;
 for (const group of session.groups) {
   const winner = sortByGroupResult(group.players)[0];
   const described = describeWinner(group.players);
-  assert.ok(email.text.includes(group.name + ': ' + winner.name + (described ? '*' : '') + ' ('), group.name + ' winner in the text email');
-  assert.ok(email.html.includes(escapeHtml(winner.name) + (described ? '*' : '') + '</td>'), group.name + ' winner in the HTML email');
+  assert.ok(email.text.includes(group.name + ': ' + winner.name + (described ? '\u2020' : '') + ' ('), group.name + ' winner in the text email');
+  assert.ok(email.html.includes(escapeHtml(winner.name) + (described ? '\u2020' : '') + '</td>'), group.name + ' winner in the HTML email');
   if (described) {
     notes += 1;
-    assert.ok(email.text.includes('* ' + described.text), group.name + ' note in the text email');
-    assert.ok(email.html.includes('* ' + escapeHtml(described.text)), group.name + ' note in the HTML email');
+    assert.ok(email.text.includes('\u2020 ' + described.text), group.name + ' note in the text email');
+    assert.ok(email.html.includes('\u2020 ' + escapeHtml(described.text)), group.name + ' note in the HTML email');
   }
 }
 assert.ok(notes >= 3, 'the regression session has several groups whose winner needed a tie-breaker note');
 
-// A group with a clear winner gets neither an asterisk nor a note.
+// A group with a clear winner gets neither a dagger nor a note.
 const clear = session.groups.find(group => !describeWinner(group.players));
 assert.ok(clear, 'the regression session has a group with a clear winner');
 const clearWinner = sortByGroupResult(clear.players)[0].name;
-assert.ok(!email.text.includes(clearWinner + '*'));
+assert.ok(!email.text.includes(clearWinner + '\u2020'));
 
 console.log('Session email checks passed: winners and ' + notes + ' notes match the site');

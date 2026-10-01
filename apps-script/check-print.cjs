@@ -82,8 +82,10 @@ async function check() {
   assert.equal(root.children.length, 2);
   assert.equal(root.children[1].children[0].children[0].children[1].children[0].textContent,
     'Player [Club Rating] (Club Record) (2026 Record)');
-  assert.equal(root.children[1].children[0].children[0].children[1].children[1].textContent,
-    'Test Player [1000] (10/8) (3/1)');
+  const playerRow = () => root.children[1].children[0].children[0].children[1].children[1];
+  assert.equal(playerRow().children[0].textContent, 'Test Player');
+  assert.equal(playerRow().children[0].tagName, 'strong', 'the player name is bold');
+  assert.equal(playerRow().children[1], ' [1000] (10/8) (3/1)');
   root.children[0].children[1].click();
   assert.equal(prints, 1);
   root.children[0].children[0].click();
@@ -135,8 +137,7 @@ async function check() {
   assert.equal(recordCalls, 6, 'offline printing must not call Google');
   assert.equal(classes.has('previewing'), true);
   assert.match(root.children[0].children[0].textContent, /Club\/year records unavailable/);
-  assert.equal(root.children[1].children[0].children[0].children[1].children[1].textContent,
-    'Test Player [1000] (--/--) (--/--)');
+  assert.equal(playerRow().children[1], ' [1000] (--/--) (--/--)');
   root.children[0].children[1].click();
   console.log('RR sheet print checks passed');
 }

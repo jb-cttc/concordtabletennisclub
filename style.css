@@ -397,6 +397,24 @@ td {
   margin: 0 0 8px;
 }
 
+.group-tiebreak-note + .group-tiebreak-note {
+  margin-top: -4px;
+}
+
+.forfeit-mark,
+.forfeit-flag {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.forfeit-mark {
+  display: inline-block;
+  width: 0;
+  overflow: visible;
+  margin-left: 2px;
+}
+
 /* ---- Archive filters ---- */
 
 .archive-filters {

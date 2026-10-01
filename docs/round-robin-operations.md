@@ -134,7 +134,10 @@ details) in the Sheet, and use made-up names in tests.
 ## Session fees and Zeffy
 
 Members and visitors pay a per-session fee ($10 or $15), recorded per date in
-`SessionPayments` as Venmo, Zelle, or Cash. **Zeffy** is an optional monthly
+`SessionPayments` as Venmo, Zelle, Cash, or Credit (or cleared back to unpaid).
+Payment, Open Play and membership changes are kept on the device first and sync
+to the Sheet in the background, so they keep working when the connection
+drops. **Zeffy** is an optional monthly
 play pass. Manual holders in `ZeffyPasses` by player ID remain covered on every
 date; archived players keep their manual pass and appear in the sidebar list.
 To also recognize revenue-document passes, set the private Apps Script Script

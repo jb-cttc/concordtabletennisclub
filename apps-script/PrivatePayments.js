@@ -2,7 +2,7 @@ var PRIVATE_PAYMENT_TABLES = {
   ZeffyPasses: ['player_id', 'player_name', 'active', 'updated_at'],
   SessionPayments: ['session_id', 'player_id', 'method', 'updated_at']
 };
-var PAYMENT_METHODS = ['venmo', 'zelle', 'cash', 'zeffy'];
+var PAYMENT_METHODS = ['venmo', 'zelle', 'cash', 'credit', 'zeffy'];
 
 function revenueRows_() {
   var documentId = PropertiesService.getScriptProperties().getProperty('CTTC_REVENUE_DOC_ID');
