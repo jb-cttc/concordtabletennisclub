@@ -53,7 +53,7 @@ const { buildSessionEmail, latestSessionDate } = require('./build-session-email'
 
 const ROOT = path.join(__dirname, '..');
 const LAST_SENT_FILE = path.join(ROOT, '.cache', 'last-emailed-session.json');
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_PATTERN = /^[a-z0-9][a-z0-9._%+'-]{0,63}@(?:[a-z0-9-]+\.)+[a-z]{2,24}$/i;
 
 function parseSubscribers(raw) {
   return String(raw || '')
