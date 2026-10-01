@@ -138,7 +138,7 @@ async function main() {
   }
 
   if (isTest) {
-    console.log('TEST MODE: sending to the subscriber list; the already-sent marker is bypassed.');
+    console.log('TEST MODE: sending to ' + (process.env.CTTC_TEST_SCOPE === 'sender-only' ? 'the sending account only' : 'the subscriber list') + '; the already-sent marker is bypassed.');
   } else {
     const lastSent = loadJson(LAST_SENT_FILE, { date: null });
     if (lastSent.date === date) {
@@ -178,7 +178,9 @@ async function main() {
   });
   const from = 'Concord Table Tennis Club <' + gmailUser + '>';
 
-  const result = await sendPersonalized(transporter, { from, subject, template, subscribers, secret, unsubscribeUrl: UNSUBSCRIBE_URL });
+  const senderOnly = isTest && process.env.CTTC_TEST_SCOPE === 'sender-only';
+  const recipients = senderOnly ? [gmailUser] : subscribers;
+  const result = await sendPersonalized(transporter, { from, subject, template, subscribers: recipients, secret, unsubscribeUrl: UNSUBSCRIBE_URL });
   if (!result.sent) {
     transporter.close();
     console.error('No message could be sent (' + JSON.stringify(result.failures) + '); the session stays unmarked so the next run tries again.');
@@ -187,7 +189,7 @@ async function main() {
   }
 
   // A copy for the sender, so the club can see exactly what went out; it never carries a personal token.
-  await sendPersonalized(transporter, { from, subject, template, subscribers: [gmailUser], unsubscribeUrl: UNSUBSCRIBE_URL });
+  if (!senderOnly) await sendPersonalized(transporter, { from, subject, template, subscribers: [gmailUser], unsubscribeUrl: UNSUBSCRIBE_URL });
   transporter.close();
 
   if (!isTest) {

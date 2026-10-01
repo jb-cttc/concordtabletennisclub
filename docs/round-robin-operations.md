@@ -213,9 +213,10 @@ this project gains the mail permission, open it in the editor and run
 `authorizeEmail` once and approve the prompt; until then `/exec` must not be
 redeployed. The daily mail quota is shared, and the last few messages are kept
 for unsubscribe confirmations. To send a
-check email to the whole list without touching the sent marker, run the
+check email without touching the sent marker, run the
 "Send Test Email" workflow from the Actions tab (subject starts with
-"[Test]").
+"[Test]"). Its scope defaults to **sender-only**, one message to the sending
+account with a real personal link; choose **everyone** to send to the whole list.
 
 **Connecting publishing (one time).** Create a fine-grained GitHub personal
 access token for the `jb-cttc/concordtabletennisclub` repository only, with the

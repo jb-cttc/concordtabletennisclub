@@ -171,7 +171,7 @@ the same session. The recipients are the `Subscribers` tab of the private
 database Sheet (column A, one address per row); visitors add themselves with
 the green **Subscribe** button on the Round Robins page, served by the
 separate public app in `subscribe-app/`. The "Send Test Email" workflow sends
-to the whole list with a "[Test]" subject and without advancing the
+to the sending account only (or the whole list if you choose "everyone") with a "[Test]" subject and without advancing the
 sent-date marker. The roster, membership status, and subscriber list are
 separate: joining a round robin does not subscribe someone to email.
 
