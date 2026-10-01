@@ -549,8 +549,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return '<li><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
     });
     var archivedMatches = query.length >= 2 ? state.archived.filter(matches) : [];
-    if (!html.length && archivedMatches.length && !state.showArchived) {
-      html.push('<li class="archived-toggle"><button type="button" class="small" data-show-archived>Show archived players</button></li>');
+    if (archivedMatches.length && !state.showArchived) {
+      html.unshift('<li class="archived-toggle"><button type="button" class="small" data-show-archived>Show archived players (' + archivedMatches.length + ')</button></li>');
     }
     if (state.showArchived && archivedMatches.length) {
       html = html.concat(archivedMatches.slice(0, 25).map(function (p) {
@@ -2065,7 +2065,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var steps = [
     { title: 'Welcome to the desk', text: 'Use this question button whenever you want to revisit the tour. Starting the tour loaded the saved 9/23/2026 session. We will not save any changes during the tour.', target: '#show-tour' },
     { title: 'Load a session', text: 'You can use this to load any saved sessions using the date picker and Load Session button.', target: '.date-tools label', also: '#load' },
-    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. If a search finds no one, press Show archived players to include archived players until the page reloads.', target: '.sidebar section.section:first-of-type' },
+    { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. When a search also matches archived players, press Show archived players to include them until the page reloads.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
