@@ -140,12 +140,18 @@ publishes public JSON through GitHub Pages. A saved draft alone is never
 published. See [round-robin operations](docs/round-robin-operations.md#ratings).
 
 **Connection-loss trial:** Open the desk and load the session online before
-going to the club. Roster, group, and score edits are saved in that browser's
-device storage. **Save on device** confirms a local copy even if Wi-Fi appears
-connected but Google is unreachable; **Save to Sheets** needs a connection and
-is not automatic. With an unsynced draft, the desk checks Google quietly every
-75 seconds and shows a small dot on **Save to Sheets** when it responds; click
-the button to sync without reloading the open tab. The yellow notice distinguishes a device copy from a
+going to the club. Roster, group, and score edits are saved to Google Sheets
+automatically a moment after each change, and also kept in that browser's
+device storage until Google confirms them. While everything works there is no
+notice. If Google cannot be reached the yellow notice says the draft is kept
+on the device; the desk then checks what Google holds before sending again (a
+write that did arrive is not repeated, and a different version made elsewhere
+is never overwritten), retries on its own for a few minutes, and sends as soon
+as the connection returns. After repeated failures it stops and asks you to
+click **Save to Sheets**. **Save on device** still confirms a local copy even
+if Wi-Fi appears connected but Google is unreachable. Payments, Open Play,
+membership badges and Voice confirmations use a separate queue that also syncs
+by itself. The yellow notice distinguishes a device copy from a
 confirmed Google Sheets save. Round-robin sheets can be previewed and printed
 offline, but club/year record figures show `--/--` when Google cannot supply
 them; the match schedule, names, and ratings remain. The logo may not load
@@ -154,8 +160,8 @@ first: recovery is offered only if the Sheet session has not changed. If it
 has changed, download the device copy for manual review rather than
 overwriting newer Sheet data. Use a trusted club device, avoid private
 browsing or clearing site data, and discard device copies when no longer
-needed. Payments, membership details, player creation, and finalization still
-require internet. Opening the desk from scratch while offline is unsupported.
+needed. Player creation and finalization still require internet. Opening the
+desk from scratch while offline is unsupported.
 
 **Session email:** The scheduled workflow refreshes published results, then
 `scripts/build-session-email.js` makes the summary from `data/*.json` and
