@@ -336,7 +336,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return 'Unsynced draft saved on this device. Google Sheets could not be reached; retrying automatically.';
   }
   function canAutoSync() {
-    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && loadedDate === date.value && !locked() && state.roster.length > 0 && (!saveNeedsReload || reconcileNeeded);
+    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
   }
   function scheduleAutoSync(delay) {
     clearTimeout(autoSyncTimer);
@@ -541,6 +541,41 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     persistDeviceDraft();
   }
 
+  function pendingActivations() {
+    return window.cttcOutbox.entries('activatePlayer').length > 0;
+  }
+  // The player is usable at once; Google catches up in the background (the outbox keeps it across reloads and offline spells).
+  function activateLocally(p) {
+    state.archived = state.archived.filter(function (other) { return other.playerId !== p.playerId; });
+    if (state.players.some(function (other) { return other.playerId === p.playerId; })) return;
+    state.players.push(p);
+    state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    byId[p.playerId] = byId[p.playerId] || p;
+    byName[p.name] = p.playerId;
+    document.dispatchEvent(new CustomEvent('cttc:players', { detail: p }));
+  }
+  function applyPendingActivations() {
+    window.cttcOutbox.entries('activatePlayer').forEach(function (entry) {
+      activateLocally({ playerId: entry.args[0], name: entry.args[1], currentRating: entry.args[2] });
+    });
+  }
+  window.cttcOutbox.register('activatePlayer', {
+    rejected: /Unknown player/,
+    describe: function (entry) { return (entry.args[1] || 'A player') + ' could not be made active'; },
+    rejectedFn: function (entry) {
+      var id = entry.args[0];
+      removeFromRoster(id);
+      state.players = state.players.filter(function (p) { return p.playerId !== id; });
+      state.archived.push({ playerId: id, name: entry.args[1], currentRating: entry.args[2] });
+      renderDirectory();
+    }
+  });
+  var hadActivations = false;
+  window.cttcOutbox.onChange(function () {
+    var now = pendingActivations();
+    if (hadActivations && !now) scheduleAutoSync(0);
+    hadActivations = now;
+  });
   function renderDirectory() {
     var query = search.value.trim().toLowerCase();
     var matches = function (p) { return !query || p.name.toLowerCase().indexOf(query) >= 0; };
@@ -554,7 +589,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
     if (state.showArchived && archivedMatches.length) {
       html = html.concat(archivedMatches.slice(0, 25).map(function (p) {
-        return '<li data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + '</strong><span>Archived \u00b7 rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '">Add</button></li>';
+        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span><span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
       }));
     }
     results.innerHTML = html.join('');
@@ -733,6 +768,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       byId = {};
       byName = {};
       state.players.forEach(function (p) { byId[p.playerId] = p; byName[p.name] = p.playerId; });
+      applyPendingActivations();
       await loadHistory(sessionDate, pendingHistory);
       if (sessionDate !== date.value) return;
       state.session = data.session;
@@ -799,6 +835,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
     if (!state.roster.length) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
     if (navigator.onLine === false) return auto ? null : saveOnDevice();
+    if (pendingActivations()) {
+      window.cttcOutbox.flush();
+      if (!auto) setStatus('A player is still being made active on Google. The draft syncs as soon as that finishes.', 'error');
+      return null;
+    }
     saveInFlight = true;
     saveDone = new Promise(function (resolve) { releaseSave = resolve; });
     updateSyncCue();
@@ -1040,29 +1081,17 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     catch (error) { setStatus(error.message, 'error'); button.disabled = false; }
   });
 
-  results.addEventListener('click', async function (e) {
-    var button = e.target.closest('button');
-    var row = button && button.closest('[data-archived]');
-    if (!row) return;
-    e.stopImmediatePropagation();
-    var id = row.getAttribute('data-archived');
-    var wantsOpen = button.hasAttribute('data-open-add');
-    try {
-      var restored = await call('activatePlayer', id);
-      state.archived = state.archived.filter(function (p) { return p.playerId !== id; });
-      state.players.push(restored);
-      state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
-      byId[id] = restored;
-      byName[restored.name] = id;
-      document.dispatchEvent(new CustomEvent('cttc:players', { detail: restored }));
-      if (!wantsOpen) { addToRoster(id, 'the archive'); return; }
-      renderDirectory();
-      var open = results.querySelector('[data-open-add="' + CSS.escape(id) + '"]');
-      if (open) open.click();
-    } catch (error) {
-      setStatus('Could not restore ' + row.querySelector('strong').textContent + ': ' + error.message, 'error');
-    }
-  }, true);
+  results.addEventListener('click', function (e) {
+    var button = e.target.closest('[data-activate]');
+    if (!button) return;
+    var id = button.getAttribute('data-activate');
+    var archivedPlayer = state.archived.find(function (p) { return p.playerId === id; });
+    if (!archivedPlayer) return;
+    activateLocally(archivedPlayer);
+    window.cttcOutbox.enqueue('activate:' + id, 'activatePlayer', [id, archivedPlayer.name, archivedPlayer.currentRating]);
+    setStatus(archivedPlayer.name + ' is active again.');
+    renderDirectory();
+  });
   results.addEventListener('click', function (e) {
     if (e.target.closest('[data-show-archived]')) { state.showArchived = true; renderDirectory(); return; }
     if (e.target.dataset.add) addToRoster(e.target.dataset.add);
@@ -1258,6 +1287,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   load().then(syncRatings);
   call('listArchivedPlayers').then(function (list) {
     state.archived = list;
+    applyPendingActivations();
     if (search.value.trim().length >= 2) renderDirectory();
   }).catch(function () {});
 })();
@@ -1662,7 +1692,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .open-play-section .group-list{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:visible}
 .open-play-section .roster-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;padding:10px 13px}
 .open-play-section .identity{min-width:0}
-.locked .open-play-section,.locked #results [data-open-add],.locked #results [data-show-archived]{pointer-events:auto;opacity:1}
+.results li.archived{background:#eceeed;border-radius:4px;padding-left:8px;padding-right:8px}
+.results li.archived strong{color:#6b726d;font-weight:600}
+.identity span.archived-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;background:#d3d8d4;color:#4c534e;font:700 11px Arial,sans-serif;text-transform:uppercase;letter-spacing:.03em}
+.results li.archived .make-active{border-color:#2f6b45;color:#2f6b45;white-space:nowrap}
+.locked .open-play-section,.locked #results [data-open-add],.locked #results [data-show-archived],.locked #results [data-activate]{pointer-events:auto;opacity:1}
 .locked #finalize,.locked #toggle-organizer,.locked #toggle-side,.locked .match-group h3{pointer-events:auto;opacity:1}
 .side-toggle{position:absolute;top:14px;right:8px;z-index:2;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--green);font:700 16px Arial,sans-serif;line-height:1;cursor:pointer}
 .side-toggle:hover{border-color:var(--green);background:#eef6f0}
@@ -1793,6 +1827,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       names = {};
       ratings = {};
       values[1].forEach(function (player) { names[player.playerId] = player.name; ratings[player.playerId] = player.currentRating; });
+      outbox.entries('activatePlayer').forEach(function (entry) { names[entry.args[0]] = entry.args[1]; ratings[entry.args[0]] = entry.args[2]; });
       withWaiting(values[0], sessionDate);
       loadedDate = sessionDate;
       renderOpen();

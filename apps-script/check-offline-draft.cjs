@@ -71,6 +71,7 @@ const context = {
   },
   byId: { 'player-example': { name: 'Example Player' } },
   locked: () => false,
+  pendingActivations: () => false,
   setGroups: groups => { context.state.groups = groups; },
   setStatus: message => { context.status = message; },
   confirm: () => true
