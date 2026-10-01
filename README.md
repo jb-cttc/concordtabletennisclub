@@ -175,8 +175,13 @@ to the whole list with a "[Test]" subject and without advancing the
 sent-date marker. The roster, membership status, and subscriber list are
 separate: joining a round robin does not subscribe someone to email.
 
-To remove a recipient, a maintainer deletes the row in the private
-`Subscribers` tab. There is no public unsubscribe control yet. Never put
+To remove a recipient, a subscriber uses the **Unsubscribe** link at the
+bottom of every results email (or the link under the Subscribe form), which
+opens `unsubscribe.html`: they type their address, we email a 24-hour link to
+that address only, and they confirm on the page before anything is removed.
+New subscribers get a welcome email that includes the most recent results
+(`data/latest-session-email.json`, built by the data workflow). A maintainer
+can still delete a row in the private `Subscribers` tab. Never put
 addresses in an issue, commit, or the published `data/` directory.
 
 ## Backlog and roadmap

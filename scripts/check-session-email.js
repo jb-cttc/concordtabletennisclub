@@ -38,4 +38,15 @@ assert.ok(clear, 'the regression session has a group with a clear winner');
 const clearWinner = sortByGroupResult(clear.players)[0].name;
 assert.ok(!email.text.includes(clearWinner + '\u2020'));
 
+// Every results email says how to stop. The copy published for the sign-up app leaves that to the welcome email.
+const { UNSUBSCRIBE_URL } = require('./build-session-email');
+assert.equal(UNSUBSCRIBE_URL, 'https://concordtabletennisclub.com/unsubscribe.html');
+assert.ok(email.html.includes('href="' + UNSUBSCRIBE_URL + '"'), 'unsubscribe link in the HTML email');
+assert.ok(email.text.includes('Unsubscribe: ' + UNSUBSCRIBE_URL), 'unsubscribe link in the text email');
+const bare = buildSessionEmail('2026-09-28', { footer: false });
+assert.ok(!bare.html.includes('nsubscribe') && !bare.text.includes('nsubscribe'));
+const { buildLatestEmail } = require('./build-latest-email');
+assert.deepEqual(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'latest-session-email.json'), 'utf8')), buildLatestEmail(),
+  'data/latest-session-email.json is out of date; run npm run build:latest-email');
+
 console.log('Session email checks passed: winners and ' + notes + ' notes match the site');

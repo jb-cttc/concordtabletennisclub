@@ -189,7 +189,21 @@ repository. Visitors join with the green **Subscribe** button on the Round
 Robins page, which opens a small form served by a separate public Apps Script
 app (`subscribe-app/`, deployed with its own `/exec` address and a
 `DATABASE_ID` script property). That app can only add one validated,
-de-duplicated address; it cannot read the list or reach the desk. To send a
+de-duplicated address; it cannot read the list or reach the desk. A new
+address gets a welcome email with the latest results (the pipeline publishes
+`data/latest-session-email.json` for this), and every results email ends with
+an **Unsubscribe** link to `unsubscribe.html`. Unsubscribing is deliberately
+three steps so nobody can remove someone else: the address is typed in, a
+link valid for 24 hours is emailed to that address only (the page gives the
+same answer whether or not the address is on the list), and opening it shows
+a question that must be answered **Yes** before the row is deleted and a
+confirmation email is sent. Links are signed with a `TOKEN_SECRET` script
+property that the app creates itself on first use. These emails go out through
+Apps Script `MailApp` from the account that owns the sign-up project, so after
+this project gains the mail permission, open it in the editor and run
+`authorizeEmail` once and approve the prompt; until then `/exec` must not be
+redeployed. The daily mail quota is shared, and the last few messages are kept
+for unsubscribe confirmations. To send a
 check email to the whole list without touching the sent marker, run the
 "Send Test Email" workflow from the Actions tab (subject starts with
 "[Test]").

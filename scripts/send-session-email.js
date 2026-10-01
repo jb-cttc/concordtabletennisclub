@@ -49,7 +49,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { buildSessionEmail, latestSessionDate } = require('./build-session-email');
+const { buildSessionEmail, latestSessionDate, UNSUBSCRIBE_URL } = require('./build-session-email');
 
 const ROOT = path.join(__dirname, '..');
 const LAST_SENT_FILE = path.join(ROOT, '.cache', 'last-emailed-session.json');
@@ -176,6 +176,7 @@ async function main() {
     to: gmailUser,
     bcc: subscribers,
     subject: (isTest ? '[Test] ' : '') + email.subject,
+    headers: { 'List-Unsubscribe': '<' + UNSUBSCRIBE_URL + '>' },
     text: email.text,
     html: email.html
   });
