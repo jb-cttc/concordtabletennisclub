@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 20px; font: 16px/1.5 Arial, sans-serif; color: #1c1c1c; background: #fff; }
+  h1 { margin: 0 0 8px; font-size: 1.25rem; }
+  p { margin: 0 0 14px; color: #555; font-size: 0.95rem; }
+  label { display: block; margin-bottom: 4px; font-size: 0.9rem; font-weight: 600; }
+  input[type=email] { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #c9c4b8; border-radius: 4px; font: inherit; }
+  button { margin-top: 12px; padding: 9px 16px; border: 1px solid #1f6b3a; border-radius: 4px; background: #1f6b3a; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  #status { margin-top: 12px; min-height: 1.4em; font-size: 0.95rem; }
+  #status.error { color: #8b1a1a; }
+  #status.ok { color: #1f6b3a; font-weight: 600; }
+  .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+</style>
+</head>
+<body>
+<h1>Get results by email</h1>
+<p>After each round robin night we send the results to everyone on this list. Enter your email address to join.</p>
+<form id="form" novalidate>
+  <label for="email">Email address</label>
+  <input id="email" type="email" autocomplete="email" maxlength="254" required>
+  <div class="trap" aria-hidden="true"><label for="website">Leave this empty</label><input id="website" type="text" tabindex="-1" autocomplete="off"></div>
+  <button id="submit" type="submit">Subscribe</button>
+  <div id="status" role="status" aria-live="polite"></div>
+</form>
+<script>
+  var form = document.getElementById('form');
+  var statusBox = document.getElementById('status');
+  var button = document.getElementById('submit');
+  function show(text, kind) { statusBox.textContent = text; statusBox.className = kind || ''; }
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var email = document.getElementById('email').value.trim();
+    if (!email) { show('Please enter your email address.', 'error'); return; }
+    button.disabled = true;
+    show('Subscribing...');
+    google.script.run
+      .withSuccessHandler(function (result) {
+        button.disabled = false;
+        if (result && result.ok) {
+          show('You are subscribed. Thank you!', 'ok');
+          form.reset();
+        } else {
+          show((result && result.message) || 'Something went wrong. Please try again.', 'error');
+        }
+      })
+      .withFailureHandler(function () {
+        button.disabled = false;
+        show('Something went wrong. Please try again.', 'error');
+      })
+      .subscribe(email, document.getElementById('website').value);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+name: Send Test Email
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Session date to email (YYYY-MM-DD)"
+        default: "2026-09-28"
+
+permissions:
+  contents: read
+
+jobs:
+  send-test:
+    if: ${{ vars.CTTC_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Send test email to the subscriber list
+        run: node scripts/send-session-email.js "$SESSION_DATE"
+        env:
+          SESSION_DATE: ${{ github.event.inputs.date }}
+          CTTC_TEST_SEND: "true"
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GOOGLE_SHEETS_SUBSCRIBERS_ID: ${{ secrets.GOOGLE_ROUND_ROBIN_DATABASE_ID }}
+          GOOGLE_SHEETS_SUBSCRIBERS_RANGE: Subscribers!A:A
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}

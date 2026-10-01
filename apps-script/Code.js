@@ -11,7 +11,8 @@ var TABLES = {
   RecordArchive: ['player_id', 'record_year', 'club_wins', 'club_losses', 'year_wins', 'year_losses', 'through_date', 'source'],
   RecordArchiveEvents: ['event_date', 'player_id', 'wins', 'losses', 'source'],
   RatingLedger: ['event_id', 'session_id', 'player_id', 'rating_before', 'adjustment', 'rating_after', 'rule_version', 'created_at'],
-  AuditLog: ['event_id', 'event_time', 'actor', 'action', 'entity_type', 'entity_id', 'details_json']
+  AuditLog: ['event_id', 'event_time', 'actor', 'action', 'entity_type', 'entity_id', 'details_json'],
+  Subscribers: ['email', 'added_at']
 };
 
 // Trailing columns that older Sheets lack, in order; ensureHeader_ appends what is missing and never reorders.
