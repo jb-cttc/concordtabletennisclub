@@ -3,10 +3,16 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 let nextId = 0;
+const replies = [];
+const audits = [];
+const thread = { messages: [] };
 function text(name, phone, body, at, from) {
   const id = 'm' + nextId++;
   return {
     getId: () => id,
+    getReplyTo: () => from ? '' : '"' + name + ' (SMS)" <19255550100.19255550199.abc@txt.voice.google.com>',
+    getThread: () => ({ getMessages: () => thread.messages }),
+    reply: body => { replies.push({ id, body }); },
     getFrom: () => from || '"' + name + ' (SMS)" <19255550100.19255550199.abc@txt.voice.google.com>',
     getSubject: () => 'New text message from ' + (name ? name + ' ' : '') + phone,
     getPlainBody: () => '<https://voice.google.com>\n' + body + '\nTo respond to this text message, reply to this email or visit Google Voice.\nYOUR ACCOUNT <https://voice.google.com> HELP CENTER',
@@ -34,7 +40,9 @@ const context = {
   playerAliases_: () => ({ 'patrick lee': 'p0', 'christopher moss': 'p1', 'old record': 'gone' }),
   GmailApp: { search: query => { assert.match(query, /^in:anywhere from:txt\.voice\.google\.com /, 'Trash and Spam are searched too'); return [{ getMessages: () => inbox }, { getMessages: () => inbox.slice(0, 1) }]; } },
   Utilities: { formatDate: date => new Date(date.getTime() - 7 * 3600000).toISOString().slice(0, 10) },
-  Session: { getScriptTimeZone: () => 'America/Los_Angeles' }
+  Session: { getScriptTimeZone: () => 'America/Los_Angeles' },
+  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+  appendAudit_: (...args) => audits.push(args)
 };
 vm.createContext(context);
 for (const file of ['LinkedNames.js', 'VoiceSuggestions.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
@@ -51,4 +59,20 @@ assert.equal(JSON.stringify(day).includes('555-0123'), false, 'full phone number
 assert.deepEqual(bySender.Casey.playerIds, ['p2', 'p3'], 'partial contact names offer prefix matches');
 assert.equal(bySender['Avery Park'], undefined, 'non-Voice senders ignored');
 assert.equal(bySender['Dana Chen'], undefined, 'other dates ignored');
+assert.equal(bySender['Patrick Lee'].senderKey, 'patrick lee');
+assert.equal(bySender['Unknown number ending 0123'].senderKey, '', 'unknown numbers expose no key');
+assert.deepEqual(Object.keys(bySender['Patrick Lee'].messages[0]).sort(), ['receivedAt', 'text'], 'Gmail objects never reach the page');
+
+thread.messages = inbox.slice(0, 2);
+assert.deepEqual(JSON.parse(JSON.stringify(context.sendVoiceConfirmation('2026-09-24', 'patrick lee', 'p0'))), { sent: true, reason: '' });
+assert.deepEqual(replies, [{ id: 'm1', body: 'Confirmed.' }], 'replies to the latest text from that sender only');
+assert.deepEqual(JSON.parse(JSON.stringify(audits)), [['voice_confirmation_sent', 'player', 'p0', { sessionDate: '2026-09-24' }]]);
+thread.messages = inbox.slice(0, 2).concat([{ getDate: () => new Date('2026-09-24T18:05:00Z'), getFrom: () => 'Club <club@example.com>' }]);
+assert.equal(context.sendVoiceConfirmation('2026-09-24', 'patrick lee', 'p0').sent, false, 'a reply already in the thread blocks a second one');
+assert.equal(replies.length, 1);
+assert.throws(() => context.sendVoiceConfirmation('2026-09-24', 'phone:4155550123', 'p9'), /no saved contact name/);
+assert.throws(() => context.sendVoiceConfirmation('2026-09-24', '', 'p9'), /no saved contact name/);
+assert.throws(() => context.sendVoiceConfirmation('2026-09-24', 'nobody here', 'p9'), /No text from this person/);
+assert.throws(() => context.sendVoiceConfirmation('2026-09-24', 'avery park', 'p4'), /No text from this person/, 'non-Voice senders cannot be replied to');
+assert.equal(replies.length, 1);
 console.log('Voice suggestion checks passed');

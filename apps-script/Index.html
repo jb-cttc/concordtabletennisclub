@@ -58,6 +58,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
+  var READ_TIMEOUT_MS = 30000;
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, getPublishState: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -69,7 +71,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       control.classList.add('request-pending');
     }
     return new Promise(function (resolve, reject) {
-      var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+      var timer = READS[name] ? setTimeout(function () { reject(new Error('Google did not respond in ' + READ_TIMEOUT_MS / 1000 + ' seconds. Check the connection.')); }, READ_TIMEOUT_MS) : null;
+      var runner = google.script.run.withSuccessHandler(function (result) { clearTimeout(timer); resolve(result); }).withFailureHandler(function (error) { clearTimeout(timer); reject(error); });
       runner[name].apply(runner, args);
     }).finally(function () {
       pending -= 1;
@@ -81,6 +84,135 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       }
     });
   };
+})();
+</script>
+<script>
+// Changes that must reach Google but should never make the desk wait: they are applied on the page at once, kept on
+// this device, and sent one at a time in the background, retrying until Google confirms them.
+(function () {
+  var KEY = 'cttc-outbox-v1';
+  var CALL_TIMEOUT_MS = 20000;
+  var RETRY_MS = [5000, 15000, 30000, 60000];
+  var handlers = {};
+  var changeListeners = [];
+  var drainListeners = [];
+  var notices = {};
+  var flushing = false;
+  var failures = 0;
+  var timedOut = false;
+  var lastError = '';
+  var lastFailure = '';
+  var retryTimer = null;
+  var note = document.createElement('div');
+  note.id = 'sync-note';
+  note.hidden = true;
+  note.setAttribute('role', 'status');
+  note.setAttribute('aria-live', 'polite');
+  document.body.appendChild(note);
+  var entries = (function () {
+    try {
+      var saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+      return Array.isArray(saved) ? saved.filter(function (entry) { return entry && entry.key && entry.fn && Array.isArray(entry.args); }) : [];
+    } catch (error) { return []; }
+  })();
+  function persist() {
+    try {
+      if (entries.length) localStorage.setItem(KEY, JSON.stringify(entries));
+      else localStorage.removeItem(KEY);
+    } catch (error) { /* the in-memory queue still works while this tab stays open */ }
+  }
+  function render() {
+    var parts = [];
+    if (lastError) parts.push(lastError);
+    Object.keys(notices).forEach(function (name) { if (notices[name]) parts.push(notices[name]); });
+    if (entries.length) parts.push(entries.length + ' change' + (entries.length === 1 ? '' : 's') + ' saved on this device, waiting to sync' + (navigator.onLine === false ? ' (offline)' : lastFailure ? ' (' + lastFailure + ')' : ''));
+    note.textContent = parts.join(' \u2022 ');
+    note.hidden = !parts.length;
+  }
+  function changed() {
+    render();
+    changeListeners.forEach(function (listener) { listener(); });
+  }
+  function callServer(name, args) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { timedOut = true; reject(new Error('Google did not respond in ' + CALL_TIMEOUT_MS / 1000 + ' seconds')); }, CALL_TIMEOUT_MS);
+      var runner = google.script.run
+        .withSuccessHandler(function (result) { clearTimeout(timer); resolve(result); })
+        .withFailureHandler(function (error) { clearTimeout(timer); reject(new Error(error && error.message || String(error))); });
+      runner[name].apply(runner, args);
+    });
+  }
+  function scheduleRetry() {
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(flush, RETRY_MS[Math.min(failures, RETRY_MS.length) - 1] || RETRY_MS[0]);
+  }
+  function flush() {
+    if (flushing || !entries.length || navigator.onLine === false) { render(); return; }
+    clearTimeout(retryTimer);
+    flushing = true;
+    var entry = entries[0];
+    var sentVersion = entry.version || 0;
+    var handler = handlers[entry.fn] || {};
+    callServer(entry.fn, entry.args).then(function (result) {
+      failures = 0;
+      lastFailure = '';
+      lastError = '';
+      var current = (entry.version || 0) === sentVersion;
+      if (current) entries.splice(entries.indexOf(entry), 1);
+      persist();
+      flushing = false;
+      if (handler.done) handler.done(entry, result, current);
+      changed();
+      if (entries.length) flush();
+      else if (timedOut) {
+        timedOut = false;
+        drainListeners.forEach(function (listener) { listener(); });
+      }
+    }, function (error) {
+      flushing = false;
+      var message = error && error.message || String(error);
+      if (handler.rejected && handler.rejected.test(message)) {
+        failures = 0;
+        if ((entry.version || 0) === sentVersion) {
+          entries.splice(entries.indexOf(entry), 1);
+          persist();
+          lastError = (handler.describe ? handler.describe(entry) : 'A change') + ' was not saved: ' + message;
+          if (handler.rejectedFn) handler.rejectedFn(entry, message);
+          changed();
+        }
+        flush();
+        return;
+      }
+      failures += 1;
+      lastFailure = message;
+      changed();
+      scheduleRetry();
+    });
+  }
+  function enqueue(key, fn, args) {
+    var existing = entries.find(function (entry) { return entry.key === key; });
+    if (existing) {
+      existing.args = args;
+      existing.version = (existing.version || 0) + 1;
+    } else entries.push({ key: key, fn: fn, args: args, version: 0 });
+    lastError = '';
+    persist();
+    changed();
+    flush();
+  }
+  window.cttcOutbox = {
+    enqueue: enqueue,
+    flush: flush,
+    find: function (key) { return entries.find(function (entry) { return entry.key === key; }) || null; },
+    entries: function (fn) { return entries.filter(function (entry) { return !fn || entry.fn === fn; }); },
+    register: function (fn, handler) { handlers[fn] = handler; },
+    onChange: function (listener) { changeListeners.push(listener); },
+    onDrain: function (listener) { drainListeners.push(listener); },
+    notice: function (name, text) { notices[name] = text; render(); }
+  };
+  window.addEventListener('online', function () { render(); flush(); });
+  window.addEventListener('offline', render);
+  setTimeout(function () { render(); flush(); }, 0);
 })();
 </script>
 <?!= include('Standings') ?>
@@ -454,8 +586,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var standings = '<table class="standings"><thead><tr><th>Player</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + table.rows.map(function (row) {
         var change = row.projected - row.startRating;
         var won = table.winnerId === row.playerId;
-        return '<tr' + (won ? ' class="leader"' : '') + '><td>' + (won ? '\uD83C\uDFC6 ' : '') + esc(row.name) + (won && table.note ? '*' : '') + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
-      }).join('') + '</tbody></table>' + (table.note ? '<p class="tiebreak-note">* ' + esc(table.note) + '</p>' : '');
+        return '<tr' + (won ? ' class="leader"' : '') + '><td>' + (won ? '\uD83C\uDFC6 ' : '') + esc(row.name) + (won && table.note ? '\u2020' : '') + '</td><td>' + row.wins + '-' + row.losses + (row.forfeits ? '<sup class="forfeit-mark">F</sup>' : '') + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td title="Session-start rating ' + row.startRating + '">' + row.projected + (change ? ' (' + (change > 0 ? '+' : '') + change + ')' : '') + '</td></tr>';
+      }).join('') + '</tbody></table>' + (table.note ? '<p class="tiebreak-note">\u2020 ' + esc(table.note) + '</p>' : '') + (table.forfeitNote ? '<p class="tiebreak-note"><sup class="forfeit-flag">F</sup> ' + esc(table.forfeitNote) + '</p>' : '');
       var collapsed = !!collapsedGroups[group.groupNumber];
       return '<section class="match-group' + (collapsed ? ' collapsed' : '') + '"><h3 role="button" tabindex="0" data-toggle-group="' + group.groupNumber + '" aria-expanded="' + !collapsed + '"><span class="group-title"><span class="chev" aria-hidden="true">\u25BE</span>Group ' + group.groupNumber + '</span><span class="count">' + table.complete + ' / ' + table.total + ' complete</span></h3><div class="fold"><div class="fold-inner">' + standings + entries.map(function (entry) {
         var m = entry.match;
@@ -1005,6 +1137,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .standings th{font-weight:700;color:var(--muted);font-size:12px}
 .standings tr.leader td{background:#eef6f0;font-weight:700}
 .tiebreak-note{margin:6px 0 10px;font:11.7px Arial,sans-serif;color:var(--muted)}
+.tiebreak-note+.tiebreak-note{margin-top:-6px}
+.forfeit-mark,.forfeit-flag{font-size:.7em;font-weight:700;color:var(--muted)}
+.forfeit-mark{display:inline-block;width:0;overflow:visible;margin-left:2px}
 .match-foot{grid-column:1/6;display:grid;grid-template-columns:1fr auto 1fr;align-items:center}
 .match-foot .forfeit{grid-column:2}
 .publish-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:11px 14px;border-left:4px solid var(--gold);background:#fff3d9;font:14px Arial,sans-serif}
@@ -1073,6 +1208,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .payment-control{position:relative;font:13px Arial,sans-serif}
 .payment-trigger{min-width:86px;padding:7px;border:1px solid #aebbb2;border-radius:3px;background:#fff;color:#24392d}
 .payment-control.paid .payment-trigger{background:#e4f3e9;border-color:#82be99;color:#125436;font-weight:700}
+.payment-control.unsynced .payment-trigger{border-style:dashed}
+#sync-note{position:fixed;left:12px;bottom:12px;max-width:min(420px,calc(100vw - 24px));padding:8px 12px;border-left:4px solid var(--gold);background:#fff3d9;box-shadow:0 4px 12px #17211b2b;font:13px Arial,sans-serif;z-index:1500}#sync-note[hidden]{display:none}
+@media print{#sync-note{display:none}}
+.payment-options .unpaid{border-top:1px solid #dce3df;color:#8a3b2b}
 .payment-options{display:none;position:absolute;right:0;top:100%;min-width:108px;padding:4px;background:#fff;border:1px solid #b8c7bc;box-shadow:0 6px 14px #17211b2b;z-index:3}
 .payment-control:not(.pass):hover .payment-options,.payment-control:not(.pass):focus-within .payment-options,.payment-control.open .payment-options{display:grid;gap:3px}
 .payment-options button{padding:7px;text-align:left;border:0;background:#fff;color:#17211b}
@@ -1084,10 +1223,58 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var methods = {};
   var covered = {};
   var requestNumber = 0;
-  function request(name) {
-    return window.cttcRequest.apply(null, arguments);
+  var CACHE_PREFIX = 'cttc-payment-overview-v1:';
+  var METHODS = [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['credit', 'Credit'], ['zeffy', 'Zeffy'], ['', 'Unpaid']];
+  var OVERVIEW_RETRY_MS = 15000;
+  var REJECTED = /Zeffy play pass covers|Unknown or inactive player|Invalid payment method|Invalid date/;
+  var outbox = window.cttcOutbox;
+  function readJson(key, fallback) {
+    try {
+      var raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (error) { return fallback; }
   }
-  var initialPayment = request('getPrivatePaymentOverview', dateField.value);
+  function paymentKey(date, playerId) { return 'pay:' + date + ':' + playerId; }
+  function queued(date, playerId) { return outbox.find(paymentKey(date, playerId)); }
+  function nameOf(playerId) {
+    var control = document.querySelector('[data-payment-player="' + playerId + '"]');
+    var strong = control && control.parentNode && control.parentNode.querySelector('.identity strong');
+    return strong ? strong.textContent : 'a player';
+  }
+  function rememberMethod(date, playerId, method) {
+    var cached = readJson(CACHE_PREFIX + date, null);
+    if (!cached || !cached.methods) return;
+    cached.methods[playerId] = method;
+    try { localStorage.setItem(CACHE_PREFIX + date, JSON.stringify(cached)); } catch (error) { /* cache only */ }
+  }
+  outbox.register('setSessionPayment', {
+    rejected: REJECTED,
+    describe: function (entry) { return 'Payment for ' + nameOf(entry.args[1]); },
+    done: function (entry, result, current) {
+      if (current) rememberMethod(entry.args[0], entry.args[1], entry.args[2]);
+      syncPayment(entry.args[1]);
+    },
+    rejectedFn: function (entry, message) {
+      var date = entry.args[0];
+      var playerId = entry.args[1];
+      if (date !== dateField.value) return;
+      if (/Zeffy play pass covers/.test(message)) covered[playerId] = true;
+      var cached = readJson(CACHE_PREFIX + date, null);
+      methods[playerId] = covered[playerId] ? 'zeffy' : cached && cached.methods && cached.methods[playerId] || '';
+      syncPayment(playerId);
+    }
+  });
+  outbox.onDrain(function () { refreshPayments(); });
+  function choose(playerId, method) {
+    var selectedDate = dateField.value;
+    if (covered[playerId]) return;
+    if (!queued(selectedDate, playerId) && (methods[playerId] || '') === method) return;
+    methods[playerId] = method;
+    syncPayment(playerId);
+    outbox.enqueue(paymentKey(selectedDate, playerId), 'setSessionPayment', [selectedDate, playerId, method]);
+  }
+  window.cttcPayments = { choose: choose };
+  var initialPayment = window.cttcRequest('getPrivatePaymentOverview', dateField.value);
   window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
     [].forEach.call(document.querySelectorAll('#open-roster .roster-row, #groups .group-list li'), function (row) {
@@ -1103,23 +1290,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       trigger.addEventListener('click', function () { control.classList.toggle('open'); });
       var options = document.createElement('div');
       options.className = 'payment-options';
-      [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['zeffy', 'Zeffy']].forEach(function (option) {
+      METHODS.forEach(function (option) {
         var button = document.createElement('button');
         button.type = 'button';
         button.textContent = option[1];
-        button.addEventListener('click', async function () {
-          control.classList.add('pending');
-          button.disabled = true;
-          try {
-            methods[playerId] = await request('setSessionPayment', dateField.value, playerId, option[0]);
-            syncPayment(playerId);
-            control.classList.remove('open');
-          } catch (error) {
-            document.getElementById('status').textContent = 'Payment not saved: ' + (error.message || error);
-          } finally {
-            button.disabled = false;
-            control.classList.remove('pending');
-          }
+        if (!option[0]) button.className = 'unpaid';
+        button.addEventListener('click', function () {
+          choose(playerId, option[0]);
+          control.classList.remove('open');
         });
         options.appendChild(button);
       });
@@ -1132,41 +1310,66 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     var method = methods[playerId] || '';
     document.querySelectorAll('.payment-control').forEach(function (control) {
       if (control.getAttribute('data-payment-player') !== playerId) return;
+      var waiting = !!queued(dateField.value, playerId);
       control.classList.toggle('paid', !!method);
       control.classList.toggle('pass', !!covered[playerId]);
+      control.classList.toggle('unsynced', waiting);
       var trigger = control.querySelector('.payment-trigger');
-      var label = method === 'zeffy' ? 'Zeffy \u2713' : method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : 'Payment';
+      var label = method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : 'Payment';
       if (trigger.textContent !== label) trigger.textContent = label;
-      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : method ? 'Paid by ' + method + '; change method on hover' : 'Choose payment method';
+      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : waiting ? 'Saved on this device; syncing to Google' : method ? 'Paid by ' + method + '; change method on hover' : 'Choose payment method';
       trigger.setAttribute('aria-label', 'Payment for ' + control.parentNode.querySelector('.identity strong').textContent + ': ' + (method || 'unpaid'));
       trigger.disabled = !!covered[playerId];
+      var unpaid = control.querySelector('.unpaid');
+      if (unpaid) unpaid.hidden = !method;
     });
   }
   function refreshPayments() {
     var selectedDate = dateField.value;
     var currentRequest = ++requestNumber;
-    methods = {};
-    var paymentRequest = initialPayment || request('getPrivatePaymentOverview', selectedDate);
+    var cached = readJson(CACHE_PREFIX + selectedDate, null);
+    if (cached && cached.methods && Array.isArray(cached.coveredIds)) {
+      applyOverview(cached, selectedDate);
+      document.dispatchEvent(new CustomEvent('cttc:payment-overview', { detail: cached }));
+    } else {
+      cached = null;
+      applyOverview({ methods: {}, coveredIds: [] }, selectedDate);
+    }
+    var paymentRequest = initialPayment || window.cttcRequest('getPrivatePaymentOverview', selectedDate);
     initialPayment = null;
     paymentRequest.then(function (result) {
       if (currentRequest !== requestNumber) return;
-      methods = result.methods || {};
+      outbox.notice('payments', '');
+      try { localStorage.setItem(CACHE_PREFIX + selectedDate, JSON.stringify(result)); } catch (error) { /* cache only */ }
       document.dispatchEvent(new CustomEvent('cttc:payment-overview', { detail: result }));
-      covered = {};
-      result.coveredIds.forEach(function (playerId) { covered[playerId] = true; });
-      document.querySelectorAll('.payment-control').forEach(function (control) { control.remove(); });
-      decorateRoster();
+      applyOverview(result, selectedDate);
+      outbox.flush();
     }).catch(function (error) {
       if (currentRequest !== requestNumber) return;
-      document.dispatchEvent(new Event('cttc:payment-unavailable'));
-      document.getElementById('status').textContent = 'Payments unavailable: ' + (error.message || error);
+      if (!cached) {
+        document.dispatchEvent(new Event('cttc:payment-unavailable'));
+        outbox.notice('payments', 'Payment status not loaded; choices are kept on this device and sync when Google responds');
+      }
+      setTimeout(function () { if (currentRequest === requestNumber) refreshPayments(); }, OVERVIEW_RETRY_MS);
     });
+  }
+  // Shows the last known state at once, with this device's waiting choices on top, then adds any missing controls.
+  function applyOverview(result, selectedDate) {
+    covered = {};
+    (result.coveredIds || []).forEach(function (playerId) { covered[playerId] = true; });
+    methods = Object.assign({}, result.methods || {});
+    outbox.entries('setSessionPayment').forEach(function (entry) {
+      if (entry.args[0] === selectedDate && !covered[entry.args[1]]) methods[entry.args[1]] = entry.args[2];
+    });
+    decorateRoster();
+    document.querySelectorAll('.payment-control').forEach(function (control) { syncPayment(control.getAttribute('data-payment-player')); });
   }
   new MutationObserver(decorateRoster).observe(document.getElementById('open-roster'), { childList: true, subtree: true });
   new MutationObserver(decorateRoster).observe(document.getElementById('groups'), { childList: true, subtree: true });
   document.getElementById('load').addEventListener('click', refreshPayments);
   document.addEventListener('cttc:players', refreshPayments);
   dateField.addEventListener('change', refreshPayments);
+  window.addEventListener('online', refreshPayments);
   refreshPayments();
 })();
 </script>
@@ -1195,18 +1398,22 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function apply(result) {
     statuses = result.statuses || {};
     notes = result.notes || {};
+    window.cttcOutbox.entries('setMemberStatus').forEach(function (entry) { statuses[entry.args[0]] = entry.args[1]; });
     decorate();
   }
   function setStatus(message) {
     document.getElementById('status').textContent = message;
   }
-  async function save(playerId, next) {
-    try {
-      apply(await window.cttcRequest('setMemberStatus', playerId, next));
-    } catch (error) {
-      setStatus('Membership not saved: ' + (error.message || error));
-      decorate();
-    }
+  window.cttcOutbox.register('setMemberStatus', {
+    rejected: /Invalid member status|Unknown player|Junior membership comes|Junior members stay/,
+    describe: function () { return 'A membership change'; },
+    done: function (entry, result, current) { if (current) apply(result); },
+    rejectedFn: function () { window.cttcRequest('getMemberStatuses').then(apply); }
+  });
+  function save(playerId, next) {
+    statuses[playerId] = next;
+    decorate();
+    window.cttcOutbox.enqueue('member:' + playerId, 'setMemberStatus', [playerId, next]);
   }
   function decorateBadge(row, playerId) {
     var badge = row.querySelector('.member-badge');
@@ -1328,9 +1535,33 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var names = {};
   var ratings = {};
   var requestNumber = 0;
+  var loadedDate = '';
+  var outbox = window.cttcOutbox;
   function request(name) {
     return window.cttcRequest.apply(null, arguments);
   }
+  function openKey(sessionDate, playerId) { return 'open:' + sessionDate + ':' + playerId; }
+  function setOpen(playerId, attending) {
+    var at = open.indexOf(playerId);
+    if (attending && at < 0) open.push(playerId);
+    if (!attending && at >= 0) open.splice(at, 1);
+  }
+  // Server list first, then this device's changes that Google has not confirmed yet.
+  function withWaiting(ids, sessionDate) {
+    open = ids.slice();
+    outbox.entries('setOpenPlayParticipant').forEach(function (entry) {
+      if (entry.args[0] === sessionDate) setOpen(entry.args[1], entry.args[2]);
+    });
+  }
+  outbox.register('setOpenPlayParticipant', {
+    rejected: /Unknown or inactive player|already in the saved round robin|Valid player and attendance|Invalid date|Duplicate open-play/,
+    describe: function (entry) { return (names[entry.args[1]] || 'A player') + ' in Open Play'; },
+    rejectedFn: function (entry) {
+      if (entry.args[0] !== date.value) return;
+      setOpen(entry.args[1], !entry.args[2]);
+      renderOpen();
+    }
+  });
   function decorateDirectory() {
     [].forEach.call(results.querySelectorAll('li'), function (item) {
       var rr = item.querySelector('[data-add]');
@@ -1396,7 +1627,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   async function loadOpen() {
     var sessionDate = date.value;
     var current = ++requestNumber;
-    open = [];
+    if (loadedDate !== sessionDate) open = [];
     renderOpen();
     try {
       var playerRequest = initialPlayers ? initialPlayers.catch(function () { return request('listPlayers'); }) : request('listPlayers');
@@ -1406,41 +1637,33 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       names = {};
       ratings = {};
       values[1].forEach(function (player) { names[player.playerId] = player.name; ratings[player.playerId] = player.currentRating; });
-      open = values[0];
+      withWaiting(values[0], sessionDate);
+      loadedDate = sessionDate;
       renderOpen();
     } catch (error) {
+      if (current === requestNumber && loadedDate !== sessionDate) withWaiting([], sessionDate);
+      renderOpen();
       document.getElementById('status').textContent = 'Open play unavailable: ' + (error.message || error);
     }
   }
-  results.addEventListener('click', async function (event) {
+  results.addEventListener('click', function (event) {
     var button = event.target.closest('[data-open-add]');
     if (!button) return;
     event.stopPropagation();
     var playerId = button.getAttribute('data-open-add');
-    button.disabled = true;
-    try {
-      await request('setOpenPlayParticipant', date.value, playerId, true);
-      open.push(playerId);
-      renderOpen();
-      document.getElementById('status').textContent = 'Open play saved.';
-    } catch (error) {
-      button.disabled = false;
-      document.getElementById('status').textContent = 'Open play not saved: ' + (error.message || error);
-    }
-    }, true);
-  list.addEventListener('click', async function (event) {
+    if (open.indexOf(playerId) >= 0) return;
+    setOpen(playerId, true);
+    renderOpen();
+    outbox.enqueue(openKey(date.value, playerId), 'setOpenPlayParticipant', [date.value, playerId, true]);
+  }, true);
+  list.addEventListener('click', function (event) {
     var button = event.target.closest('[data-open-remove]');
     if (!button) return;
     var playerId = button.getAttribute('data-open-remove');
-    button.disabled = true;
-    try {
-      await request('setOpenPlayParticipant', date.value, playerId, false);
-      open = open.filter(function (id) { return id !== playerId; });
-      renderOpen();
-    } catch (error) {
-      button.disabled = false;
-      document.getElementById('status').textContent = 'Open play not removed: ' + (error.message || error);
-    }
+    if (open.indexOf(playerId) < 0) return;
+    setOpen(playerId, false);
+    renderOpen();
+    outbox.enqueue(openKey(date.value, playerId), 'setOpenPlayParticipant', [date.value, playerId, false]);
   });
   new MutationObserver(decorateDirectory).observe(results, { childList: true, subtree: true });
   document.addEventListener('cttc:players', function (event) {
@@ -1495,6 +1718,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   document.getElementById('new-player').closest('.section').after(section);
   var suggestions = [];
   var names = {};
+  var confirmations = {};
   var requestNumber = 0;
   var loaded = false;
   var TIME_FORMAT = { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
@@ -1549,7 +1773,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return window.cttcDesk.has(playerId) ? 'In RR' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
   }
 
-  function candidateRow(playerId, senderPlaced) {
+  function candidateRow(playerId, senderPlaced, senderKey) {
     var row = document.createElement('div');
     row.className = 'voice-candidate';
     var name = document.createElement('span');
@@ -1570,6 +1794,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       button.textContent = 'RR';
       button.title = 'Add ' + names[playerId] + ' to the RR draft';
       button.setAttribute('data-voice-add', playerId);
+      button.setAttribute('data-voice-sender', senderKey || '');
       row.appendChild(button);
     }
     return row;
@@ -1584,6 +1809,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var name = document.createElement('span');
       name.textContent = suggestion.senderName;
       sender.append(name, messagePreview(suggestion));
+      if (confirmations[suggestion.senderKey]) {
+        var confirmation = document.createElement('span');
+        confirmation.className = 'roster-status';
+        confirmation.textContent = confirmations[suggestion.senderKey];
+        sender.appendChild(confirmation);
+      }
       item.appendChild(sender);
       var candidates = suggestion.playerIds.filter(function (id) { return !!names[id]; });
       if (!candidates.length) {
@@ -1592,7 +1823,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         none.textContent = 'No directory match. Add them under Add a player if they are new.';
         item.appendChild(none);
       }
-      candidates.forEach(function (id) { item.appendChild(candidateRow(id, candidates.some(rostered))); });
+      candidates.forEach(function (id) { item.appendChild(candidateRow(id, candidates.some(rostered), suggestion.senderKey)); });
       list.appendChild(item);
     });
     if (loaded) message.textContent = suggestions.length ? 'Texts received on this date. Choose who to add to RR.' : 'No texts received on this date.';
@@ -1602,6 +1833,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     var selectedDate = date.value;
     var current = ++requestNumber;
     suggestions = [];
+    confirmations = {};
     loaded = false;
     list.replaceChildren();
     message.textContent = 'Checking forwarded texts...';
@@ -1624,12 +1856,28 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     var button = event.target.closest('[data-voice-add]');
     if (!button) return;
     var playerId = button.getAttribute('data-voice-add');
+    var senderKey = button.getAttribute('data-voice-sender');
+    var selectedDate = date.value;
     if (!window.cttcDesk.add(playerId, 'Voice signup')) return;
     var added = document.querySelector('#groups [data-move="' + CSS.escape(playerId) + '"]');
-    if (!added) return;
-    added.closest('li').classList.add('just-added');
-    added.closest('li').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (added) {
+      added.closest('li').classList.add('just-added');
+      added.closest('li').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    if (!senderKey) return;
+    setConfirmation(senderKey, navigator.onLine === false ? 'Confirmed will send when online' : 'Sending Confirmed...');
+    window.cttcOutbox.enqueue('voice:' + selectedDate + ':' + senderKey, 'sendVoiceConfirmation', [selectedDate, senderKey, playerId]);
   });
+  window.cttcOutbox.register('sendVoiceConfirmation', {
+    rejected: /no saved contact name|No text from this person|Google Voice reply address|Invalid date/,
+    describe: function () { return 'A Voice confirmation'; },
+    done: function (entry, result) { setConfirmation(entry.args[1], result.sent ? 'Confirmed sent' : result.reason); },
+    rejectedFn: function (entry, message) { setConfirmation(entry.args[1], 'Added, but the text was not sent: ' + message); }
+  });
+  function setConfirmation(senderKey, text) {
+    confirmations[senderKey] = text;
+    if (loaded) render();
+  }
   new MutationObserver(function () { if (loaded) render(); }).observe(groups, { childList: true });
   new MutationObserver(function () { if (loaded) render(); }).observe(open, { childList: true });
   window.addEventListener('scroll', function () {
@@ -1665,7 +1913,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
-    { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, or Zeffy; monthly Zeffy passes show as covered automatically. Payment changes save immediately.', target: '#groups .payment-control' },
+    { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
     { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are kept on this device until you save to Sheets.', target: '#groups .group-list li' },
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change.', target: '.open-play-section' },
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },

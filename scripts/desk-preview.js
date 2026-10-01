@@ -78,6 +78,8 @@ function publishPayload() {
   return publishing ? Object.assign({ message: '' }, publishing, base) : Object.assign({ state: 'none' }, base);
 }
 
+const payments = {};
+const openPlay = {};
 const rpc = {
   getAppState: function (date) {
     return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString() };
@@ -121,8 +123,20 @@ const rpc = {
   },
   getMemberStatuses: function () { return {}; },
   listVoiceSuggestions: function () { return []; },
-  getOpenPlayParticipants: function () { return []; },
-  getPrivatePaymentOverview: function () { return {}; }
+  sendVoiceConfirmation: function () { return { sent: true, reason: '' }; },
+  getOpenPlayParticipants: function (date) { return openPlay[date] || []; },
+  setOpenPlayParticipant: function (date, playerId, attending) {
+    const ids = (openPlay[date] || []).filter(function (id) { return id !== playerId; });
+    if (attending) ids.push(playerId);
+    openPlay[date] = ids;
+    return attending;
+  },
+  setMemberStatus: function () { return { statuses: {}, notes: {} }; },
+  getPrivatePaymentOverview: function (date) { return { methods: payments[date] || {}, coveredIds: [], passes: [] }; },
+  setSessionPayment: function (date, playerId, method) {
+    (payments[date] = payments[date] || {})[playerId] = method;
+    return method;
+  }
 };
 
 const stub = '<script>(function(){function build(ok,bad){return new Proxy({},{get:function(_,name){' +

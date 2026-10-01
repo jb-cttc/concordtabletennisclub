@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { sortByGroupResult, describeWinner, tally } = require('../standings');
+const { sortByGroupResult, describeWinner, forfeitCount, forfeitNote, tally } = require('../standings');
 const sessions = require('../data/session-details-2026.json');
 
 const names = players => players.map(player => player.name);
@@ -48,12 +48,33 @@ const cycle = group([['A', 1500], ['B', 1400], ['C', 1300], ['D', 1200]], [
   ['A', 'B', 3, 2], ['C', 'A', 3, 1], ['B', 'C', 3, 0], ['A', 'D', 3, 0], ['B', 'D', 3, 0], ['C', 'D', 3, 0]
 ]);
 assert.deepEqual(names(sortByGroupResult(cycle)), ['B', 'A', 'C', 'D']);
-assert.match(describeWinner(cycle).text, /^Tie-breaker: game ratio among the tied \(B 5\/3, A 4\/5, C 3\/4\)$/);
+assert.match(describeWinner(cycle).text, /^Tie-breaker: 3-way tie on matches, best games ratio among the tied$/);
+
+// 9/30 Group 2: Ernie, Bob and Li all had 8 match points and each won 4 and lost 4 games in the matches among the
+// three, so the note must not claim the highest total, and names no players or ratings.
+const ernie = findGroup('2026-09-30', 'Group 2').players;
+assert.equal(describeWinner(ernie).text, 'Tie-breaker: 3-way tie on matches and games ratio, lowest pre-match rating wins');
+assert.doesNotMatch(describeWinner(ernie).text, /highest/);
+
+// Forfeit note: only the player who forfeited is named; double forfeits and clean groups get no note.
+assert.equal(forfeitNote(ernie).text, 'Son Lu forfeit 2 matches');
+assert.equal(forfeitCount(ernie.find(player => player.name === 'Son Lu')), 2);
+assert.equal(forfeitCount(ernie.find(player => player.name === 'Bob Zandipour')), 0, 'the player who won by forfeit is not marked');
+assert.equal(forfeitNote(findGroup('2026-09-28', 'Group 4').players).text, 'Enver Sedolli forfeit 3 matches');
+assert.equal(forfeitNote(findGroup('2026-09-28', 'Group 5').players), null, 'double forfeits are not noted');
+assert.equal(forfeitNote(findGroup('2026-09-28', 'Group 1').players), null);
 
 // Three-way tie with equal game ratios: the lowest pre-session rating wins.
 const even = group([['A', 1500], ['B', 1400], ['C', 1300]], [['A', 'B', 3, 2], ['B', 'C', 3, 2], ['C', 'A', 3, 2]]);
 assert.deepEqual(names(sortByGroupResult(even)), ['C', 'B', 'A']);
-assert.match(describeWinner(even).text, /level .*lowest rating wins: C 1300$/);
+assert.equal(describeWinner(even).text, 'Tie-breaker: 3-way tie on matches and games ratio, lowest pre-match rating wins');
+
+// Only the players actually level at the top count as the tie; the tied player behind them was separated by games ratio.
+const partlyLevel = group([['A', 1500], ['B', 1400], ['C', 1300], ['D', 1200], ['E', 1100]], [
+  ['B', 'A', 3, 0], ['A', 'C', 3, 0], ['D', 'A', 3, 1], ['E', 'A', 3, 1], ['B', 'C', 3, 0],
+  ['D', 'B', 0, 0, 'both'], ['B', 'E', 3, 0], ['D', 'C', 3, 1], ['E', 'C', 3, 0], ['D', 'E', 3, 0]
+]);
+assert.equal(describeWinner(partlyLevel).text, 'Tie-breaker: 2-way tie on matches and games ratio, lowest pre-match rating wins');
 
 // Two-way tie decided by a forfeit: the forfeit winner wins the head-to-head even though the rating is higher.
 const byForfeit = group([['A', 1500], ['B', 1400], ['C', 1300], ['D', 1200]], [
@@ -64,10 +85,16 @@ assert.equal(tally(byForfeit[1]).points, 4, 'a forfeit loss scores 0, not 1');
 assert.deepEqual(names(sortByGroupResult(byForfeit)).slice(0, 2), ['A', 'B']);
 assert.equal(describeWinner(byForfeit).text, 'Tie-breaker: A beat B by forfeit');
 
+// Two players forfeit: one note lists both, in table order, with singular and plural.
+const twoForfeiters = group([['A', 1500], ['B', 1400], ['C', 1300], ['D', 1200]], [
+  ['C', 'A', 0, 0, 'A'], ['D', 'A', 0, 0, 'A'], ['C', 'B', 0, 0, 'B'], ['A', 'B', 3, 0], ['C', 'D', 3, 1], ['B', 'D', 3, 0]
+]);
+assert.equal(forfeitNote(twoForfeiters).text, 'B forfeit 1 match; A forfeit 2 matches');
+
 // Two players who never played each other: the lower rating wins.
 const neverMet = group([['X', 1200], ['Y', 1100], ['Z', 1000]], [['X', 'Z', 0, 0, 'Z'], ['Y', 'Z', 0, 0, 'Z'], ['X', 'Y', 0, 0, 'both']]);
 assert.deepEqual(names(sortByGroupResult(neverMet)).slice(0, 2), ['Y', 'X']);
-assert.match(describeWinner(neverMet).text, /no head-to-head, lower rating wins \(Y 1100 vs X 1200\)/);
+assert.equal(describeWinner(neverMet).text, 'Tie-breaker: no head-to-head, lowest pre-match rating wins');
 
 // Records without match lists (summary-only reports and older tests) fall back to wins and losses.
 assert.deepEqual(names(sortByGroupResult([

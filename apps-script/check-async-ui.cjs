@@ -31,6 +31,7 @@ const context = {
     }
   },
   setTimeout: function () {},
+  clearTimeout: function () {},
   WeakMap,
   Promise
 };

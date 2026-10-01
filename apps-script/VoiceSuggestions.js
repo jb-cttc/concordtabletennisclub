@@ -1,3 +1,4 @@
+var VOICE_CONFIRMATION_ = 'Confirmed.';
 var VOICE_FOOTER_ = /^(To respond to this text message|YOUR ACCOUNT|HELP CENTER|HELP FORUM|Google LLC)/i;
 
 function voiceNameKey_(value) {
@@ -52,20 +53,8 @@ function voiceCandidates_(sender, players, byName, links) {
   return ids;
 }
 
-function listVoiceSuggestions(sessionDate) {
-  validateSessionDate_(sessionDate);
-  var players = listPlayers();
-  var byName = {};
-  players.forEach(function (player) {
-    var key = voiceNameKey_(player.name);
-    (byName[key] || (byName[key] = [])).push(player.playerId);
-  });
-  var links = confirmedNameLinks_(players).resolved;
-  var aliases = playerAliases_();
-  Object.keys(aliases).forEach(function (alias) {
-    var key = voiceNameKey_(alias);
-    if (!byName[key] && players.some(function (player) { return player.playerId === aliases[alias]; })) byName[key] = [aliases[alias]];
-  });
+// Forwarded Voice texts received on sessionDate, grouped by sender and sorted oldest to newest.
+function voiceSenders_(sessionDate) {
   var day = new Date(sessionDate + 'T12:00:00Z');
   var after = new Date(day.getTime() - 86400000).toISOString().slice(0, 10).replace(/-/g, '/');
   var before = new Date(day.getTime() + 172800000).toISOString().slice(0, 10).replace(/-/g, '/');
@@ -81,18 +70,65 @@ function listVoiceSuggestions(sessionDate) {
       var text = voiceForwardedText_(message);
       if (!text) return;
       var sender = senders[text.senderKey] || (senders[text.senderKey] = { senderName: text.senderName, senderKey: text.senderKey, known: text.known, messages: [] });
-      sender.messages.push({ text: text.text, receivedAt: text.receivedAt });
+      sender.messages.push({ text: text.text, receivedAt: text.receivedAt, message: message });
     });
   });
+  Object.keys(senders).forEach(function (key) {
+    senders[key].messages.sort(function (left, right) { return left.receivedAt - right.receivedAt; });
+  });
+  return senders;
+}
+
+function listVoiceSuggestions(sessionDate) {
+  validateSessionDate_(sessionDate);
+  var players = listPlayers();
+  var byName = {};
+  players.forEach(function (player) {
+    var key = voiceNameKey_(player.name);
+    (byName[key] || (byName[key] = [])).push(player.playerId);
+  });
+  var links = confirmedNameLinks_(players).resolved;
+  var aliases = playerAliases_();
+  Object.keys(aliases).forEach(function (alias) {
+    var key = voiceNameKey_(alias);
+    if (!byName[key] && players.some(function (player) { return player.playerId === aliases[alias]; })) byName[key] = [aliases[alias]];
+  });
+  var senders = voiceSenders_(sessionDate);
   return Object.keys(senders).map(function (key) {
     var sender = senders[key];
-    sender.messages.sort(function (left, right) { return left.receivedAt - right.receivedAt; });
     return {
       senderName: sender.senderName,
+      senderKey: sender.known ? sender.senderKey : '',
       playerIds: voiceCandidates_(sender, players, byName, links),
-      messages: sender.messages.slice(-10)
+      messages: sender.messages.slice(-10).map(function (entry) { return { text: entry.text, receivedAt: entry.receivedAt }; })
     };
   }).sort(function (left, right) {
     return right.messages[right.messages.length - 1].receivedAt - left.messages[left.messages.length - 1].receivedAt;
   });
+}
+
+// Replies "Confirmed." to the sender's latest text from that date; Voice turns the email reply into an SMS.
+function sendVoiceConfirmation(sessionDate, senderKey, playerId) {
+  validateSessionDate_(sessionDate);
+  senderKey = String(senderKey || '');
+  if (!senderKey || senderKey.indexOf('phone:') === 0) throw new Error('This sender has no saved contact name to reply to.');
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sender = voiceSenders_(sessionDate)[senderKey];
+    if (!sender) throw new Error('No text from this person was found for this date.');
+    var latest = sender.messages[sender.messages.length - 1].message;
+    var replyTo = String(latest.getReplyTo() || latest.getFrom() || '');
+    if (!/@txt\.voice\.google\.com\b/i.test(replyTo)) throw new Error('The text did not come with a Google Voice reply address.');
+    var latestAt = latest.getDate().getTime();
+    var replied = latest.getThread().getMessages().some(function (message) {
+      return message.getDate().getTime() > latestAt && !/@txt\.voice\.google\.com\b/i.test(String(message.getFrom() || ''));
+    });
+    if (replied) return { sent: false, reason: 'Already replied to the latest text.' };
+    latest.reply(VOICE_CONFIRMATION_);
+    appendAudit_('voice_confirmation_sent', 'player', String(playerId || ''), { sessionDate: sessionDate });
+    return { sent: true, reason: '' };
+  } finally {
+    lock.releaseLock();
+  }
 }

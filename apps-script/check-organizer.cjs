@@ -81,7 +81,7 @@ const m = (one, two, g1, g2, forfeit) => ({ playerOneId: one, playerTwoId: two, 
 let table = O.standings(['a', 'b', 'c'], [m('a', 'b', 3, 1), m('b', 'c', 3, 0), m('a', 'c', 0, 3)], player, O.ratingAdjustment);
 assert.deepEqual(plain(table.rows.map(r => r.name)), ['Ava', 'Ben', 'Cy'], 'the live table keeps the listed order');
 assert.equal(table.winnerId, 'b', 'three-way 1-1 tie: best game ratio among the tied players');
-assert.match(table.note, /^Tie-breaker: game ratio among the tied/);
+assert.equal(table.note, 'Tie-breaker: 3-way tie on matches, best games ratio among the tied');
 assert.equal(table.finished, true);
 assert.equal(table.rows.find(r => r.name === 'Ava').gamesWon, 3);
 table = O.standings(['a', 'b'], [m('a', 'b', 3, 0, true)], player, O.ratingAdjustment);
@@ -103,6 +103,9 @@ assert.equal(table.winnerId, 'a', 'Ava: two wins and a loss (5 pts) beats Ben: t
 assert.match(table.note, /^Tie-breaker: Ava highest USATT match-point total, 5 pts \(2 wins, 1 loss\)$/);
 table = O.standings(['a', 'b'], [forfeit('a', 'b', 'a')], player, O.ratingAdjustment);
 assert.equal(table.winnerId, 'b', 'a win by forfeit wins the group');
+assert.deepEqual(plain(table.rows.map(r => [r.name, r.forfeits])), [['Ava', 1], ['Ben', 0]], 'only the player who forfeited is marked');
+assert.equal(table.forfeitNote, 'Ava forfeit 1 match');
+assert.equal(O.standings(['a', 'b'], [m('a', 'b', 3, 1)], player, O.ratingAdjustment).forfeitNote, null);
 
 for (let gap = -400; gap <= 400; gap += 1) {
   assert.equal(O.ratingAdjustment(1500 + gap, 1500, false), context.ratingAdjustment_(1500 + gap, 1500, false), 'gap ' + gap);

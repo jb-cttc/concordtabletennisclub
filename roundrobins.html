@@ -9,7 +9,7 @@
   <meta property="og:title" content="Round Robin Archive - Concord Table Tennis Club">
   <meta property="og:description" content="Browse results from 240+ round robin sessions at Concord Table Tennis Club, going back to January 2024.">
   <meta property="og:url" content="https://latkecrszy.github.io/concordtabletennisclub/roundrobins.html">
-  <link rel="stylesheet" href="style.css?v=20260930f">
+  <link rel="stylesheet" href="style.css?v=20261001b">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
 </head>
@@ -110,7 +110,7 @@
     dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
   })();
 </script>
-<script src="standings.js?v=20260930e"></script>
+<script src="standings.js?v=20261001c"></script>
 
 <script>
 (function () {
@@ -183,17 +183,36 @@
     container.appendChild(raw);
   }
 
-  function addTiebreakNote(section, tbody, group) {
+  function addGroupNotes(section, tbody, group) {
     var note = window.CTTCStandings.describeWinner(group.players);
-    if (!note || !tbody.firstChild) return;
-    var mark = document.createElement("span");
-    mark.className = "group-tiebreak-mark";
-    mark.textContent = "*";
-    tbody.firstChild.firstChild.appendChild(mark);
-    var text = document.createElement("p");
-    text.className = "group-tiebreak-note";
-    text.textContent = "* " + note.text;
-    section.appendChild(text);
+    if (note && tbody.firstChild) {
+      var mark = document.createElement("span");
+      mark.className = "group-tiebreak-mark";
+      mark.textContent = "\u2020";
+      tbody.firstChild.firstChild.appendChild(mark);
+      var text = document.createElement("p");
+      text.className = "group-tiebreak-note";
+      text.textContent = "\u2020 " + note.text;
+      section.appendChild(text);
+    }
+    var forfeits = window.CTTCStandings.forfeitNote(group.players);
+    if (forfeits) {
+      var forfeitText = document.createElement("p");
+      forfeitText.className = "group-tiebreak-note";
+      var flag = document.createElement("sup");
+      flag.className = "forfeit-flag";
+      flag.textContent = "F";
+      forfeitText.append(flag, " " + forfeits.text);
+      section.appendChild(forfeitText);
+    }
+  }
+
+  function markForfeits(cell, player) {
+    if (!window.CTTCStandings.forfeitCount(player)) return;
+    var mark = document.createElement("sup");
+    mark.className = "forfeit-mark";
+    mark.textContent = "F";
+    cell.appendChild(mark);
   }
 
   function matchSummary(player, match) {
@@ -255,16 +274,17 @@
         player.matches.forEach(function (m) { gw += (m.gamesWon || 0); gl += (m.gamesLost || 0); });
         games = gw + "-" + gl;
       }
-      [groupRecord(player), games, signed(player.ratingAdj), player.ratingAfter].forEach(function (value) {
+      [groupRecord(player), games, signed(player.ratingAdj), player.ratingAfter].forEach(function (value, columnIndex) {
         var td = document.createElement("td");
         td.textContent = value;
+        if (columnIndex === 0) markForfeits(td, player);
         row.appendChild(td);
       });
       tbody.appendChild(row);
     });
     table.appendChild(tbody);
     section.appendChild(table);
-    addTiebreakNote(section, tbody, group);
+    addGroupNotes(section, tbody, group);
     if (group.players.some(function (player) { return player.matches && player.matches.length; })) {
       var details = document.createElement('details');
       details.className = 'session-match-details';
@@ -565,17 +585,28 @@
 
   function signed(n) { return n > 0 ? "+" + n : String(n); }
 
-  function addRecentTiebreakNote(section, tbody, group) {
+  function addRecentGroupNotes(section, tbody, group) {
     var note = window.CTTCStandings.describeWinner(group.players);
-    if (!note || !tbody.firstChild) return;
-    var mark = document.createElement("span");
-    mark.className = "group-tiebreak-mark";
-    mark.textContent = "*";
-    tbody.firstChild.firstChild.appendChild(mark);
-    var text = document.createElement("p");
-    text.className = "group-tiebreak-note";
-    text.textContent = "* " + note.text;
-    section.appendChild(text);
+    if (note && tbody.firstChild) {
+      var mark = document.createElement("span");
+      mark.className = "group-tiebreak-mark";
+      mark.textContent = "\u2020";
+      tbody.firstChild.firstChild.appendChild(mark);
+      var text = document.createElement("p");
+      text.className = "group-tiebreak-note";
+      text.textContent = "\u2020 " + note.text;
+      section.appendChild(text);
+    }
+    var forfeits = window.CTTCStandings.forfeitNote(group.players);
+    if (forfeits) {
+      var forfeitText = document.createElement("p");
+      forfeitText.className = "group-tiebreak-note";
+      var flag = document.createElement("sup");
+      flag.className = "forfeit-flag";
+      flag.textContent = "F";
+      forfeitText.append(flag, " " + forfeits.text);
+      section.appendChild(forfeitText);
+    }
   }
 
   function renderRecentGroup(group) {
@@ -620,14 +651,21 @@
         player.matches.forEach(function (m) { gw += (m.gamesWon || 0); gl += (m.gamesLost || 0); });
         games = gw + "-" + gl;
       }
-      [matches, games, signed(player.ratingAdj || 0), player.ratingAfter].forEach(function (v) {
-        var td = document.createElement("td"); td.textContent = v; row.appendChild(td);
+      [matches, games, signed(player.ratingAdj || 0), player.ratingAfter].forEach(function (v, columnIndex) {
+        var td = document.createElement("td"); td.textContent = v;
+        if (columnIndex === 0 && window.CTTCStandings.forfeitCount(player)) {
+          var mark = document.createElement("sup");
+          mark.className = "forfeit-mark";
+          mark.textContent = "F";
+          td.appendChild(mark);
+        }
+        row.appendChild(td);
       });
       tbody.appendChild(row);
     });
     table.appendChild(tbody);
     section.appendChild(table);
-    addRecentTiebreakNote(section, tbody, group);
+    addRecentGroupNotes(section, tbody, group);
     return section;
   }
 

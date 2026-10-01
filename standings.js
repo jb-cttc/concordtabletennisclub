@@ -183,10 +183,6 @@
     return parts.join(", ");
   }
 
-  function ratingText(player) {
-    return isNumber(player.ratingBefore) ? String(player.ratingBefore) : "unrated";
-  }
-
   function tieText(tie) {
     var winner = tie.ordered[0];
     if (tie.ordered.length === 2) {
@@ -195,18 +191,16 @@
         return winner.name + " beat " + loser.name + " " + tie.detail.gamesWon + "-" + tie.detail.gamesLost + " head-to-head";
       }
       if (tie.how === "forfeit") return winner.name + " beat " + loser.name + " by forfeit";
-      return "no head-to-head, lower rating wins (" +
-        winner.name + " " + ratingText(winner) + " vs " + loser.name + " " + ratingText(loser) + ")";
+      return "no head-to-head, lowest pre-match rating wins";
     }
-    var list = tie.stats.map(function (item) {
-      return item.player.name + " " + item.gamesWon + "/" + item.gamesLost;
-    }).join(", ");
-    if (tie.how === "game-ratio") return "game ratio among the tied (" + list + ")";
-    return "game ratios level (" + list + "), lowest rating wins: " + winner.name + " " + ratingText(winner);
+    if (tie.how === "game-ratio") return tie.ordered.length + "-way tie on matches, best games ratio among the tied";
+    // Players behind the leaders were already separated by games ratio; the tie that remains is the leaders'.
+    var level = tie.stats.filter(function (item) { return item.ratio === tie.stats[0].ratio; });
+    return level.length + "-way tie on matches and games ratio, lowest pre-match rating wins";
   }
 
-  // Explains the first-place finish when it needed more than the win count: same wins with different
-  // match points, or a tie on match points. Returns null when the winner was clear.
+  // Explains the first-place finish when it needed more than the win count: a tie on match points, or the
+  // same wins with different match points. Returns null when the winner was clear.
   function describeWinner(players) {
     if (!players.length || players.every(function (player) { return player.matchesUnavailable; })) return null;
     var result = analyze(players);
@@ -216,23 +210,38 @@
     result.ties.forEach(function (candidate) {
       if (candidate.ordered[0] === winner) tie = candidate;
     });
+    // A tied winner did not have the highest total, so only the tie itself is explained.
+    if (tie) return { winner: winner.name, text: "Tie-breaker: " + tieText(tie) };
     var rivals = result.order.slice(1).filter(function (player) {
       var t = tally(player);
       return t.wins === winnerTally.wins && t.points < winnerTally.points;
     });
-    if (!tie && !rivals.length) return null;
+    if (!rivals.length) return null;
+    return { winner: winner.name, text: "Tie-breaker: " + winner.name + " highest USATT match-point total, " + plural(winnerTally.points, "pt") + " (" + recordText(winner) + ")" };
+  }
 
-    var parts = [];
-    if (rivals.length) {
-      parts.push(winner.name + " highest USATT match-point total, " + plural(winnerTally.points, "pt") + " (" + recordText(winner) + ")");
-    }
-    if (tie) parts.push(tieText(tie));
-    return { winner: winner.name, text: "Tie-breaker: " + parts.join("; ") };
+  // Matches this player forfeited (named forfeiter only; a double forfeit is nobody's).
+  function forfeitCount(player) {
+    if (player.matchesUnavailable) return 0;
+    return (player.matches || []).filter(function (match) {
+      return !isScored(match) && match.forfeitedBy && match.forfeitedBy !== "both" && match.forfeitedBy === player.name;
+    }).length;
+  }
+
+  // The line under a group table (shown after a superscript F), or null when nobody forfeited. Players are listed in table order.
+  function forfeitNote(players) {
+    var parts = analyze(players).order.map(function (player) {
+      var count = forfeitCount(player);
+      return count ? player.name + " forfeit " + plural(count, "match", "matches") : "";
+    }).filter(Boolean);
+    return parts.length ? { text: parts.join("; ") } : null;
   }
 
   return {
     sortByGroupResult: sortByGroupResult,
     describeWinner: describeWinner,
+    forfeitCount: forfeitCount,
+    forfeitNote: forfeitNote,
     tally: tally
   };
 }));

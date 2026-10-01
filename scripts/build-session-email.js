@@ -109,10 +109,10 @@ function buildHtml(session, winners, movers, totals) {
   const winnerRows = winners.map(function (w) {
     return '<tr>' +
       '<td style="padding:6px 12px 6px 0;color:#666;">' + escapeHtml(w.groupName) + '</td>' +
-      '<td style="padding:6px 12px 6px 0;font-weight:bold;">🏆 ' + escapeHtml(w.player.name) + (w.note ? '*' : '') + '</td>' +
+      '<td style="padding:6px 12px 6px 0;font-weight:bold;">🏆 ' + escapeHtml(w.player.name) + (w.note ? '\u2020' : '') + '</td>' +
       '<td style="padding:6px 0;text-align:right;color:#666;">' + w.player.wins + '-' + w.player.losses + '</td>' +
       '</tr>' +
-      (w.note ? '<tr><td></td><td colspan="2" style="padding:0 0 6px;font-size:0.78rem;color:#666;">* ' + escapeHtml(w.note) + '</td></tr>' : '');
+      (w.note ? '<tr><td></td><td colspan="2" style="padding:0 0 6px;font-size:0.78rem;color:#666;">\u2020 ' + escapeHtml(w.note) + '</td></tr>' : '');
   }).join('');
 
   function moverRows(list, arrow, color) {
@@ -161,8 +161,8 @@ function buildText(session, winners, movers, totals) {
   lines.push('');
   lines.push('TABLE WINNERS');
   winners.forEach(function (w) {
-    lines.push('  ' + w.groupName + ': ' + w.player.name + (w.note ? '*' : '') + ' (' + w.player.wins + '-' + w.player.losses + ')');
-    if (w.note) lines.push('    * ' + w.note);
+    lines.push('  ' + w.groupName + ': ' + w.player.name + (w.note ? '\u2020' : '') + ' (' + w.player.wins + '-' + w.player.losses + ')');
+    if (w.note) lines.push('    \u2020 ' + w.note);
   });
   lines.push('');
   lines.push('BIGGEST MOVERS');
