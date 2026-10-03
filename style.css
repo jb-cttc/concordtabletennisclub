@@ -227,32 +227,39 @@ td {
 /* ---- Two-column layout ---- */
 
 .announcement {
-  border: 2px solid var(--red);
-  background: #fff9ee;
+  border: 2px solid #2f6b3a;
+  background: #f0f7f1;
   padding: 18px 20px;
   margin-bottom: 36px;
+}
+
+.announcement h2 {
+  color: #2f6b3a;
+  border-bottom-color: #b9d6bf;
 }
 
 .announcement h3 {
   margin-top: 0;
 }
 
+.announcement a {
+  color: #1f5a2e;
+}
+
+.announcement a:hover {
+  color: #14401f;
+}
+
 .announcement-tag {
   display: inline-block;
   margin: 0 0 8px;
   padding: 2px 8px;
-  background: var(--red);
+  background: #2f6b3a;
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.current-tag {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: var(--muted);
 }
 
 .two-col {
