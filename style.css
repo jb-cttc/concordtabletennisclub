@@ -585,6 +585,10 @@ td {
   background: #174f2b;
 }
 
+.subscribe-launch[hidden] {
+  display: none;
+}
+
 .subscribe-dialog {
   position: fixed;
   inset: 0;
@@ -596,6 +600,11 @@ td {
   border-radius: 6px;
   background: #fff;
   overflow: hidden;
+}
+
+.coaching-dialog {
+  width: min(640px, calc(100vw - 24px));
+  height: min(780px, calc(100vh - 24px));
 }
 
 .subscribe-dialog::backdrop {

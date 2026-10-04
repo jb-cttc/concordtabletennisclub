@@ -59,7 +59,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
   var READ_TIMEOUT_MS = 30000;
-  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, getPublishState: 1 };
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, getPublishState: 1, getCoachingParticipants: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -1465,8 +1465,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function decorateRoster() {
     [].forEach.call(document.querySelectorAll('#open-roster .roster-row, #groups .group-list li'), function (row) {
       var action = row.querySelector('[data-open-remove], [data-move]');
-      if (!action || row.querySelector('.payment-control')) return;
-      var playerId = action.getAttribute('data-open-remove') || action.getAttribute('data-move');
+      var playerId = action ? action.getAttribute('data-open-remove') || action.getAttribute('data-move') : row.getAttribute('data-coaching');
+      if (!playerId || row.querySelector('.payment-control')) return;
       var control = document.createElement('div');
       control.className = 'payment-control';
       control.setAttribute('data-payment-player', playerId);
@@ -1488,7 +1488,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         options.appendChild(button);
       });
       control.append(trigger, options);
-      row.insertBefore(control, row.querySelector('.move, [data-open-remove]'));
+      row.insertBefore(control, row.querySelector('.move, [data-open-remove], .coaching-badge'));
       syncPayment(playerId);
     });
   }
@@ -1572,7 +1572,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var LABELS = { member: 'M', visitor: 'V', junior: 'J' };
   function playerIdFor(row) {
     var action = row.querySelector('[data-move], [data-open-remove]');
-    return action && (action.getAttribute('data-move') || action.getAttribute('data-open-remove'));
+    return action ? action.getAttribute('data-move') || action.getAttribute('data-open-remove') : row.getAttribute('data-coaching');
   }
   function tipFor(playerId) {
     var current = statuses[playerId];
@@ -1722,11 +1722,17 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var groups = document.getElementById('groups');
   var date = document.getElementById('date');
   var open = [];
+  var coaching = [];
   var names = {};
   var ratings = {};
   var requestNumber = 0;
   var loadedDate = '';
   var outbox = window.cttcOutbox;
+  function inCoaching(playerId) { return coaching.some(function (entry) { return entry.playerId === playerId; }); }
+  function time12(time) {
+    var hour = Number(time.slice(0, 2));
+    return (hour % 12 || 12) + ':' + time.slice(3, 5) + (hour < 12 ? ' AM' : ' PM');
+  }
   function request(name) {
     return window.cttcRequest.apply(null, arguments);
   }
@@ -1774,7 +1780,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         actions.appendChild(status);
       }
       var inRoundRobin = !!groups.querySelector('[data-move="' + CSS.escape(playerId) + '"]');
-      var inOpen = open.indexOf(playerId) >= 0;
+      var coached = inCoaching(playerId);
+      var inOpen = open.indexOf(playerId) >= 0 || coached;
       if (rr.textContent !== 'RR') rr.textContent = 'RR';
       rr.hidden = inRoundRobin || inOpen;
       rr.disabled = rr.hidden;
@@ -1783,15 +1790,36 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       openButton.hidden = inRoundRobin || inOpen;
       openButton.disabled = openButton.hidden;
       var status = actions.querySelector('.roster-status');
-      var label = inRoundRobin ? 'In RR' : inOpen ? 'In Open' : '';
+      var label = inRoundRobin ? 'In RR' : coached ? 'Coaching' : inOpen ? 'In Open' : '';
       if (status.textContent !== label) status.textContent = label;
       status.hidden = !label;
     });
   }
   function renderOpen() {
     list.replaceChildren();
-    count.textContent = String(open.length);
-    open.forEach(function (playerId) {
+    var manual = open.filter(function (playerId) { return !inCoaching(playerId); });
+    count.textContent = String(manual.length + coaching.length);
+    coaching.forEach(function (entry) {
+      var row = document.createElement('div');
+      row.className = 'roster-row coaching-row';
+      if (entry.playerId) row.setAttribute('data-coaching', entry.playerId);
+      var identity = document.createElement('div');
+      identity.className = 'identity';
+      var name = document.createElement('strong');
+      name.textContent = (entry.playerId && names[entry.playerId]) || entry.name;
+      identity.appendChild(name);
+      var detail = document.createElement('span');
+      var times = entry.lessons.map(function (lesson) { return time12(lesson.start); }).join(', ');
+      detail.textContent = (entry.role === 'coach' ? 'Coach ' + entry.lessons[0].coachLabel + ' lessons ' : 'Lesson with Coach ' + entry.lessons[0].coachLabel + ' ') + times;
+      identity.appendChild(detail);
+      var badge = document.createElement('span');
+      badge.className = 'roster-status coaching-badge';
+      badge.textContent = 'Confirmed';
+      badge.title = entry.playerId ? 'Confirmed in the coaching app. Change it there.' : 'Not matched to the directory. Add them under Add a player to track payment.';
+      row.append(identity, badge);
+      list.appendChild(row);
+    });
+    manual.forEach(function (playerId) {
       var row = document.createElement('div');
       row.className = 'roster-row';
       var identity = document.createElement('div');
@@ -1817,18 +1845,23 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   async function loadOpen() {
     var sessionDate = date.value;
     var current = ++requestNumber;
-    if (loadedDate !== sessionDate) open = [];
+    if (loadedDate !== sessionDate) { open = []; coaching = []; }
     renderOpen();
+    var coachingRequest = request('getCoachingParticipants', sessionDate).catch(function (error) {
+      document.getElementById('status').textContent = 'Coaching lessons unavailable: ' + (error.message || error);
+      return [];
+    });
     try {
       var playerRequest = initialPlayers ? initialPlayers.catch(function () { return request('listPlayers'); }) : request('listPlayers');
       initialPlayers = null;
-      var values = await Promise.all([request('getOpenPlayParticipants', sessionDate), playerRequest]);
+      var values = await Promise.all([request('getOpenPlayParticipants', sessionDate), playerRequest, coachingRequest]);
       if (current !== requestNumber || sessionDate !== date.value) return;
       names = {};
       ratings = {};
       values[1].forEach(function (player) { names[player.playerId] = player.name; ratings[player.playerId] = player.currentRating; });
       outbox.entries('activatePlayer').forEach(function (entry) { names[entry.args[0]] = entry.args[1]; ratings[entry.args[0]] = entry.args[2]; });
       withWaiting(values[0], sessionDate);
+      coaching = values[2];
       loadedDate = sessionDate;
       renderOpen();
     } catch (error) {
@@ -1961,7 +1994,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   }
 
   function rostered(playerId) {
-    return window.cttcDesk.has(playerId) ? 'In RR' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
+    return window.cttcDesk.has(playerId) ? 'In RR' : open.querySelector('[data-coaching="' + CSS.escape(playerId) + '"]') ? 'Coaching' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
   }
 
   function candidateRow(playerId, senderPlaced, senderKey) {
@@ -2106,7 +2139,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
     { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are saved to Google Sheets automatically a moment after you make them, and kept on this device if the connection drops.', target: '#groups .group-list li' },
-    { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change.', target: '.open-play-section' },
+    { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change. Coaches and students with a lesson confirmed in the coaching app are listed here automatically, and their texts are left out of Voice signups.', target: '.open-play-section' },
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'If the connection drops', text: 'Nothing to do: changes sync to Google Sheets by themselves. If Google cannot be reached, a yellow notice says your draft is kept on this device and syncs automatically when the connection returns. If you reopened the tab, load this date and recover the device draft first. If Google holds a different version of the session, nothing is overwritten; reload to review it.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },

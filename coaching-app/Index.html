@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 16px; font: 16px/1.5 Arial, sans-serif; color: #1c1c1c; background: #fff; }
+  h1 { margin: 0 0 6px; font-size: 1.25rem; }
+  h2 { margin: 22px 0 8px; font-size: 1.05rem; }
+  p { margin: 0 0 12px; color: #555; font-size: 0.95rem; }
+  .tabs { display: flex; gap: 8px; margin: 12px 0 16px; }
+  .tabs button { background: #fff; color: #1f6b3a; }
+  .tabs button.on { background: #1f6b3a; color: #fff; }
+  label { display: block; margin: 10px 0 4px; font-size: 0.9rem; font-weight: 600; }
+  input[type=text], input[type=email], input[type=tel], input[type=date], select, textarea { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #c9c4b8; border-radius: 4px; font: inherit; }
+  textarea { min-height: 70px; }
+  .check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+  .check input { width: auto; }
+  button { padding: 9px 16px; border: 1px solid #1f6b3a; border-radius: 4px; background: #1f6b3a; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button.plain { background: #fff; color: #1f6b3a; }
+  button.danger { background: #fff; color: #8b1a1a; border-color: #8b1a1a; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  button.registered { border-width: 2px; color: #13853a; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .row > * { flex: 1 1 140px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .day { margin: 14px 0 6px; font-weight: 700; }
+  .slots { display: flex; flex-wrap: wrap; gap: 10px; }
+  .cal { display: grid; gap: 8px; margin: 6px 0 14px; }
+  .crow { display: flex; align-items: center; gap: 10px; }
+  .ctime { flex: 0 0 74px; font-size: 0.85rem; color: #555; }
+  .tbl { position: relative; box-sizing: border-box; flex: 1 1 0; min-width: 0; max-width: 190px; min-height: 48px; padding: 6px 8px; border: 2px solid #1f4f8f; border-radius: 8px; background: #2a6fb8; color: #fff; font: 600 0.8rem/1.25 Arial, sans-serif; text-align: center; display: flex; align-items: center; justify-content: center; }
+  .tbl::after { content: ''; position: absolute; top: 5px; bottom: 5px; left: 50%; width: 2px; margin-left: -1px; background: rgba(255, 255, 255, 0.6); }
+  .tbl span { position: relative; z-index: 1; padding: 0 5px; border-radius: 3px; background: inherit; }
+  .slots .tbl { flex: 0 1 190px; }
+  button.tbl { cursor: pointer; }
+  button.tbl.free { background: #fff; border: 2px dashed #7aa886; color: #1f6b3a; }
+  button.tbl.free::after, .tbl.empty::after { background: #cfe3d5; }
+  button.tbl.mine { background: #1f6b3a; border-color: #164f2a; color: #fff; }
+  button.tbl.draft { background: #fff; border: 2px dashed #1f6b3a; color: #1f6b3a; }
+  button.tbl.draft::after { background: #cfe3d5; }
+  button.tbl.held { background: #c98a00; border-color: #9a6a00; color: #fff; cursor: default; }
+  .tbl.held { background: #c98a00; border-color: #9a6a00; color: #fff; }
+  button.tbl.removing { background: #fff; border: 2px dashed #8b1a1a; color: #8b1a1a; text-decoration: line-through; }
+  button.tbl.removing::after { background: #f0d6d6; }
+  .tbl.taken { background: #8a8a8a; border-color: #6f6f6f; color: #fff; }
+  .tbl.empty { background: #fff; border: 2px dashed #ddd; color: #aaa; font-weight: 400; }
+  .tbl:disabled { opacity: 1; }
+  .legend { font-size: 0.85rem; color: #555; margin: 4px 0 8px; }
+  .lengths { display: flex; gap: 8px; margin: 4px 0 8px; }
+  .grid { display: grid; gap: 6px; margin: 6px 0 14px; max-width: 520px; }
+  .grid .tbl { max-width: none; flex-direction: column; gap: 3px; }
+  .grid .tbl b { position: relative; z-index: 1; padding: 0 5px; border-radius: 3px; background: inherit; }
+  .thead { text-align: center; font-size: 0.85rem; font-weight: 700; color: #555; }
+  .gtime { font-size: 0.8rem; color: #555; padding-top: 4px; }
+  .tbl.other { background: #fff; border: 2px dashed #ccc; color: #888; font-weight: 400; }
+  .tbl.other::after { background: #eee; }
+  button.mini { position: relative; z-index: 1; padding: 3px 8px; font-size: 0.75rem; background: #fff; color: #1f4f8f; border-color: #fff; }
+  .board { margin: 0; padding: 0; list-style: none; }
+  .board li { padding: 6px 0; border-top: 1px solid #eee; font-size: 0.95rem; }
+  .board li span { color: #555; }
+  .card { border: 1px solid #ddd8cc; border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+  .card b { display: block; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 10px; background: #eee; font-size: 0.8rem; }
+  .tag.pending, .tag.proposed { background: #fff3c4; }
+  .tag.confirmed { background: #d9f0e0; }
+  #message { margin: 12px 0; min-height: 1.4em; font-size: 0.95rem; }
+  #message.error { color: #8b1a1a; }
+  #message.ok { color: #1f6b3a; font-weight: 600; }
+  .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1>Coaching lessons</h1>
+<div id="message" role="status" aria-live="polite"></div>
+<div id="app"></div>
+<script>
+  var app = document.getElementById('app');
+  var messageBox = document.getElementById('message');
+  // Details a visitor chose to remember on this device. Storage can be blocked in a framed page, so it is optional.
+  function saved(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return null; } }
+  function remember(key, value) { try { if (value) localStorage.setItem(key, JSON.stringify(value)); else localStorage.removeItem(key); } catch (error) {} }
+
+  function show(text, kind) { messageBox.textContent = text || ''; messageBox.className = kind || ''; }
+  function el(tag, attributes, children) {
+    var node = document.createElement(tag);
+    Object.keys(attributes || {}).forEach(function (key) {
+      if (key === 'text') node.textContent = attributes[key];
+      else if (key === 'onclick') node.addEventListener('click', attributes[key]);
+      else node.setAttribute(key, attributes[key]);
+    });
+    (children || []).forEach(function (child) { if (child) node.appendChild(child); });
+    return node;
+  }
+  function field(label, input) { return [el('label', { text: label, 'for': input.id }), input]; }
+  function clear() { while (app.firstChild) app.removeChild(app.firstChild); }
+  function call(name, args, done) {
+    var runner = google.script.run
+      .withSuccessHandler(function (result) { done(result || { ok: false, message: 'Something went wrong. Please try again.' }); })
+      .withFailureHandler(function () { done({ ok: false, message: 'Something went wrong. Please try again.' }); });
+    runner[name].apply(runner, args);
+  }
+  function guarded(button, name, args, done) {
+    button.disabled = true;
+    call(name, args, function (result) { button.disabled = false; done(result); });
+  }
+
+  // ----- Students: pick a time and ask -----
+  function bookingView() {
+    clear(); show('');
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: you confirm by replying YES to the email (or text) we send, and the lesson is booked once the coach accepts. To cancel or move a lesson, tap your time. Coaches appear by first initial (Coach O for Olaf); students only ever appear as Student A, Student B and so on.' }));
+    var list = el('div', { id: 'slots' }, [el('p', { text: 'Loading open times...' })]);
+    app.appendChild(list);
+    call('openSlots', [], function (result) {
+      clear2(list);
+      if (!result.ok) { list.appendChild(el('p', { text: result.message })); return; }
+      var length = 25;
+      var chosen = null;
+      var moving = null;
+      var form = requestForm(function () { return chosen; }, function () { return length; });
+      var waitForm = waitlistForm();
+      var changeForm = changeLessonForm(function (entry) {
+        moving = entry;
+        form.hidden = true;
+        waitForm.hidden = true;
+        show('Now tap the open time you want instead. Use the length buttons to see the other lesson length.', 'ok');
+        grids.scrollIntoView({ block: 'start' });
+      });
+      var picker = el('div', { 'class': 'lengths', role: 'group', 'aria-label': 'Lesson length' });
+      var grids = el('div');
+      [25, 50].forEach(function (minutes) {
+        var button = el('button', { type: 'button', text: minutes + ' minutes', 'data-minutes': String(minutes) });
+        button.addEventListener('click', function () {
+          length = minutes; chosen = null; form.hidden = true; waitForm.hidden = true; if (!moving) show(''); draw();
+        });
+        picker.appendChild(button);
+      });
+      function draw() {
+        Array.prototype.forEach.call(picker.children, function (button) {
+          var on = Number(button.getAttribute('data-minutes')) === length;
+          button.className = on ? '' : 'plain';
+          button.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        clear2(grids);
+        var open = result.board.filter(function (entry) { return entry.status === 'open' && entry.minutes === length; });
+        if (!open.length) grids.appendChild(el('p', { text: 'No ' + length + ' minute lessons are open right now. Try the other length, join a waitlist below, or check back soon.' }));
+        result.days.forEach(function (day) {
+          grids.appendChild(el('div', { 'class': 'day', text: day.day }));
+          grids.appendChild(dayGrid(day, result, length, pick, watch, change));
+        });
+      }
+      function pick(entry, button) {
+        if (moving) {
+          changeForm.open(moving, entry);
+          moving = null;
+          return;
+        }
+        chosen = entry;
+        changeForm.hidden = true;
+        Array.prototype.forEach.call(grids.querySelectorAll('button.tbl.mine'), function (other) { other.className = 'tbl free'; });
+        button.className = 'tbl mine';
+        waitForm.hidden = true;
+        form.hidden = false;
+        form.querySelector('#picked').textContent = 'Requesting a ' + entry.minutes + ' minute lesson on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + '.';
+        form.scrollIntoView({ block: 'nearest' });
+      }
+      function watch(entry) {
+        chosen = null;
+        moving = null;
+        form.hidden = true;
+        changeForm.hidden = true;
+        waitForm.open(entry);
+      }
+      function change(entry) {
+        chosen = null;
+        moving = null;
+        form.hidden = true;
+        waitForm.hidden = true;
+        changeForm.open(entry);
+      }
+      list.appendChild(el('h2', { text: 'Lesson length' }));
+      list.appendChild(picker);
+      list.appendChild(el('p', { 'class': 'legend', text: 'Dashed green: open, tap to pick it. Grey: a student has it; if it is yours, tap Mine to cancel or move it, or tap Notify me to join its waitlist. Faded: a lesson of the other length.' }));
+      list.appendChild(grids);
+      list.appendChild(form);
+      list.appendChild(waitForm);
+      list.appendChild(changeForm);
+      list.appendChild(scheduleBoard(result));
+      draw();
+    });
+  }
+  function dayGrid(day, result, length, pick, watch, change) {
+    var begin = toMinutes(day.start);
+    var rows = (toMinutes(day.end) - begin) / 30;
+    var grid = el('div', { 'class': 'grid', style: 'grid-template-columns: 64px repeat(' + day.tables + ', minmax(0, 1fr)); grid-template-rows: auto repeat(' + rows + ', minmax(54px, auto));' });
+    var place = function (row, span, table) { return 'grid-row: ' + (row + 2) + ' / span ' + span + '; grid-column: ' + (table + 1) + ';'; };
+    grid.appendChild(el('div'));
+    for (var table = 1; table <= day.tables; table += 1) grid.appendChild(el('div', { 'class': 'thead', text: 'Table ' + table }));
+    for (var row = 0; row < rows; row += 1) grid.appendChild(el('div', { 'class': 'gtime', style: 'grid-row: ' + (row + 2) + '; grid-column: 1;', text: time12(fromMinutes(begin + row * 30)) }));
+    var used = {};
+    result.board.filter(function (entry) { return entry.date === day.date; }).forEach(function (entry) {
+      var first = (toMinutes(entry.start) - begin) / 30;
+      var span = entry.slot / 30;
+      for (var step = 0; step < span; step += 1) used[entry.table + ':' + (first + step)] = true;
+      grid.appendChild(boardCell(entry, length, place(first, span, entry.table), pick, watch, change));
+    });
+    for (table = 1; table <= day.tables; table += 1) {
+      for (row = 0; row < rows; row += 1) {
+        if (!used[table + ':' + row]) grid.appendChild(el('div', { 'class': 'tbl empty', style: place(row, 1, table), 'aria-hidden': 'true' }));
+      }
+    }
+    return grid;
+  }
+  function boardCell(entry, length, style, pick, watch, change) {
+    var when = entry.time.replace(/ (AM|PM) to /, ' to ');
+    if (entry.status === 'open' && entry.minutes === length) {
+      var button = el('button', { type: 'button', 'class': 'tbl free', style: style, 'aria-label': 'Table ' + entry.table + ', ' + entry.coach + ', ' + entry.time + ', open' }, [el('b', { text: entry.coach }), el('span', { text: when })]);
+      button.addEventListener('click', function () { pick(entry, button); });
+      return button;
+    }
+    if (entry.status === 'open') {
+      return el('div', { 'class': 'tbl other', style: style }, [el('span', { text: entry.coach + ' · ' + entry.minutes + ' min only' })]);
+    }
+    if (entry.status === 'closed') {
+      return el('div', { 'class': 'tbl taken', style: style }, [el('span', { text: entry.coach + ' · closed (less than a day ahead)' })]);
+    }
+    var cell = el('div', { 'class': 'tbl taken', style: style }, [
+      el('b', { text: (entry.status === 'booked' ? 'Booked by ' : 'Requested by ') + entry.student }),
+      el('span', { text: entry.coach + ' · ' + when })
+    ]);
+    var mine = el('button', { type: 'button', 'class': 'mini', text: 'Mine', 'aria-label': 'This is my lesson: cancel or move ' + entry.student + ' at ' + entry.time });
+    mine.addEventListener('click', function () { change(entry); });
+    cell.appendChild(mine);
+    if (entry.waitlist) {
+      var notify = el('button', { type: 'button', 'class': 'mini', text: 'Notify me', 'aria-label': 'Notify me if Table ' + entry.table + ' at ' + entry.time + ' opens up' });
+      notify.addEventListener('click', function () { watch(entry); });
+      cell.appendChild(notify);
+    }
+    return cell;
+  }
+  function waitlistForm() {
+    var target = null;
+    var submit = el('button', { type: 'submit', text: 'Notify me' });
+    var form = el('form', { id: 'waitlist', hidden: 'hidden', novalidate: 'novalidate' }, [
+      el('h2', { text: 'Join the waitlist' }),
+      el('p', { id: 'waitPicked' })
+    ].concat(
+      field('Email address (we only use it for this waitlist)', el('input', { type: 'email', id: 'waitEmail', name: 'email', maxlength: '254', autocomplete: 'email' })),
+      [el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'waitWebsite', tabindex: '-1', autocomplete: 'off' }))),
+        el('div', { 'class': 'actions' }, [submit])]
+    ));
+    form.open = function (entry) {
+      target = entry;
+      form.hidden = false;
+      form.querySelector('#waitPicked').textContent = 'We will email you if ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + ' opens up through a cancellation or a reschedule. The first student to request it then gets it.';
+      var me = saved('cttc-student');
+      if (me && !form.querySelector('#waitEmail').value) form.querySelector('#waitEmail').value = me.email || '';
+      form.scrollIntoView({ block: 'nearest' });
+    };
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!target) return;
+      show('Sending...');
+      guarded(submit, 'joinWaitlist', [{ key: target.key, email: form.querySelector('#waitEmail').value, website: form.querySelector('#waitWebsite').value }], function (result) {
+        show(result.message, result.ok ? 'ok' : 'error');
+        if (result.ok) { form.reset(); form.hidden = true; }
+      });
+    });
+    return form;
+  }
+  function scheduleBoard(result) {
+    var box = el('div', {}, [el('h2', { text: 'Who has a session' })]);
+    if (!result.schedule.length) box.appendChild(el('p', { text: 'No sessions are booked or requested yet.' }));
+    var items = el('ul', { 'class': 'board' });
+    result.schedule.forEach(function (entry) {
+      items.appendChild(el('li', {}, [el('b', { text: entry.summary }), el('span', { text: ' - ' + entry.day + ', ' + entry.time + ' (' + entry.status.toLowerCase() + ')' })]));
+    });
+    box.appendChild(items);
+    if (result.sheetUrl) box.appendChild(el('p', {}, [el('a', { href: result.sheetUrl, target: '_blank', rel: 'noopener', text: 'Open the public schedule Sheet' })]));
+    return box;
+  }
+  function clear2(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  // Cancel or move a lesson. Nothing here says whose a time is: we message the contact it was booked with, who replies YES.
+  function changeLessonForm(startMove) {
+    var source = null;
+    var target = null;
+    var choice = el('div', { 'class': 'actions' });
+    var cancel = el('button', { type: 'button', 'class': 'danger', text: 'Cancel this lesson' });
+    var move = el('button', { type: 'button', 'class': 'plain', text: 'Move it to another time' });
+    choice.appendChild(cancel);
+    choice.appendChild(move);
+    var contact = el('input', { type: 'email', id: 'changeContact', name: 'email', maxlength: '254', autocomplete: 'email', inputmode: 'email' });
+    var submit = el('button', { type: 'submit', text: 'Send me a confirmation' });
+    var confirmBox = el('div', { hidden: 'hidden' }, field('The email address or mobile number you booked with', contact).concat([
+      el('p', { 'class': 'legend', text: 'We email that address (and text you, if you get our texts). Reply YES to confirm. Nothing changes until you do.' }),
+      el('div', { 'class': 'actions' }, [submit])]));
+    var form = el('form', { id: 'change', hidden: 'hidden', novalidate: 'novalidate' }, [
+      el('h2', { text: 'Change your lesson' }), el('p', { id: 'changeWhat' }), choice, confirmBox,
+      el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'changeWebsite', tabindex: '-1', autocomplete: 'off' })))]);
+    function ask(text) {
+      form.querySelector('#changeWhat').textContent = text;
+      choice.hidden = true;
+      confirmBox.hidden = false;
+      // A phone number is allowed too, so the email check is the server's job.
+      contact.type = 'text';
+      var me = saved('cttc-student');
+      if (me && !contact.value) contact.value = me.email || '';
+      form.hidden = false;
+      form.scrollIntoView({ block: 'nearest' });
+    }
+    cancel.addEventListener('click', function () { target = null; ask('Cancel ' + source.student + '\'s lesson with ' + source.coach + ' on ' + source.day + ', ' + source.time + '.'); });
+    move.addEventListener('click', function () { form.hidden = true; startMove(source); });
+    form.open = function (entry, to) {
+      source = entry;
+      target = to || null;
+      if (target) { ask('Move ' + entry.student + '\'s lesson on ' + entry.day + ', ' + entry.time + ' to ' + to.day + ', ' + to.time + ' with ' + to.coach + ' at Table ' + to.table + '. The new time goes to the coach to accept.'); return; }
+      form.querySelector('#changeWhat').textContent = 'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
+      choice.hidden = false;
+      confirmBox.hidden = true;
+      form.hidden = false;
+      form.scrollIntoView({ block: 'nearest' });
+    };
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!source) return;
+      show('Sending...');
+      guarded(submit, 'studentChange', [{ key: source.key, action: target ? 'move' : 'cancel', to: target ? target.key : '', contact: contact.value, website: form.querySelector('#changeWebsite').value }], function (result) {
+        show(result.message, result.ok ? 'ok' : 'error');
+        if (result.ok) form.hidden = true;
+      });
+    });
+    return form;
+  }
+
+  function requestForm(getChosen, getLength) {
+    var minor = el('input', { type: 'checkbox', id: 'minor' });
+    var guardianBox = el('div', { hidden: 'hidden' }, field('Parent or guardian name', el('input', { type: 'text', id: 'guardian', name: 'guardian', maxlength: '60', autocomplete: 'off' })));
+    minor.addEventListener('change', function () { guardianBox.hidden = !minor.checked; });
+    var keep = el('input', { type: 'checkbox', id: 'remember' });
+    var submit = el('button', { type: 'submit', text: 'Send request' });
+    var form = el('form', { id: 'request', hidden: 'hidden', novalidate: 'novalidate' }, [
+      el('h2', { text: 'Your request' }),
+      el('p', { id: 'picked' })
+    ].concat(
+      field('Student name', el('input', { type: 'text', id: 'name', name: 'name', maxlength: '60', autocomplete: 'name' })),
+      field('Email address (we only use it for this request)', el('input', { type: 'email', id: 'email', name: 'email', maxlength: '254', autocomplete: 'email' })),
+      field('Mobile number (optional, for text updates)', el('input', { type: 'tel', id: 'phone', name: 'tel', maxlength: '20', autocomplete: 'tel' })),
+      [el('label', { 'class': 'check' }, [minor, el('span', { text: 'The student is under 18 (use the parent or guardian\'s email)' })]), guardianBox],
+      field('Anything the coach should know (optional)', el('textarea', { id: 'note', maxlength: '300' })),
+      [el('label', { 'class': 'check' }, [keep, el('span', { text: 'Remember my details on this device' })])],
+      [el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'website', tabindex: '-1', autocomplete: 'off' }))),
+        el('div', { 'class': 'actions' }, [submit])]
+    ));
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var slot = getChosen();
+      if (!slot) { show('Please pick a time first.', 'error'); return; }
+      show('Sending...');
+      guarded(submit, 'requestSlot', [{
+        key: slot.key, length: getLength(), name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value, minor: minor.checked,
+        guardian: form.querySelector('#guardian').value, note: form.querySelector('#note').value, website: form.querySelector('#website').value
+      }], function (result) {
+        if (!result.ok) { show(result.message, 'error'); return; }
+        remember('cttc-student', keep.checked ? { name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value,
+          minor: minor.checked, guardian: form.querySelector('#guardian').value } : null);
+        clear();
+        show(result.message, 'ok');
+        app.appendChild(el('p', { 'class': 'card', text: 'You will show on the site as "' + result.label + '", so you can find your time and its status on the schedule.' }));
+        app.appendChild(el('p', { 'class': 'card', text: result.texts ?
+          'To subscribe to text notifications about any updates such as session cancellations, send a text with the word STUDENT to ' + result.textNumber + ' from the mobile number you gave.' :
+          'Want text notifications about updates such as session cancellations? Add your mobile number next time you request a lesson, then text the word STUDENT to ' + result.textNumber + '.' }));
+      });
+    });
+    // Fills in a returning student's details; the browser's own autofill also works on these fields.
+    var me = saved('cttc-student');
+    if (me) {
+      keep.checked = true;
+      form.querySelector('#name').value = me.name || '';
+      form.querySelector('#email').value = me.email || '';
+      form.querySelector('#phone').value = me.phone || '';
+      minor.checked = !!me.minor;
+      guardianBox.hidden = !minor.checked;
+      form.querySelector('#guardian').value = me.guardian || '';
+    }
+    return form;
+  }
+
+  // ----- Coaches: pick yourself, choose times, confirm by email or text -----
+  function coachPicker(auto) {
+    clear(); show('');
+    app.appendChild(el('h2', { text: 'Which CTTC registered coach are you?' }));
+    var list = el('div', { 'class': 'actions' }, [el('p', { text: 'Loading...' })]);
+    app.appendChild(list);
+    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number.' }));
+    var last = saved('cttc-coach');
+    call('coachList', [], function (result) {
+      clear2(list);
+      if (!result.ok) { show(result.message, 'error'); return; }
+      if (!result.coaches.length) list.appendChild(el('p', { text: 'No coaches are set up yet. Please ask the club.' }));
+      result.coaches.forEach(function (coach) {
+        var button = el('button', { type: 'button', 'class': coach.registered ? 'plain registered' : 'plain', text: (coach.registered ? '\u2713 ' : '') + coach.label + (coach.ready ? '' : ' (not set up yet)') });
+        if (coach.registered) button.title = 'Verified';
+        if (!coach.ready) button.disabled = true;
+        button.addEventListener('click', function () { remember('cttc-coach', coach.id); coachBoard(coach.id); });
+        list.appendChild(button);
+        if (auto && coach.ready && coach.id === last) coachBoard(coach.id);
+      });
+    });
+  }
+
+  function coachBoard(coachId, message) {
+    clear(); show(message || 'Loading...', message ? 'ok' : '');
+    call('coachBoard', [coachId], function (data) {
+      if (!message) show('');
+      if (!data.ok) { show(data.message, 'error'); return; }
+      coachEditor(data);
+    });
+  }
+
+  function slotKey(slot) { return slot.date + ' ' + slot.start + ' ' + slot.minutes; }
+
+  function coachEditor(data) {
+    var length = 30;
+    var mine = data.board.filter(function (entry) { return entry.mine; });
+    var held = mine.filter(function (entry) { return entry.status === 'requested' || entry.status === 'booked'; });
+    var heldKeys = held.map(function (entry) { return entry.date + ' ' + entry.start + ' ' + entry.slot; });
+    var baseline = mine.filter(function (entry) { return held.indexOf(entry) < 0; }).map(function (entry) {
+      return { date: entry.date, start: entry.start, minutes: entry.slot, table: entry.table };
+    });
+    var baseKeys = baseline.map(slotKey);
+    var wanted = (data.pending || baseline).filter(function (slot) { return heldKeys.indexOf(slotKey(slot)) < 0; }).map(function (slot) {
+      return { date: slot.date, start: slot.start, minutes: Number(slot.minutes), table: Number(slot.table) || 1 };
+    });
+    var others = data.board.filter(function (entry) { return !entry.mine; });
+
+    var back = el('button', { type: 'button', 'class': 'plain', text: 'Not ' + data.label + '?' });
+    back.addEventListener('click', function () { remember('cttc-coach', null); coachPicker(); });
+    var by = data.email && data.text ? 'email and text' : data.text ? 'text' : 'email';
+    app.appendChild(el('p', { text: 'You are ' + data.label + '. Students and the public schedule see you this way.' }));
+    app.appendChild(el('div', { 'class': 'actions' }, [back]));
+    if (!data.ready) app.appendChild(el('p', { 'class': 'card', text: data.label + ' is not set up yet. Please ask the club to add your email address or mobile number.' }));
+    else if (!data.text) app.appendChild(el('p', { 'class': 'card', text: 'We confirm by email. Want to answer by text instead? Ask the club to add your mobile number, then text COACH to ' + data.textNumber + ' once.' }));
+    if (data.pending) {
+      app.appendChild(el('p', { 'class': 'card', text: 'We sent you a list by ' + by + ' ' + data.pendingSince + '. Reply YES to publish it, or NO to cancel. That list is shown below; change it and submit again to send a new one.' }));
+    }
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. Times with a student on them cannot be changed here.' }));
+    var picker = el('div', { 'class': 'lengths', role: 'group', 'aria-label': 'Slot length' });
+    [30, 60].forEach(function (minutes) {
+      var button = el('button', { type: 'button', text: minutes + ' minutes', 'data-minutes': String(minutes) });
+      button.addEventListener('click', function () { length = minutes; draw(); });
+      picker.appendChild(button);
+    });
+    app.appendChild(picker);
+    app.appendChild(el('p', { 'class': 'legend', text: 'Green: your published time. Dashed: new, not published yet. Struck out: will be removed. Amber: a student has it. Grey: another coach.' }));
+    var grids = el('div');
+    app.appendChild(grids);
+    var summary = el('p', { 'class': 'card' });
+    var submit = el('button', { type: 'button', text: (by === 'email and text' ? 'Email and text' : by === 'text' ? 'Text' : 'Email') + ' me to confirm' });
+    app.appendChild(summary);
+    app.appendChild(el('div', { 'class': 'actions' }, [submit]));
+    submit.addEventListener('click', function () {
+      show('Sending...');
+      guarded(submit, 'coachPropose', [data.id, wanted], function (result) {
+        if (result.ok) { coachBoard(data.id, result.message); window.scrollTo(0, 0); }
+        else { show(result.message, 'error'); messageBox.scrollIntoView({ block: 'nearest' }); }
+      });
+    });
+
+    function draw() {
+      Array.prototype.forEach.call(picker.children, function (button) {
+        var on = Number(button.getAttribute('data-minutes')) === length;
+        button.className = on ? '' : 'plain';
+        button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      clear2(grids);
+      data.days.forEach(function (day) {
+        grids.appendChild(el('div', { 'class': 'day', text: day.day }));
+        grids.appendChild(coachGrid(day));
+      });
+      var wantedKeys = wanted.map(slotKey);
+      var adds = wantedKeys.filter(function (key) { return baseKeys.indexOf(key) < 0; }).length;
+      var removes = baseKeys.filter(function (key) { return wantedKeys.indexOf(key) < 0; }).length;
+      summary.textContent = adds || removes ?
+        'Ready to send: ' + adds + ' to add, ' + removes + ' to remove. Tap the button and we will send you the list by ' + by + '. Nothing changes until you reply YES.' :
+        'No changes yet. Tap Offer to add a time, or tap one of your times to remove it.';
+      submit.disabled = !data.ready || !(adds || removes);
+    }
+
+    // Cells on one day, as {table, first, span, entry or slot, kind}.
+    function cells(day) {
+      var begin = toMinutes(day.start);
+      var list = [];
+      function add(slot, minutes, table, kind, entry) {
+        list.push({ table: table, first: (toMinutes(slot.start) - begin) / 30, span: minutes / 30, kind: kind, slot: slot, entry: entry });
+      }
+      others.forEach(function (entry) { if (entry.date === day.date) add(entry, entry.slot, entry.table, 'other', entry); });
+      held.forEach(function (entry) { if (entry.date === day.date) add(entry, entry.slot, entry.table, 'held', entry); });
+      var wantedKeys = wanted.map(slotKey);
+      baseline.forEach(function (slot) { if (slot.date === day.date && wantedKeys.indexOf(slotKey(slot)) < 0) add(slot, slot.minutes, slot.table, 'removing'); });
+      wanted.forEach(function (slot) { if (slot.date === day.date) add(slot, slot.minutes, slot.table, baseKeys.indexOf(slotKey(slot)) < 0 ? 'draft' : 'mine'); });
+      return list;
+    }
+
+    function coachGrid(day) {
+      var begin = toMinutes(day.start);
+      var rows = (toMinutes(day.end) - begin) / 30;
+      var list = cells(day);
+      var used = {};
+      list.forEach(function (cell) { for (var step = 0; step < cell.span; step += 1) used[cell.table + ':' + (cell.first + step)] = true; });
+      // Two tables are drawn; the third once both are in use at some time, or something is already on it.
+      var columns = Math.min(2, data.tables);
+      for (var r = 0; r < rows; r += 1) if (used['1:' + r] && used['2:' + r]) columns = data.tables;
+      list.forEach(function (cell) { columns = Math.max(columns, cell.table); });
+      var grid = el('div', { 'class': 'grid', style: 'grid-template-columns: 64px repeat(' + columns + ', minmax(0, 1fr)); grid-template-rows: auto repeat(' + rows + ', minmax(54px, auto));' });
+      var place = function (row, span, table) { return 'grid-row: ' + (row + 2) + ' / span ' + span + '; grid-column: ' + (table + 1) + ';'; };
+      grid.appendChild(el('div'));
+      for (var table = 1; table <= columns; table += 1) grid.appendChild(el('div', { 'class': 'thead', text: 'Table ' + table }));
+      for (var row = 0; row < rows; row += 1) grid.appendChild(el('div', { 'class': 'gtime', style: 'grid-row: ' + (row + 2) + '; grid-column: 1;', text: time12(fromMinutes(begin + row * 30)) }));
+      list.forEach(function (cell) { grid.appendChild(coachCell(cell, place(cell.first, cell.span, cell.table))); });
+      for (table = 1; table <= columns; table += 1) {
+        for (row = 0; row < rows; row += 1) {
+          if (used[table + ':' + row]) continue;
+          grid.appendChild(offerButton(day, table, row, used, rows, place(row, 1, table)));
+        }
+      }
+      return grid;
+    }
+
+    function coachCell(cell, style) {
+      var when = time12(cell.slot.start).replace(/ (AM|PM)$/, '') + ' to ' + time12(fromMinutes(toMinutes(cell.slot.start) + (cell.entry ? cell.entry.slot : cell.slot.minutes)));
+      if (cell.kind === 'other') return el('div', { 'class': 'tbl taken', style: style }, [el('b', { text: cell.entry.coach }), el('span', { text: when })]);
+      if (cell.kind === 'held') {
+        return el('div', { 'class': 'tbl held', style: style }, [el('b', { text: cell.entry.student + (cell.entry.status === 'booked' ? ' booked' : ' requested') }), el('span', { text: when })]);
+      }
+      var text = { mine: 'Yours', draft: 'New', removing: 'Removing' }[cell.kind];
+      var button = el('button', { type: 'button', 'class': 'tbl ' + cell.kind, style: style, 'aria-label': text + ', Table ' + cell.table + ', ' + when + (cell.kind === 'removing' ? ', tap to keep' : ', tap to remove') }, [el('b', { text: text }), el('span', { text: when })]);
+      button.addEventListener('click', function () {
+        show('');
+        if (cell.kind === 'removing') wanted.push({ date: cell.slot.date, start: cell.slot.start, minutes: cell.slot.minutes, table: cell.slot.table });
+        else wanted = wanted.filter(function (slot) { return slot !== cell.slot; });
+        draw();
+      });
+      return button;
+    }
+
+    function offerButton(day, table, row, used, rows, style) {
+      var start = fromMinutes(toMinutes(day.start) + row * 30);
+      var button = el('button', { type: 'button', 'class': 'tbl free', style: style, 'aria-label': 'Offer ' + length + ' minutes at ' + time12(start) + ', Table ' + table }, [el('span', { text: 'Offer' })]);
+      button.addEventListener('click', function () {
+        var span = length / 30;
+        if (row + span > rows) { show('A ' + length + ' minute time would run past the end of coaching that day.', 'error'); return; }
+        if (span > 1 && used[table + ':' + (row + 1)]) { show('Table ' + table + ' is not free for the whole ' + length + ' minutes. Try another table or 30 minutes.', 'error'); return; }
+        var from = toMinutes(start);
+        var clash = wanted.concat(held.map(function (entry) { return { date: entry.date, start: entry.start, minutes: entry.slot }; })).some(function (slot) {
+          var other = toMinutes(slot.start);
+          return slot.date === day.date && from < other + Number(slot.minutes) && other < from + length;
+        });
+        if (clash) { show('That overlaps another of your times.', 'error'); return; }
+        show('');
+        wanted.push({ date: day.date, start: start, minutes: length, table: table });
+        draw();
+      });
+      return button;
+    }
+
+    draw();
+  }
+
+  function toMinutes(time) { return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)); }
+  function fromMinutes(minutes) { return ('0' + Math.floor(minutes / 60)).slice(-2) + ':' + ('0' + (minutes % 60)).slice(-2); }
+  function time12(time) {
+    var hour = Number(time.slice(0, 2));
+    return ((hour + 11) % 12 + 1) + ':' + time.slice(3, 5) + ' ' + (hour < 12 ? 'AM' : 'PM');
+  }
+
+  // ----- Start -----
+  function tabs() {
+    var book = el('button', { type: 'button', 'class': 'on', text: 'Book a lesson' });
+    var coach = el('button', { type: 'button', text: 'I am a coach' });
+    book.addEventListener('click', function () { book.className = 'on'; coach.className = ''; bookingView(); });
+    coach.addEventListener('click', function () { coach.className = 'on'; book.className = ''; coachPicker(true); });
+    app.parentNode.insertBefore(el('div', { 'class': 'tabs' }, [book, coach]), messageBox);
+  }
+
+  tabs();
+  bookingView();
+</script>
+</body>
+</html>

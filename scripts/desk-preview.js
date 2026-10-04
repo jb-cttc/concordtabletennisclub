@@ -125,6 +125,12 @@ const rpc = {
   listVoiceSuggestions: function () { return []; },
   sendVoiceConfirmation: function () { return { sent: true, reason: '' }; },
   getOpenPlayParticipants: function (date) { return openPlay[date] || []; },
+  getCoachingParticipants: function () {
+    return [
+      { playerId: players[0].playerId, name: players[0].name, role: 'coach', lessons: [{ start: '19:00', minutes: 60, coachLabel: 'D' }, { start: '20:00', minutes: 30, coachLabel: 'D' }] },
+      { playerId: '', name: 'Sample Student', role: 'student', lessons: [{ start: '19:00', minutes: 60, coachLabel: 'D' }] }
+    ];
+  },
   setOpenPlayParticipant: function (date, playerId, attending) {
     const ids = (openPlay[date] || []).filter(function (id) { return id !== playerId; });
     if (attending) ids.push(playerId);

@@ -4,8 +4,11 @@ var VOICE_FOOTER_ = /^(To respond to this text message|YOUR ACCOUNT|HELP CENTER|
 function voiceNameKey_(value) {
   var name = normalizeName_(value);
   var comma = name.match(/^([^,]+),\s*(.+)$/);
-  return (comma ? comma[2] + ' ' + comma[1] : name).toLowerCase();
+  return (comma ? comma[2] + ' ' + comma[1] : name).toLowerCase().replace(/[()\[\]"\u201c\u201d]/g, ' ').replace(/\s+/g, ' ').trim();
 }
+
+// Texts that are commands for the coaching app, not round robin signups.
+var COACHING_COMMAND_ = /^(coach|student|stop)\b/i;
 
 function voiceForwardedText_(message) {
   var from = String(message.getFrom() || '');
@@ -28,6 +31,7 @@ function voiceForwardedText_(message) {
   return {
     senderName: name || (digits ? 'Unknown number ending ' + digits.slice(-4) : 'Unknown sender'),
     senderKey: name ? voiceNameKey_(name) : 'phone:' + digits,
+    phoneKey: coachingPhoneKey_(digits),
     known: !!name,
     text: body.join('\n').slice(0, 500),
     receivedAt: message.getDate().getTime()
@@ -69,7 +73,7 @@ function voiceSenders_(sessionDate) {
       if (Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd') !== sessionDate) return;
       var text = voiceForwardedText_(message);
       if (!text) return;
-      var sender = senders[text.senderKey] || (senders[text.senderKey] = { senderName: text.senderName, senderKey: text.senderKey, known: text.known, messages: [] });
+      var sender = senders[text.senderKey] || (senders[text.senderKey] = { senderName: text.senderName, senderKey: text.senderKey, phoneKey: text.phoneKey, known: text.known, messages: [] });
       sender.messages.push({ text: text.text, receivedAt: text.receivedAt, message: message });
     });
   });
@@ -79,8 +83,7 @@ function voiceSenders_(sessionDate) {
   return senders;
 }
 
-function listVoiceSuggestions(sessionDate) {
-  validateSessionDate_(sessionDate);
+function voiceMatcher_() {
   var players = listPlayers();
   var byName = {};
   players.forEach(function (player) {
@@ -93,16 +96,35 @@ function listVoiceSuggestions(sessionDate) {
     var key = voiceNameKey_(alias);
     if (!byName[key] && players.some(function (player) { return player.playerId === aliases[alias]; })) byName[key] = [aliases[alias]];
   });
+  return function (sender) { return voiceCandidates_(sender, players, byName, links); };
+}
+
+// Leaves out coaching-app commands and anyone with a confirmed lesson that day: they come for coaching, not the round robin.
+function listVoiceSuggestions(sessionDate) {
+  validateSessionDate_(sessionDate);
+  var match = voiceMatcher_();
+  var coaching = {};
+  try {
+    coachingLessons_(sessionDate).forEach(function (person) {
+      coaching[voiceNameKey_(person.name)] = true;
+      if (coachingPhoneKey_(person.phone)) coaching[coachingPhoneKey_(person.phone)] = true;
+    });
+  } catch (error) {
+    console.warn('Coaching lessons unavailable: ' + error);
+  }
   var senders = voiceSenders_(sessionDate);
   return Object.keys(senders).map(function (key) {
     var sender = senders[key];
+    if ((sender.known && coaching[sender.senderKey]) || coaching[sender.phoneKey]) return null;
+    var messages = sender.messages.filter(function (entry) { return !COACHING_COMMAND_.test(entry.text); });
+    if (!messages.length) return null;
     return {
       senderName: sender.senderName,
       senderKey: sender.known ? sender.senderKey : '',
-      playerIds: voiceCandidates_(sender, players, byName, links),
-      messages: sender.messages.slice(-10).map(function (entry) { return { text: entry.text, receivedAt: entry.receivedAt }; })
+      playerIds: match(sender),
+      messages: messages.slice(-10).map(function (entry) { return { text: entry.text, receivedAt: entry.receivedAt }; })
     };
-  }).sort(function (left, right) {
+  }).filter(Boolean).sort(function (left, right) {
     return right.messages[right.messages.length - 1].receivedAt - left.messages[left.messages.length - 1].receivedAt;
   });
 }

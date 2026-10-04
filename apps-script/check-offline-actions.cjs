@@ -151,8 +151,9 @@ const PLAYERS = ['a', 'b', 'c', 'd'].map((playerId, index) => ({ playerId, name:
   const open = boot(new Map());
   open.answer('listPlayers', PLAYERS);
   open.answer('getOpenPlayParticipants', ['a']);
+  open.answer('getCoachingParticipants', [{ playerId: 'a', name: 'Coach A', role: 'coach', lessons: [{ start: '19:00', minutes: 30, coachLabel: 'A' }] }]);
   await tick();
-  assert.equal(open.count.textContent, '1');
+  assert.equal(open.count.textContent, '1', 'a coached player also added with Open is listed once');
   open.addOpen('b');
   open.addOpen('b');
   assert.equal(open.count.textContent, '2', 'two quick clicks must not list the player twice');
@@ -172,6 +173,7 @@ const PLAYERS = ['a', 'b', 'c', 'd'].map((playerId, index) => ({ playerId, name:
   const resumed = boot(pending);
   resumed.answer('listPlayers', PLAYERS);
   resumed.answer('getOpenPlayParticipants', ['a']);
+  resumed.answer('getCoachingParticipants', []);
   await tick();
   assert.equal(resumed.count.textContent, '2');
   resumed.sends()[0].bad({ message: 'Player is already in the saved round robin' });
