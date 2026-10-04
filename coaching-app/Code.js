@@ -4,7 +4,7 @@
 // Nobody needs a Google account, and nobody on the club's account has to manage anything. The web app runs as the club
 // owner and does all the work. Two Sheets keep the data apart:
 //   - the PRIVATE Sheet (script property COACHING_DB_ID) holds names, emails, notes and the requests themselves;
-//   - the PUBLIC Sheet (COACHING_PUBLIC_ID) is shared "anyone with the link can edit". It shows only labels such as
+//   - the PUBLIC Sheet (COACHING_PUBLIC_ID) is shared "anyone with the link can view". It shows only labels such as
 //     "Coach O" (the first letter of a coach's first name; coaches are named on the club site anyway) and "Student A",
 //     dates and times. Those labels are the keys that tie a public row to the private details.
 // The public Sheet is a read-out, never an input: the app rebuilds it from the private records after every change and
@@ -99,7 +99,7 @@ function doGet() {
 
 // Run once from the Apps Script editor by the owner. Creates the private and public Sheets, the hourly sweep trigger,
 // and asks Google for the permissions. Does nothing when called from the web page. The one manual step left is to share
-// the public Sheet (Share > General access > Anyone with the link > Editor); its address is logged and returned.
+// the public Sheet (Share > General access > Anyone with the link > Viewer); its address is logged and returned.
 function setup() {
   if (Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) throw new Error('Only the owner can run setup.');
   var properties = PropertiesService.getScriptProperties();
@@ -141,7 +141,7 @@ function setup() {
   sweep_();
   var result = { privateSheet: database_().getUrl(), publicSheet: publicBook.getUrl() };
   console.log('Private Sheet (never share): ' + result.privateSheet);
-  console.log('Public Sheet (share as "Anyone with the link can edit"): ' + result.publicSheet);
+  console.log('Public Sheet (share as "Anyone with the link can view"): ' + result.publicSheet);
   return result;
 }
 
