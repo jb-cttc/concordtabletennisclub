@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Coaching - Concord Table Tennis Club</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261002">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
 </head>
@@ -32,9 +32,31 @@
 
 <main>
 
-  <h1>Coaching</h1>
+  <div class="page-title-row">
+    <h1>Coaching</h1>
+    <div class="title-actions">
+      <button id="coaching-launch" class="subscribe-launch" type="button" aria-haspopup="dialog" hidden>
+        <span aria-hidden="true">&#128197;</span>
+        Request a lesson
+      </button>
+    </div>
+  </div>
 
-  <p>Private and group lessons are available from coaches who are members of the club. Lessons are for-fee and arranged directly with each coach. Contact them by email or find them at the facility on club nights.</p>
+  <dialog id="coaching-dialog" class="subscribe-dialog coaching-dialog" aria-label="Request a coaching lesson">
+    <button id="coaching-close" class="subscribe-close" type="button" aria-label="Close">&times;</button>
+    <iframe id="coaching-frame" title="Request a coaching lesson"></iframe>
+  </dialog>
+
+  <p>Private and group lessons are taught by club member coaches.</p>
+  <ul>
+    <li><strong>When:</strong> Fridays 7 to 10 PM and Saturdays 3 to 6 PM. Lessons are 25 or 50 minutes.</li>
+    <li><strong>Fees:</strong> Each coach sets their own lesson fee, paid directly to the coach. The regular session fee is paid at the front desk.</li>
+    <li><strong>Booking:</strong> Select <strong>Request a lesson</strong>, choose an open time, and reply YES to the confirmation email. The lesson is booked once the coach accepts.</li>
+    <li><strong>Changes:</strong> To cancel or reschedule, select your lesson time and confirm by email.</li>
+    <li><strong>Privacy:</strong> The public schedule lists coaches by first initial (Coach O) and students as Student A, Student B, and so on.</li>
+    <li><strong>Coaches:</strong> Select <strong>Request a lesson</strong>, then <strong>I am a coach</strong>, to post available times. Confirm by replying YES to the email or text.</li>
+    <li><strong>Direct contact:</strong> You may also email a coach below or speak with them at the club.</li>
+  </ul>
 
   <h2>Available coaches</h2>
 
@@ -77,5 +99,23 @@
 
 <script src="navtoggle.js"></script>
 
+<script>
+  (function () {
+    // The coaching app (coaching-app/) is a separate Apps Script project. The button stays hidden until it is deployed.
+    var APP_URL = 'https://script.google.com/macros/s/PENDING_DEPLOYMENT/exec';
+    if (APP_URL.indexOf('PENDING_DEPLOYMENT') >= 0) return;
+    var launch = document.getElementById('coaching-launch');
+    var dialog = document.getElementById('coaching-dialog');
+    var frame = document.getElementById('coaching-frame');
+    function openApp() {
+      if (!frame.getAttribute('src')) frame.setAttribute('src', APP_URL);
+      dialog.showModal();
+    }
+    launch.hidden = false;
+    launch.addEventListener('click', openApp);
+    document.getElementById('coaching-close').addEventListener('click', function () { dialog.close(); });
+    dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
+  })();
+</script>
 </body>
 </html>
