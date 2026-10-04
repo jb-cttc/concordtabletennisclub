@@ -36,6 +36,8 @@
   button.tbl { cursor: pointer; }
   button.tbl.free { background: #fff; border: 2px dashed #7aa886; color: #1f6b3a; }
   button.tbl.free::after, .tbl.empty::after { background: #cfe3d5; }
+  button.tbl.free.reach { background: #e3f1e7; border-style: solid; border-color: #1f6b3a; }
+  button.tbl.free.nofit { background: #fbeeee; border-color: #c99; color: #8b1a1a; cursor: not-allowed; }
   button.tbl.mine { background: #1f6b3a; border-color: #164f2a; color: #fff; }
   button.tbl.draft { background: #fff; border: 2px dashed #1f6b3a; color: #1f6b3a; }
   button.tbl.draft::after { background: #cfe3d5; }
@@ -103,7 +105,27 @@
   }
   function guarded(button, name, args, done) {
     button.disabled = true;
-    call(name, args, function (result) { button.disabled = false; done(result); });
+    call(name, args, function (result) { button.disabled = false; if (result.ok) preloaded = {}; done(result); });
+  }
+  // Data fetched ahead of time so the next view opens at once. Each copy is used once, and dropped after any change.
+  var preloaded = {};
+  function preload(name, args) {
+    var key = name + JSON.stringify(args);
+    if (preloaded[key]) return;
+    var entry = preloaded[key] = { at: Date.now(), waiting: [] };
+    call(name, args, function (result) {
+      entry.result = result;
+      entry.waiting.forEach(function (done) { done(result); });
+      entry.waiting = [];
+    });
+  }
+  function load(name, args, done) {
+    var key = name + JSON.stringify(args);
+    var entry = preloaded[key];
+    delete preloaded[key];
+    if (!entry || Date.now() - entry.at > 60000) { call(name, args, done); return; }
+    if (entry.result) done(entry.result);
+    else entry.waiting.push(done);
   }
 
   // ----- Students: pick a time and ask -----
@@ -112,10 +134,12 @@
     app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: you confirm by replying YES to the email (or text) we send, and the lesson is booked once the coach accepts. To cancel or move a lesson, tap your time. Coaches appear by first initial (Coach O for Olaf); students only ever appear as Student A, Student B and so on.' }));
     var list = el('div', { id: 'slots' }, [el('p', { text: 'Loading open times...' })]);
     app.appendChild(list);
-    call('openSlots', [], function (result) {
+    load('openSlots', [], function (result) {
+      preload('coachList', []);
       clear2(list);
       if (!result.ok) { list.appendChild(el('p', { text: result.message })); return; }
-      var length = 25;
+      var openOf = function (minutes) { return result.board.some(function (entry) { return entry.status === 'open' && entry.minutes === minutes; }); };
+      var length = openOf(50) || !openOf(25) ? 50 : 25;
       var chosen = null;
       var moving = null;
       var form = requestForm(function () { return chosen; }, function () { return length; });
@@ -395,7 +419,8 @@
     app.appendChild(list);
     app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number.' }));
     var last = saved('cttc-coach');
-    call('coachList', [], function (result) {
+    load('coachList', [], function (result) {
+      preload('openSlots', []);
       clear2(list);
       if (!result.ok) { show(result.message, 'error'); return; }
       if (!result.coaches.length) list.appendChild(el('p', { text: 'No coaches are set up yet. Please ask the club.' }));
@@ -403,6 +428,10 @@
         var button = el('button', { type: 'button', 'class': coach.registered ? 'plain registered' : 'plain', text: (coach.registered ? '\u2713 ' : '') + coach.label + (coach.ready ? '' : ' (not set up yet)') });
         if (coach.registered) button.title = 'Verified';
         if (!coach.ready) button.disabled = true;
+        var warm = function () { if (coach.ready) preload('coachBoard', [coach.id]); };
+        button.addEventListener('pointerenter', warm);
+        button.addEventListener('focus', warm);
+        button.addEventListener('touchstart', warm, { passive: true });
         button.addEventListener('click', function () { remember('cttc-coach', coach.id); coachBoard(coach.id); });
         list.appendChild(button);
         if (auto && coach.ready && coach.id === last) coachBoard(coach.id);
@@ -412,7 +441,8 @@
 
   function coachBoard(coachId, message) {
     clear(); show(message || 'Loading...', message ? 'ok' : '');
-    call('coachBoard', [coachId], function (data) {
+    load('coachBoard', [coachId], function (data) {
+      preload('openSlots', []);
       if (!message) show('');
       if (!data.ok) { show(data.message, 'error'); return; }
       coachEditor(data);
@@ -422,7 +452,7 @@
   function slotKey(slot) { return slot.date + ' ' + slot.start + ' ' + slot.minutes; }
 
   function coachEditor(data) {
-    var length = 30;
+    var length = 60;
     var mine = data.board.filter(function (entry) { return entry.mine; });
     var held = mine.filter(function (entry) { return entry.status === 'requested' || entry.status === 'booked'; });
     var heldKeys = held.map(function (entry) { return entry.date + ' ' + entry.start + ' ' + entry.slot; });
@@ -445,7 +475,7 @@
     if (data.pending) {
       app.appendChild(el('p', { 'class': 'card', text: 'We sent you a list by ' + by + ' ' + data.pendingSince + '. Reply YES to publish it, or NO to cancel. That list is shown below; change it and submit again to send a new one.' }));
     }
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. Times with a student on them cannot be changed here.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. Times with a student on them cannot be changed here.' }));
     var picker = el('div', { 'class': 'lengths', role: 'group', 'aria-label': 'Slot length' });
     [30, 60].forEach(function (minutes) {
       var button = el('button', { type: 'button', text: minutes + ' minutes', 'data-minutes': String(minutes) });
@@ -509,9 +539,11 @@
       var list = cells(day);
       var used = {};
       list.forEach(function (cell) { for (var step = 0; step < cell.span; step += 1) used[cell.table + ':' + (cell.first + step)] = true; });
-      // Two tables are drawn; the third once both are in use at some time, or something is already on it.
+      // Two tables are drawn; the third once neither has room for the chosen length at some time, or something is already on it.
       var columns = Math.min(2, data.tables);
-      for (var r = 0; r < rows; r += 1) if (used['1:' + r] && used['2:' + r]) columns = data.tables;
+      var span = length / 30;
+      var blocked = function (table, r) { for (var step = 0; step < span; step += 1) if (used[table + ':' + (r + step)]) return true; return false; };
+      for (var r = 0; r + span <= rows; r += 1) if (blocked(1, r) && blocked(2, r)) columns = data.tables;
       list.forEach(function (cell) { columns = Math.max(columns, cell.table); });
       var grid = el('div', { 'class': 'grid', style: 'grid-template-columns: 64px repeat(' + columns + ', minmax(0, 1fr)); grid-template-rows: auto repeat(' + rows + ', minmax(54px, auto));' });
       var place = function (row, span, table) { return 'grid-row: ' + (row + 2) + ' / span ' + span + '; grid-column: ' + (table + 1) + ';'; };
@@ -519,10 +551,11 @@
       for (var table = 1; table <= columns; table += 1) grid.appendChild(el('div', { 'class': 'thead', text: 'Table ' + table }));
       for (var row = 0; row < rows; row += 1) grid.appendChild(el('div', { 'class': 'gtime', style: 'grid-row: ' + (row + 2) + '; grid-column: 1;', text: time12(fromMinutes(begin + row * 30)) }));
       list.forEach(function (cell) { grid.appendChild(coachCell(cell, place(cell.first, cell.span, cell.table))); });
+      var offers = {};
       for (table = 1; table <= columns; table += 1) {
         for (row = 0; row < rows; row += 1) {
           if (used[table + ':' + row]) continue;
-          grid.appendChild(offerButton(day, table, row, used, rows, place(row, 1, table)));
+          grid.appendChild(offers[table + ':' + row] = offerButton(day, table, row, used, rows, place(row, 1, table), offers));
         }
       }
       return grid;
@@ -545,9 +578,28 @@
       return button;
     }
 
-    function offerButton(day, table, row, used, rows, style) {
+    function offerButton(day, table, row, used, rows, style, offers) {
       var start = fromMinutes(toMinutes(day.start) + row * 30);
-      var button = el('button', { type: 'button', 'class': 'tbl free', style: style, 'aria-label': 'Offer ' + length + ' minutes at ' + time12(start) + ', Table ' + table }, [el('span', { text: 'Offer' })]);
+      var end = time12(fromMinutes(toMinutes(start) + length));
+      var label = el('span', { text: 'Offer' });
+      var button = el('button', { type: 'button', 'class': 'tbl free', style: style, 'aria-label': 'Offer ' + time12(start) + ' to ' + end + ', Table ' + table }, [label]);
+      // Before the tap, show every half hour the offer would cover.
+      var reach = function (on) {
+        var span = length / 30;
+        var fits = row + span <= rows;
+        for (var step = 1; step < span; step += 1) if (used[table + ':' + (row + step)]) fits = false;
+        label.textContent = !on ? 'Offer' : fits ? time12(start).replace(/ (AM|PM)$/, '') + ' to ' + end : 'No room for ' + length + ' min';
+        button.classList.toggle(fits ? 'reach' : 'nofit', on);
+        if (fits) for (step = 1; step < span; step += 1) {
+          var below = offers[table + ':' + (row + step)];
+          below.classList.toggle('reach', on);
+          below.firstChild.textContent = on ? '' : 'Offer';
+        }
+      };
+      button.addEventListener('pointerenter', function () { reach(true); });
+      button.addEventListener('pointerleave', function () { reach(false); });
+      button.addEventListener('focus', function () { reach(true); });
+      button.addEventListener('blur', function () { reach(false); });
       button.addEventListener('click', function () {
         var span = length / 30;
         if (row + span > rows) { show('A ' + length + ' minute time would run past the end of coaching that day.', 'error'); return; }
@@ -586,6 +638,8 @@
 
   tabs();
   bookingView();
+  preload('coachList', []);
+  if (saved('cttc-coach')) preload('coachBoard', [saved('cttc-coach')]);
 </script>
 </body>
 </html>
