@@ -51,7 +51,7 @@ var TEXT_NUMBER = '(925) 238-3505';
 var LOCATION = 'Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597';
 // Overridable with script properties so payment details never have to be committed.
 var DEFAULT_ARRIVAL = 'Please arrive about 10 minutes early. Bring athletic shoes; the club has loaner paddles.';
-var DEFAULT_PAYMENT = 'Lessons are for-fee. Pay your coach directly, the way your coach tells you.';
+var DEFAULT_PAYMENT = 'Pay the lesson fee directly to your coach. The regular session fee is paid at the front desk.';
 var DEFAULT_GUIDELINES = 'Be on time, tell your coach about any injury, and treat the club, equipment and other players with respect.';
 // The coaches listed on the public coaching page. setup() adds any that are missing; the owner adds each mobile number in the Sheet.
 var CLUB_COACHES = [
