@@ -1049,7 +1049,7 @@ assert.doesNotMatch(page, /var status\b/, 'window.status must not be shadowed');
 assert.match(page, /Which CTTC registered coach are you\?/);
 const script = /<script>([\s\S]*?)<\/script>/.exec(page)[1];
 new vm.Script(script);
-const called = new Set([...script.matchAll(/(?:call|guarded)\((?:[a-z]+, )?'([A-Za-z]+)'/g)].map(match => match[1]));
+const called = new Set([...script.matchAll(/(?:call|guarded|load|preload)\((?:[a-z]+, )?'([A-Za-z]+)'/g)].map(match => match[1]));
 assert.deepEqual([...called].sort(), ['coachBoard', 'coachList', 'coachPropose', 'joinWaitlist', 'openSlots', 'requestSlot', 'studentChange']);
 for (const name of called) assert.ok(globals.includes(name) && !name.endsWith('_'), name + ' exists and is callable from the page');
 
@@ -1067,13 +1067,19 @@ const openSite = (search, script = siteScript.replace(configured, appUrl)) => {
   const node = id => nodes[id] = nodes[id] || { id, hidden: id === 'coaching-launch', attributes: {}, listeners: {}, opened: false,
     getAttribute(name) { return this.attributes[name] || null; }, setAttribute(name, value) { this.attributes[name] = value; },
     addEventListener(type, handler) { this.listeners[type] = handler; }, showModal() { this.opened = true; }, close() { this.opened = false; } };
-  vm.runInNewContext(script, { URLSearchParams, location: { search }, document: { getElementById: node } });
+  const loaded = [];
+  vm.runInNewContext(script, { URLSearchParams, location: { search }, document: { getElementById: node }, window: { addEventListener: (type, handler) => { if (type === 'load') loaded.push(handler); } } });
+  nodes.load = () => loaded.forEach(handler => handler());
   return nodes;
 };
-assert.deepEqual(Object.keys(openSite('', siteScript.replace(configured, 'https://script.google.com/macros/s/PENDING_DEPLOYMENT/exec'))), [], 'with no deployment URL the page never reveals the button');
+assert.deepEqual(Object.keys(openSite('', siteScript.replace(configured, 'https://script.google.com/macros/s/PENDING_DEPLOYMENT/exec'))).filter(key => key !== 'load'), [], 'with no deployment URL the page never reveals the button');
 let site = openSite('');
 assert.equal(site['coaching-launch'].hidden, false);
 assert.equal(site['coaching-dialog'].opened, false, 'the dialog opens on the click');
+site.load();
+assert.equal(site['coaching-frame'].attributes.src, appUrl, 'the app loads in the background once the page is in');
+assert.equal(site['coaching-dialog'].opened, false);
+site = openSite('');
 site['coaching-launch'].listeners.click();
 assert.equal(site['coaching-dialog'].opened, true);
 assert.equal(site['coaching-frame'].attributes.src, appUrl);

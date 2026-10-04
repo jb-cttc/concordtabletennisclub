@@ -107,10 +107,15 @@
     var launch = document.getElementById('coaching-launch');
     var dialog = document.getElementById('coaching-dialog');
     var frame = document.getElementById('coaching-frame');
-    function openApp() {
+    function warm() {
       if (!frame.getAttribute('src')) frame.setAttribute('src', APP_URL);
+    }
+    function openApp() {
+      warm();
       dialog.showModal();
     }
+    // Loads the app in the background once the page is in, so it is ready by the time the button is pressed.
+    if (document.readyState === 'complete') warm(); else window.addEventListener('load', warm);
     launch.hidden = false;
     launch.addEventListener('click', openApp);
     document.getElementById('coaching-close').addEventListener('click', function () { dialog.close(); });
