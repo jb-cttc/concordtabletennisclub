@@ -231,6 +231,16 @@ function phoneDigits_(value) {
   return /^[2-9]\d{2}[2-9]\d{6}$/.test(digits) ? digits : '';
 }
 
+function phoneLabel_(value) {
+  var digits = phoneDigits_(value);
+  return digits ? '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6) : '';
+}
+
+// "Name, email, (925) 555-0101", leaving out whatever was not given. Shared only once a lesson is confirmed.
+function contactLabel_(name, email, phone) {
+  return [String(name || '').trim(), cleanEmail_(email), phoneLabel_(phone)].filter(Boolean).join(', ');
+}
+
 function esc_(text) {
   return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -1051,13 +1061,14 @@ function sweep_() {
       if (now - Date.parse(request.updated_at) > RETRY_MAIL_DAYS * 86400000) return;
       var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
       if (!coach) return;
+      var student = students.filter(function (entry) { return entry.email === request.student_email; })[0];
       deliver_(request, coach, 'student_emailed', studentMail_);
-      deliver_(request, coach, 'coach_emailed', coachMail_);
+      deliver_(request, coach, 'coach_emailed', function () { return coachMail_(request, coach, student); });
       // A pending request is asked by askCoaches_, one question per coach at a time; an unverified one is not the coach's yet.
-      if (request.status !== 'pending' && request.status !== 'unverified') deliver_(request, coach, 'coach_texted', coachText_);
-      deliver_(request, coach, 'student_texted', function () {
-        return studentText_(request, coach, students.filter(function (student) { return student.email === request.student_email; })[0]);
-      });
+      if (request.status !== 'pending' && request.status !== 'unverified') {
+        deliver_(request, coach, 'coach_texted', function () { return coachText_(request, coach, student); });
+      }
+      deliver_(request, coach, 'student_texted', function () { return studentText_(request, coach, student); });
     });
     askCoaches_(coaches, requests, now);
     notifyWaitlist_(coaches, now);
@@ -1092,7 +1103,13 @@ function deliver_(request, coach, field, compose) {
 
 function detailLines_(request, coach) {
   return ['When: ' + whenLabel_(request.date, request.start, request.minutes), 'Where: ' + LOCATION + ', Table ' + (Number(request.table) || 1),
-    'Coach: ' + coach.name + ' (shown on the schedule as ' + coach.label + ')'];
+    'Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + ' (shown on the schedule as ' + coach.label + ')'];
+}
+
+// The student's side of a confirmed lesson: name, guardian for a minor, email and the mobile number on file.
+function studentContact_(request, student) {
+  return contactLabel_(request.student_name + (request.guardian_name ? ' (guardian: ' + request.guardian_name + ')' : ''),
+    request.student_email, student && student.phone);
 }
 
 // The public schedule only shows labels. Once a lesson is confirmed both sides get each other's name, so they can find each other.
@@ -1120,7 +1137,7 @@ function studentMail_(request, coach) {
     return { to: to, subject: 'Lesson confirmed: ' + request.date + ' ' + request.start, lines: [who,
       'Your lesson is confirmed.'].concat(detailLines_(request, coach), [
       shown,
-      'Your coach has your email address from this request and may write to you about details.',
+      'Your coach has the contact details from your request and may get in touch about details.',
       'Arrival: ' + property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL),
       'Payment: ' + property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT),
       'Guidelines: ' + property_('COACHING_GUIDELINES_TEXT', DEFAULT_GUIDELINES),
@@ -1146,20 +1163,21 @@ function studentMail_(request, coach) {
 }
 
 // Coaches answer a request by replying YES or NO to this email, or to the text for a coach with a mobile number on the list.
-function coachMail_(request, coach) {
+// Until the lesson is confirmed the coach sees only the student's name, label and note; email and phone follow on confirmation.
+function coachMail_(request, coach, studentRow) {
   var to = cleanEmail_(coach.email);
   if (!to) return null;
   var when = whenLabel_(request.date, request.start, request.minutes);
-  var student = request.student_name + (request.guardian_name ? ' (guardian: ' + request.guardian_name + ')' : '') + ', ' + request.student_email;
   if (request.status === 'pending') {
     return { to: to, subject: 'Lesson request from ' + request.student_name + ' ' + refTag_(requestCode_(request)), lines: [
-      request.student_name + ' (' + request.student_label + ') asked for ' + when + ' at Table ' + (Number(request.table) || 1) + '. Student: ' + student + (request.note ? '. Note: ' + request.note : ''),
+      request.student_name + ' (' + request.student_label + (request.guardian_name ? ', under 18' : '') + ') asked for ' + when + ' at Table ' + (Number(request.table) || 1) + (request.note ? '. Note: ' + request.note : '') + '.',
+      'The student\'s email and phone number are sent to you once you confirm.',
       'Reply YES to this email to confirm, or NO to decline, by ' + momentLabel_(Number(request.expires_at)) + ', after which it expires and the time is released.',
       phoneDigits_(coach.phone) ? 'We are also texting your mobile about it. You can answer either one.' : ''] };
   }
   if (request.status === 'confirmed') {
     return { to: to, subject: 'Lesson confirmed: ' + request.date + ' ' + request.start, lines: [
-      'You confirmed this lesson.', 'Student: ' + student].concat(detailLines_(request, coach), [
+      'You confirmed this lesson.', 'Student: ' + studentContact_(request, studentRow)].concat(detailLines_(request, coach), [
       'On the club site it appears as "' + request.student_label + ' has session with ' + coach.label + '".',
       'Arrival: ' + property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL),
       'Payment: ' + property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT),
@@ -1185,12 +1203,12 @@ function shortWhen_(date, start) {
 }
 
 // What happened to a request after the coach was asked about it. Never a link in a text.
-function coachText_(request, coach) {
+function coachText_(request, coach, student) {
   if (!phoneDigits_(coach.phone) || !request.coach_texted) return null;
   var when = shortWhen_(request.date, request.start);
   if (request.status === 'confirmed') {
-    return { person: coach, text: 'CTTC: Confirmed. ' + request.student_name + ' (' + request.student_label + '), ' + lessonMinutes_(request.minutes) + ' min lesson ' + when +
-      ', Table ' + (Number(request.table) || 1) + ', ' + LOCATION + '. Student email: ' + request.student_email + '.' };
+    return { person: coach, text: 'CTTC: Confirmed. ' + request.student_label + ', ' + lessonMinutes_(request.minutes) + ' min lesson ' + when +
+      ', Table ' + (Number(request.table) || 1) + ', ' + LOCATION + '. Student: ' + studentContact_(request, student) + '.' };
   }
   if (request.status === 'declined') {
     return { person: coach, text: 'CTTC: Declined. ' + request.student_label + ' was told, and ' + when + ' is open again.' };
@@ -1205,13 +1223,13 @@ function coachText_(request, coach) {
   return null;
 }
 
-// Only for a student who texted STUDENT from the number they gave. Labels only, like the coach texts.
+// Only for a student who texted STUDENT from the number they gave. Labels only, except the coach's contact once confirmed.
 function studentText_(request, coach, student) {
   if (!student || student.texts !== 'yes' || !phoneDigits_(student.phone)) return null;
   var when = shortWhen_(request.date, request.start);
   var again = ' Pick another time at ' + PAGE_URL.replace('https://', '') + '.';
   var text = {
-    confirmed: 'your lesson with ' + coach.label + ' on ' + when + ' is confirmed.',
+    confirmed: 'your lesson with ' + coach.label + ' on ' + when + ' is confirmed. Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + '.',
     declined: coach.label + ' cannot do ' + when + '. You are not booked.' + again,
     expired: 'your request for ' + when + ' expired without an answer. You are not booked.' + again
   }[request.status];
@@ -1265,7 +1283,7 @@ function voiceTextsFrom_(coach, days) {
   var name = String(coach.name || '').replace(/["\\()]/g, ' ').replace(/\s+/g, ' ').trim();
   var terms = name ? ['subject:"' + name + '"'] : [];
   var digits = phoneDigits_(coach.phone);
-  if (digits) terms.push('"(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6) + '"');
+  if (digits) terms.push('"' + phoneLabel_(digits) + '"');
   var threads = GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:' + days + 'd (' + terms.join(' OR ') + ')', 0, 20);
   var seen = {};
   var texts = [];

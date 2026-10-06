@@ -399,7 +399,8 @@ assert.doesNotMatch(pendingStudent.body, /Ann/, 'the student does not learn the 
 assert.doesNotMatch(pendingStudent.body, /Payment:|Arrival:/, 'instructions come only after acceptance');
 const pendingCoach = mailTo('ann@example.com')[0];
 assert.match(pendingCoach.subject, /^Lesson request from Sam Student \[CTTC ref [0-9A-F]{10}\]$/);
-assert.match(pendingCoach.body, /Sam Student, sam@example\.com/);
+assert.match(pendingCoach.body, /Sam Student \(Student A\) asked for/, 'the coach sees the student\'s name before accepting');
+assert.doesNotMatch(pendingCoach.body, /sam@example/, 'but no contact details until the lesson is confirmed');
 assert.match(pendingCoach.body, /Reply YES to this email to confirm, or NO to decline/);
 assert.match(pendingCoach.body, /We are also texting your mobile about it\. You can answer either one\./);
 assert.doesNotMatch(pendingCoach.body, /concordtabletennisclub\.com|script\.google/, 'a coach gets no link');
@@ -445,7 +446,7 @@ for (const message of sent) {
   assert.match(message.subject, /^Lesson confirmed/);
   assert.match(message.body, /Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time/, 'date, time and time zone');
   assert.match(message.body, /Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597, Table 1/, 'location and table');
-  assert.match(message.body, /Coach: Ann Coach \(shown on the schedule as Coach A\)/, 'once confirmed, both sides know who to look for');
+  assert.match(message.body, /Coach: Ann Coach, ann@example\.com, \(925\) 555-0101 \(shown on the schedule as Coach A\)/, 'once confirmed, both sides get each other\'s contact details');
   assert.match(message.body, /Student A with Coach A|Student A has session with Coach A/);
   assert.match(message.body, /Arrival: /);
   assert.match(message.body, /Payment: /);
@@ -458,7 +459,7 @@ assert.match(mailTo('ann@example.com')[0].body, /Need to cancel\? Reply to this 
 assert.match(mailTo('sam@example.com')[0].body, /To cancel or move it, open https:\/\/concordtabletennisclub\.com\/coaching\.html, tap your time \(shown as Student A\)/);
 assert.doesNotMatch(mailTo('sam@example.com')[0].body, /pat@example|[?]t=/);
 assert.deepEqual(ann().slice(-2), [
-  'CTTC: Confirmed. Sam Student (Student A), 50 min lesson Fri Oct 9, 7:00 PM, Table 1, Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597. Student email: sam@example.com.',
+  'CTTC: Confirmed. Student A, 50 min lesson Fri Oct 9, 7:00 PM, Table 1, Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597. Student: Sam Student, sam@example.com.',
   'CTTC: Lesson request from Pat Other (Student B): 25 min, Fri Oct 9, 8:00 PM, Table 1. Reply YES to confirm or NO to decline.'
 ], 'the coach gets the plan by text, then the next question');
 assert.ok(ann().every(body => !/[?]t=/.test(body)), 'never a link in a text');
@@ -532,7 +533,7 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   const sam = book(form(slots[0], { name: 'Sam Student', email: 'sam@example.com' }));
   replyTo('ann@example.com', 'yes', /^Lesson request from Sam Student/);
   assert.equal(statusOf('sam@example.com'), 'confirmed', "the coach's emailed YES confirms it");
-  assert.match(ann()[ann().length - 1], /^CTTC: Confirmed\. Sam Student \(Student A\)/, 'and the text thread hears about it');
+  assert.match(ann()[ann().length - 1], /^CTTC: Confirmed\. Student A, .*Student: Sam Student, sam@example\.com\.$/, 'and the text thread hears about it');
   sent.length = 0;
   const from = keyOf('sam@example.com');
   const to = run('openSlots').slots.find(entry => entry.date === '2026-10-10');
@@ -807,11 +808,11 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   assert.equal(statusOf('uma@example.com'), 'confirmed', 'the YES answers the latest question');
   assert.equal(statusOf('tex@example.com'), 'pending');
   assert.deepEqual(dee().slice(-2), [
-    'CTTC: Confirmed. Uma Student (' + uma.label + '), 25 min lesson Fri Oct 16, 8:00 PM, Table 1, Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597. Student email: uma@example.com.',
+    'CTTC: Confirmed. ' + uma.label + ', 25 min lesson Fri Oct 16, 8:00 PM, Table 1, Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597. Student: Uma Student, uma@example.com.',
     'CTTC: Still waiting: Lesson request from Tex Student (' + tex.label + '): 50 min, Fri Oct 16, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.'
   ], 'and the earlier question is asked again');
   const umaMail = mailTo('uma@example.com').find(message => /^Lesson confirmed/.test(message.subject));
-  assert.match(umaMail.body, /Coach: Dee Coach \(shown on the schedule as Coach D\)/);
+  assert.match(umaMail.body, /Coach: Dee Coach, dee@example\.com, \(925\) 555-0142 \(shown on the schedule as Coach D\)/);
   assert.match(umaMail.body, /Table 1/);
   say('Dee Coach', 'NO');
   assert.equal(statusOf('tex@example.com'), 'declined');
@@ -974,7 +975,10 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   say('Abe Coach', 'YES');
   assert.equal(statusOf('pia@example.com'), 'cancelled', 'her second request was the one she said NO to');
   assert.equal(cell('Requests', requestBy('pia@example.com')[0], 'status'), 'confirmed');
-  assert.equal(pia()[1], 'CTTC: ' + piaFirst.label + ', your lesson with Coach A2 on Sat Oct 17, 4:00 PM is confirmed.', "sent as a reply to the student's own text");
+  assert.equal(pia()[1], 'CTTC: ' + piaFirst.label + ', your lesson with Coach A2 on Sat Oct 17, 4:00 PM is confirmed. Coach: Abe Coach, abe@example.com, (925) 555-0161.',
+    "sent as a reply to the student's own text, with the coach's contact details");
+  assert.match(textsTo('Abe Coach').join('\n'), /Student: Pia Student, pia@example\.com, \(925\) 555-0123\./, "the coach gets the student's mobile number too");
+  assert.match(mailTo('abe@example.com').find(message => /^Lesson confirmed/.test(message.subject)).body, /Student: Pia Student, pia@example\.com, \(925\) 555-0123/);
   // With texts on, a change is asked by text as well as email, and either YES does it. Her mobile number identifies her.
   sent.length = 0;
   assert.equal(run('studentChange', { key: keyOf('pia@example.com'), action: 'cancel', contact: '925.555.0123' }).ok, true);
@@ -992,7 +996,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   say('(925) 555-0123', 'YES', piaPhone);
   assert.equal(statusOf('pia@example.com'), 'pending', 'her texted YES sends it to the coach');
   say('Abe Coach', 'NO');
-  assert.doesNotMatch(pia().join(' '), /Pia|pia@|Abe|[?]t=/, 'labels only in a text');
+  assert.doesNotMatch(pia().filter((body, index) => index !== 1).join(' '), /Pia|pia@|Abe|[?]t=/, 'labels only in a text, except the confirmation');
   const piaCount = pia().length;
   context.sweep();
   assert.equal(pia().length, piaCount, 'never repeated');
