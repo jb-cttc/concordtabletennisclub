@@ -1,13 +1,13 @@
 {
   "generatedAt": "2026-10-06",
   "dataBuiltAt": "2026-10-06",
-  "latestSessionDate": "2026-09-30",
-  "sessionsTotal": 266,
-  "sessionsParsed": 266,
+  "latestSessionDate": "2026-10-05",
+  "sessionsTotal": 267,
+  "sessionsParsed": 267,
   "sessionsFailed": 0,
   "sessionsNoGroups": 0,
-  "groupsTotal": 1341,
-  "uniquePlayers": 395,
+  "groupsTotal": 1346,
+  "uniquePlayers": 397,
   "matchesUnavailableCount": 46,
   "suspiciousRatings": [
     {

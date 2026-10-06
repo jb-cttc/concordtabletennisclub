@@ -1,5 +1,10 @@
 [
   {
+    "date": "2026-10-05",
+    "sessionId": "session-2026-10-05",
+    "source": "app"
+  },
+  {
     "date": "2026-09-30",
     "sessionId": "session-2026-09-30",
     "source": "app"
