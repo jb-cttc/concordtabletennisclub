@@ -151,7 +151,8 @@ const context = {
     XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
     createTemplateFromFile: name => {
       const template = { name, evaluate: () => {
-        const output = { template, setTitle: () => output, addMetaTag: () => output, setXFrameOptionsMode: () => output };
+        let content = fs.readFileSync(__dirname + '/' + name + '.html', 'utf8');
+        const output = { template, getContent: () => content, setContent: value => { content = value; return output; }, setTitle: () => output, addMetaTag: () => output, setXFrameOptionsMode: () => output };
         return output;
       } };
       templates.push(template);
@@ -571,6 +572,34 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.equal(run('openSlots').slots.length, 7);
 }
 
+// ---- A 25 minute request on a 60 minute time splits it into two 30 minute times, either half ----
+{
+  const hour = run('openSlots').slots.filter(entry => entry.minutes === 50).pop();
+  const half = context.endOf_(hour.start, 30);
+  const sides = () => run('openSlots').board.filter(entry => entry.date === hour.date && entry.coach === hour.coach && [hour.start, half].includes(entry.start));
+  const rows = grids.Availability.length;
+  assert.equal(run('requestSlot', form(hour, { name: 'Ida Student', email: 'ida@example.com', length: 40 })).ok, false, 'only 25 or the offered length');
+  assert.equal(grids.Availability.length, rows, 'a refused request splits nothing');
+  book(form(hour, { name: 'Ida Student', email: 'ida@example.com', length: 25, start: half }));
+  assert.equal(grids.Availability.length, rows + 1, 'the hour is now two half hours');
+  assert.deepEqual(sides().map(entry => [entry.start, entry.slot, entry.minutes, entry.status]), [[hour.start, 30, 25, 'open'], [half, 30, 25, 'requested']],
+    'the second half is held and the first is open straight away');
+  const firstScreen = JSON.parse(/var INITIAL = (.*);\n/.exec(context.doGet({}).getContent())[1]).openSlots;
+  assert.deepEqual(firstScreen, run('openSlots'), 'the data inlined in the page shows the split too');
+  assert.deepEqual(['start', 'minutes'].map(name => cell('Requests', latestRequest('ida@example.com'), name)), [half, '30']);
+  replyTo('ann@example.com', 'YES', /^Lesson request from Ida Student/);
+  assert.equal(statusOf('ida@example.com'), 'confirmed');
+  const first = run('openSlots').slots.find(entry => entry.key === sides()[0].key);
+  assert.equal(run('requestSlot', form(first, { name: 'Jo Student', email: 'jo@example.com', length: 50 })).ok, false, 'the open half is a 30 minute time now');
+  book(form(first, { name: 'Jo Student', email: 'jo@example.com', length: 25 }));
+  assert.deepEqual(sides().map(entry => entry.status), ['requested', 'booked']);
+  cancelLesson('ida@example.com');
+  assert.deepEqual(sides().map(entry => [entry.slot, entry.status]), [[30, 'requested'], [30, 'open']], 'a cancelled half reopens as a 30 minute time');
+  assert.equal(run('requestSlot', form(hour, { name: 'Kai Student', email: 'kai@example.com', length: 25, start: half })).ok, false, 'the old hour key is no longer offered whole');
+  replyTo('ann@example.com', 'NO', /^Lesson request from Jo Student/);
+  assert.deepEqual(sides().map(entry => entry.status), ['open', 'open']);
+}
+
 // ---- Expiry, and past slots are dropped ----
 const lateSlot = run('openSlots').slots[0];
 sent.length = 0;
@@ -593,7 +622,7 @@ assert.ok(sent.every(message => message.cc === 'owner@example.com'), 'the club i
 context.sweep();
 assert.equal(sent.length, 2, 'expiry is announced once');
 assert.ok(!grids.Availability.some(line => line[2] === '2026-10-02'), 'a slot whose day has passed is dropped');
-assert.equal(grids.Availability.length, 1 + 7);
+assert.equal(grids.Availability.length, 1 + 7 + 1, 'plus the hour split into halves above');
 assert.equal(cell('Coaches', coachRow(annId), 'ask_ref'), '', 'nothing is left waiting for the coach');
 // Back to the start. Texts from the future would answer the next question, so they go too.
 clock = START;
@@ -1060,9 +1089,23 @@ assert.ok(busy > 0, 'a burst is slowed down');
 
 // ---- doGet and the page ----
 templates.length = 0;
-context.doGet({ parameter: { t: '"><script>alert(1)</script>' } });
+const served = context.doGet({ parameter: { t: '"><script>alert(1)</script>' } });
 assert.equal(templates.length, 1);
 assert.deepEqual(Object.keys(templates[0]).sort(), ['evaluate', 'name'], 'nothing from the address reaches the page');
+const initial = JSON.parse(/var INITIAL = (.*);\n/.exec(served.getContent())[1]);
+assert.deepEqual(Object.keys(initial), ['openSlots', 'coachList'], 'the first screen comes with the page');
+assert.deepEqual(initial.openSlots, run('openSlots'));
+assert.deepEqual(initial.coachList, run('coachList'));
+assert.doesNotMatch(served.getContent(), /alert\(1\)/);
+assert.equal(context.scriptJson_({ name: '</script><script>alert(1)</script>\u2028' }), '{"name":"\\u003c/script>\\u003cscript>alert(1)\\u003c/script>\\u2028"}', 'a name cannot end the script');
+const openBooks = Object.keys(books).length;
+const brokenId = properties.COACHING_DB_ID;
+properties.COACHING_DB_ID = '';
+context.openBooks_ = {};
+const fallback = context.doGet({});
+assert.match(fallback.getContent(), /var INITIAL = null;/, 'on a problem the page loads its data itself');
+properties.COACHING_DB_ID = brokenId;
+assert.equal(Object.keys(books).length, openBooks);
 
 const page = fs.readFileSync(__dirname + '/Index.html', 'utf8');
 assert.doesNotMatch(page, /<\?/, 'the page is static: no template tags');
@@ -1091,11 +1134,13 @@ const openSite = (search, script = siteScript.replace(configured, appUrl)) => {
     getAttribute(name) { return this.attributes[name] || null; }, setAttribute(name, value) { this.attributes[name] = value; },
     addEventListener(type, handler) { this.listeners[type] = handler; }, showModal() { this.opened = true; }, close() { this.opened = false; } };
   const loaded = [];
-  vm.runInNewContext(script, { URLSearchParams, location: { search }, document: { getElementById: node }, window: { addEventListener: (type, handler) => { if (type === 'load') loaded.push(handler); } } });
+  const messages = [];
+  vm.runInNewContext(script, { URLSearchParams, setTimeout: handler => handler(), location: { search }, document: { getElementById: node }, window: { addEventListener: (type, handler) => { if (type === 'load') loaded.push(handler); if (type === 'message') messages.push(handler); } } });
   nodes.load = () => loaded.forEach(handler => handler());
+  nodes.message = event => messages.forEach(handler => handler(event));
   return nodes;
 };
-assert.deepEqual(Object.keys(openSite('', siteScript.replace(configured, 'https://script.google.com/macros/s/PENDING_DEPLOYMENT/exec'))).filter(key => key !== 'load'), [], 'with no deployment URL the page never reveals the button');
+assert.deepEqual(Object.keys(openSite('', siteScript.replace(configured, 'https://script.google.com/macros/s/PENDING_DEPLOYMENT/exec'))).filter(key => key !== 'load' && key !== 'message'), [], 'with no deployment URL the page never reveals the button');
 let site = openSite('');
 assert.equal(site['coaching-launch'].hidden, false);
 assert.equal(site['coaching-dialog'].opened, false, 'the dialog opens on the click');
@@ -1106,6 +1151,41 @@ site = openSite('');
 site['coaching-launch'].listeners.click();
 assert.equal(site['coaching-dialog'].opened, true);
 assert.equal(site['coaching-frame'].attributes.src, appUrl);
+assert.match(sitePage, /<p id="coaching-loading"[^>]*>Loading/, 'the dialog says it is loading instead of showing a blank page');
+assert.notEqual(site['coaching-loading'].hidden, true);
+site.message({ data: 'cttc-coaching-ready', origin: 'https://evil.example.com' });
+site.message({ data: 'other', origin: 'https://n-abc123-0lu-script.googleusercontent.com' });
+assert.notEqual(site['coaching-loading'].hidden, true, 'only the app can clear the loading note');
+site.message({ data: 'cttc-coaching-ready', origin: 'https://n-abc123-0lu-script.googleusercontent.com' });
+assert.equal(site['coaching-loading'].hidden, true, 'the note goes once the app is drawn');
+site = openSite('');
+site['coaching-frame'].listeners.load();
+assert.equal(site['coaching-loading'].hidden, true, 'and never stays forever');
+assert.match(page, /postMessage\('cttc-coaching-ready', '\*'\)/);
+{
+  // Offer all slots: run the page's own offerAll and overlapsMine on a 3 hour Friday (6 half hours).
+  const pick = (name) => page.match(new RegExp('\\n    function ' + name + '\\([\\s\\S]*?\\n    }\\n'))[0];
+  const toMinutes = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+  const fromMinutes = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  const offerAll = (length, used, held, wanted) => {
+    const sandbox = { length, held, wanted, toMinutes, fromMinutes, shown: [], drawn: 0 };
+    sandbox.show = (text, kind) => sandbox.shown.push([text, kind]);
+    sandbox.draw = () => { sandbox.drawn += 1; };
+    vm.runInNewContext(pick('offerAll') + pick('overlapsMine') + 'offerAll({ date: "2026-10-09", start: "19:00" }, 1, used, 6);', Object.assign(sandbox, { used }));
+    return sandbox;
+  };
+  let result = offerAll(60, {}, [], []);
+  assert.deepEqual(result.wanted.map((s) => s.start + '/' + s.minutes), ['19:00/60', '20:00/60', '21:00/60'], 'a free table becomes three hours');
+  assert.equal(result.drawn, 1);
+  result = offerAll(60, { '1:1': true, '1:4': true }, [], []);
+  assert.deepEqual(result.wanted.map((s) => s.start + '/' + s.minutes), ['19:00/30', '20:00/60', '21:30/30'], 'gaps around taken times are filled');
+  result = offerAll(60, {}, [{ date: '2026-10-09', start: '20:00', slot: 60 }], [{ date: '2026-10-09', start: '19:00', minutes: 30, table: 2 }]);
+  assert.deepEqual(result.wanted.slice(1).map((s) => s.start + '/' + s.minutes), ['19:30/30', '21:00/60'], 'times the coach already has at another table are skipped');
+  result = offerAll(30, {}, [{ date: '2026-10-09', start: '19:00', slot: 180 }], []);
+  assert.equal(result.wanted.length, 0);
+  assert.match(result.shown[0][0], /overlaps another of your times/, 'and saying so when nothing is left');
+  assert.match(page, /'Offer all slots'/);
+}
 site = openSite('?t=abc.def');
 assert.equal(site['coaching-dialog'].opened, false, 'the page opens nothing by itself');
 site['coaching-launch'].listeners.click();

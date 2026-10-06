@@ -54,6 +54,7 @@
   .grid .tbl { max-width: none; flex-direction: column; gap: 3px; }
   .grid .tbl b { position: relative; z-index: 1; padding: 0 5px; border-radius: 3px; background: inherit; }
   .thead { text-align: center; font-size: 0.85rem; font-weight: 700; color: #555; }
+  .thead button { margin-top: 4px; padding: 3px 8px; font-size: 0.75rem; }
   .gtime { font-size: 0.8rem; color: #555; padding-top: 4px; }
   .tbl.other { background: #fff; border: 2px dashed #ccc; color: #888; font-weight: 400; }
   .tbl.other::after { background: #eee; }
@@ -78,6 +79,7 @@
 <div id="message" role="status" aria-live="polite"></div>
 <div id="app"></div>
 <script>
+  var INITIAL = null;
   var app = document.getElementById('app');
   var messageBox = document.getElementById('message');
   // Details a visitor chose to remember on this device. Storage can be blocked in a framed page, so it is optional.
@@ -138,7 +140,7 @@
       preload('coachList', []);
       clear2(list);
       if (!result.ok) { list.appendChild(el('p', { text: result.message })); return; }
-      var openOf = function (minutes) { return result.board.some(function (entry) { return entry.status === 'open' && entry.minutes === minutes; }); };
+      var openOf = function (minutes) { return result.board.some(function (entry) { return entry.status === 'open' && fits(entry, minutes); }); };
       var length = openOf(50) || !openOf(25) ? 50 : 25;
       var chosen = null;
       var moving = null;
@@ -167,7 +169,7 @@
           button.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
         clear2(grids);
-        var open = result.board.filter(function (entry) { return entry.status === 'open' && entry.minutes === length; });
+        var open = result.board.filter(function (entry) { return entry.status === 'open' && fits(entry, length); });
         if (!open.length) grids.appendChild(el('p', { text: 'No ' + length + ' minute lessons are open right now. Try the other length, join a waitlist below, or check back soon.' }));
         result.days.forEach(function (day) {
           grids.appendChild(el('div', { 'class': 'day', text: day.day }));
@@ -176,7 +178,8 @@
       }
       function pick(entry, button) {
         if (moving) {
-          changeForm.open(moving, entry);
+          // A move keeps the length the coach offered.
+          changeForm.open(moving, entry.whole || entry);
           moving = null;
           return;
         }
@@ -186,7 +189,8 @@
         button.className = 'tbl mine';
         waitForm.hidden = true;
         form.hidden = false;
-        form.querySelector('#picked').textContent = 'Requesting a ' + entry.minutes + ' minute lesson on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + '.';
+        form.querySelector('#picked').textContent = 'Requesting a ' + entry.minutes + ' minute lesson on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + '.' +
+          (entry.whole ? ' The other half of that hour stays open for someone else.' : '');
         form.scrollIntoView({ block: 'nearest' });
       }
       function watch(entry) {
@@ -227,6 +231,10 @@
       var first = (toMinutes(entry.start) - begin) / 30;
       var span = entry.slot / 30;
       for (var step = 0; step < span; step += 1) used[entry.table + ':' + (first + step)] = true;
+      if (entry.status === 'open' && length === 25 && entry.minutes === 50) {
+        halves(entry).forEach(function (half, index) { grid.appendChild(boardCell(half, length, place(first + index, 1, entry.table), pick, watch, change)); });
+        return;
+      }
       grid.appendChild(boardCell(entry, length, place(first, span, entry.table), pick, watch, change));
     });
     for (table = 1; table <= day.tables; table += 1) {
@@ -235,6 +243,15 @@
       }
     }
     return grid;
+  }
+  // A 25 minute lesson can also take either half of an open 50 minute (60 minute slot) time; the server then splits that time in two.
+  function fits(entry, length) { return entry.minutes === length || (length === 25 && entry.minutes === 50); }
+  function halves(entry) {
+    return [0, 30].map(function (offset) {
+      var start = fromMinutes(toMinutes(entry.start) + offset);
+      return { whole: entry, key: entry.key, date: entry.date, day: entry.day, start: start, slot: 30, minutes: 25, table: entry.table, coach: entry.coach,
+        status: 'open', time: time12(start) + ' to ' + time12(fromMinutes(toMinutes(start) + 25)) };
+    });
   }
   function boardCell(entry, length, style, pick, watch, change) {
     var when = entry.time.replace(/ (AM|PM) to /, ' to ');
@@ -384,7 +401,7 @@
       if (!slot) { show('Please pick a time first.', 'error'); return; }
       show('Sending...');
       guarded(submit, 'requestSlot', [{
-        key: slot.key, length: getLength(), name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value, minor: minor.checked,
+        key: slot.key, start: slot.start, length: getLength(), name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value, minor: minor.checked,
         guardian: form.querySelector('#guardian').value, note: form.querySelector('#note').value, website: form.querySelector('#website').value
       }], function (result) {
         if (!result.ok) { show(result.message, 'error'); return; }
@@ -476,7 +493,7 @@
     if (data.pending) {
       app.appendChild(el('p', { 'class': 'card', text: 'We sent you a list by ' + by + ' ' + data.pendingSince + '. Reply YES to publish it, or NO to cancel. That list is shown below; change it and submit again to send a new one.' }));
     }
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. Times with a student on them cannot be changed here.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. A student may also ask for 25 minutes in either half of a 60 minute slot; that splits it into two 30 minute slots and the other half stays open. Times with a student on them cannot be changed here.' }));
     var picker = el('div', { 'class': 'lengths', role: 'group', 'aria-label': 'Slot length' });
     [30, 60].forEach(function (minutes) {
       var button = el('button', { type: 'button', text: minutes + ' minutes', 'data-minutes': String(minutes) });
@@ -549,7 +566,7 @@
       var grid = el('div', { 'class': 'grid', style: 'grid-template-columns: 64px repeat(' + columns + ', minmax(0, 1fr)); grid-template-rows: auto repeat(' + rows + ', minmax(54px, auto));' });
       var place = function (row, span, table) { return 'grid-row: ' + (row + 2) + ' / span ' + span + '; grid-column: ' + (table + 1) + ';'; };
       grid.appendChild(el('div'));
-      for (var table = 1; table <= columns; table += 1) grid.appendChild(el('div', { 'class': 'thead', text: 'Table ' + table }));
+      for (var table = 1; table <= columns; table += 1) grid.appendChild(tableHead(day, table, used, rows));
       for (var row = 0; row < rows; row += 1) grid.appendChild(el('div', { 'class': 'gtime', style: 'grid-row: ' + (row + 2) + '; grid-column: 1;', text: time12(fromMinutes(begin + row * 30)) }));
       list.forEach(function (cell) { grid.appendChild(coachCell(cell, place(cell.first, cell.span, cell.table))); });
       var offers = {};
@@ -560,6 +577,41 @@
         }
       }
       return grid;
+    }
+
+    function tableHead(day, table, used, rows) {
+      var head = el('div', { 'class': 'thead' }, [el('div', { text: 'Table ' + table })]);
+      var free = 0;
+      for (var row = 0; row < rows; row += 1) if (!used[table + ':' + row]) free += 1;
+      if (!free) return head;
+      var all = el('button', { type: 'button', 'class': 'plain', text: 'Offer all slots', 'aria-label': 'Offer every open time at Table ' + table + ' on ' + day.day });
+      all.addEventListener('click', function () { offerAll(day, table, used, rows); });
+      head.appendChild(all);
+      return head;
+    }
+
+    // Fills each open stretch of one table that day: the chosen length where it fits, 30 minutes where it does not.
+    function offerAll(day, table, used, rows) {
+      var added = 0;
+      var free = function (row, count) { for (var step = 0; step < count; step += 1) if (row + step >= rows || used[table + ':' + (row + step)]) return false; return true; };
+      for (var row = 0; row < rows;) {
+        var start = fromMinutes(toMinutes(day.start) + row * 30);
+        var take = [length / 30, 1].filter(function (count) { return free(row, count) && !overlapsMine(day.date, start, count * 30); })[0];
+        if (!take) { row += 1; continue; }
+        wanted.push({ date: day.date, start: start, minutes: take * 30, table: table });
+        added += 1;
+        row += take;
+      }
+      if (added) show(''); else show('Every open time at Table ' + table + ' that day overlaps another of your times.', 'error');
+      draw();
+    }
+
+    function overlapsMine(date, start, minutes) {
+      var from = toMinutes(start);
+      return wanted.concat(held.map(function (entry) { return { date: entry.date, start: entry.start, minutes: entry.slot }; })).some(function (slot) {
+        var other = toMinutes(slot.start);
+        return slot.date === date && from < other + Number(slot.minutes) && other < from + minutes;
+      });
     }
 
     function coachCell(cell, style) {
@@ -605,12 +657,7 @@
         var span = length / 30;
         if (row + span > rows) { show('A ' + length + ' minute time would run past the end of coaching that day.', 'error'); return; }
         if (span > 1 && used[table + ':' + (row + 1)]) { show('Table ' + table + ' is not free for the whole ' + length + ' minutes. Try another table or 30 minutes.', 'error'); return; }
-        var from = toMinutes(start);
-        var clash = wanted.concat(held.map(function (entry) { return { date: entry.date, start: entry.start, minutes: entry.slot }; })).some(function (slot) {
-          var other = toMinutes(slot.start);
-          return slot.date === day.date && from < other + Number(slot.minutes) && other < from + length;
-        });
-        if (clash) { show('That overlaps another of your times.', 'error'); return; }
+        if (overlapsMine(day.date, start, length)) { show('That overlaps another of your times.', 'error'); return; }
         show('');
         wanted.push({ date: day.date, start: start, minutes: length, table: table });
         draw();
@@ -638,9 +685,14 @@
   }
 
   tabs();
+  if (INITIAL) Object.keys(INITIAL).forEach(function (name) {
+    if (INITIAL[name]) preloaded[name + '[]'] = { at: Date.now(), result: INITIAL[name], waiting: [] };
+  });
   bookingView();
   preload('coachList', []);
   if (saved('cttc-coach')) preload('coachBoard', [saved('cttc-coach')]);
+  // The club page shows its own loading note until this arrives. The message carries no data.
+  try { window.top.postMessage('cttc-coaching-ready', '*'); } catch (error) {}
 </script>
 </body>
 </html>

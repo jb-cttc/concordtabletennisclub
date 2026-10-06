@@ -92,10 +92,28 @@ var PUBLIC_TABS = {
 };
 
 function doGet() {
-  return HtmlService.createTemplateFromFile('Index').evaluate()
+  var output = HtmlService.createTemplateFromFile('Index').evaluate();
+  var initial = initialData_();
+  if (initial) output.setContent(output.getContent().replace('var INITIAL = null;', 'var INITIAL = ' + scriptJson_(initial) + ';'));
+  return output
     .setTitle('CTTC coaching')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// The first screen's data comes with the page, saving a second trip to Google. On any problem the page fetches it itself.
+function initialData_() {
+  try {
+    return { openSlots: openSlots(), coachList: coachList() };
+  } catch (error) {
+    console.error('Could not prepare the first screen: ' + error);
+    return null;
+  }
+}
+
+// JSON that is safe inside a <script> element, even when a name contains </script>.
+function scriptJson_(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
 // Run once from the Apps Script editor by the owner. Creates the private and public Sheets, the hourly sweep trigger,
@@ -146,16 +164,17 @@ function setup() {
 
 // ---------- Sheet access ----------
 
-function database_() {
-  var id = PropertiesService.getScriptProperties().getProperty('COACHING_DB_ID');
-  if (!id) throw new Error('Run setup once from the Apps Script editor.');
-  return SpreadsheetApp.openById(id);
-}
+function database_() { return book_('COACHING_DB_ID'); }
 
-function publicBook_() {
-  var id = PropertiesService.getScriptProperties().getProperty('COACHING_PUBLIC_ID');
+function publicBook_() { return book_('COACHING_PUBLIC_ID'); }
+
+// Opening a Sheet is the slowest step of a request, so each one is opened once per run.
+var openBooks_ = {};
+function book_(key) {
+  var id = PropertiesService.getScriptProperties().getProperty(key);
   if (!id) throw new Error('Run setup once from the Apps Script editor.');
-  return SpreadsheetApp.openById(id);
+  if (!openBooks_[id]) openBooks_[id] = SpreadsheetApp.openById(id);
+  return openBooks_[id];
 }
 
 function headers_(name) { return TABS[name] || PUBLIC_TABS[name]; }
@@ -557,7 +576,10 @@ function requestSlot(form) {
     if (requests.length >= MAX_REQUESTS) return fail_('Requests are closed for now. Please contact the club.');
     var slot = openSlots_(rows_('Coaches'), rows_('Availability'), requests, now).filter(function (candidate) { return candidate.key === String(form.key); })[0];
     if (!slot) return fail_('That time is no longer available. Please pick another.');
-    if (form.length && Number(form.length) !== lessonMinutes_(slot.minutes)) return fail_('That time is a ' + lessonMinutes_(slot.minutes) + ' minute lesson. Please pick another.');
+    // A 25 minute lesson on a 60 minute time splits it for good into two 30 minute times; the request takes the half asked for.
+    var minutes = !form.length || Number(form.length) === lessonMinutes_(slot.minutes) ? slot.minutes : Number(form.length) === 25 && slot.minutes === 60 ? 30 : 0;
+    if (!minutes) return fail_('That time is a ' + lessonMinutes_(slot.minutes) + ' minute lesson. Please pick another.');
+    var start = minutes === 30 && slot.minutes === 60 && String(form.start) === endOf_(slot.start, 30) ? endOf_(slot.start, 30) : slot.start;
     coachLabel = slot.coach;
     var open = requests.filter(function (request) {
       var status = effectiveStatus_(request, now);
@@ -566,10 +588,11 @@ function requestSlot(form) {
     if (open >= MAX_OPEN_REQUESTS_PER_STUDENT) return fail_('You already have ' + MAX_OPEN_REQUESTS_PER_STUDENT + ' requests waiting for an answer. Please wait for a reply or cancel one.');
     var label = studentLabel_(email, guardian || name, phone);
     if (!label) return fail_('Requests are closed for now. Please contact the club.');
+    if (minutes !== slot.minutes) splitSlot_(slot.key);
     created = {
-      request_id: id_(), coach_id: slot.coachId, date: slot.date, start: slot.start, minutes: slot.minutes, student_label: label, student_name: name,
+      request_id: id_(), coach_id: slot.coachId, date: slot.date, start: start, minutes: minutes, student_label: label, student_name: name,
       student_email: email, guardian_name: guardian, note: cleanNote_(form.note), status: 'unverified', created_at: nowIso_(),
-      expires_at: Math.min(now + VERIFY_MS, expiryFor_(slot.date, slot.start)), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table
+      expires_at: Math.min(now + VERIFY_MS, expiryFor_(slot.date, start)), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table
     };
     save_('Requests', created);
     student = rows_('Students').filter(function (entry) { return entry.email === email; })[0];
@@ -587,6 +610,13 @@ function requestSlot(form) {
     message: 'Almost done: we emailed you' + (texted ? ' and texted your mobile' : '') + '. Reply YES to ' + (texted ? 'either one' : 'that email') +
       ' within 2 hours to send your request to ' + coachLabel + '. The time is held for you until then. Nothing goes to the coach until you reply.'
   };
+}
+
+function splitSlot_(key) {
+  var entry = rows_('Availability').filter(function (candidate) { return candidate.avail_id === key; })[0];
+  entry.minutes = '30';
+  save_('Availability', entry);
+  save_('Availability', { avail_id: id_(), coach_id: entry.coach_id, date: entry.date, start: endOf_(entry.start, 30), minutes: '30', confirmed: 'yes', table: entry.table });
 }
 
 // A student who finds a time taken can ask to be emailed if it opens again (a cancellation, a decline, an expiry or a new time

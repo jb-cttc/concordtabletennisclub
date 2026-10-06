@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Coaching - Concord Table Tennis Club</title>
-  <link rel="stylesheet" href="style.css?v=20261002">
+  <link rel="stylesheet" href="style.css?v=20261006">
+  <link rel="preconnect" href="https://script.google.com">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
 </head>
@@ -44,6 +45,7 @@
 
   <dialog id="coaching-dialog" class="subscribe-dialog coaching-dialog" aria-label="Request a coaching lesson">
     <button id="coaching-close" class="subscribe-close" type="button" aria-label="Close">&times;</button>
+    <p id="coaching-loading" class="coaching-loading" role="status">Loading the coaching schedule&hellip;</p>
     <iframe id="coaching-frame" title="Request a coaching lesson"></iframe>
   </dialog>
 
@@ -111,6 +113,13 @@
     var launch = document.getElementById('coaching-launch');
     var dialog = document.getElementById('coaching-dialog');
     var frame = document.getElementById('coaching-frame');
+    var loading = document.getElementById('coaching-loading');
+    function ready() { loading.hidden = true; }
+    // The app says when it is drawn. Google's outer page can finish loading before the app inside it does.
+    window.addEventListener('message', function (event) {
+      if (event.data === 'cttc-coaching-ready' && /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin)) ready();
+    });
+    frame.addEventListener('load', function () { setTimeout(ready, 10000); });
     function warm() {
       if (!frame.getAttribute('src')) frame.setAttribute('src', APP_URL);
     }

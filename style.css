@@ -618,6 +618,40 @@ td {
   border: 0;
 }
 
+.coaching-loading {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  color: var(--muted);
+}
+
+.coaching-loading::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--border);
+  border-top-color: #1f6b3a;
+  border-radius: 50%;
+  animation: coaching-spin 0.8s linear infinite;
+}
+
+.coaching-loading[hidden] {
+  display: none;
+}
+
+@keyframes coaching-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coaching-loading::before { animation: none; }
+}
+
 .subscribe-close {
   position: absolute;
   top: 4px;
