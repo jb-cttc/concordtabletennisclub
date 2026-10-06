@@ -250,8 +250,9 @@ context.setup();
 assert.equal(created.length, 2, 'setup is safe to run again');
 assert.deepEqual(grids.Coaches.slice(1).map(line => [line[0], line[1], line[2], line[5]]), [
   ['Olaf Surmann', '', '', 'Coach O'], ['Dominic Chan', 'dominicchan@sbcglobal.net', '', 'Coach D'], ['Xin Huang', 'xinwjhuang@gmail.com', '', 'Coach X'],
-  ['Fuqun (Bill) Xing', 'xfqslw@gmail.com', '', 'Coach F'], ['Tom (Xiaoyun) Zeng', 'xiaoyunzeng64@gmail.com', '', 'Coach T']
-], 'the five club coaches are listed once, with no phone numbers in the code');
+  ['Fuqun (Bill) Xing', 'xfqslw@gmail.com', '', 'Coach F'], ['Tom (Xiaoyun) Zeng', 'xiaoyunzeng64@gmail.com', '', 'Coach T'],
+  ['Raymond Trinh', '', '', 'Coach R']
+], 'the six club coaches are listed once, with no phone numbers in the code');
 assert.equal(run('coachList').coaches.filter(coach => coach.registered).length, 0, 'nobody starts with a green check');
 // The rest of these checks use made-up coaches.
 grids.Coaches.splice(1);

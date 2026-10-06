@@ -59,7 +59,8 @@ var CLUB_COACHES = [
   ['Dominic Chan', 'dominicchan@sbcglobal.net'],
   ['Xin Huang', 'xinwjhuang@gmail.com'],
   ['Fuqun (Bill) Xing', 'xfqslw@gmail.com'],
-  ['Tom (Xiaoyun) Zeng', 'xiaoyunzeng64@gmail.com']
+  ['Tom (Xiaoyun) Zeng', 'xiaoyunzeng64@gmail.com'],
+  ['Raymond Trinh', '']
 ];
 
 var EMAIL_PATTERN = /^[a-z0-9][a-z0-9._%+'-]{0,63}@(?:[a-z0-9-]+\.)+[a-z]{2,24}$/i;
