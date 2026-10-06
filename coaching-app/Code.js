@@ -4,9 +4,9 @@
 // Nobody needs a Google account, and nobody on the club's account has to manage anything. The web app runs as the club
 // owner and does all the work. Two Sheets keep the data apart:
 //   - the PRIVATE Sheet (script property COACHING_DB_ID) holds names, emails, notes and the requests themselves;
-//   - the PUBLIC Sheet (COACHING_PUBLIC_ID) is shared "anyone with the link can view". It shows only labels such as
-//     "Coach O" (the first letter of a coach's first name; coaches are named on the club site anyway) and "Student A",
-//     dates and times. Those labels are the keys that tie a public row to the private details.
+//   - the PUBLIC Sheet (COACHING_PUBLIC_ID) is shared "anyone with the link can view". It shows only first names such as
+//     "Coach Olaf" and "Student Sam", dates and times; never a last name, email or phone number. Internally each coach and
+//     student also has a label ("Coach O", "Student A"); coaches still pick their label on the page.
 // The public Sheet is a read-out, never an input: the app rebuilds it from the private records after every change and
 // every hour, and never reads it back. Whatever a visitor types there cannot change, create or cancel a booking.
 // Coaches are a list the owner types into the private Coaches tab (name, email, mobile); there is no self sign-up and no coach
@@ -124,12 +124,10 @@ function setup() {
   });
   ensureCoachIds_(rows_('Coaches'));
   var publicBook = publicBook_();
-  if (!publicBook.getSheetByName('About')) {
-    publicBook.insertSheet('About').getRange(1, 1, 1, 1).setValues([[
-      'This is a read-out of the coaching schedule. It shows only labels (Coach O, Student A) and times. Changing it does not change any booking: ' +
-      'the schedule is rebuilt from private records after every booking and every hour. Please use the coaching page to book or offer times.'
-    ]]);
-  }
+  (publicBook.getSheetByName('About') || publicBook.insertSheet('About')).getRange(1, 1, 1, 1).setValues([[
+    'This is a read-out of the coaching schedule. It shows only first names (Coach Olaf, Student Sam) and times. Changing it does not change any booking: ' +
+    'the schedule is rebuilt from private records after every booking and every hour. Please use the coaching page to book or offer times.'
+  ]]);
   [database_(), publicBook].forEach(function (book) {
     var blank = book.getSheetByName('Sheet1');
     if (blank && book.getSheets().length > 1) book.deleteSheet(blank);
@@ -248,7 +246,19 @@ function esc_(text) {
 
 function property_(key, fallback) { return PropertiesService.getScriptProperties().getProperty(key) || fallback; }
 
-// ---------- Pseudonyms ----------
+// ---------- Names and labels ----------
+
+// "Raymond" for "Raymond Trinh", "Trinh, Raymond" or "Tom (Xiaoyun) Zeng" -> "Tom".
+function firstName_(name) {
+  var text = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  var comma = text.match(/^[^,]+,\s*(.+)$/);
+  return (comma ? comma[1] : text).split(' ')[0];
+}
+
+// What the public page and messages call a coach or a student: first name only.
+function coachName_(coach) { var first = firstName_(coach.name); return first ? 'Coach ' + first : coach.label; }
+
+function studentName_(request) { var first = firstName_(request.student_name); return first ? 'Student ' + first : request.student_label; }
 
 // 0 -> A, 25 -> Z, 26 -> AA.
 function letters_(number) {
@@ -411,7 +421,7 @@ function openSlots_(coaches, availability, requests, now) {
       wallMinutes_(entry.date, entry.start) >= earliest && !heldBy_(entry, requests, now);
   }).map(function (entry) {
     return {
-      key: entry.avail_id, coachId: entry.coach_id, coach: byId[entry.coach_id].label, table: Number(entry.table) || 1, date: entry.date, start: entry.start, minutes: Number(entry.minutes),
+      key: entry.avail_id, coachId: entry.coach_id, coach: coachName_(byId[entry.coach_id]), table: Number(entry.table) || 1, date: entry.date, start: entry.start, minutes: Number(entry.minutes),
       day: dayLabel_(entry.date), time: rangeLabel_(entry.start, entry.minutes), label: whenLabel_(entry.date, entry.start, entry.minutes)
     };
   }).sort(function (a, b) { return (a.date + a.start + a.coach).localeCompare(b.date + b.start + b.coach); });
@@ -421,7 +431,7 @@ function publicSlot_(slot) {
   return { key: slot.key, coach: slot.coach, table: slot.table, date: slot.date, start: slot.start, minutes: lessonMinutes_(slot.minutes), day: slot.day, time: slot.time, label: slot.label };
 }
 
-// Every published time in the booking window, open or not, so a student can see which table is taken and by whom (labels only).
+// Every published time in the booking window, open or not, so a student can see which table is taken and by whom (first names only).
 function board_(coaches, availability, requests, now) {
   var byId = {};
   coaches.filter(active_).forEach(function (coach) { byId[coach.coach_id] = coach; });
@@ -429,24 +439,33 @@ function board_(coaches, availability, requests, now) {
   var last = addDays_(today, HORIZON_DAYS);
   var current = nowMinutes_();
   var earliest = current + LEAD_HOURS * 60;
-  return availability.filter(function (entry) {
+  var entries = availability.filter(function (entry) {
     return byId[entry.coach_id] && entry.confirmed === 'yes' && entry.date >= today && entry.date <= last && wallMinutes_(entry.date, entry.start) > current;
   }).map(function (entry) {
     var holder = heldBy_(entry, requests, now);
     var soon = wallMinutes_(entry.date, entry.start) < earliest;
     return {
       key: entry.avail_id, date: entry.date, day: dayLabel_(entry.date), start: entry.start, slot: Number(entry.minutes), minutes: lessonMinutes_(entry.minutes),
-      time: rangeLabel_(entry.start, entry.minutes), table: Number(entry.table) || 1, coach: byId[entry.coach_id].label, coachId: entry.coach_id,
+      time: rangeLabel_(entry.start, entry.minutes), table: Number(entry.table) || 1, coach: coachName_(byId[entry.coach_id]), coachId: entry.coach_id,
       status: holder ? (effectiveStatus_(holder, now) === 'confirmed' ? 'booked' : 'requested') : soon ? 'closed' : 'open',
-      student: holder ? holder.student_label : '', waitlist: !!holder && !soon
+      student: holder ? studentName_(holder) : '', waitlist: !!holder && !soon
     };
   }).sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start) || a.table - b.table; });
+  // No waitlist while another table is open at the same time: the student can just request that one.
+  entries.forEach(function (entry) {
+    if (entry.waitlist && openAtSameTime_(entries, entry)) entry.waitlist = false;
+  });
+  return entries;
 }
 
-// What the public sees: open slots, requests and booked lessons, with labels only.
+function openAtSameTime_(entries, entry) {
+  return entries.some(function (other) { return other.status === 'open' && other.date === entry.date && other.start === entry.start; });
+}
+
+// What the public sees: open slots, requests and booked lessons, with first names only.
 function scheduleEntries_(slots, coaches, requests, now) {
   var labels = {};
-  coaches.forEach(function (coach) { labels[coach.coach_id] = coach.label; });
+  coaches.forEach(function (coach) { labels[coach.coach_id] = coachName_(coach); });
   var today = pacificNow_().date;
   var entries = slots.map(function (slot) {
     return { date: slot.date, start: slot.start, minutes: slot.minutes, coach: slot.coach, status: 'Open', student: '', summary: slot.coach + ' is available' };
@@ -455,8 +474,8 @@ function scheduleEntries_(slots, coaches, requests, now) {
     var coach = labels[request.coach_id] || 'a coach';
     var booked = effectiveStatus_(request, now) === 'confirmed';
     entries.push({
-      date: request.date, start: request.start, minutes: Number(request.minutes), coach: coach, status: booked ? 'Booked' : 'Requested', student: request.student_label,
-      summary: request.student_label + (booked ? ' has session with ' : ' requested a session with ') + coach
+      date: request.date, start: request.start, minutes: Number(request.minutes), coach: coach, status: booked ? 'Booked' : 'Requested', student: studentName_(request),
+      summary: studentName_(request) + (booked ? ' has session with ' : ' requested a session with ') + coach
     });
   });
   return entries.sort(function (a, b) { return (a.date + a.start + a.coach).localeCompare(b.date + b.start + b.coach); });
@@ -559,12 +578,12 @@ function requestSlot(form) {
     lock.releaseLock();
   }
   if (texted) {
-    askStudentText_(student, 'v:' + created.request_id, 'CTTC: Reply YES to send ' + created.student_label + '\'s request to ' + coachLabel + ': ' +
+    askStudentText_(student, 'v:' + created.request_id, 'CTTC: Reply YES to send ' + studentName_(created) + '\'s request to ' + coachLabel + ': ' +
       lessonMinutes_(created.minutes) + ' min, ' + shortWhen_(created.date, created.start) + ', Table ' + created.table + '. Reply NO to cancel it.');
   }
   sweep_();
   return {
-    ok: true, label: created.student_label, texts: !!phone, textNumber: TEXT_NUMBER,
+    ok: true, label: studentName_(created), texts: !!phone, textNumber: TEXT_NUMBER,
     message: 'Almost done: we emailed you' + (texted ? ' and texted your mobile' : '') + '. Reply YES to ' + (texted ? 'either one' : 'that email') +
       ' within 2 hours to send your request to ' + coachLabel + '. The time is held for you until then. Nothing goes to the coach until you reply.'
   };
@@ -583,9 +602,11 @@ function joinWaitlist(form) {
   try {
     if (tooBusy_()) return fail_('Too many requests right now. Please try again in a few minutes.');
     var now = Date.now();
-    var entry = board_(rows_('Coaches'), rows_('Availability'), rows_('Requests'), now).filter(function (candidate) { return candidate.key === String(form.key); })[0];
+    var board = board_(rows_('Coaches'), rows_('Availability'), rows_('Requests'), now);
+    var entry = board.filter(function (candidate) { return candidate.key === String(form.key); })[0];
     if (!entry) return fail_('That time is no longer offered. Please pick another.');
     if (entry.status === 'open') return fail_('That time is open. You can request it now.');
+    if (!entry.waitlist && openAtSameTime_(board, entry)) return fail_('Another table is open at that time. You can request it now.');
     if (!entry.waitlist) return fail_('That time is too soon for a waitlist.');
     var waits = rows_('Waitlist');
     if (waits.some(function (wait) { return wait.avail_id === entry.key && wait.email === email; })) return done;
@@ -607,7 +628,11 @@ function notifyWaitlist_(coaches, now) {
   var open = {};
   openSlots_(coaches, availability, rows_('Requests'), now).forEach(function (slot) { open[slot.key] = slot; });
   var offered = {};
-  board_(coaches, availability, rows_('Requests'), now).forEach(function (entry) { if (entry.waitlist) offered[entry.key] = true; });
+  // Someone already waiting keeps their place even while another table is open at that time.
+  var earliest = nowMinutes_() + LEAD_HOURS * 60;
+  board_(coaches, availability, rows_('Requests'), now).forEach(function (entry) {
+    if ((entry.status === 'booked' || entry.status === 'requested') && wallMinutes_(entry.date, entry.start) >= earliest) offered[entry.key] = true;
+  });
   var drop = [];
   waits.forEach(function (wait) {
     var slot = open[wait.avail_id];
@@ -618,10 +643,10 @@ function notifyWaitlist_(coaches, now) {
     if (!mailAvailable_()) return;
     try {
       sendMail_(wait.email, 'A coaching time you wanted is open', [
-        'Good news: ' + slot.coach + ' at Table ' + slot.table + ' on ' + whenLabel_(slot.date, slot.start, slot.minutes) + ' just opened up.',
-        'It is first come, first served, and everyone on the waitlist was told at the same time. Request it here: ' + PAGE_URL,
-        'You were on the waitlist for this time and have now been taken off it.'
-      ]);
+        { callout: '**Good news:** a time you were waiting for just opened up. It is **first come, first served**, and everyone on the waitlist was told at the same time.', tone: 'good' },
+        { rows: [['When', slot.label], ['Coach', slot.coach], ['Table', 'Table ' + slot.table], ['Request it', PAGE_URL, PAGE_URL]] }].concat(
+        scheduleBlocks_('On the schedule', [{ date: slot.date, coachId: slot.coachId, start: slot.start, minutes: slot.minutes, kind: 'opened' }]), [
+        'You were on the waitlist for this time and have now been taken off it.']));
     } catch (error) {
       console.error('Could not email the waitlist: ' + error);
       return;
@@ -701,7 +726,7 @@ function coachBoard(coachId) {
   }
   var pending = proposalOf_(coach, now);
   return {
-    ok: true, id: coach.coach_id, label: coach.label, ready: ready_(coach), email: !!cleanEmail_(coach.email), text: !!phoneDigits_(coach.phone),
+    ok: true, id: coach.coach_id, label: coach.label, name: coachName_(coach), ready: ready_(coach), email: !!cleanEmail_(coach.email), text: !!phoneDigits_(coach.phone),
     tables: TABLES, days: days, textNumber: TEXT_NUMBER,
     board: board_(rows_('Coaches'), rows_('Availability'), rows_('Requests'), now).map(function (entry) {
       return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student };
@@ -739,9 +764,9 @@ function coachPropose(coachId, slots) {
     var now = Date.now();
     var coach = coachById_(coachId);
     if (!coach) return fail_('That coach was not found. Please pick again.');
-    if (!ready_(coach)) return fail_(coach.label + ' is not set up yet. Please ask the club to add your email address or mobile number.');
+    if (!ready_(coach)) return fail_(coachName_(coach) + ' is not set up yet. Please ask the club to add your email address or mobile number.');
     if (proposalOf_(coach, now) && now - Number(coach.ask_made) < PROPOSE_WAIT_MS) {
-      return fail_('We sent ' + coach.label + ' a list a few minutes ago. Reply YES or NO to it first, or wait 10 minutes to send a new one.');
+      return fail_('We sent ' + coachName_(coach) + ' a list a few minutes ago. Reply YES or NO to it first, or wait 10 minutes to send a new one.');
     }
     var cache = CacheService.getScriptCache();
     var daily = 'propose:' + coach.coach_id + ':' + pacificNow_().date;
@@ -754,7 +779,8 @@ function coachPropose(coachId, slots) {
     if (email && mailAvailable_()) {
       try {
         sendMail_(email, 'Confirm your coaching times ' + refTag_(proposalCode_(coach.coach_id, now)), [
-          'Reply YES to this email to publish these changes to ' + coach.label + '\'s coaching times, or NO to cancel. Nothing changes until you reply.',
+          { callout: '**Action needed:** reply to this email. **Nothing changes until you reply.**', tone: 'action' },
+          { choices: [['YES', 'Publish these changes to ' + coachName_(coach) + '\'s coaching times.'], ['NO', 'Cancel. Your coaching times stay as they are.']] },
           plan.add.length ? 'Add: ' + slotList_(plan.add) : '',
           plan.remove.length ? 'Remove: ' + slotList_(plan.remove) : '',
           phoneDigits_(coach.phone) ? 'We also texted your mobile. You can answer either one.' :
@@ -776,8 +802,8 @@ function coachPropose(coachId, slots) {
     }
     if (!sent.email && !sent.text) {
       return fail_(phoneDigits_(coach.phone) && !email ?
-        'We could not text ' + coach.label + '. From your mobile, text the word COACH to ' + TEXT_NUMBER + ', wait a minute, then submit again.' :
-        'We could not reach ' + coach.label + ' right now. Please try again later.');
+        'We could not text ' + coachName_(coach) + '. From your mobile, text the word COACH to ' + TEXT_NUMBER + ', wait a minute, then submit again.' :
+        'We could not reach ' + coachName_(coach) + ' right now. Please try again later.');
     }
     coach.ask_slots = JSON.stringify(plan.wanted);
     coach.ask_made = String(now);
@@ -839,7 +865,7 @@ function slotList_(slots) {
 }
 
 function proposalText_(coach, plan) {
-  return 'CTTC: Reply YES to update ' + coach.label + '\'s coaching times, or NO to cancel.' +
+  return 'CTTC: Reply YES to update ' + coachName_(coach) + '\'s coaching times, or NO to cancel.' +
     (plan.add.length ? ' Add: ' + slotList_(plan.add) + '.' : '') + (plan.remove.length ? ' Remove: ' + slotList_(plan.remove) + '.' : '') +
     ' Nothing changes until you reply.';
 }
@@ -925,21 +951,27 @@ function studentChange(form) {
 function askStudentChange_(question) {
   var request = question.request;
   var when = whenLabel_(request.date, request.start, request.minutes);
-  var coachLabel = question.coach ? question.coach.label : 'your coach';
-  var move = question.target ? question.target.label + ' with ' + question.target.coach + ' at Table ' + question.target.table : '';
+  var coachLabel = question.coach ? coachName_(question.coach) : 'your coach';
+  var move = question.target ? question.target.label + ', ' + question.target.coach + ', Table ' + question.target.table : '';
   var who = request.guardian_name ? 'Hello ' + request.guardian_name + ',' : 'Hello ' + request.student_name + ',';
+  var target = question.target;
+  var current = { date: request.date, coachId: request.coach_id, start: request.start, minutes: request.minutes, kind: move ? 'from' : 'cancel' };
   try {
     if (mailAvailable_()) {
       sendMail_(request.student_email, (move ? 'Confirm: move your lesson ' : 'Confirm: cancel your lesson ') + refTag_(changeCode_(request)), [who,
-        move ? 'Reply YES to this email to move ' + request.student_label + '\'s lesson with ' + coachLabel + ' on ' + when + ' to ' + move + ', or NO to keep it as it is.' +
-          ' The new time goes to the coach to accept, and your current time is released.' :
-          'Reply YES to this email to cancel ' + request.student_label + '\'s lesson with ' + coachLabel + ' on ' + when + ', or NO to keep it.',
-        'Nothing changes until you reply. If you did not ask for this, ignore this email.']);
+        { callout: '**Action needed:** you asked to ' + (move ? 'move' : 'cancel') + ' ' + studentName_(request) + '\'s lesson. **Nothing changes until you reply.**', tone: 'action' },
+        { choices: move ? [['YES', 'Move the lesson to the new time. The new time goes to the coach to accept, and your current time is released.'], ['NO', 'Keep the lesson as it is.']] :
+          [['YES', 'Cancel the lesson and release the time.'], ['NO', 'Keep the lesson as it is.']] },
+        { heading: move ? 'The change' : 'The lesson to cancel' },
+        { rows: move ? [['Now', when + ', ' + coachLabel + ', Table ' + (Number(request.table) || 1)], ['New time', move]] :
+          lessonRows_(request).concat([['Coach', coachLabel]]) }].concat(
+        scheduleBlocks_('On the schedule', move ? [current, { date: target.date, coachId: target.coachId, start: target.start, minutes: target.minutes, kind: 'to' }] : [current]), [
+        'If you did not ask for this, ignore this email.']));
     }
   } catch (error) {
     console.error('Could not email a student about a change: ' + error);
   }
-  askStudentText_(question.student, 'c:' + request.request_id, 'CTTC: Reply YES to ' + (move ? 'move' : 'cancel') + ' ' + request.student_label + '\'s lesson on ' +
+  askStudentText_(question.student, 'c:' + request.request_id, 'CTTC: Reply YES to ' + (move ? 'move' : 'cancel') + ' ' + studentName_(request) + '\'s lesson on ' +
     shortWhen_(request.date, request.start) + (move ? ' to ' + shortWhen_(question.target.date, question.target.start) + ' (' + question.target.coach + ')' : '') + ', or NO to keep it.');
 }
 
@@ -1002,7 +1034,7 @@ function studentAnswer_(requestId, kind, answer, channel) {
       if (!change || !holds_(request, now)) {
         reply = 'That change is no longer waiting, so nothing changed.';
       } else if (answer === 'no') {
-        reply = 'OK, nothing changed. ' + request.student_label + '\'s lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ' stays as it is.';
+        reply = 'OK, nothing changed. ' + studentName_(request) + '\'s lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ' stays as it is.';
       } else if (change === 'cancel') {
         request.status = 'cancelled';
         request.cancelled_by = 'student';
@@ -1092,7 +1124,7 @@ function deliver_(request, coach, field, compose) {
     if (!message.text && !mailAvailable_()) return;
     try {
       if (message.text) sendText_(message.person, message.text);
-      else sendMail_(message.to, message.subject, message.lines);
+      else sendMail_(message.to, message.subject, message.lines, message.cc);
     } catch (error) {
       console.error('Could not send a coaching ' + (message.text ? 'text' : 'email') + ': ' + error);
       return;
@@ -1102,9 +1134,100 @@ function deliver_(request, coach, field, compose) {
   save_('Requests', request);
 }
 
-function detailLines_(request, coach) {
-  return ['When: ' + whenLabel_(request.date, request.start, request.minutes), 'Where: ' + LOCATION + ', Table ' + (Number(request.table) || 1),
-    'Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + ' (shown on the schedule as ' + coach.label + ')'];
+function lessonRows_(request) {
+  return [['When', whenLabel_(request.date, request.start, request.minutes)],
+    ['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)],
+    ['Table', 'Table ' + (Number(request.table) || 1)]];
+}
+
+function changeSteps_(request) {
+  return { steps: ['Open ' + PAGE_URL, 'Tap your time (shown as **' + studentName_(request) + '**).', 'Reply **YES** to the email we send you to confirm the change.'] };
+}
+
+// [background, border, text color, title, note shown in the cell, sentence under the day heading]
+var MARKS = {
+  cancel: ['#fde2e1', '3px dashed #c0392b', '#7a1f17', '&#10005; TO BE CANCELLED', 'Cancelled only if you reply YES', 'The red time is cancelled if you reply YES.'],
+  from: ['#fde2e1', '3px dashed #c0392b', '#7a1f17', '&#10005; MOVING FROM', 'Released if you reply YES', 'Your current time (red) is released if you reply YES.'],
+  to: ['#dcebff', '3px solid #1f4f8f', '#173a6b', '&#8594; MOVING TO', 'Not confirmed: the coach must accept', 'The new time (blue) goes to the coach to accept.'],
+  opened: ['#e3f1e7', '3px solid #1f6b3a', '#1f4a2b', '&#9733; JUST OPENED', 'First come, first served', 'The green time just opened up.']
+};
+
+// The day's tables and times as the booking page shows them (first names only), with the marked times picked out.
+// A mark is {date, coachId, start, minutes, kind: 'mine' | a MARKS key, status (for 'mine')}.
+function dayGrid_(date, marks) {
+  try {
+    var window = WINDOWS[weekday_(date)];
+    if (!window) return null;
+    var board = board_(rows_('Coaches'), rows_('Availability'), rows_('Requests'), Date.now()).filter(function (entry) { return entry.date === date; });
+    var first = toMinutes_(window.start);
+    var count = (toMinutes_(window.end) - first) / 30;
+    var tables = 2;
+    board.forEach(function (entry) { tables = Math.max(tables, entry.table); });
+    var cells = [];
+    for (var row = 0; row < count; row += 1) cells.push([]);
+    var found = false;
+    board.forEach(function (entry) {
+      var top = (toMinutes_(entry.start) - first) / 30;
+      var span = entry.slot / 30;
+      if (top < 0 || top + span > count) return;
+      for (var r = top; r < top + span; r += 1) if (cells[r][entry.table]) return;
+      var mark = marks.filter(function (candidate) { return entry.coachId === candidate.coachId && overlaps_(entry.start, entry.slot, candidate.start, candidate.minutes); })[0];
+      found = found || !!mark;
+      cells[top][entry.table] = { entry: entry, span: span, mark: mark };
+      for (var below = top + 1; below < top + span; below += 1) cells[below][entry.table] = 'covered';
+    });
+    if (!found) return null;
+    var box = 'border-radius:8px;text-align:center;font-size:13px;line-height:1.35;padding:6px;height:36px;';
+    var html = '<table role="presentation" cellpadding="0" cellspacing="6" style="border-collapse:separate;width:100%;max-width:520px;margin:0 0 12px;font-family:Arial,sans-serif;"><tr><td></td>';
+    for (var t = 1; t <= tables; t += 1) html += '<td style="width:' + Math.floor(90 / tables) + '%;text-align:center;font-size:13px;font-weight:700;color:#555;">Table ' + t + '</td>';
+    html += '</tr>';
+    for (var r2 = 0; r2 < count; r2 += 1) {
+      html += '<tr><td style="font-size:12px;color:#555;white-space:nowrap;vertical-align:top;padding-top:4px;">' + time12_(fromMinutes_(first + r2 * 30)) + '</td>';
+      for (var t2 = 1; t2 <= tables; t2 += 1) {
+        var cell = cells[r2][t2];
+        if (cell === 'covered') continue;
+        if (!cell) { html += '<td style="' + box + 'border:2px dashed #ddd;"></td>'; continue; }
+        var entry = cell.entry;
+        var span = cell.span > 1 ? ' rowspan="' + cell.span + '"' : '';
+        if (cell.mark && cell.mark.kind === 'mine') {
+          html += '<td' + span + ' style="' + box + 'background:#fff3b0;border:3px solid #c98a00;color:#5a3d00;"><strong>&#9733; YOUR LESSON</strong><br>' +
+            esc_(entry.coach + ' \u00b7 ' + entry.time) + '<br><strong>' + esc_({ unverified: 'Waiting for your YES', pending: 'Waiting for the coach', confirmed: 'Confirmed' }[cell.mark.status] || '') + '</strong></td>';
+        } else if (cell.mark) {
+          var look = MARKS[cell.mark.kind];
+          html += '<td' + span + ' style="' + box + 'background:' + look[0] + ';border:' + look[1] + ';color:' + look[2] + ';"><strong>' + look[3] + '</strong><br>' +
+            esc_(entry.coach + ' \u00b7 ' + entry.time) + '<br><strong>' + esc_(look[4]) + '</strong></td>';
+        } else if (entry.status === 'booked' || entry.status === 'requested') {
+          html += '<td' + span + ' style="' + box + 'background:#8a8a8a;border:2px solid #6f6f6f;color:#fff;">' + (entry.status === 'booked' ? 'Booked by ' : 'Requested by ') +
+            esc_(entry.student) + '<br>' + esc_(entry.coach + ' \u00b7 ' + entry.time) + '</td>';
+        } else {
+          var color = entry.status === 'open' ? '#1f6b3a' : '#888';
+          html += '<td' + span + ' style="' + box + 'border:2px dashed ' + (entry.status === 'open' ? '#7aa886' : '#ccc') + ';color:' + color + ';"><strong>' + esc_(entry.coach) + '</strong><br>' + esc_(entry.time) + '</td>';
+        }
+      }
+      html += '</tr>';
+    }
+    return { html: html + '</table>' };
+  } catch (error) {
+    console.error('Could not draw the schedule for an email: ' + error);
+    return null;
+  }
+}
+
+function gridBlocks_(request) {
+  return scheduleBlocks_('Your spot on the schedule', [{ date: request.date, coachId: request.coach_id, start: request.start, minutes: request.minutes, kind: 'mine', status: request.status }]);
+}
+
+// One grid per day the marks fall on, each under its date and a sentence saying what the colors mean.
+function scheduleBlocks_(heading, marks) {
+  var blocks = [];
+  marks.map(function (mark) { return mark.date; }).filter(function (date, index, all) { return all.indexOf(date) === index; }).sort().forEach(function (date) {
+    var today = marks.filter(function (mark) { return mark.date === date; });
+    var grid = dayGrid_(date, today);
+    if (!grid) return;
+    var note = today.map(function (mark) { return mark.kind === 'mine' ? 'Your lesson is highlighted.' : MARKS[mark.kind][5]; }).join(' ');
+    blocks.push({ html: '<p style="margin:0 0 4px;"><strong>' + esc_(dayLabel_(date)) + '</strong>. ' + esc_(note) + '</p>', text: blocks.length ? '' : 'See every table for the day at ' + PAGE_URL }, grid);
+  });
+  return blocks.length ? [{ heading: heading }].concat(blocks) : [];
 }
 
 // The student's side of a confirmed lesson: name, guardian for a minor, email and the mobile number on file.
@@ -1113,52 +1236,78 @@ function studentContact_(request, student) {
     request.student_email, student && student.phone);
 }
 
-// The public schedule only shows labels. Once a lesson is confirmed both sides get each other's name, so they can find each other.
+// The public schedule only shows first names. Once a lesson is confirmed both sides get each other's full name and contact details.
 function studentMail_(request, coach) {
   var when = whenLabel_(request.date, request.start, request.minutes);
   var to = request.student_email;
   var who = request.guardian_name ? 'Hello ' + request.guardian_name + ', this is about the lesson for ' + request.student_name + '.' : 'Hello ' + request.student_name + ',';
-  var shown = 'On the club site this lesson appears as "' + request.student_label + ' with ' + coach.label + '".';
-  var change = 'To cancel or move it, open ' + PAGE_URL + ', tap your time (shown as ' + request.student_label + '), and confirm by replying YES to the email we send.';
+  var expires = momentLabel_(Number(request.expires_at));
+  var details = lessonRows_(request);
+  var coachShown = coachName_(coach);
   if (request.status === 'unverified') {
     return { to: to, subject: 'Confirm your coaching request ' + refTag_(verifyCode_(request)), lines: [who,
-      'Reply YES to this email to send your request for a lesson with ' + coach.label + ' on ' + when + ' at Table ' + (Number(request.table) || 1) + ' to the coach, or NO to cancel it.',
-      'Nothing goes to the coach until you reply. The time is held for you until ' + momentLabel_(Number(request.expires_at)) + '.',
-      'You will show on the site as "' + request.student_label + '", so you can find your time and its status on the schedule.',
-      'If you did not ask for this lesson, ignore this email and the time will be released.'] };
+      { callout: '**Action needed:** reply to this email by **' + expires + '**.', tone: 'action' },
+      { choices: [['YES', 'Send my request to the coach.'], ['NO', 'Cancel my request and release the time.']] },
+      { heading: 'Your request' },
+      { rows: details.concat([['Coach', coachShown]]) },
+      { heading: 'What happens next' },
+      { steps: ['Reply **YES** by **' + expires + '**. Nothing goes to the coach until you reply, and the time is held for you until then.',
+        coachShown + ' accepts or declines. We email you either way.',
+        'Once accepted, you get a confirmation with your coach\'s contact details and what to bring.'] },
+      'You will show on the site as "' + studentName_(request) + '", so you can find your time and its status on the schedule.'].concat(gridBlocks_(request), [
+      'If you did not ask for this lesson, ignore this email and the time will be released.']) };
   }
   if (request.status === 'pending') {
-    return { to: to, subject: 'Coaching request sent to ' + coach.label + ' (not confirmed yet)', lines: [who,
-      'Thanks. Your request for a lesson with ' + coach.label + ' on ' + when + ' went to the coach. It is NOT confirmed until the coach accepts.',
-      'The time is held for you until ' + momentLabel_(Number(request.expires_at)) + '. If the coach has not answered by then, the request expires and the time is released.',
+    return { to: to, subject: 'Coaching request sent to ' + coachShown + ' (not confirmed yet)', lines: [who,
+      { callout: 'Thanks. Your request went to ' + coachShown + '. It is **NOT confirmed until the coach accepts.**', tone: 'action' },
+      { heading: 'Your request' },
+      { rows: details.concat([['Coach', coachShown]]) },
+      { heading: 'What happens next' },
+      { steps: [coachShown + ' has until **' + expires + '** to accept. If the coach has not answered by then, the request expires and the time is released.',
+        'We email you as soon as the coach answers.'] },
+      { heading: 'Text updates (optional)' },
       'To subscribe to text notifications about any updates such as session cancellations, add your mobile number when you request a lesson and send a text with the word STUDENT to ' + TEXT_NUMBER + ' from that phone.',
-      change] };
+      { heading: 'Need to cancel or move it?' },
+      changeSteps_(request)].concat(gridBlocks_(request)) };
   }
   if (request.status === 'confirmed') {
+    var reach = [['Email', cleanEmail_(coach.email), 'mailto:' + cleanEmail_(coach.email)], ['Phone', phoneLabel_(coach.phone), 'tel:+1' + phoneDigits_(coach.phone)]]
+      .filter(function (row) { return row[1]; });
     return { to: to, subject: 'Lesson confirmed: ' + request.date + ' ' + request.start, lines: [who,
-      'Your lesson is confirmed.'].concat(detailLines_(request, coach), [
-      shown,
+      { callout: '**Your lesson is confirmed.**', tone: 'good' },
+      { heading: 'Lesson details' },
+      { rows: details.concat([['Coach', String(coach.name).trim()]]) },
+      { heading: 'Your coach\'s contact' },
+      reach.length ? { rows: reach } : 'Find your coach at the club when you arrive.',
       'Your coach has the contact details from your request and may get in touch about details.',
-      'Arrival: ' + property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL),
-      'Payment: ' + property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT),
-      'Guidelines: ' + property_('COACHING_GUIDELINES_TEXT', DEFAULT_GUIDELINES),
-      change + ' Please cancel at least ' + LEAD_HOURS + ' hours ahead.']) };
+      { heading: 'Before you come' },
+      { rows: [['Arrival', property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL)], ['Payment', property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT)],
+        ['Guidelines', property_('COACHING_GUIDELINES_TEXT', DEFAULT_GUIDELINES)]] },
+      { heading: 'Need to cancel or move it?' },
+      'Please do it at least **' + LEAD_HOURS + ' hours ahead**.',
+      changeSteps_(request),
+      'On the club site this lesson appears as "' + studentName_(request) + ' with ' + coachShown + '".'].concat(gridBlocks_(request)) };
   }
   if (request.status === 'declined') {
     return { to: to, subject: 'Coaching request not accepted', lines: [who,
-      coach.label + ' is not able to give the lesson on ' + when + '. You are not booked. You can pick another time at ' + PAGE_URL] };
+      coachShown + ' is not able to give the lesson on ' + when + '. You are not booked. You can pick another time at ' + PAGE_URL] };
+  }
+  if (request.status === 'expired' && request.verified_at) {
+    return { to: to, cc: adminEmail_(), subject: 'Coaching request expired: the coach did not answer', lines: [who,
+      { callout: 'Sorry: ' + coachShown + ' did not answer your request in time, so it expired and the time was released. **You are not booked.**', tone: 'action' },
+      { rows: details.concat([['Coach', coachShown]]) },
+      'The club has been copied on this email and will follow up with the coach. You can pick another time at ' + PAGE_URL] };
   }
   if (request.status === 'expired') {
-    return { to: to, subject: 'Coaching request expired', lines: [who, request.verified_at ?
-      'Your request for ' + when + ' with ' + coach.label + ' was not answered in time, so it expired and the time was released. You can pick another time at ' + PAGE_URL :
-      'Your request for ' + when + ' with ' + coach.label + ' was not confirmed by a reply in time, so it expired and the time was released. You can pick another time at ' + PAGE_URL] };
+    return { to: to, subject: 'Coaching request expired', lines: [who,
+      'Your request for ' + when + ' with ' + coachShown + ' was not confirmed by a reply in time, so it expired and the time was released. You can pick another time at ' + PAGE_URL] };
   }
   if (request.status === 'cancelled' && request.cancelled_by === 'student') {
-    return { to: to, subject: 'Coaching lesson cancelled', lines: [who, 'As you asked, the lesson with ' + coach.label + ' on ' + when + ' is cancelled and the time was released.'] };
+    return { to: to, subject: 'Coaching lesson cancelled', lines: [who, 'As you asked, the lesson with ' + coachShown + ' on ' + when + ' is cancelled and the time was released.'] };
   }
   if (request.status === 'cancelled' && request.cancelled_by === 'coach') {
     return { to: to, subject: 'Lesson cancelled by your coach', lines: [who,
-      coach.label + ' had to cancel the lesson on ' + when + '. You can pick another time at ' + PAGE_URL] };
+      coachShown + ' had to cancel the lesson on ' + when + '. You can pick another time at ' + PAGE_URL] };
   }
   return null;
 }
@@ -1171,22 +1320,27 @@ function coachMail_(request, coach, studentRow) {
   var when = whenLabel_(request.date, request.start, request.minutes);
   if (request.status === 'pending') {
     return { to: to, subject: 'Lesson request from ' + request.student_name + ' ' + refTag_(requestCode_(request)), lines: [
-      request.student_name + ' (' + request.student_label + (request.guardian_name ? ', under 18' : '') + ') asked for ' + when + ' at Table ' + (Number(request.table) || 1) + (request.note ? '. Note: ' + request.note : '') + '.',
+      request.student_name + (request.guardian_name ? ' (under 18)' : '') + ' asked for ' + when + ' at Table ' + (Number(request.table) || 1) + (request.note ? '. Note: ' + request.note : '') + '.',
       'The student\'s email and phone number are sent to you once you confirm.',
-      'Reply YES to this email to confirm, or NO to decline, by ' + momentLabel_(Number(request.expires_at)) + ', after which it expires and the time is released.',
+      { callout: '**Action needed:** reply to this email by **' + momentLabel_(Number(request.expires_at)) + '**, or the request expires, the time is released and the club is told.', tone: 'action' },
+      { choices: [['YES', 'Confirm the lesson.'], ['NO', 'Decline it. The student is told and the time opens again.']] },
       phoneDigits_(coach.phone) ? 'We are also texting your mobile about it. You can answer either one.' : ''] };
   }
   if (request.status === 'confirmed') {
     return { to: to, subject: 'Lesson confirmed: ' + request.date + ' ' + request.start, lines: [
-      'You confirmed this lesson.', 'Student: ' + studentContact_(request, studentRow)].concat(detailLines_(request, coach), [
-      'On the club site it appears as "' + request.student_label + ' has session with ' + coach.label + '".',
-      'Arrival: ' + property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL),
-      'Payment: ' + property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT),
-      'Guidelines: ' + property_('COACHING_GUIDELINES_TEXT', DEFAULT_GUIDELINES),
-      'Need to cancel? Reply to this email and the club will cancel it and tell the student.']) };
+      { callout: '**You confirmed this lesson.**', tone: 'good' },
+      { heading: 'Lesson details' },
+      { rows: [['Student', studentContact_(request, studentRow)]].concat(lessonRows_(request)) },
+      'On the club site it appears as "' + studentName_(request) + ' has session with ' + coachName_(coach) + '".',
+      { heading: 'Reminders' },
+      { rows: [['Arrival', property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL)], ['Payment', property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT)],
+        ['Guidelines', property_('COACHING_GUIDELINES_TEXT', DEFAULT_GUIDELINES)]] },
+      'Need to cancel? Reply to this email and the club will cancel it and tell the student.'] };
   }
   if (request.status === 'expired' && request.verified_at) {
-    return { to: to, subject: 'Lesson request expired', lines: ['The request from ' + request.student_name + ' for ' + when + ' expired without an answer and the time was released.'] };
+    return { to: to, cc: adminEmail_(), subject: 'Lesson request expired: no answer', lines: [
+      { callout: 'The request from ' + request.student_name + ' for **' + when + '** expired without your answer, so the time was released and the student was told.', tone: 'action' },
+      'The club has been copied on this email. If something went wrong, please reply and let us know.'] };
   }
   // Told only if the coach had already heard about the request.
   if (request.status === 'cancelled' && (request.cancelled_by === 'student' || request.cancelled_by === 'move') && request.verified_at) {
@@ -1208,17 +1362,17 @@ function coachText_(request, coach, student) {
   if (!phoneDigits_(coach.phone) || !request.coach_texted) return null;
   var when = shortWhen_(request.date, request.start);
   if (request.status === 'confirmed') {
-    return { person: coach, text: 'CTTC: Confirmed. ' + request.student_label + ', ' + lessonMinutes_(request.minutes) + ' min lesson ' + when +
+    return { person: coach, text: 'CTTC: Confirmed. ' + studentName_(request) + ', ' + lessonMinutes_(request.minutes) + ' min lesson ' + when +
       ', Table ' + (Number(request.table) || 1) + ', ' + LOCATION + '. Student: ' + studentContact_(request, student) + '.' };
   }
   if (request.status === 'declined') {
-    return { person: coach, text: 'CTTC: Declined. ' + request.student_label + ' was told, and ' + when + ' is open again.' };
+    return { person: coach, text: 'CTTC: Declined. ' + studentName_(request) + ' was told, and ' + when + ' is open again.' };
   }
   if (request.status === 'expired') {
-    return { person: coach, text: 'CTTC: The request from ' + request.student_label + ' for ' + when + ' expired without an answer, so the time was released.' };
+    return { person: coach, text: 'CTTC: The request from ' + studentName_(request) + ' for ' + when + ' expired without an answer, so the time was released.' };
   }
   if (request.status === 'cancelled' && (request.cancelled_by === 'student' || request.cancelled_by === 'move')) {
-    return { person: coach, text: 'CTTC: ' + request.student_label + (request.cancelled_by === 'move' ? ' moved the lesson on ' + when + ' to another time.' :
+    return { person: coach, text: 'CTTC: ' + studentName_(request) + (request.cancelled_by === 'move' ? ' moved the lesson on ' + when + ' to another time.' :
       ' cancelled the lesson on ' + when + '.') + ' The time is open again.' };
   }
   return null;
@@ -1230,15 +1384,15 @@ function studentText_(request, coach, student) {
   var when = shortWhen_(request.date, request.start);
   var again = ' Pick another time at ' + PAGE_URL.replace('https://', '') + '.';
   var text = {
-    confirmed: 'your lesson with ' + coach.label + ' on ' + when + ' is confirmed. Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + '.',
-    declined: coach.label + ' cannot do ' + when + '. You are not booked.' + again,
+    confirmed: 'your lesson with ' + coachName_(coach) + ' on ' + when + ' is confirmed. Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + '.',
+    declined: coachName_(coach) + ' cannot do ' + when + '. You are not booked.' + again,
     expired: 'your request for ' + when + ' expired without an answer. You are not booked.' + again
   }[request.status];
   if (request.status === 'cancelled') {
-    text = request.cancelled_by === 'coach' ? coach.label + ' cancelled your lesson on ' + when + '.' + again :
+    text = request.cancelled_by === 'coach' ? coachName_(coach) + ' cancelled your lesson on ' + when + '.' + again :
       request.cancelled_by === 'move' ? null : 'your lesson on ' + when + ' is cancelled.';
   }
-  return text ? { person: { name: student.name, phone: student.phone }, text: 'CTTC: ' + request.student_label + ', ' + text } : null;
+  return text ? { person: { name: student.name, phone: student.phone }, text: 'CTTC: ' + studentName_(request) + ', ' + text } : null;
 }
 
 // "Last, First" and "First Last" are the same person; case and spacing do not matter.
@@ -1317,7 +1471,7 @@ function answerOf_(text) {
 }
 
 function requestQuestion_(request, again) {
-  return 'CTTC: ' + (again ? 'Still waiting: ' : '') + 'Lesson request from ' + request.student_name + ' (' + request.student_label + '): ' +
+  return 'CTTC: ' + (again ? 'Still waiting: ' : '') + 'Lesson request from ' + request.student_name + (request.guardian_name ? ' (under 18)' : '') + ': ' +
     lessonMinutes_(request.minutes) + ' min, ' + shortWhen_(request.date, request.start) + ', Table ' + (Number(request.table) || 1) +
     '. Reply YES to confirm or NO to decline.';
 }
@@ -1388,7 +1542,7 @@ function answer_(coachId, ref, answer, channel) {
         var done = applyProposal_(coach, now);
         reply = !done.added && !done.removed && done.skipped ?
           'CTTC: Nothing changed: by the time you replied, other coaches had taken every table at those times. Please pick other times on the coaching page.' :
-          'CTTC: Done. ' + coach.label + ' now has ' + done.total + ' upcoming coaching time' + (done.total === 1 ? '' : 's') +
+          'CTTC: Done. ' + coachName_(coach) + ' now has ' + done.total + ' upcoming coaching time' + (done.total === 1 ? '' : 's') +
           ' (' + done.added + ' added, ' + done.removed + ' removed).' +
           (done.skipped ? ' ' + done.skipped + ' could not be added because another coach took the table or it overlapped a lesson request.' : '') +
           ' Students can request them at ' + PAGE_URL.replace('https://', '') + '.';
@@ -1476,14 +1630,14 @@ function verifyCoaches_() {
       if (!found[coach.coach_id] || coach.registered_at) return;
       coach.registered_at = nowIso_();
       save_('Coaches', coach);
-      told.push({ message: found[coach.coach_id].message, label: coach.label });
+      told.push({ message: found[coach.coach_id].message, label: coach.label, name: coachName_(coach) });
     });
   } finally {
     lock.releaseLock();
   }
   told.forEach(function (entry) {
     try {
-      entry.message.reply('CTTC: Thanks, you are verified as ' + entry.label + '. To offer coaching times, open ' + PAGE_URL.replace('https://', '') +
+      entry.message.reply('CTTC: Thanks, you are verified as ' + entry.name + '. To offer coaching times, open ' + PAGE_URL.replace('https://', '') +
         ', tap I am a coach and pick ' + entry.label + '. We will text you here to confirm your times and lesson requests.');
     } catch (error) {
       console.error('Could not tell a coach they are verified: ' + error);
@@ -1597,7 +1751,7 @@ function checkStudentTexts_() {
         save_('Students', student);
       });
       answers.push({ message: text.message, body: text.word === 'STUDENT' ?
-        'CTTC: You will get texts about coaching updates for ' + matched.map(function (student) { return student.label; }).join(' and ') + ', such as cancellations. Text STOP to stop.' :
+        'CTTC: You will get texts about your coaching lessons, such as cancellations. Text STOP to stop.' :
         'CTTC: Coaching texts are off. Text STUDENT to turn them back on.' });
     });
   } finally {
@@ -1616,14 +1770,57 @@ function adminEmail_() { return property_('ADMIN_EMAIL', Session.getEffectiveUse
 
 function mailAvailable_() { return MailApp.getRemainingDailyQuota() > MIN_QUOTA; }
 
-// Plain text plus HTML built from the same lines; links in the lines become clickable.
-function sendMail_(to, subject, lines) {
-  var parts = lines.filter(Boolean).concat('This message is only about your coaching request. It does not add you to the results mailing list.');
-  var html = parts.map(function (line) {
-    return '<p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;margin:0 0 12px;">' +
-      esc_(line).replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>') + '</p>';
-  }).join('');
-  MailApp.sendEmail({ to: to, subject: subject, body: parts.join('\n\n'), htmlBody: html, name: FROM_NAME });
+// **text** is bold in HTML and plain in text; links become clickable.
+function mailHtml_(text) {
+  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>');
+}
+
+function mailText_(text) { return String(text).replace(/\*\*/g, ''); }
+
+// A block is a paragraph string, or { heading }, { callout, tone }, { rows: [[label, value, link]] }, { steps }, { choices: [[reply, meaning]] }
+// or { html, text } (text is the plain-text stand-in).
+function blockText_(block) {
+  if (typeof block === 'string') return mailText_(block);
+  if (block.choices) return block.choices.map(function (choice) { return 'Reply ' + choice[0] + ': ' + mailText_(choice[1]); }).join('\n');
+  if (block.heading) return block.heading.toUpperCase();
+  if (block.callout) return mailText_(block.callout);
+  if (block.rows) return block.rows.map(function (row) { return row[0] + ': ' + mailText_(row[1]); }).join('\n');
+  if (block.steps) return block.steps.map(function (step, index) { return (index + 1) + '. ' + mailText_(step); }).join('\n');
+  return block.text || '';
+}
+
+function blockHtml_(block) {
+  if (typeof block === 'string') return '<p style="margin:0 0 12px;">' + mailHtml_(block) + '</p>';
+  if (block.heading) return '<h3 style="margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd;font-size:16px;color:#1f4f8f;">' + esc_(block.heading) + '</h3>';
+  if (block.callout) {
+    var tone = block.tone === 'good' ? 'background:#e3f1e7;border-left:5px solid #1f6b3a;' : 'background:#fff4d6;border-left:5px solid #c98a00;';
+    return '<div style="' + tone + 'padding:10px 14px;margin:0 0 14px;border-radius:4px;font-size:16px;">' + mailHtml_(block.callout) + '</div>';
+  }
+  if (block.rows) {
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 12px;font-size:15px;">' + block.rows.map(function (row) {
+      return '<tr><td style="padding:3px 16px 3px 0;vertical-align:top;font-weight:700;white-space:nowrap;">' + esc_(row[0]) + '</td><td style="padding:3px 0;vertical-align:top;">' +
+        (row[2] ? '<a href="' + esc_(row[2]) + '">' + esc_(row[1]) + '</a>' : mailHtml_(row[1])) + '</td></tr>';
+    }).join('') + '</table>';
+  }
+  if (block.choices) {
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 14px;font-size:15px;">' + block.choices.map(function (choice) {
+      return '<tr><td style="padding:4px 12px 4px 0;vertical-align:top;white-space:nowrap;"><span style="display:inline-block;min-width:88px;text-align:center;padding:3px 8px;border-radius:4px;font-weight:700;color:#fff;background:' +
+        (choice[0] === 'YES' ? '#1f6b3a' : '#a3332a') + ';">Reply ' + esc_(choice[0]) + '</span></td><td style="padding:6px 0;vertical-align:top;">' + mailHtml_(choice[1]) + '</td></tr>';
+    }).join('') + '</table>';
+  }
+  if (block.steps) return '<ol style="margin:0 0 12px;padding-left:22px;">' + block.steps.map(function (step) { return '<li style="margin:0 0 6px;">' + mailHtml_(step) + '</li>'; }).join('') + '</ol>';
+  return block.html || '';
+}
+
+function sendMail_(to, subject, lines, cc) {
+  var blocks = lines.filter(Boolean);
+  var footer = 'This message is only about your coaching request. It does not add you to the results mailing list.';
+  var body = blocks.map(blockText_).filter(Boolean).concat(footer).join('\n\n');
+  var html = '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px;">' + blocks.map(blockHtml_).join('') +
+    '<p style="margin:20px 0 0;font-size:12px;color:#777;">' + esc_(footer) + '</p></div>';
+  var message = { to: to, subject: subject, body: body, htmlBody: html, name: FROM_NAME };
+  if (cc) message.cc = cc;
+  MailApp.sendEmail(message);
 }
 
 // ---------- The app's secret ----------
