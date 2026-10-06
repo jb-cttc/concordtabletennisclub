@@ -131,7 +131,7 @@
   // ----- Students: pick a time and ask -----
   function bookingView() {
     clear(); show('');
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: you confirm by replying YES to the email (or text) we send, and the lesson is booked once the coach accepts. To cancel or move a lesson, tap your time. Coaches appear by first initial (Coach O for Olaf); students only ever appear as Student A, Student B and so on.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: you confirm by replying YES to the email (or text) we send, and the lesson is booked once the coach accepts. To cancel or move a lesson, tap your time. Coaches appear by first initial (Coach O for Olaf); students only ever appear as Student A, Student B and so on. Your coach sees your name when you request a lesson; emails and mobile numbers are shared between you and your coach only once the lesson is confirmed.' }));
     var list = el('div', { id: 'slots' }, [el('p', { text: 'Loading open times...' })]);
     app.appendChild(list);
     load('openSlots', [], function (result) {
@@ -369,11 +369,12 @@
       el('p', { id: 'picked' })
     ].concat(
       field('Student name', el('input', { type: 'text', id: 'name', name: 'name', maxlength: '60', autocomplete: 'name' })),
-      field('Email address (we only use it for this request)', el('input', { type: 'email', id: 'email', name: 'email', maxlength: '254', autocomplete: 'email' })),
+      field('Email address', el('input', { type: 'email', id: 'email', name: 'email', maxlength: '254', autocomplete: 'email' })),
       field('Mobile number (optional, for text updates)', el('input', { type: 'tel', id: 'phone', name: 'tel', maxlength: '20', autocomplete: 'tel' })),
       [el('label', { 'class': 'check' }, [minor, el('span', { text: 'The student is under 18 (use the parent or guardian\'s email)' })]), guardianBox],
       field('Anything the coach should know (optional)', el('textarea', { id: 'note', maxlength: '300' })),
       [el('label', { 'class': 'check' }, [keep, el('span', { text: 'Remember my details on this device' })])],
+      [el('p', { 'class': 'legend', text: 'Privacy: until the coach accepts, the coach sees only your name and note. Once the lesson is confirmed, you and the coach each get the other\'s name, email and mobile number (if given). Nothing is shared with anyone else.' })],
       [el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'website', tabindex: '-1', autocomplete: 'off' }))),
         el('div', { 'class': 'actions' }, [submit])]
     ));
@@ -417,7 +418,7 @@
     app.appendChild(el('h2', { text: 'Which CTTC registered coach are you?' }));
     var list = el('div', { 'class': 'actions' }, [el('p', { text: 'Loading...' })]);
     app.appendChild(list);
-    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number.' }));
+    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number. Privacy: students see you only as your label (such as Coach O) until you accept a lesson. You see a student\'s name when they request; once you accept, you and that student each get the other\'s name, email and mobile number (if the club has them).' }));
     var last = saved('cttc-coach');
     load('coachList', [], function (result) {
       preload('openSlots', []);
