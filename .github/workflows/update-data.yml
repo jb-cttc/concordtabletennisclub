@@ -101,12 +101,18 @@ jobs:
           CTTC_ACCESS_DIR: .cache/access-parallel
           CTTC_FETCH_DELAY_MS: 250
 
+      # Re-checks the coaches on coaching.html against USATT's public directory. A directory
+      # outage leaves the page as it was, so it never blocks publishing.
+      - name: Refresh coach certification status
+        continue-on-error: true
+        run: npm run check:usatt-coaches
+
       - name: Refresh public indexes and verify data
         run: npm run build:roster && npm run build:player-index && npm run build:latest-email && npm run check:data
 
       - name: Commit generated data
         run: |
-          FILES="data/sessions.json data/session-details-*.json data/players.json data/site-status.json data/session-roster.json data/player-index.json data/session-summaries.json data/latest-session-email.json data/parse-report.json .cache/session-raw-cache.json .cache/access-parallel/sessions.json"
+          FILES="data/sessions.json data/session-details-*.json data/players.json data/site-status.json data/session-roster.json data/player-index.json data/session-summaries.json data/latest-session-email.json data/parse-report.json data/coach-certifications.json coaching.html .cache/session-raw-cache.json .cache/access-parallel/sessions.json"
           EXISTING=""
           for f in $FILES; do
             [ -e "$f" ] && EXISTING="$EXISTING $f"
