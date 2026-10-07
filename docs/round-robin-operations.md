@@ -138,17 +138,19 @@ Members and visitors pay a per-session fee ($10 or $15), recorded per date in
 Payment, Open Play and membership changes are kept on the device first and sync
 to the Sheet in the background, so they keep working when the connection
 drops. **Zeffy** is an optional monthly
-play pass. Manual holders in `ZeffyPasses` by player ID remain covered on every
-date; archived players keep their manual pass and appear in the sidebar list.
-To also recognize revenue-document passes, set the private Apps Script Script
-Property `CTTC_REVENUE_DOC_ID` to the Google Doc ID (never put the ID or member
-data in this repository). The first table must have marker, first name, last
-name, and expiry (`M/D/YY` or `M/D/YYYY`) in its first four columns. Only exact
-`M/Zeffy` rows with an unexpired date and one matching player display name
-appear as passes for the selected session date. The expiry is inclusive; the
-document has no start date, so it cannot enforce a purchase start date. Missing
-or ambiguous names require a directory correction. If the configured document
-cannot be read, the desk reports payments unavailable. Covered players show a
+play pass, tracked from Zeffy's payment emails to the club Gmail. At most every
+10 minutes the desk records new purchase, renewal (`(recurring payment)`) and
+cancellation emails in the private `ZeffyPayments` sheet, one row per person
+covered (a renewal covers everyone the buyer first purchased for). Zeffy names
+match a directory player by display name or a private `Aliases` row; unmatched
+buyers still appear in the list. A payment covers sessions until the next
+charge date: the start day in each following month, or that month's last day
+when shorter, inclusive. The sidebar shows `(Nd left)` for active passes, a red
+**(Expired)** for passes that lapsed (or were cancelled) within the past 90
+days, and a superscript count of consecutive monthly payments. A cancellation
+does not end a month already paid. Manual holders in `ZeffyPasses` by player ID
+remain covered on every date unless Zeffy mail mentions them; archived players
+keep their manual pass and appear in the sidebar list. Covered players show a
 locked **Zeffy ✓**. Zeffy is not a membership payment: `MembershipDues` records
 only the membership year.
 

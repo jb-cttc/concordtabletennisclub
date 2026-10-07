@@ -1662,11 +1662,27 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return window.cttcRequest(name);
   }
   function showPasses(result) {
-    heading.textContent = 'Zeffy Players - Monthly Play Pass';
+    var active = result.passes.filter(function (pass) { return pass.active !== false; }).length;
+    heading.textContent = 'Zeffy Players - Monthly Play Pass (' + active + ' active)';
     list.replaceChildren();
     result.passes.forEach(function (pass) {
       var item = document.createElement('li');
       item.textContent = pass.name;
+      if (pass.streak) {
+        var streak = document.createElement('sup');
+        streak.textContent = pass.streak;
+        streak.title = pass.streak + (pass.streak === 1 ? ' month' : ' months in a row');
+        item.appendChild(streak);
+      }
+      var state = document.createElement('span');
+      if (pass.active === false) {
+        state.className = 'zeffy-expired';
+        state.textContent = ' (Expired)';
+      } else if (pass.daysLeft != null) {
+        state.textContent = ' (' + pass.daysLeft + 'd left)';
+        state.title = 'Renews ' + pass.renewsOn;
+      }
+      item.appendChild(state);
       list.appendChild(item);
     });
   }
@@ -1685,6 +1701,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 })();
 </script>
 <style>
+.zeffy-passes .zeffy-expired{color:#c62828;font-weight:700}
 .directory-actions{display:flex;gap:6px;flex-shrink:0}
 .directory-actions [hidden]{display:none}
 .roster-status{font:13px Arial,sans-serif;color:var(--green);font-weight:700;white-space:nowrap}

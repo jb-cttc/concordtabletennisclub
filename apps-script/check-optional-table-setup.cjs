@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 for (const [file, setup, names] of [
-  ['PrivatePayments.js', 'ensurePrivatePaymentTables_', ['ZeffyPasses', 'SessionPayments']],
+  ['PrivatePayments.js', 'ensurePrivatePaymentTables_', ['ZeffyPasses', 'SessionPayments', 'ZeffyPayments']],
   ['MemberStatus.js', 'ensureMemberStatusTable_', ['MemberStatus']],
   ['MembershipDues.js', 'ensureMembershipDuesTable_', ['MembershipDues']],
   ['OpenPlay.js', 'ensureOpenPlayTable_', ['OpenPlay']]

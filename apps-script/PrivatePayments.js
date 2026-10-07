@@ -1,50 +1,9 @@
 var PRIVATE_PAYMENT_TABLES = {
   ZeffyPasses: ['player_id', 'player_name', 'active', 'updated_at'],
-  SessionPayments: ['session_id', 'player_id', 'method', 'updated_at']
+  SessionPayments: ['session_id', 'player_id', 'method', 'updated_at'],
+  ZeffyPayments: ['message_id', 'paid_on', 'kind', 'payer_name', 'payer_email', 'participant_name', 'created_at']
 };
 var PAYMENT_METHODS = ['venmo', 'zelle', 'cash', 'credit', 'zeffy'];
-
-function revenueRows_() {
-  var documentId = PropertiesService.getScriptProperties().getProperty('CTTC_REVENUE_DOC_ID');
-  if (!documentId) return [];
-  var tables = DocumentApp.openById(documentId).getBody().getTables();
-  if (!tables || tables.length !== 1) throw new Error('Revenue document must contain one table');
-  var table = tables[0];
-  var rows = [];
-  for (var index = 0; index < table.getNumRows(); index++) {
-    var row = table.getRow(index);
-    if (row.getNumCells() < 4) throw new Error('Revenue document row must contain four columns');
-    rows.push([row.getCell(0).getText(), row.getCell(1).getText(), row.getCell(2).getText(), row.getCell(3).getText()]);
-  }
-  return rows;
-}
-
-function revenuePassesForDate_(rows, playerRows, sessionDate) {
-  var matches = {};
-  (playerRows || rows_('Players')).forEach(function (player) {
-    var name = normalizeName_(player.display_name).toLowerCase();
-    if (!matches[name]) matches[name] = [];
-    matches[name].push(player);
-  });
-  var passes = {};
-  rows.forEach(function (row) {
-    if (String(row[0]).trim() !== 'M/Zeffy') return;
-    var expiry = String(row[3]).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-    if (!expiry) return;
-    var year = Number(expiry[3]) + (expiry[3].length === 2 ? 2000 : 0);
-    var month = Number(expiry[1]);
-    var day = Number(expiry[2]);
-    var date = new Date(Date.UTC(year, month - 1, day));
-    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return;
-    if (date.toISOString().slice(0, 10) < sessionDate) return;
-    var name = normalizeName_(String(row[1]) + ' ' + String(row[2])).toLowerCase();
-    var players = matches[name] || [];
-    if (players.length !== 1) return;
-    var player = players[0];
-    passes[String(player.player_id)] = { playerId: String(player.player_id), name: String(player.display_name) };
-  });
-  return Object.keys(passes).map(function (id) { return passes[id]; });
-}
 
 function ensurePrivatePaymentTables_() {
   var spreadsheet = SpreadsheetApp.getActive();
@@ -60,27 +19,31 @@ function ensurePrivatePaymentTables_() {
 }
 
 // Zeffy is an optional monthly play pass; holders owe no per-session fee.
+// Zeffy emails decide for anyone they mention; manual ZeffyPasses rows cover everyone else.
 function getZeffyPlayers(playerRows, sessionDate) {
   ensurePrivatePaymentTables_();
+  playerRows = playerRows || rows_('Players');
+  sessionDate = sessionDate || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   var names = {};
-  (playerRows || rows_('Players')).forEach(function (player) { names[String(player.player_id)] = String(player.display_name); });
+  playerRows.forEach(function (player) { names[String(player.player_id)] = String(player.display_name); });
+  syncZeffyPayments_();
+  var passes = zeffyPassesForDate_(zeffyPaymentRows_(), sessionDate, zeffyNameResolver_(playerRows, playerAliases_()));
+  var tracked = {};
+  passes.forEach(function (pass) { if (pass.playerId) tracked[pass.playerId] = true; });
   var seen = {};
-  var passes = rows_('ZeffyPasses').filter(function (pass) { return asBoolean_(pass.active); }).map(function (pass) {
+  rows_('ZeffyPasses').filter(function (pass) { return asBoolean_(pass.active); }).forEach(function (pass) {
     var playerId = String(pass.player_id);
     if (seen[playerId]) throw new Error('Duplicate Zeffy pass for ' + playerId);
     seen[playerId] = true;
     if (!names[playerId]) throw new Error('Zeffy pass for unknown player ' + playerId);
-    return { playerId: playerId, name: names[playerId] };
-  });
-  if (sessionDate) revenuePassesForDate_(revenueRows_(), playerRows || rows_('Players'), sessionDate).forEach(function (pass) {
-    if (!seen[pass.playerId]) passes.push(pass);
+    if (!tracked[playerId]) passes.push({ playerId: playerId, name: names[playerId], active: true, daysLeft: null, streak: 0, renewsOn: '' });
   });
   return passes.sort(function (left, right) { return left.name.localeCompare(right.name); });
 }
 
 function getZeffyCoveredPlayerIds(passes, players) {
   var covered = {};
-  (passes || getZeffyPlayers()).forEach(function (player) { covered[player.playerId] = true; });
+  (passes || getZeffyPlayers()).forEach(function (player) { if (player.active && player.playerId) covered[player.playerId] = true; });
   confirmedNameLinks_(players || listPlayers()).resolved.forEach(function (link) {
     if (covered[link.left.playerId] || covered[link.right.playerId]) {
       covered[link.left.playerId] = true;
