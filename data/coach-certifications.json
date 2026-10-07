@@ -1,0 +1,29 @@
+{
+  "source": "https://coaches.usatt.org/",
+  "coaches": {
+    "Olaf Surmann": {
+      "status": "USATT Certification Pending",
+      "level": null
+    },
+    "Dominic Chan": {
+      "status": "USATT Certification Active",
+      "level": "Coaching Level 1"
+    },
+    "Xin Huang": {
+      "status": "USATT Certification Pending",
+      "level": null
+    },
+    "Fuqun (Bill) Xing": {
+      "status": "USATT Certification Pending",
+      "level": null
+    },
+    "Tom (Xiaoyun) Zeng": {
+      "status": "USATT Certification Pending",
+      "level": null
+    },
+    "Raymond Trinh": {
+      "status": "USATT Certification Pending",
+      "level": null
+    }
+  }
+}

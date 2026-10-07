@@ -1240,3 +1240,14 @@ tr.hof-gold td:nth-child(2) {
   border-color: #999;
   color: var(--text);
 }
+
+/* ---- Coach USATT status (rewritten by scripts/check-usatt-coaches.js) ---- */
+
+.usatt-status[data-usatt="active"] {
+  font-weight: 600;
+}
+
+.usatt-status[data-usatt="pending"] {
+  font-style: italic;
+  opacity: 0.75;
+}
