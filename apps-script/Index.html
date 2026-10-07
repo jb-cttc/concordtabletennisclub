@@ -1654,20 +1654,36 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   section.className = 'section zeffy-passes';
   var heading = document.createElement('h2');
   heading.textContent = 'Zeffy Players - Monthly Play Pass';
-  var list = document.createElement('ul');
-  section.append(heading, list);
+  var table = document.createElement('table');
+  table.className = 'zeffy-table';
+  var head = table.createTHead().insertRow();
+  ['Name', 'Days Left'].forEach(function (label) {
+    var th = document.createElement('th');
+    th.textContent = label;
+    head.appendChild(th);
+  });
+  var list = table.createTBody();
+  section.append(heading, table);
   sidebar.appendChild(section);
   var initialDate = document.getElementById('date').value;
   function request(name) {
     return window.cttcRequest(name);
   }
   function showPasses(result) {
-    heading.textContent = 'Zeffy Players - Monthly Play Pass';
+    var active = result.passes.filter(function (pass) { return pass.active !== false; }).length;
+    heading.textContent = 'Zeffy Players - Monthly Play Pass (' + active + ' active)';
     list.replaceChildren();
     result.passes.forEach(function (pass) {
-      var item = document.createElement('li');
-      item.textContent = pass.name;
-      list.appendChild(item);
+      var row = list.insertRow();
+      row.insertCell().textContent = pass.name;
+      var state = row.insertCell();
+      if (pass.active === false) {
+        state.className = 'zeffy-expired';
+        state.textContent = 'Expired';
+      } else if (pass.daysLeft != null) {
+        state.textContent = pass.daysLeft;
+        state.title = 'Renews ' + pass.renewsOn;
+      }
     });
   }
   document.addEventListener('cttc:payment-overview', function (event) { showPasses(event.detail); });
@@ -1685,6 +1701,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 })();
 </script>
 <style>
+.zeffy-table{width:100%;border-collapse:collapse;font:14px Calibri,Arial,Helvetica,sans-serif}
+.zeffy-table th,.zeffy-table td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+.zeffy-table th{font-weight:700;background:#f4f4f4}
+.zeffy-table th:last-child,.zeffy-table td:last-child{text-align:right;white-space:nowrap}
+.zeffy-table .zeffy-expired{color:#c62828;font-weight:700}
 .directory-actions{display:flex;gap:6px;flex-shrink:0}
 .directory-actions [hidden]{display:none}
 .roster-status{font:13px Arial,sans-serif;color:var(--green);font-weight:700;white-space:nowrap}
