@@ -156,9 +156,12 @@ confirmed Google Sheets save. Round-robin sheets can be previewed and printed
 offline, but club/year record figures show `--/--` when Google cannot supply
 them; the match schedule, names, and ratings remain. The logo may not load
 offline unless the browser has cached it. If a tab is reloaded, reconnect
-first: recovery is offered only if the Sheet session has not changed. If it
-has changed, download the device copy for manual review rather than
-overwriting newer Sheet data. Use a trusted club device, avoid private
+first. A device copy that matches what Google already holds is dropped
+quietly. One made before the Sheet session last changed is never restored by
+itself: the notice compares the two (players and scored matches) and pauses
+Finalize until you choose **Use this device's copy** (it replaces the Sheet's
+version) or **Keep Google's version**; **Download copy** saves it for review
+first. A finalized session is never replaced by a device copy. Use a trusted club device, avoid private
 browsing or clearing site data, and discard device copies when no longer
 needed. Player creation and finalization still require internet. Opening the
 desk from scratch while offline is unsupported.

@@ -148,7 +148,7 @@ function getAppState(sessionDate) {
 function saveSessionDraft(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('Session payload is required.');
   var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
+  try { lock.waitLock(30000); } catch (error) { throw new Error(DESK_BUSY_MESSAGE); }
   try {
     var sessionId = String(payload.sessionId || '');
     var session = requireEditableSession_(sessionId, payload.revision);
@@ -223,80 +223,209 @@ function saveSessionDraft(payload) {
   }
 }
 
+// Finalizing writes three tables, and Google can stop partway (a timeout, a lost connection). The ledger is written
+// first so an interrupted run always leaves rows that show what it did; the session is marked finalized last. A
+// failure is rolled back where Google allows, and the next attempt repairs whatever a run could not roll back.
 function finalizeSession(sessionId, expectedRevision) {
-  var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    var session = requireEditableSession_(String(sessionId), expectedRevision);
-    var sessionDate = displayDate_(session.session_date);
-    var syncedThrough = ratingsSyncedThrough_();
-    if (syncedThrough && sessionDate <= syncedThrough) {
-      throw new Error('The club site already has results through ' + syncedThrough + '. Finalizing ' + sessionDate + ' here would count those matches twice.');
+  sessionId = String(sessionId);
+  return loggedDeskAction_('finalize', sessionId, function () {
+    return withDeskLock_(function () { return finalizeLocked_(sessionId, expectedRevision); });
+  });
+}
+
+function finalizeLocked_(sessionId, expectedRevision) {
+  var session = findRow_('Sessions', 'session_id', sessionId);
+  if (!session) throw new Error('Session not found: ' + sessionId);
+  if (String(session.status) === 'finalized') {
+    // The same finalize again, after its reply was lost on the way back: report what it did.
+    if (Number(session.revision) === Number(expectedRevision) + 1) return getSession(sessionId);
+    throw new Error('This session is already finalized. Reload the page to see it; the lock button reopens it if a correction is needed.');
+  }
+  if (Number(session.revision) !== Number(expectedRevision)) throw new Error(CHANGED_ELSEWHERE_MESSAGE);
+  var sessionDate = displayDate_(session.session_date);
+  var syncedThrough = ratingsSyncedThrough_();
+  if (syncedThrough && sessionDate <= syncedThrough) {
+    throw new Error('The club site already has results through ' + syncedThrough + ', so finalizing ' + sessionDate + ' here would count those matches twice. If the results were entered another way, check the club site; nothing here needs finalizing.');
+  }
+  var sessionPlayers = rows_('SessionPlayers').filter(function (row) { return String(row.session_id) === sessionId; });
+  var matches = rows_('Matches').filter(function (row) { return String(row.session_id) === sessionId; });
+  validateCompleteRoundRobin_(sessionPlayers, matches);
+
+  var players = indexBy_(rows_('Players'), 'player_id');
+  // Ledger rows from an earlier run that did not finish. Each player is either still at rating_before or already
+  // at rating_after; this run starts again from rating_before. Anything else means a rating moved since, and an
+  // automatic repair could double-count, so it stops.
+  var leftovers = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
+  var restored = {};
+  leftovers.forEach(function (row) {
+    var playerId = String(row.player_id);
+    var player = players[playerId];
+    if (!player) throw new Error('Player no longer exists: ' + playerId);
+    var current = Number(player.current_rating);
+    if (current !== Number(row.rating_before) && current !== Number(row.rating_after)) {
+      throw new Error('An earlier finalize of this session did not finish, and the rating of ' + player.display_name + ' has changed since (' + Number(row.rating_before) + ' before, ' + Number(row.rating_after) + ' after, ' + current + ' now). It cannot be repaired automatically: keep the paper sheets and ask the desk maintainer to fix the Players and RatingLedger sheets.');
     }
-    var sessionPlayers = rows_('SessionPlayers').filter(function (row) { return String(row.session_id) === sessionId; });
-    var matches = rows_('Matches').filter(function (row) { return String(row.session_id) === sessionId; });
-    validateCompleteRoundRobin_(sessionPlayers, matches);
+    restored[playerId] = Number(row.rating_before);
+  });
 
-    var players = indexBy_(rows_('Players'), 'player_id');
-    var starts = {};
-    var adjustments = {};
-    sessionPlayers.forEach(function (entry) {
-      var playerId = String(entry.player_id);
-      var player = players[playerId];
-      var startingRating = Number(entry.starting_rating);
-      if (!player) throw new Error('Player no longer exists: ' + playerId);
-      if (Number(player.current_rating) !== startingRating) throw new Error('Rating changed after this session started for ' + player.display_name + '. Save the draft again before finalizing.');
-      starts[playerId] = startingRating;
-      adjustments[playerId] = 0;
-    });
+  var starts = {};
+  var adjustments = {};
+  var startFixes = [];
+  sessionPlayers.forEach(function (entry) {
+    var playerId = String(entry.player_id);
+    var player = players[playerId];
+    if (!player) throw new Error('Player no longer exists: ' + playerId);
+    var startingRating = Number(entry.starting_rating);
+    if (restored[playerId] !== undefined) {
+      // A save after the interrupted run took its new rating as the starting rating; put the real one back.
+      if (startingRating !== restored[playerId]) startFixes.push({ row: entry.__row, from: startingRating, to: restored[playerId] });
+      startingRating = restored[playerId];
+    } else if (Number(player.current_rating) !== startingRating) {
+      throw new Error(player.display_name + '\'s rating is ' + Number(player.current_rating) + ' now but was ' + startingRating + ' when this session was last saved (the club site sync or an edit in the Players sheet can change it). Click Save to Sheets to use the current rating, then finalize again.');
+    }
+    starts[playerId] = startingRating;
+    adjustments[playerId] = 0;
+  });
 
-    matches.forEach(function (match) {
-      var first = String(match.player_one_id);
-      var second = String(match.player_two_id);
-      var by = String(match.forfeited_by || '');
-      if (by === 'both') return;
-      var firstWon = match.player_one_games === '' ? by === second : Number(match.player_one_games) > Number(match.player_two_games);
-      var winner = firstWon ? first : second;
-      var loser = firstWon ? second : first;
-      var points = ratingAdjustment_(starts[winner], starts[loser], asBoolean_(match.forfeit));
-      adjustments[winner] += points;
-      adjustments[loser] -= points;
-    });
+  matches.forEach(function (match) {
+    var first = String(match.player_one_id);
+    var second = String(match.player_two_id);
+    var by = String(match.forfeited_by || '');
+    if (by === 'both') return;
+    var firstWon = match.player_one_games === '' ? by === second : Number(match.player_one_games) > Number(match.player_two_games);
+    var winner = firstWon ? first : second;
+    var loser = firstWon ? second : first;
+    var points = ratingAdjustment_(starts[winner], starts[loser], asBoolean_(match.forfeit));
+    adjustments[winner] += points;
+    adjustments[loser] -= points;
+  });
 
-    var existingEvents = rows_('RatingLedger').some(function (row) { return String(row.session_id) === sessionId; });
-    if (existingEvents) throw new Error('Rating events already exist for this session. Finalization stopped to prevent duplicate updates.');
+  var now = new Date();
+  var ledger = Object.keys(adjustments).map(function (playerId) {
+    var before = starts[playerId];
+    var after = projectedRating_(before, adjustments[playerId]);
+    return {
+      event_id: sessionId + ':' + playerId,
+      session_id: sessionId,
+      player_id: playerId,
+      rating_before: before,
+      adjustment: after - before,
+      rating_after: after,
+      rule_version: RATING_RULE_VERSION,
+      created_at: now
+    };
+  });
+  // Rating writes, each with the value to restore on a rollback. A player left out of the session after an
+  // interrupted run goes back to their rating before it.
+  var ratingWrites = ledger.map(function (row) { return { playerId: row.player_id, to: row.rating_after }; });
+  Object.keys(restored).forEach(function (playerId) {
+    if (adjustments[playerId] === undefined) ratingWrites.push({ playerId: playerId, to: restored[playerId] });
+  });
+  ratingWrites = ratingWrites.filter(function (write) {
+    var player = players[write.playerId];
+    write.row = player.__row;
+    write.from = player.current_rating;
+    write.fromUpdatedAt = player.updated_at;
+    return Number(write.from) !== write.to;
+  });
 
-    var now = new Date();
-    var ledger = [];
-    Object.keys(adjustments).forEach(function (playerId) {
-      var before = starts[playerId];
-      var after = projectedRating_(before, adjustments[playerId]);
-      var effectiveAdjustment = after - before;
-      updateRow_('Players', players[playerId].__row, { current_rating: after, updated_at: now });
-      ledger.push({
-        event_id: sessionId + ':' + playerId,
-        session_id: sessionId,
-        player_id: playerId,
-        rating_before: before,
-        adjustment: effectiveAdjustment,
-        rating_after: after,
-        rule_version: RATING_RULE_VERSION,
-        created_at: now
-      });
+  safeAudit_('finalize_started', 'session', sessionId, { revision: Number(session.revision), players: ledger.length, repairing: leftovers.length });
+  var step = 'rating ledger';
+  var attempted = { ledger: false, starts: [], ratings: [], session: false };
+  try {
+    attempted.ledger = true;
+    if (leftovers.length) replaceSessionRows_('RatingLedger', sessionId, ledger);
+    else appendObjects_('RatingLedger', ledger);
+    step = 'starting ratings';
+    startFixes.forEach(function (fix) {
+      attempted.starts.push(fix);
+      updateRow_('SessionPlayers', fix.row, { starting_rating: fix.to });
     });
-    appendObjects_('RatingLedger', ledger);
-    updateRow_('Sessions', session.__row, {
-      status: 'finalized',
-      revision: Number(session.revision) + 1,
-      updated_at: now,
-      finalized_at: now
+    step = 'player ratings';
+    ratingWrites.forEach(function (write) {
+      attempted.ratings.push(write);
+      updateRow_('Players', write.row, { current_rating: write.to, updated_at: now });
     });
-    appendAudit_('session_finalized', 'session', sessionId, { revision: Number(session.revision) + 1, ratingEvents: ledger.length });
-    try { schedulePublish_(sessionId, sessionDate); } catch (error) { /* finalizing already succeeded; the workflow's scheduled run still publishes it */ }
-    return getSession(sessionId);
+    flushSheets_();
+    step = 'session status';
+    attempted.session = true;
+    writeSessionRow_(session, { status: 'finalized', revision: Number(session.revision) + 1, updated_at: now, finalized_at: now });
+    flushSheets_();
+  } catch (error) {
+    throw rollBackFinalize_(error, step, attempted, session, sessionId, leftovers);
+  }
+  safeAudit_('session_finalized', 'session', sessionId, { revision: Number(session.revision) + 1, ratingEvents: ledger.length, repaired: leftovers.length });
+  try { schedulePublish_(sessionId, sessionDate); } catch (error) { /* finalizing already succeeded; the workflow's scheduled run still publishes it */ }
+  return getSession(sessionId);
+}
+
+// Puts back everything a failed finalize attempted, newest first, and returns the error to show. If Google refuses
+// the rollback too, the ledger rows stay behind and the next finalize repairs from them.
+function rollBackFinalize_(error, step, attempted, session, sessionId, leftovers) {
+  var rollbackError = '';
+  try {
+    if (attempted.session) writeSessionRow_(session, {});
+    attempted.ratings.slice().reverse().forEach(function (write) {
+      updateRow_('Players', write.row, { current_rating: write.from, updated_at: write.fromUpdatedAt });
+    });
+    attempted.starts.forEach(function (fix) { updateRow_('SessionPlayers', fix.row, { starting_rating: fix.from }); });
+    if (attempted.ledger) replaceSessionRows_('RatingLedger', sessionId, leftovers);
+    flushSheets_();
+  } catch (undoError) {
+    rollbackError = undoError && undoError.message || String(undoError);
+  }
+  var reason = error && error.message || String(error);
+  var wrapped = new Error(rollbackError
+    ? 'Google Sheets stopped partway through finalizing (' + reason + '), and some changes could not be undone. Keep the paper sheets and click Finalize RR Results again: the next attempt repairs this one.'
+    : 'Google Sheets stopped partway through finalizing (' + reason + '). Nothing was changed and the session is still open. Click Finalize RR Results to try again.');
+  wrapped.details = { step: step, error: reason, rolledBack: !rollbackError, rollbackError: rollbackError };
+  return wrapped;
+}
+
+// The whole Sessions row in one write, so the status and revision can never be half updated.
+function writeSessionRow_(session, changes) {
+  var headers = TABLES.Sessions;
+  var values = headers.map(function (header) { return changes[header] !== undefined ? changes[header] : session[header]; });
+  SpreadsheetApp.getActive().getSheetByName('Sessions').getRange(session.__row, 1, 1, headers.length).setValues([values]);
+}
+
+// Google batches sheet writes; flushing inside a try block makes a failed write fail there.
+function flushSheets_() {
+  SpreadsheetApp.flush();
+}
+
+var DESK_BUSY_MESSAGE = 'The desk is still finishing another change (from this or another device). Wait a few seconds, then try again.';
+var CHANGED_ELSEWHERE_MESSAGE = 'This session was changed on another device or tab after this page loaded it. Reload the page, check the scores, and try again.';
+
+function withDeskLock_(work) {
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(30000); } catch (error) { throw new Error(DESK_BUSY_MESSAGE); }
+  try {
+    return work();
   } finally {
     lock.releaseLock();
   }
+}
+
+// Runs a desk action and, if it fails, records why in the AuditLog sheet. The error shown to the desk ends with a
+// reference: the start of that row's event_id, so the exact cause can be found later.
+function loggedDeskAction_(action, sessionId, work) {
+  try {
+    return work();
+  } catch (error) {
+    var message = error && error.message || String(error);
+    var eventId = safeAudit_(action + '_failed', 'session', sessionId, Object.assign({ message: message }, error && error.details || {}));
+    throw new Error(message + (eventId ? ' (Reference ' + referenceCode_(eventId) + ')' : ''));
+  }
+}
+
+// Logging must never turn a success into a failure, or hide the original error.
+function safeAudit_(action, entityType, entityId, details) {
+  try { return appendAudit_(action, entityType, entityId, details) || ''; } catch (error) { return ''; }
+}
+
+function referenceCode_(eventId) {
+  return String(eventId || '').replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
 var PUBLIC_SESSIONS_URL = 'https://concordtabletennisclub.com/data/sessions.json';
@@ -308,47 +437,68 @@ function sessionOnSite_(sessionDate) {
   return JSON.parse(response.getContentText()).some(function (entry) { return String(entry.date) === sessionDate; });
 }
 
-// Reopens the most recent finalized session: restores each player's rating from the ledger, removes the
-// ledger rows, and makes the session editable again. It must be finalized again after the correction.
+// Reopens the most recent finalized session: restores each player's rating from the ledger, makes the session
+// editable again, and removes the ledger rows. It must be finalized again after the correction. If Google stops
+// partway, clicking the lock again finishes the job: a player already back at rating_before is left as is, and an
+// open session with ledger rows left behind is repaired by the next finalize.
 function reopenSession(sessionId, expectedRevision) {
-  var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    sessionId = String(sessionId);
-    var session = findRow_('Sessions', 'session_id', sessionId);
-    if (!session) throw new Error('Session not found: ' + sessionId);
-    if (String(session.status) !== 'finalized') throw new Error('Only a finalized session can be reopened.');
-    if (Number(session.revision) !== Number(expectedRevision)) throw new Error('This session changed on another device. Reload before reopening.');
-    var sessionDate = displayDate_(session.session_date);
-    var later = rows_('Sessions').filter(function (row) { return String(row.status) === 'finalized' && displayDate_(row.session_date) > sessionDate; });
-    if (later.length) throw new Error('The ' + displayDate_(later[0].session_date) + ' session is already finalized. Reopen the most recent session first.');
-    if (sessionOnSite_(sessionDate)) throw new Error('The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.');
+  sessionId = String(sessionId);
+  return loggedDeskAction_('reopen', sessionId, function () {
+    return withDeskLock_(function () { return reopenLocked_(sessionId, expectedRevision); });
+  });
+}
 
-    var ledger = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
-    var players = indexBy_(rows_('Players'), 'player_id');
+function reopenLocked_(sessionId, expectedRevision) {
+  var session = findRow_('Sessions', 'session_id', sessionId);
+  if (!session) throw new Error('Session not found: ' + sessionId);
+  if (String(session.status) !== 'finalized') {
+    // The same reopen again, after its reply was lost on the way back: report what it did.
+    if (Number(session.revision) === Number(expectedRevision) + 1) return getSession(sessionId);
+    throw new Error('Only a finalized session can be reopened. Reload the page to see its current state.');
+  }
+  if (Number(session.revision) !== Number(expectedRevision)) throw new Error(CHANGED_ELSEWHERE_MESSAGE);
+  var sessionDate = displayDate_(session.session_date);
+  var later = rows_('Sessions').filter(function (row) { return String(row.status) === 'finalized' && displayDate_(row.session_date) > sessionDate; });
+  if (later.length) throw new Error('The ' + displayDate_(later[0].session_date) + ' session is already finalized. Reopen the most recent session first.');
+  if (sessionOnSite_(sessionDate)) throw new Error('The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.');
+
+  var ledger = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
+  var players = indexBy_(rows_('Players'), 'player_id');
+  ledger.forEach(function (row) {
+    var player = players[String(row.player_id)];
+    if (!player) throw new Error('Player no longer exists: ' + row.player_id);
+    var current = Number(player.current_rating);
+    if (current !== Number(row.rating_after) && current !== Number(row.rating_before)) {
+      throw new Error('The rating of ' + player.display_name + ' changed after this session was finalized (' + Number(row.rating_after) + ' then, ' + current + ' now), so it cannot be reversed safely. Ask the desk maintainer to check the Players sheet.');
+    }
+  });
+
+  var now = new Date();
+  try { cancelPublish_(sessionId); } catch (error) { /* nothing else publishes a session that is open */ }
+  var step = 'player ratings';
+  try {
     ledger.forEach(function (row) {
       var player = players[String(row.player_id)];
-      if (!player) throw new Error('Player no longer exists: ' + row.player_id);
-      if (Number(player.current_rating) !== Number(row.rating_after)) {
-        throw new Error('The rating of ' + player.display_name + ' changed after this session was finalized, so it cannot be reversed safely.');
-      }
+      if (Number(player.current_rating) !== Number(row.rating_before)) updateRow_('Players', player.__row, { current_rating: Number(row.rating_before), updated_at: now });
     });
-
-    var now = new Date();
-    ledger.forEach(function (row) {
-      updateRow_('Players', players[String(row.player_id)].__row, { current_rating: Number(row.rating_before), updated_at: now });
-    });
+    flushSheets_();
+    step = 'session status';
+    writeSessionRow_(session, { status: 'active', revision: Number(session.revision) + 1, updated_at: now, finalized_at: '' });
+    flushSheets_();
+    step = 'rating ledger';
     replaceSessionRows_('RatingLedger', sessionId, []);
-    updateRow_('Sessions', session.__row, { status: 'active', revision: Number(session.revision) + 1, updated_at: now, finalized_at: '' });
-    appendAudit_('session_reopened', 'session', sessionId, {
-      revision: Number(session.revision) + 1,
-      reversed: ledger.map(function (row) { return [String(row.player_id), Number(row.rating_after), Number(row.rating_before)]; })
-    });
-    try { cancelPublish_(sessionId); } catch (error) { /* nothing else publishes a session that is open */ }
-    return getSession(sessionId);
-  } finally {
-    lock.releaseLock();
+    flushSheets_();
+  } catch (error) {
+    var reason = error && error.message || String(error);
+    var wrapped = new Error('Google Sheets stopped partway through reopening (' + reason + '). Reload the page; if the session still shows the lock, click it again to finish reopening.');
+    wrapped.details = { step: step, error: reason };
+    throw wrapped;
   }
+  safeAudit_('session_reopened', 'session', sessionId, {
+    revision: Number(session.revision) + 1,
+    reversed: ledger.map(function (row) { return [String(row.player_id), Number(row.rating_after), Number(row.rating_before)]; })
+  });
+  return getSession(sessionId);
 }
 
 function validateCompleteRoundRobin_(sessionPlayers, matches) {
@@ -405,8 +555,8 @@ function ensureMatchesColumns_() {
 function requireEditableSession_(sessionId, expectedRevision) {
   var session = findRow_('Sessions', 'session_id', sessionId);
   if (!session) throw new Error('Session not found: ' + sessionId);
-  if (String(session.status) === 'finalized') throw new Error('Finalized sessions are read-only.');
-  if (Number(session.revision) !== Number(expectedRevision)) throw new Error('This session changed on another device. Reload before saving.');
+  if (String(session.status) === 'finalized') throw new Error('This session is already finalized, so it cannot be changed. Reload the page to see it; the lock button reopens it if a correction is needed.');
+  if (Number(session.revision) !== Number(expectedRevision)) throw new Error(CHANGED_ELSEWHERE_MESSAGE);
   return session;
 }
 

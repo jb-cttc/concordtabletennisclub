@@ -43,7 +43,8 @@ within minutes. Consequences:
 - A finalized session can be reopened from the lock button (see
   [Finalizing and reopening](#finalizing-and-reopening)).
 - Saving a draft refreshes every starting rating to the current rating, and
-  finalizing is refused if a rating changed after the last save.
+  finalizing is refused if a rating changed after the last save (the message
+  names the player and both ratings).
 - Once the desk has finalized a session newer than the site's latest, the
   sync stops overwriting ratings; the desk is then the authority.
 
@@ -239,6 +240,37 @@ correction. Reopening is refused when
 - a player's rating changed after the session was finalized.
 
 The audit log records each reopen with the ratings it reversed.
+
+### When finalizing or reopening fails
+
+The button is disabled and the status bar counts the seconds while Google
+works, so a slow reply is not a reason to click again. Finalizing writes the
+rating ledger first, then the player ratings, and marks the session finalized
+last, in one write. If Google stops partway, the desk undoes what it wrote and
+says *Nothing was changed*; click **Finalize RR Results** again. If Google
+also refuses the undo, the ledger rows stay behind, and the next finalize
+repairs that run: each player still at the ledger's `rating_before` or already
+at its `rating_after` is put back to `rating_before` (and so is the session's
+starting rating), so no rating change is applied twice. It refuses, and names
+the player, only when a rating has moved to some third value since. A reopen
+that stops partway is finished by clicking the lock again.
+
+After an error the page asks Google what actually happened: if the session did
+finalize (or reopen) and only the reply was lost, it says so instead of
+showing an error, and a repeated request with the same revision returns the
+result rather than failing.
+
+**Finding the cause later.** Every failed finalize or reopen, including
+refusals, adds a `finalize_failed` or `reopen_failed` row to the `AuditLog`
+sheet with the message, the step that failed, and whether the undo worked, and
+the error on the desk ends with *(Reference XXXXXXXX)*: the first eight
+characters of that row's `event_id`. Search the sheet for it. Each finalize
+also logs `finalize_started` (with `repairing`, the number of leftover ledger
+rows) before writing. Problems the page sees itself (a save Google did not
+confirm, a device copy it could not restore, a finalize or reopen whose cause
+it could not confirm, a save conflict) are logged as `desk_problem` rows with
+the time, session revision, connection state, and browser. Reports made
+offline wait on the device and go with the next one.
 
 ## Live publication cutover (go-live checklist)
 
