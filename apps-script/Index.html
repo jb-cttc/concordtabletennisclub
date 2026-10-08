@@ -955,7 +955,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       else setStatus(state.session ? 'Session loaded. Changes are stored in Google Sheets.' : 'No session exists for this date. Add players to begin.');
       refreshPublish();
       sendDeskLog();
-      if (data.interruptedFinalize && !locked()) setStatus('An earlier Finalize of this session did not finish. Check the scores, then click Finalize RR Results: it repairs the earlier attempt, so no rating change counts twice.' + (pendingRecovery ? ' First choose which copy to keep in the notice above.' : ''), 'error');
+      if (data.interruptedFinalize && !locked()) setStatus('An earlier finalize or reopen of this session did not finish. Check the scores, then click Finalize RR Results: it repairs the earlier attempt, so no rating change counts twice.' + (pendingRecovery ? ' First choose which copy to keep in the notice above.' : ''), 'error');
       document.dispatchEvent(new CustomEvent('cttc:session-loaded', { detail: { date: sessionDate, ready: !!state.session } }));
     } catch (error) {
       if (loadedDate && sessionDate !== loadedDate) date.value = loadedDate;

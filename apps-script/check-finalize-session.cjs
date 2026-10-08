@@ -199,23 +199,34 @@ assert.equal(context.finalizeSession(SESSION, 4).status, 'finalized');
 reset();
 tables.Matches.pop();
 assert.throws(() => context.finalizeSession(SESSION, 4), error => /Missing 1 round-robin match/.test(error.message) && !/Reference/.test(error.message));
-// replaceSessionRows_ writes before it clears, so a failure between the two never leaves an empty table.
-const sheetLog = [];
+// replaceSessionRows_ is one write: rows that moved up never stay twice, and a failure leaves the table as it was.
 const sheet = {
-  rows: [['old-1', 's1'], ['old-2', 's2'], ['old-3', 's3']],
-  getMaxRows: () => 4,
+  rows: [['x-1', 'other'], ['s-1', 's'], ['s-2', 's'], ['x-2', 'other']],
+  writes: 0,
+  failNext: false,
+  getLastRow: () => sheet.rows.filter(row => row.some(cell => cell !== '')).length + 1,
   getRange: (row, column, count) => ({
-    setValues: values => { sheetLog.push('write ' + row + '+' + count); values.forEach((value, index) => { sheet.rows[row - 2 + index] = value; }); },
-    clearContent: () => { sheetLog.push('clear ' + row + '+' + count); throw new Error('Service Spreadsheets timed out'); }
+    setValues: values => {
+      if (sheet.failNext) { sheet.failNext = false; throw new Error('Service Spreadsheets timed out'); }
+      sheet.writes += 1;
+      assert.equal(values.length, count);
+      values.forEach((value, index) => { sheet.rows[row - 2 + index] = value; });
+    },
+    clearContent: () => { throw new Error('a rewrite never clears separately'); }
   })
 };
 const tableContext = { TABLES: { T: ['event_id', 'session_id'] }, SpreadsheetApp: { getActive: () => ({ getSheetByName: () => sheet }) } };
 vm.createContext(tableContext);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'SessionService.js'), 'utf8'), tableContext);
-tableContext.rows_ = () => sheet.rows.map(([event_id, session_id], index) => ({ event_id, session_id, __row: index + 2 }));
-assert.throws(() => tableContext.replaceSessionRows_('T', 's3', []), /timed out/);
-assert.deepEqual(sheetLog, ['write 2+2', 'clear 4+1']);
-assert.deepEqual(sheet.rows.slice(0, 2), [['old-1', 's1'], ['old-2', 's2']], 'every other row survives a failed clear');
+tableContext.rows_ = () => sheet.rows.map(([event_id, session_id], index) => ({ event_id, session_id, __row: index + 2 })).filter(row => row.event_id !== '');
+sheet.failNext = true;
+assert.throws(() => tableContext.replaceSessionRows_('T', 's', [{ event_id: 's-1', session_id: 's' }]), /timed out/);
+assert.deepEqual(sheet.rows.map(row => row[0]), ['x-1', 's-1', 's-2', 'x-2'], 'a failed rewrite changes nothing');
+tableContext.replaceSessionRows_('T', 's', [{ event_id: 's-1', session_id: 's' }]);
+assert.equal(sheet.writes, 1, 'one write');
+assert.deepEqual(sheet.rows.map(row => row[0]), ['x-1', 'x-2', 's-1', ''], 'the table shrinks with no row left twice');
+tableContext.replaceSessionRows_('T', 's', []);
+assert.deepEqual(sheet.rows.map(row => row[0]), ['x-1', 'x-2', '', '']);
 // On load, ledger rows for an open session mean a finalize stopped partway; the desk is told.
 reset();
 context.listPlayers = () => [];

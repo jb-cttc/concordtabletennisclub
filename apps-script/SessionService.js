@@ -148,7 +148,7 @@ function getAppState(sessionDate) {
     session: session,
     ratingsSyncedThrough: ratingsSyncedThrough_(),
     ratingsCheckedAt: ratingsCheckedAt_(),
-    // Ledger rows for a session that is not finalized: a finalize stopped partway. The desk says so on load.
+    // Ledger rows for a session that is not finalized: a finalize or reopen stopped partway. The desk says so on load.
     interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; })
   };
 }
@@ -665,11 +665,11 @@ function replaceSessionRows_(sheetName, sessionId, replacements) {
   var combined = kept.concat(replacements).map(function (object) {
     return headers.map(function (header) { return object[header] === undefined ? '' : object[header]; });
   });
-  // Write first, then clear the rows left below: if Google stops between the two, the table still holds every row
-  // (at worst a few stale ones at the end), never a cleared table.
+  // One write that also blanks the rows the table no longer needs: if Google stops, the table is either as before
+  // or as intended, never cleared and never holding a moved row twice.
+  var oldCount = Math.max(0, sheet.getLastRow() - 1);
+  while (combined.length < oldCount) combined.push(headers.map(function () { return ''; }));
   if (combined.length) sheet.getRange(2, 1, combined.length, headers.length).setValues(combined);
-  var extra = sheet.getMaxRows() - 1 - combined.length;
-  if (extra > 0) sheet.getRange(combined.length + 2, 1, extra, headers.length).clearContent();
 }
 
 function normalizeName_(value) {
