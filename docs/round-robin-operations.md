@@ -252,8 +252,14 @@ also refuses the undo, the ledger rows stay behind, and the next finalize
 repairs that run: each player still at the ledger's `rating_before` or already
 at its `rating_after` is put back to `rating_before` (and so is the session's
 starting rating), so no rating change is applied twice. It refuses, and names
-the player, only when a rating has moved to some third value since. A reopen
-that stops partway is finished by clicking the lock again.
+the player, only when a rating has moved to some third value since. Loading a
+session that has such leftover rows shows a warning saying so. If the session
+row itself may already read *finalized* when Google stops, the desk leaves the
+ratings and ledger in place (a finalized session stays consistent) and asks
+you to reload to see which it is. A reopen that stops before the session is
+open puts the ratings back; one that stops later is finished by clicking the
+lock again. Table rewrites (`replaceSessionRows_`) write the new rows before
+clearing the old tail, so an interrupted rewrite never leaves a table empty.
 
 After an error the page asks Google what actually happened: if the session did
 finalize (or reopen) and only the reply was lost, it says so instead of

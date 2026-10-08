@@ -158,7 +158,8 @@ them; the match schedule, names, and ratings remain. The logo may not load
 offline unless the browser has cached it. If a tab is reloaded, reconnect
 first. A device copy that matches what Google already holds is dropped
 quietly. One made before the Sheet session last changed is never restored by
-itself: the notice compares the two (players and scored matches) and pauses
+itself: the notice compares the two (players, scored matches, and how many
+results, group placements or promotions differ) and pauses
 Finalize until you choose **Use this device's copy** (it replaces the Sheet's
 version) or **Keep Google's version**; **Download copy** saves it for review
 first. A finalized session is never replaced by a device copy. Use a trusted club device, avoid private

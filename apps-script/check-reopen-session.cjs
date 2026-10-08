@@ -37,7 +37,7 @@ vm.runInContext(fs.readFileSync(__dirname + '/SessionService.js', 'utf8'), conte
 Object.assign(context, {
   rows_: name => tables[name].map((row, index) => ({ ...row, __row: index + 2 })),
   updateRow_: (name, rowNumber, changes) => { writes.push([name, rowNumber, changes]); Object.assign(tables[name][rowNumber - 2], changes); },
-  replaceSessionRows_: (name, sessionId, rows) => { tables[name] = tables[name].filter(row => row.session_id !== sessionId).concat(rows); writes.push(['replace', name, sessionId]); },
+  replaceSessionRows_: (name, sessionId, rows) => { if (failOn === 'ledger') throw new Error('Service Spreadsheets timed out'); tables[name] = tables[name].filter(row => row.session_id !== sessionId).concat(rows); writes.push(['replace', name, sessionId]); },
   writeSessionRow_: (session, changes) => { if (failOn === 'session') throw new Error('Service Spreadsheets timed out'); writes.push(['Sessions', session.__row, changes]); Object.assign(tables.Sessions[session.__row - 2], changes); },
   flushSheets_: () => {},
   displayDate_: value => String(value),
@@ -88,18 +88,32 @@ reset();
 tables.Players[0].current_rating = 1433;
 refuses(/changed after this session was finalized \(1420 then, 1433 now\)/);
 
-// Google stops partway: the error says to click again, and the second click finishes the job.
+// Google stops before the session is open: the still-finalized session gets its ratings back, and publishing is
+// left alone.
 reset();
 failOn = 'session';
-assert.throws(() => context.reopenSession('session-2026-10-05', 7), /stopped partway through reopening \(Service Spreadsheets timed out\).*click it again/);
+assert.throws(() => context.reopenSession('session-2026-10-05', 7), /stopped while reopening \(Service Spreadsheets timed out\), so the ratings were put back/);
 const failure = writes.find(entry => entry[0] === 'audit' && entry[1] === 'reopen_failed');
-assert.equal(failure[4].step, 'session status');
-assert.deepEqual([rating('a'), rating('b'), tables.Sessions[0].status], [1400, 1310, 'finalized'], 'ratings were restored before Google stopped');
+assert.deepEqual([failure[4].step, failure[4].ratingsPutBack], ['session status', true]);
+assert.deepEqual([rating('a'), rating('b'), tables.Sessions[0].status], [1420, 1290, 'finalized']);
+assert.equal(writes.some(entry => entry[0] === 'cancelPublish'), false, 'a session that stays finalized keeps its publish countdown');
 failOn = '';
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active');
+
+// A reopen that stopped after some ratings were restored (the rollback failed too) is finished by the next click.
+reset();
+tables.Players[0].current_rating = 1400;
 writes.length = 0;
 assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active', 'a player already back at rating_before is accepted');
-assert.equal(writes.filter(entry => entry[0] === 'Players').length, 0, 'ratings already restored are not written again');
-assert.deepEqual(tables.RatingLedger.map(row => row.event_id), ['o:a']);
+assert.deepEqual(writes.filter(entry => entry[0] === 'Players').map(entry => entry[1]), [3], 'only the rating not yet restored is written');
+assert.deepEqual([rating('a'), rating('b')], [1400, 1310]);
+
+// The session is open but the ledger rows could not be removed: still a successful reopen; finalize repairs later.
+reset();
+failOn = 'ledger';
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active');
+assert.ok(writes.some(entry => entry[0] === 'audit' && entry[1] === 'reopen_ledger_cleanup_failed'));
+assert.ok(writes.some(entry => entry[0] === 'audit' && entry[1] === 'session_reopened'));
 assert.throws(() => context.reopenSession('missing', 1), /Session not found/);
 
 console.log('Session reopen checks passed');

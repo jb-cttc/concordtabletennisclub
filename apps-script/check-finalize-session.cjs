@@ -127,12 +127,30 @@ fail = once(name => name === 'Sessions');
 assert.throws(() => context.finalizeSession(SESSION, 4), /Nothing was changed/);
 assert.deepEqual([ratings(), ledger().length, tables.Sessions[0].status], [{ a: 1500, b: 1400, c: 1300, d: 1200 }, 0, 'active']);
 
+// The Sessions row keeps refusing writes: Google confirms it is still open, so the rest is still undone.
+reset();
+fail = name => name === 'Sessions';
+assert.throws(() => context.finalizeSession(SESSION, 4), /Nothing was changed/);
+assert.deepEqual([ratings(), ledger().length, tables.Sessions[0].status], [{ a: 1500, b: 1400, c: 1300, d: 1200 }, 0, 'active']);
+
+// The Sessions write went through but its reply failed, and the row cannot be put back: the finalized session keeps
+// its ratings and ledger, so it stays consistent and publishable.
+reset();
+let flushes = 0;
+context.flushSheets_ = () => { if (tables.Sessions[0].status === 'finalized' && !flushes++) throw new Error('Service Spreadsheets timed out'); };
+fail = (name, row, changes) => name === 'Sessions' && !Object.keys(changes).length;
+assert.throws(() => context.finalizeSession(SESSION, 4), /stopped at the last step of finalizing.*if the session shows the lock, it is finalized/);
+assert.match(audits('finalize_failed')[0][4].rollbackError, /kept the ratings and ledger because the session may already be finalized/);
+assert.deepEqual([ratings(), ledger().length, tables.Sessions[0].status], [FINAL, 3, 'finalized']);
+assert.ok(publishable());
+context.flushSheets_ = () => {};
+
 // Google goes down mid-run and the rollback fails too. The ledger rows stay behind, so the next attempt repairs
 // the run instead of applying the ratings twice, even after a save copied the half-applied ratings as starting ones.
 reset();
 fail = (name, row) => name === 'Players' && row === 4;
 fail.takesGoogleDown = true;
-assert.throws(() => context.finalizeSession(SESSION, 4), /some changes could not be undone\. Keep the paper sheets and click Finalize RR Results again: the next attempt repairs this one\./);
+assert.throws(() => context.finalizeSession(SESSION, 4), /some changes could not be undone\. Keep the paper sheets, reload the page, and click Finalize RR Results again: the next attempt repairs this one\./);
 logged = audits('finalize_failed')[0][4];
 assert.equal(logged.rolledBack, false);
 assert.match(logged.rollbackError, /timed out/);
@@ -181,6 +199,33 @@ assert.equal(context.finalizeSession(SESSION, 4).status, 'finalized');
 reset();
 tables.Matches.pop();
 assert.throws(() => context.finalizeSession(SESSION, 4), error => /Missing 1 round-robin match/.test(error.message) && !/Reference/.test(error.message));
+// replaceSessionRows_ writes before it clears, so a failure between the two never leaves an empty table.
+const sheetLog = [];
+const sheet = {
+  rows: [['old-1', 's1'], ['old-2', 's2'], ['old-3', 's3']],
+  getMaxRows: () => 4,
+  getRange: (row, column, count) => ({
+    setValues: values => { sheetLog.push('write ' + row + '+' + count); values.forEach((value, index) => { sheet.rows[row - 2 + index] = value; }); },
+    clearContent: () => { sheetLog.push('clear ' + row + '+' + count); throw new Error('Service Spreadsheets timed out'); }
+  })
+};
+const tableContext = { TABLES: { T: ['event_id', 'session_id'] }, SpreadsheetApp: { getActive: () => ({ getSheetByName: () => sheet }) } };
+vm.createContext(tableContext);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'SessionService.js'), 'utf8'), tableContext);
+tableContext.rows_ = () => sheet.rows.map(([event_id, session_id], index) => ({ event_id, session_id, __row: index + 2 }));
+assert.throws(() => tableContext.replaceSessionRows_('T', 's3', []), /timed out/);
+assert.deepEqual(sheetLog, ['write 2+2', 'clear 4+1']);
+assert.deepEqual(sheet.rows.slice(0, 2), [['old-1', 's1'], ['old-2', 's2']], 'every other row survives a failed clear');
+// On load, ledger rows for an open session mean a finalize stopped partway; the desk is told.
+reset();
+context.listPlayers = () => [];
+context.ratingsCheckedAt_ = () => '';
+context.getSessionByDate = () => ({ sessionId: SESSION, status: tables.Sessions[0].status });
+assert.equal(context.getAppState('2026-10-07').interruptedFinalize, false);
+tables.RatingLedger.push({ event_id: SESSION + ':a', session_id: SESSION, player_id: 'a', rating_before: 1500, adjustment: 5, rating_after: 1505 });
+assert.equal(context.getAppState('2026-10-07').interruptedFinalize, true);
+tables.Sessions[0].status = 'finalized';
+assert.equal(context.getAppState('2026-10-07').interruptedFinalize, false, 'a finalized session is expected to have ledger rows');
 console.log('Finalize session checks passed');
 
 // Page: the button cannot start a second finalize, and after an error the page asks Google what really happened.
@@ -238,6 +283,13 @@ async function checkPage() {
   assert.match(page.status, /Session finalized\. Google Sheets confirmed it after a slow reply/);
   assert.equal(page.state.session.status, 'finalized');
   assert.deepEqual(page.reports, []);
+
+  // Google shows the session finalized, but not from this page's revision (another device won the race).
+  page.state.session = { sessionId: SESSION, status: 'active', revision: 4 };
+  await run(() => Promise.reject(new Error('This session was changed on another device or tab after this page loaded it.')), async () => ({ session: { sessionId: SESSION, status: 'finalized', revision: 9 } }));
+  await page.finalize();
+  assert.match(page.status, /finalized from another device or tab, not from this page\. Reload/);
+  assert.equal(page.state.session.revision, 4, 'the page does not pretend it finalized its own version');
 
   // A server refusal already carries its AuditLog reference: shown as is and not reported twice.
   page.state.session = { sessionId: SESSION, status: 'active', revision: 4 };

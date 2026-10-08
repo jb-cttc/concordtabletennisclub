@@ -142,7 +142,15 @@ function getSessionByDate(sessionDate) {
 }
 
 function getAppState(sessionDate) {
-  return { players: listPlayers(), session: getSessionByDate(sessionDate), ratingsSyncedThrough: ratingsSyncedThrough_(), ratingsCheckedAt: ratingsCheckedAt_() };
+  var session = getSessionByDate(sessionDate);
+  return {
+    players: listPlayers(),
+    session: session,
+    ratingsSyncedThrough: ratingsSyncedThrough_(),
+    ratingsCheckedAt: ratingsCheckedAt_(),
+    // Ledger rows for a session that is not finalized: a finalize stopped partway. The desk says so on load.
+    interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; })
+  };
 }
 
 function saveSessionDraft(payload) {
@@ -359,27 +367,57 @@ function finalizeLocked_(sessionId, expectedRevision) {
   return getSession(sessionId);
 }
 
-// Puts back everything a failed finalize attempted, newest first, and returns the error to show. If Google refuses
-// the rollback too, the ledger rows stay behind and the next finalize repairs from them.
+// Puts back everything a failed finalize attempted and returns the error to show. Each step is tried on its own,
+// but the ledger rows are removed only once every rating is back: rows left behind are what lets the next finalize
+// repair a run instead of applying it twice.
 function rollBackFinalize_(error, step, attempted, session, sessionId, leftovers) {
-  var rollbackError = '';
-  try {
-    if (attempted.session) writeSessionRow_(session, {});
-    attempted.ratings.slice().reverse().forEach(function (write) {
-      updateRow_('Players', write.row, { current_rating: write.from, updated_at: write.fromUpdatedAt });
+  var problems = [];
+  function undo(label, work) {
+    try {
+      work();
+      flushSheets_();
+    } catch (undoError) {
+      problems.push(label + ': ' + (undoError && undoError.message || String(undoError)));
+    }
+  }
+  if (attempted.session) undo('session status', function () { writeSessionRow_(session, {}); });
+  // A session row that may already say finalized keeps its ratings and ledger, or it would be finalized without them.
+  // One that Google confirms is still open was never changed (it is written in one piece), so nothing is lost there.
+  if (problems.length && !sessionMayBeFinalized_(sessionId)) problems = [];
+  if (!problems.length) {
+    undo('player ratings', function () {
+      attempted.ratings.slice().reverse().forEach(function (write) {
+        updateRow_('Players', write.row, { current_rating: write.from, updated_at: write.fromUpdatedAt });
+      });
     });
-    attempted.starts.forEach(function (fix) { updateRow_('SessionPlayers', fix.row, { starting_rating: fix.from }); });
-    if (attempted.ledger) replaceSessionRows_('RatingLedger', sessionId, leftovers);
-    flushSheets_();
-  } catch (undoError) {
-    rollbackError = undoError && undoError.message || String(undoError);
+    undo('starting ratings', function () {
+      attempted.starts.forEach(function (fix) { updateRow_('SessionPlayers', fix.row, { starting_rating: fix.from }); });
+    });
+    var ratingsBack = !problems.some(function (problem) { return /^player ratings/.test(problem); });
+    if (attempted.ledger && ratingsBack) undo('rating ledger', function () { replaceSessionRows_('RatingLedger', sessionId, leftovers); });
+  } else {
+    problems.push('kept the ratings and ledger because the session may already be finalized');
   }
   var reason = error && error.message || String(error);
-  var wrapped = new Error(rollbackError
-    ? 'Google Sheets stopped partway through finalizing (' + reason + '), and some changes could not be undone. Keep the paper sheets and click Finalize RR Results again: the next attempt repairs this one.'
+  var rollbackError = problems.join('; ');
+  var keptFinalized = /may already be finalized/.test(rollbackError);
+  var wrapped = new Error(keptFinalized
+    ? 'Google Sheets stopped at the last step of finalizing (' + reason + ') and could not confirm the result. Reload the page: if the session shows the lock, it is finalized; if not, click Finalize RR Results again.'
+    : rollbackError
+    ? 'Google Sheets stopped partway through finalizing (' + reason + '), and some changes could not be undone. Keep the paper sheets, reload the page, and click Finalize RR Results again: the next attempt repairs this one.'
     : 'Google Sheets stopped partway through finalizing (' + reason + '). Nothing was changed and the session is still open. Click Finalize RR Results to try again.');
   wrapped.details = { step: step, error: reason, rolledBack: !rollbackError, rollbackError: rollbackError };
   return wrapped;
+}
+
+// After a failed write to the Sessions row: true unless Google confirms the row still shows the session open.
+function sessionMayBeFinalized_(sessionId) {
+  try {
+    var row = findRow_('Sessions', 'session_id', sessionId);
+    return !row || String(row.status) === 'finalized';
+  } catch (error) {
+    return true;
+  }
 }
 
 // The whole Sessions row in one write, so the status and revision can never be half updated.
@@ -439,8 +477,9 @@ function sessionOnSite_(sessionDate) {
 
 // Reopens the most recent finalized session: restores each player's rating from the ledger, makes the session
 // editable again, and removes the ledger rows. It must be finalized again after the correction. If Google stops
-// partway, clicking the lock again finishes the job: a player already back at rating_before is left as is, and an
-// open session with ledger rows left behind is repaired by the next finalize.
+// before the session is open, the ratings are put back; if that fails too, clicking the lock again finishes the job
+// (a player already at rating_before is left as is). Ledger rows left behind by an open session are repaired by the
+// next finalize.
 function reopenSession(sessionId, expectedRevision) {
   sessionId = String(sessionId);
   return loggedDeskAction_('reopen', sessionId, function () {
@@ -474,25 +513,43 @@ function reopenLocked_(sessionId, expectedRevision) {
   });
 
   var now = new Date();
-  try { cancelPublish_(sessionId); } catch (error) { /* nothing else publishes a session that is open */ }
+  var restores = [];
   var step = 'player ratings';
   try {
     ledger.forEach(function (row) {
       var player = players[String(row.player_id)];
-      if (Number(player.current_rating) !== Number(row.rating_before)) updateRow_('Players', player.__row, { current_rating: Number(row.rating_before), updated_at: now });
+      if (Number(player.current_rating) === Number(row.rating_before)) return;
+      restores.push({ row: player.__row, from: player.current_rating, fromUpdatedAt: player.updated_at });
+      updateRow_('Players', player.__row, { current_rating: Number(row.rating_before), updated_at: now });
     });
     flushSheets_();
     step = 'session status';
     writeSessionRow_(session, { status: 'active', revision: Number(session.revision) + 1, updated_at: now, finalized_at: '' });
     flushSheets_();
-    step = 'rating ledger';
+  } catch (error) {
+    // A session that may still be finalized (and so may still publish) gets its ratings back.
+    var undone = false;
+    if (sessionMayBeFinalized_(sessionId)) {
+      try {
+        restores.forEach(function (restore) { updateRow_('Players', restore.row, { current_rating: restore.from, updated_at: restore.fromUpdatedAt }); });
+        flushSheets_();
+        undone = true;
+      } catch (undoError) { /* clicking the lock again finishes the reopen from where it stopped */ }
+    }
+    var reason = error && error.message || String(error);
+    var wrapped = new Error(undone
+      ? 'Google Sheets stopped while reopening (' + reason + '), so the ratings were put back. Reload the page and click the lock to try again.'
+      : 'Google Sheets stopped partway through reopening (' + reason + '). Reload the page; if the session still shows the lock, click it again to finish reopening.');
+    wrapped.details = { step: step, error: reason, ratingsPutBack: undone };
+    throw wrapped;
+  }
+  try { cancelPublish_(sessionId); } catch (error) { /* nothing else publishes a session that is open */ }
+  try {
     replaceSessionRows_('RatingLedger', sessionId, []);
     flushSheets_();
   } catch (error) {
-    var reason = error && error.message || String(error);
-    var wrapped = new Error('Google Sheets stopped partway through reopening (' + reason + '). Reload the page; if the session still shows the lock, click it again to finish reopening.');
-    wrapped.details = { step: step, error: reason };
-    throw wrapped;
+    // The session is open again; the next finalize repairs from these rows.
+    safeAudit_('reopen_ledger_cleanup_failed', 'session', sessionId, { message: error && error.message || String(error) });
   }
   safeAudit_('session_reopened', 'session', sessionId, {
     revision: Number(session.revision) + 1,
@@ -608,8 +665,11 @@ function replaceSessionRows_(sheetName, sessionId, replacements) {
   var combined = kept.concat(replacements).map(function (object) {
     return headers.map(function (header) { return object[header] === undefined ? '' : object[header]; });
   });
-  if (sheet.getMaxRows() > 1) sheet.getRange(2, 1, sheet.getMaxRows() - 1, headers.length).clearContent();
+  // Write first, then clear the rows left below: if Google stops between the two, the table still holds every row
+  // (at worst a few stale ones at the end), never a cleared table.
   if (combined.length) sheet.getRange(2, 1, combined.length, headers.length).setValues(combined);
+  var extra = sheet.getMaxRows() - 1 - combined.length;
+  if (extra > 0) sheet.getRange(combined.length + 2, 1, extra, headers.length).clearContent();
 }
 
 function normalizeName_(value) {
