@@ -70,6 +70,12 @@
       <li><strong>Dec 7&ndash;13</strong> Full closure. No play Dec 7, 9, 11, and 12.</li>
       <li><strong>Fri, Jan 22</strong> Closed</li>
     </ul>
+    <div id="closure-calendar" class="closure-calendar" aria-hidden="true"></div>
+    <p class="closure-legend" aria-hidden="true">
+      <span><i class="cal-key cal-open"></i>Open</span>
+      <span><i class="cal-key cal-partial"></i>Partial closure</span>
+      <span><i class="cal-key cal-full"></i>Full closure</span>
+    </p>
   </section>
 
   <div class="two-col">
@@ -214,6 +220,53 @@
       container.appendChild(section);
     });
   }
+
+  // Closure calendar (the list above is the text version; keep both in sync)
+  (function () {
+    var closures = {
+      "2026-11-13": "full",
+      "2026-12-04": "partial", "2026-12-05": "partial",
+      "2026-12-07": "full", "2026-12-09": "full", "2026-12-11": "full", "2026-12-12": "full",
+      "2027-01-22": "full"
+    };
+    var months = [[2026, 10], [2026, 11], [2027, 0]];
+    var names = ["January", "February", "March", "April", "May", "June", "July",
+                 "August", "September", "October", "November", "December"];
+    var openDays = { 1: true, 3: true, 5: true, 6: true }; // Mon, Wed, Fri, Sat
+    var root = document.getElementById("closure-calendar");
+    if (!root) return;
+    months.forEach(function (m) {
+      var year = m[0], month = m[1];
+      var box = document.createElement("div");
+      box.className = "cal-month";
+      var title = document.createElement("div");
+      title.className = "cal-title";
+      title.textContent = names[month] + " " + year;
+      box.appendChild(title);
+      var grid = document.createElement("div");
+      grid.className = "cal-grid";
+      ["S", "M", "T", "W", "T", "F", "S"].forEach(function (d) {
+        var h = document.createElement("span");
+        h.className = "cal-dow";
+        h.textContent = d;
+        grid.appendChild(h);
+      });
+      var first = new Date(year, month, 1).getDay();
+      var days = new Date(year, month + 1, 0).getDate();
+      for (var i = 0; i < first; i++) grid.appendChild(document.createElement("span"));
+      for (var d = 1; d <= days; d++) {
+        var key = year + "-" + String(month + 1).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+        var dow = new Date(year, month, d).getDay();
+        var cell = document.createElement("span");
+        cell.textContent = d;
+        var state = closures[key];
+        cell.className = "cal-day" + (state ? " cal-" + state : openDays[dow] ? " cal-open" : "");
+        grid.appendChild(cell);
+      }
+      box.appendChild(grid);
+      root.appendChild(box);
+    });
+  })();
 
   // Notice from schedule.json (auto-hides once noticeUntil date has passed)
   fetch("data/schedule.json")
