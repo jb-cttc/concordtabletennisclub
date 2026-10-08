@@ -6,6 +6,7 @@ const tables = {};
 const writes = [];
 let siteSessions = [];
 let siteStatus = 200;
+let failOn = '';
 const reset = () => {
   tables.Players = [
     { player_id: 'a', display_name: 'Ava', current_rating: 1420 },
@@ -19,6 +20,7 @@ const reset = () => {
   ];
   siteSessions = [{ date: '2026-09-30', source: 'app' }];
   siteStatus = 200;
+  failOn = '';
   writes.length = 0;
 };
 reset();
@@ -26,7 +28,8 @@ reset();
 const context = {
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   UrlFetchApp: { fetch: () => ({ getResponseCode: () => siteStatus, getContentText: () => JSON.stringify(siteSessions) }) },
-  appendAudit_: (...args) => writes.push(['audit', ...args]),
+  appendAudit_: (...args) => { writes.push(['audit', ...args]); return '3f2a9c1d-0000-4000-8000-000000000000'; },
+  cancelPublish_: id => writes.push(['cancelPublish', id]),
   TABLES: {}
 };
 vm.createContext(context);
@@ -34,7 +37,9 @@ vm.runInContext(fs.readFileSync(__dirname + '/SessionService.js', 'utf8'), conte
 Object.assign(context, {
   rows_: name => tables[name].map((row, index) => ({ ...row, __row: index + 2 })),
   updateRow_: (name, rowNumber, changes) => { writes.push([name, rowNumber, changes]); Object.assign(tables[name][rowNumber - 2], changes); },
-  replaceSessionRows_: (name, sessionId, rows) => { tables[name] = tables[name].filter(row => row.session_id !== sessionId).concat(rows); writes.push(['replace', name, sessionId]); },
+  replaceSessionRows_: (name, sessionId, rows) => { if (failOn === 'ledger') throw new Error('Service Spreadsheets timed out'); tables[name] = tables[name].filter(row => row.session_id !== sessionId).concat(rows); writes.push(['replace', name, sessionId]); },
+  writeSessionRow_: (session, changes) => { if (failOn === 'session') throw new Error('Service Spreadsheets timed out'); writes.push(['Sessions', session.__row, changes]); Object.assign(tables.Sessions[session.__row - 2], changes); },
+  flushSheets_: () => {},
   displayDate_: value => String(value),
   getSession: id => ({ sessionId: id, status: tables.Sessions[0].status })
 });
@@ -52,8 +57,20 @@ assert.ok(writes.some(entry => entry[0] === 'audit' && entry[1] === 'session_reo
 const refuses = (pattern, revision) => {
   writes.length = 0;
   assert.throws(() => context.reopenSession('session-2026-10-05', revision === undefined ? 7 : revision), pattern);
-  assert.equal(writes.length, 0, 'nothing is written on a refusal');
+  assert.deepEqual(writes.filter(entry => entry[0] !== 'audit'), [], 'nothing is written on a refusal');
+  const logged = writes.filter(entry => entry[0] === 'audit');
+  assert.equal(logged.length, 1);
+  assert.equal(logged[0][1], 'reopen_failed', 'a refusal is logged with its reason');
+  assert.match(logged[0][4].message, pattern);
 };
+assert.throws(() => { reset(); tables.Sessions[0].revision = 6; context.reopenSession('session-2026-10-05', 6.5); }, /\(Reference 3F2A9C1D\)$/, 'the error names the AuditLog row');
+reset();
+// A repeat of a reopen whose reply was lost reports the reopened session instead of an error.
+context.reopenSession('session-2026-10-05', 7);
+writes.length = 0;
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active');
+assert.equal(writes.length, 0, 'the repeat changes nothing');
+
 reset();
 refuses(/changed on another device/, 6);
 tables.Sessions[0].status = 'active';
@@ -69,7 +86,34 @@ tables.Sessions.push({ session_id: 'session-2026-10-07', session_date: '2026-10-
 refuses(/2026-10-07 session is already finalized/);
 reset();
 tables.Players[0].current_rating = 1433;
-refuses(/changed after this session was finalized/);
+refuses(/changed after this session was finalized \(1420 then, 1433 now\)/);
+
+// Google stops before the session is open: the still-finalized session gets its ratings back, and publishing is
+// left alone.
+reset();
+failOn = 'session';
+assert.throws(() => context.reopenSession('session-2026-10-05', 7), /stopped while reopening \(Service Spreadsheets timed out\), so the ratings were put back/);
+const failure = writes.find(entry => entry[0] === 'audit' && entry[1] === 'reopen_failed');
+assert.deepEqual([failure[4].step, failure[4].ratingsPutBack], ['session status', true]);
+assert.deepEqual([rating('a'), rating('b'), tables.Sessions[0].status], [1420, 1290, 'finalized']);
+assert.equal(writes.some(entry => entry[0] === 'cancelPublish'), false, 'a session that stays finalized keeps its publish countdown');
+failOn = '';
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active');
+
+// A reopen that stopped after some ratings were restored (the rollback failed too) is finished by the next click.
+reset();
+tables.Players[0].current_rating = 1400;
+writes.length = 0;
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active', 'a player already back at rating_before is accepted');
+assert.deepEqual(writes.filter(entry => entry[0] === 'Players').map(entry => entry[1]), [3], 'only the rating not yet restored is written');
+assert.deepEqual([rating('a'), rating('b')], [1400, 1310]);
+
+// The session is open but the ledger rows could not be removed: still a successful reopen; finalize repairs later.
+reset();
+failOn = 'ledger';
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active');
+assert.ok(writes.some(entry => entry[0] === 'audit' && entry[1] === 'reopen_ledger_cleanup_failed'));
+assert.ok(writes.some(entry => entry[0] === 'audit' && entry[1] === 'session_reopened'));
 assert.throws(() => context.reopenSession('missing', 1), /Session not found/);
 
 console.log('Session reopen checks passed');

@@ -115,11 +115,13 @@ function showDatabaseStatus() {
   SpreadsheetApp.getUi().alert(JSON.stringify(databaseStatus(), null, 2));
 }
 
+// Returns the new row's event_id, or '' when there is no AuditLog sheet.
 function appendAudit_(action, entityType, entityId, details) {
   var sheet = SpreadsheetApp.getActive().getSheetByName('AuditLog');
-  if (!sheet) return;
+  if (!sheet) return '';
+  var eventId = Utilities.getUuid();
   sheet.appendRow([
-    Utilities.getUuid(),
+    eventId,
     new Date(),
     Session.getActiveUser().getEmail() || 'club-account',
     action,
@@ -127,6 +129,7 @@ function appendAudit_(action, entityType, entityId, details) {
     entityId,
     JSON.stringify(details || {})
   ]);
+  return eventId;
 }
 
 function doGet(event) {
@@ -148,5 +151,23 @@ function include(name) {
 }
 
 function checkDeskConnection() {
+  return true;
+}
+
+// The desk page reports problems it saw (a save Google did not confirm, a device copy it could not restore, a failed
+// finalize) so they can be found later in the AuditLog sheet. The entries come from the page, so only a bounded
+// summary of plain values is kept.
+function logDeskEvents(entries) {
+  if (!Array.isArray(entries)) return false;
+  entries.slice(0, 20).forEach(function (entry) {
+    if (!entry || typeof entry !== 'object') return;
+    var sessionDate = /^\d{4}-\d{2}-\d{2}$/.test(String(entry.date || '')) ? String(entry.date) : '';
+    var details = {};
+    Object.keys(entry).slice(0, 30).forEach(function (key) {
+      var value = entry[key];
+      details[String(key).slice(0, 40)] = typeof value === 'number' || typeof value === 'boolean' || value === null ? value : String(value).slice(0, 500);
+    });
+    appendAudit_('desk_problem', 'session', sessionDate ? 'session-' + sessionDate : '', details);
+  });
   return true;
 }

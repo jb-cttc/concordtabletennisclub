@@ -113,6 +113,7 @@ const rpc = {
   },
   reopenSession: function (id) { sessions[id].status = 'active'; sessions[id].revision += 1; publishing = null; return sessions[id]; },
   getPublishState: function () { return publishPayload(); },
+  logDeskEvents: function (entries) { entries.forEach(function (entry) { console.log('Desk problem reported:', JSON.stringify(entry)); }); return true; },
   publishNow: function () { if (publishing && (publishing.state === 'pending' || publishing.state === 'failed')) { publishing.state = 'dispatched'; publishing.doneAt = Date.now() + 6000; } return publishPayload(); },
   sendEmailNow: function () { if (publishing && publishing.state === 'email_pending') { publishing.state = 'email_dispatched'; publishing.doneAt = Date.now() + 6000; } return publishPayload(); },
   publishDue: function () {

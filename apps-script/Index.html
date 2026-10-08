@@ -39,6 +39,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .date-tools button.request-pending:after{position:absolute;right:0;top:-16px;margin-left:0}
 .draft-recovery{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;margin:-6px 0 18px;border-left:4px solid var(--gold);background:#fff3d9;font:14px Arial,sans-serif}.draft-recovery[hidden],.draft-recovery button[hidden]{display:none}.draft-actions{display:flex;gap:8px;flex-wrap:wrap}
 .workspace.draft-pending #groups,.workspace.draft-pending #matches,.workspace.draft-pending .toolbar-actions{pointer-events:none;opacity:.55}
+.workspace.lock-busy #groups,.workspace.lock-busy #matches,.workspace.lock-busy .toolbar-actions{pointer-events:none}.workspace.lock-busy #groups,.workspace.lock-busy #matches,.workspace.lock-busy .toolbar-actions button:not(#finalize){opacity:.55}.workspace.lock-busy #finalize{cursor:progress}
 #save{position:relative}#save.sync-ready::after{content:'';position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#e8c06a;box-shadow:0 0 0 2px rgba(255,255,255,.45)}
 .shell{max-width:1650px}
 .workspace{grid-template-columns:minmax(270px,340px) minmax(0,1fr)}
@@ -278,6 +279,64 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     status.textContent = message;
     status.className = 'statusbar' + (type ? ' ' + type : '');
   }
+  // A busy message that counts the seconds, so a slow Google reply does not look like a frozen page.
+  function busyStatus(message) {
+    var started = Date.now();
+    setStatus(message, 'busy');
+    var timer = setInterval(function () {
+      var seconds = Math.round((Date.now() - started) / 1000);
+      setStatus(message + ' ' + seconds + ' s' + (seconds >= 20 ? '. Google is slow tonight: keep this page open and wait.' : ''), 'busy');
+    }, 1000);
+    return function () { clearInterval(timer); };
+  }
+  // Problems the page sees are recorded in the AuditLog sheet (logDeskEvents), so the exact message and state can be
+  // looked up later. A report made offline waits on this device and goes with the next one. Reporting never
+  // interrupts the desk: every failure here is ignored.
+  var deskLogKey = 'cttc-desk-log-v1';
+  var deskLogSending = false;
+  function readDeskLog() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(deskLogKey) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch (error) { return []; }
+  }
+  function reportDeskProblem(kind, message, extra) {
+    var entry = null;
+    try {
+      entry = Object.assign({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        kind: kind,
+        message: String(message || '').slice(0, 500),
+        at: new Date().toISOString(),
+        date: loadedDate || date.value,
+        revision: state.session ? state.session.revision : null,
+        status: state.session ? state.session.status : null,
+        online: navigator.onLine !== false,
+        mode: document.body.getAttribute('data-mode') || '',
+        browser: String(navigator.userAgent || '').slice(0, 160)
+      }, extra || {});
+      localStorage.setItem(deskLogKey, JSON.stringify(readDeskLog().concat([entry]).slice(-20)));
+      entry = null;
+    } catch (error) { /* without device storage the report is sent once, now, and lost if that fails */ }
+    sendDeskLog(entry);
+  }
+  function sendDeskLog(unstored) {
+    var entries = unstored ? [unstored] : readDeskLog();
+    if (deskLogSending || !entries.length || navigator.onLine === false) return;
+    deskLogSending = true;
+    try {
+      google.script.run
+        .withSuccessHandler(function () {
+          deskLogSending = false;
+          if (unstored) return;
+          var sent = entries.map(function (entry) { return entry.id; });
+          try { localStorage.setItem(deskLogKey, JSON.stringify(readDeskLog().filter(function (entry) { return sent.indexOf(entry.id) < 0; }))); } catch (error) { /* sent again later; harmless */ }
+        })
+        .withFailureHandler(function () { deskLogSending = false; })
+        .logDeskEvents(entries);
+    } catch (error) { deskLogSending = false; }
+  }
+  window.addEventListener('online', function () { sendDeskLog(); });
   function today() {
     var now = new Date();
     return new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -311,10 +370,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return JSON.stringify({ roster: state.roster, groups: state.groups, matches: state.matches, promotions: state.promotions });
   }
 
-  function showDraftNotice(message, recoverable) {
+  // stale: the device copy is older than Google's version, so recovering it replaces Google's version.
+  function showDraftNotice(message, recoverable, stale) {
     draftNotice.hidden = !message;
     draftMessage.textContent = message || '';
     recoverButton.hidden = !recoverable;
+    recoverButton.textContent = stale ? 'Use this device\'s copy' : 'Recover draft';
+    discardButton.textContent = stale ? 'Keep Google\'s version' : 'Discard device copy';
     exportButton.hidden = !pendingRecovery;
     discardButton.hidden = !pendingRecovery;
     document.querySelector('.workspace').classList.toggle('draft-pending', !!pendingRecovery);
@@ -427,6 +489,62 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (draft.revision === null) return !session || (session.revision === 1 && !session.groups.length && !session.matches.length);
     return !!session && draft.revision === session.revision;
   }
+  // A stale copy can still be used on purpose (it then replaces Google's version), but never over a finalized session.
+  function canAdoptDraft(draft, session) {
+    return !draft.invalid && !(session && session.status === 'finalized') && draft.roster.length > 0;
+  }
+  function sessionGroupIds(session) {
+    return session.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); });
+  }
+  function draftGroupIds(draft) {
+    return draft.groups.map(function (group) { return Array.isArray(group.playerIds) ? group.playerIds.slice() : []; });
+  }
+  // True when Google already holds exactly what the device copy holds (typically a save that arrived after the page
+  // stopped waiting for the reply), so the copy can go without losing anything.
+  function draftMatchesSession(draft, session) {
+    if (draft.invalid) return false;
+    if (!session) return !draft.roster.length;
+    var serverIds = [].concat.apply([], sessionGroupIds(session)).sort().join(',');
+    return draft.roster.slice().sort().join(',') === serverIds && groupPlacement(draftGroupIds(draft)) === groupPlacement(sessionGroupIds(session)) &&
+      promotionKey(draftPromotions(draft)) === promotionKey(sessionPromotions(session)) &&
+      contentKey(draftGroupIds(draft), draft.matches) === contentKey(sessionGroupIds(session), session.matches || []);
+  }
+  // Which players are in which numbered group (contentKey ignores the numbering).
+  function groupPlacement(groupIds) {
+    return JSON.stringify(groupIds.map(function (ids) { return ids.slice().sort(); }));
+  }
+  function draftPromotions(draft) {
+    var result = {};
+    Object.keys(draft.promotions || {}).forEach(function (id) { if (draft.promotions[id] && draft.promotions[id].fromGroup) result[id] = Number(draft.promotions[id].fromGroup); });
+    return result;
+  }
+  function sessionPromotions(session) {
+    var result = {};
+    session.groups.forEach(function (group) { group.players.forEach(function (entry) { if (entry.promotionFromGroup) result[entry.playerId] = Number(entry.promotionFromGroup); }); });
+    return result;
+  }
+  function promotionKey(promotions) {
+    return Object.keys(promotions).sort().map(function (id) { return id + ':' + promotions[id]; }).join(',');
+  }
+  // How the copies differ, in words a volunteer can choose by: matches whose result differs, and group changes.
+  function copyDifferences(draft, session) {
+    if (!session) return '';
+    var mine = {};
+    var theirs = {};
+    draft.matches.forEach(function (m) { var text = matchSignature(m); mine[text.split('|').slice(0, 2).join('|')] = text; });
+    (session.matches || []).forEach(function (m) { var text = matchSignature(m); theirs[text.split('|').slice(0, 2).join('|')] = text; });
+    var differing = Object.keys(Object.assign({}, mine, theirs)).filter(function (pair) { return mine[pair] !== theirs[pair]; }).length;
+    var parts = [];
+    if (differing) parts.push(differing + ' match result' + (differing === 1 ? '' : 's'));
+    if (groupPlacement(draftGroupIds(draft)) !== groupPlacement(sessionGroupIds(session))) parts.push('the groups');
+    if (promotionKey(draftPromotions(draft)) !== promotionKey(sessionPromotions(session))) parts.push('promotions');
+    return parts.length ? ' They differ in ' + parts.join(' and ') + '.' : '';
+  }
+  function copySummary(groupIds, matchList) {
+    var players = groupIds.reduce(function (total, ids) { return total + ids.length; }, 0);
+    var scored = matchList.filter(function (m) { return m.playerOneGames != null || m.playerTwoGames != null || !!m.forfeitedBy; }).length;
+    return players + ' player' + (players === 1 ? '' : 's') + ', ' + scored + ' of ' + matchList.length + ' match' + (matchList.length === 1 ? '' : 'es') + ' scored';
+  }
   function offerDeviceDraft(sessionDate) {
     pendingRecovery = null;
     deviceDraftUnsynced = false;
@@ -435,20 +553,34 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     updateSyncCue();
     pendingRecovery = readDeviceDraft(sessionDate);
     if (!pendingRecovery) return;
-    var recoverable = canRecoverDraft(pendingRecovery, state.session);
+    var session = state.session;
+    if (draftMatchesSession(pendingRecovery, session)) {
+      clearDeviceDraft(sessionDate);
+      return;
+    }
+    var recoverable = canRecoverDraft(pendingRecovery, session);
+    var adoptable = !recoverable && canAdoptDraft(pendingRecovery, session);
+    var paused = ' Finalize and the other buttons are paused until you choose.';
     showDraftNotice(pendingRecovery.invalid
-      ? 'The device copy could not be read. Download it for review or discard it before editing.'
+      ? 'The device copy could not be read. Download it for review or discard it before editing.' + paused
       : recoverable
-      ? 'An unsynced draft from this device is available. Recover it before editing or saving.'
-      : 'Google Sheets has changed since this device copy was made. It cannot be restored automatically; download it for review.', recoverable);
+      ? 'An unsynced draft from this device is available. Recover it before editing or saving.' + paused
+      : session && session.status === 'finalized'
+      ? 'This session is already finalized in Google Sheets, but this device still has an older unsaved copy with different groups or scores.' + copyDifferences(pendingRecovery, session) + ' Download it if you want to compare, then discard it. The other buttons are paused until you do.'
+      : 'This device has an unsaved copy that differs from Google Sheets. Google Sheets: ' + (session ? copySummary(sessionGroupIds(session), session.matches || []) : 'no session') + '. This device: ' + copySummary(draftGroupIds(pendingRecovery), pendingRecovery.matches) + '.' + copyDifferences(pendingRecovery, session) + ' Google Sheets changed after this copy was made (on another device, or by a save whose reply never arrived). Choose which to keep.' + paused,
+      recoverable || adoptable, adoptable);
+    if (!recoverable) reportDeskProblem('device copy not restorable', draftMessage.textContent, { copyRevision: pendingRecovery.revision == null ? null : pendingRecovery.revision });
   }
   recoverButton.addEventListener('click', function () {
     var draft = pendingRecovery;
-    if (!draft || !canRecoverDraft(draft, state.session)) return;
+    if (!draft) return;
+    var replacing = !canRecoverDraft(draft, state.session);
+    if (replacing && !canAdoptDraft(draft, state.session)) return;
     if (!draft.groups.every(function (group) { return Array.isArray(group.playerIds) && group.playerIds.every(function (id) { return !!byId[id]; }); })) {
       showDraftNotice('The device copy contains players no longer in the directory. Download it for review.', false);
       return;
     }
+    if (replacing && !confirm('Use this device\'s copy of ' + draft.date + ' and replace what Google Sheets has?\n\nGoogle Sheets: ' + (state.session ? copySummary(sessionGroupIds(state.session), state.session.matches || []) : 'no session') + '\nThis device: ' + copySummary(draftGroupIds(draft), draft.matches) + '\n' + copyDifferences(draft, state.session).trim() + '\n\nGoogle\'s version is overwritten when this copy syncs.')) return;
     state.roster = draft.roster.slice();
     state.promotions = draft.promotions || {};
     state.matches = draft.matches;
@@ -456,7 +588,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     setGroups(draft.groups.map(function (group) { return group.playerIds; }));
     pendingRecovery = null;
     persistDeviceDraft();
-    setStatus('Device draft recovered. It will sync to Google Sheets automatically.');
+    setStatus(replacing ? 'Using this device\'s copy. It replaces Google Sheets\' version when it syncs, in a moment.' : 'Device draft recovered. It will sync to Google Sheets automatically.');
   });
   exportButton.addEventListener('click', function () {
     if (!pendingRecovery) return;
@@ -468,7 +600,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   });
   discardButton.addEventListener('click', function () {
-    if (pendingRecovery && confirm('Discard the unsynced device copy for ' + pendingRecovery.date + '? This cannot be undone.')) clearDeviceDraft(pendingRecovery.date);
+    if (!pendingRecovery) return;
+    var question = canAdoptDraft(pendingRecovery, state.session) && !canRecoverDraft(pendingRecovery, state.session)
+      ? 'Keep Google Sheets\' version of ' + pendingRecovery.date + ' and delete this device\'s copy? Download it first if you might need it. This cannot be undone.'
+      : 'Discard the unsynced device copy for ' + pendingRecovery.date + '? This cannot be undone.';
+    if (confirm(question)) clearDeviceDraft(pendingRecovery.date);
   });
 
   function setGroups(arrays) {
@@ -698,10 +834,19 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     renderMatches();
     renderContext();
     renderDirectory();
+    renderFinalizeButton();
+  }
+  // While a finalize or reopen is running the button stays disabled, so a slow reply cannot start a second one.
+  var lockBusy = '';
+  function renderFinalizeButton() {
     var finalizeButton = document.getElementById('finalize');
-    finalizeButton.disabled = !state.session;
-    finalizeButton.textContent = isLocked ? '\uD83D\uDD12 Finalized' : 'Finalize RR Results';
-    finalizeButton.title = isLocked ? 'Click to reopen this session and reverse its rating changes.' : '';
+    var isLocked = locked();
+    finalizeButton.disabled = !state.session || !!lockBusy;
+    document.querySelector('.workspace').classList.toggle('lock-busy', !!lockBusy);
+    date.disabled = !!lockBusy;
+    document.getElementById('load').disabled = !!lockBusy;
+    finalizeButton.textContent = lockBusy === 'reopen' ? 'Reopening\u2026' : lockBusy ? 'Finalizing\u2026' : isLocked ? '\uD83D\uDD12 Finalized' : 'Finalize RR Results';
+    finalizeButton.title = lockBusy ? 'Waiting for Google Sheets to confirm.' : isLocked ? 'Click to reopen this session and reverse its rating changes.' : '';
   }
 
   var ratingsChecked = false;
@@ -806,8 +951,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       syncBlocked = false;
       syncFailures = 0;
       clearTimeout(autoSyncTimer);
-      setStatus(state.session ? 'Session loaded. Changes are stored in Google Sheets.' : 'No session exists for this date. Add players to begin.');
+      if (pendingRecovery) setStatus('Session loaded. This device also has an unsaved copy: choose which to keep in the notice above.', 'error');
+      else setStatus(state.session ? 'Session loaded. Changes are stored in Google Sheets.' : 'No session exists for this date. Add players to begin.');
       refreshPublish();
+      sendDeskLog();
+      if (data.interruptedFinalize && !locked()) setStatus('An earlier finalize or reopen of this session did not finish. Check the scores, then click Finalize RR Results: it repairs the earlier attempt, so no rating change counts twice.' + (pendingRecovery ? ' First choose which copy to keep in the notice above.' : ''), 'error');
       document.dispatchEvent(new CustomEvent('cttc:session-loaded', { detail: { date: sessionDate, ready: !!state.session } }));
     } catch (error) {
       if (loadedDate && sessionDate !== loadedDate) date.value = loadedDate;
@@ -868,6 +1016,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       syncBlocked = true;
       syncFailures += 1;
       lastSyncError = error && error.message || '';
+      if (!auto || syncFailures === 1 || syncFailures === AUTO_RETRY_LIMIT) reportDeskProblem('save not confirmed', lastSyncError, { auto: auto, failures: syncFailures });
       showDraftNotice(blockedMessage(), false);
       scheduleRetry();
       return null;
@@ -895,13 +1044,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     });
   }
 
+  // One match as text, the same whichever player is listed first; it starts with the pair ("a|b|").
+  function matchSignature(m) {
+    var swap = String(m.playerOneId) > String(m.playerTwoId);
+    var one = swap ? m.playerTwoGames : m.playerOneGames;
+    var two = swap ? m.playerOneGames : m.playerTwoGames;
+    return [swap ? m.playerTwoId : m.playerOneId, swap ? m.playerOneId : m.playerTwoId, one == null ? '' : one, two == null ? '' : two, m.forfeit ? 1 : 0, m.forfeitedBy || '', m.wonBy || ''].join('|');
+  }
   function contentKey(groupIds, matchList) {
-    var pairs = matchList.map(function (m) {
-      var swap = String(m.playerOneId) > String(m.playerTwoId);
-      var one = swap ? m.playerTwoGames : m.playerOneGames;
-      var two = swap ? m.playerOneGames : m.playerTwoGames;
-      return [swap ? m.playerTwoId : m.playerOneId, swap ? m.playerOneId : m.playerTwoId, one == null ? '' : one, two == null ? '' : two, m.forfeit ? 1 : 0, m.forfeitedBy || '', m.wonBy || ''].join('|');
-    }).sort();
+    var pairs = matchList.map(matchSignature).sort();
     var groupKeys = groupIds.map(function (ids) { return ids.slice().sort().join(','); }).sort();
     return JSON.stringify({ groups: groupKeys, matches: pairs });
   }
@@ -936,6 +1087,17 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         render();
         return;
       }
+      if (server && server.status === 'finalized' && contentKey(serverGroups, server.matches || []) === contentKey(groupArrays(), state.matches)) {
+        // Finalized elsewhere with exactly these groups and scores: nothing on this device is lost.
+        state.session = server;
+        reconcileNeeded = false;
+        saveNeedsReload = false;
+        clearDeviceDraft(loadedDate);
+        setStatus('This session was finalized in Google Sheets with these same results. It is locked now.');
+        render();
+        refreshPublish();
+        return;
+      }
       var sameBase = server ? (!!mine && Number(server.revision) === Number(mine.revision)) || (!mine && Number(server.revision) === 1 && !serverGroups.length && !(server.matches || []).length) : !mine;
       if (server && server.status !== 'finalized' && sameBase) {
         if (!mine) state.session = server;
@@ -953,8 +1115,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       reconcileNeeded = false;
       syncConflict = true;
       saveNeedsReload = true;
-      setStatus('Google Sheets has a different version of this session. Nothing was overwritten; your edits are kept on this device. Reload to review it.', 'error');
-      showDraftNotice('Unsynced draft saved on this device. Google Sheets has a different version of this session, so nothing was overwritten. Reload this page to review it.', false);
+      if (server && server.status === 'finalized') {
+        setStatus('This session was finalized in Google Sheets (on another device or tab) before these edits were saved. Nothing was overwritten; the edits are kept on this device. Reload to see the finalized session.', 'error');
+        showDraftNotice('Unsynced edits saved on this device. The session was already finalized in Google Sheets, so they were not applied. Reload this page to review it; the lock button reopens the session if a correction is needed.', false);
+      } else {
+        setStatus('Google Sheets has a different version of this session. Nothing was overwritten; your edits are kept on this device. Reload to review it.', 'error');
+        showDraftNotice('Unsynced draft saved on this device. Google Sheets has a different version of this session, so nothing was overwritten. Reload this page to review it.', false);
+      }
+      reportDeskProblem('save conflict', lastSyncError || 'Google Sheets has a different version', { serverRevision: server ? server.revision : null, serverStatus: server ? server.status : null });
     } finally {
       reconciling = false;
       if (retryNow) scheduleAutoSync(0);
@@ -972,32 +1140,97 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
 
   async function finalize() {
+    if (lockBusy) return;
+    lockBusy = 'finalize';
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    renderFinalizeButton();
+    try { await finalizeSteps(); }
+    finally {
+      lockBusy = '';
+      renderFinalizeButton();
+    }
+  }
+  async function finalizeSteps() {
     var saved = await save();
     if (!saved) return;
     if (saved.deviceOnly) { setStatus('Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.', 'error'); return; }
     var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
     if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
     if (!confirm('Finalize this session and update every player rating?\n\nThe session locks and publishes to the club site in 15 minutes, and the results email goes out 15 minutes after that. Until publishing you can click the lock button to reopen and correct it, or use Publish now to go out immediately.')) return;
-    setStatus('Finalizing ratings...', 'busy');
+    var stopClock = busyStatus('Finalizing ratings...');
     try {
       state.session = await call('finalizeSession', saved.sessionId, saved.revision);
+      stopClock();
       setStatus('Session finalized. Ratings are now authoritative.');
       render();
       refreshPublish();
     } catch (error) {
-      setStatus(error.message, 'error');
+      stopClock();
+      var outcome = await checkGoogleStatus('finalized', saved.revision + 1);
+      if (outcome === 'other') {
+        setStatus('Google Sheets shows this session finalized from another device or tab, not from this page. Reload the page to see the finalized results.', 'error');
+        return;
+      }
+      if (outcome === 'yes') {
+        setStatus('Session finalized. Google Sheets confirmed it after a slow reply. Ratings are now authoritative.');
+        render();
+        refreshPublish();
+        return;
+      }
+      setStatus('Not finalized: ' + sentence(error.message) + (outcome === 'unknown' ? ' Google Sheets could not be reached to double-check, so reload the page before trying again.' : ''), 'error');
+      if (!/\(Reference [0-9A-F]{8}\)/.test(error.message)) reportDeskProblem('finalize failed', error.message, { checked: outcome });
+    }
+  }
+
+  function sentence(text) {
+    text = String(text || 'Unknown error').trim();
+    return /[.!?)]$/.test(text) ? text : text + '.';
+  }
+
+  // After a finalize or reopen error, ask Google what actually happened: the change may have gone through and only
+  // the reply was lost. Returns 'yes' (and adopts Google's session) when Google shows exactly this page's change,
+  // 'other' when the session reached that status from somewhere else, 'no', or 'unknown' when Google cannot be reached.
+  async function checkGoogleStatus(expected, revision) {
+    var sessionDate = loadedDate;
+    try {
+      var data = await call('getAppState', sessionDate);
+      if (sessionDate !== loadedDate || !data.session || data.session.status !== expected) return 'no';
+      if (Number(data.session.revision) !== Number(revision)) return 'other';
+      state.session = data.session;
+      return 'yes';
+    } catch (error) {
+      return 'unknown';
     }
   }
 
   async function reopen() {
-    if (!confirm('Reopen this session?\n\nThis will:\n\u2022 unlock the session so scores can be edited again\n\u2022 reverse every rating change from this session, using the rating ledger\n\nAfter you make your adjustments, click Finalize RR Results again to re-apply the rating changes.\n\nAre you sure?')) return;
-    setStatus('Reopening session...', 'busy');
+    if (lockBusy) return;
+    if (!confirm('Reopen this session?\n\nThis will:\n• unlock the session so scores can be edited again\n• reverse every rating change from this session, using the rating ledger\n\nAfter you make your adjustments, click Finalize RR Results again to re-apply the rating changes.\n\nAre you sure?')) return;
+    lockBusy = 'reopen';
+    renderFinalizeButton();
+    var stopClock = busyStatus('Reopening session...');
+    var reopenedRevision = state.session.revision + 1;
     try {
       await call('reopenSession', state.session.sessionId, state.session.revision);
+      stopClock();
       await load();
       setStatus('Session reopened and ratings restored. Make your adjustments, then finalize again.');
     } catch (error) {
-      setStatus(error.message, 'error');
+      stopClock();
+      var outcome = await checkGoogleStatus('active', reopenedRevision);
+      if (outcome === 'other') {
+        await load();
+        setStatus('This session was reopened or changed from another device or tab. The page now shows what Google Sheets holds.', 'error');
+      } else if (outcome === 'yes') {
+        await load();
+        setStatus('Session reopened and ratings restored (Google Sheets confirmed it after a slow reply). Make your adjustments, then finalize again.');
+      } else {
+        setStatus('Not reopened: ' + sentence(error.message) + (outcome === 'unknown' ? ' Google Sheets could not be reached to double-check, so reload the page before trying again.' : ''), 'error');
+        if (!/\(Reference [0-9A-F]{8}\)/.test(error.message)) reportDeskProblem('reopen failed', error.message, { checked: outcome });
+      }
+    } finally {
+      lockBusy = '';
+      renderFinalizeButton();
     }
   }
 
