@@ -281,6 +281,13 @@ npx --no-install @google/clasp redeploy <live-deployment-id> -V <version> -d "wh
 
 See [round-robin operations](docs/round-robin-operations.md) for details.
 
+**Claude Code cloud sessions:** `.claude/hooks/session-start.sh` installs packages and clasp. If the cloud
+environment's variables include `CLASPRC_B64` (the base64 of a signed-in `~/.clasprc.json`), it also writes that
+file with private permissions, so the session can push to `/dev` without signing in again. Keep the sign-in in
+the environment's settings only, never in this public repository. It stays valid until it is removed under the
+club account's Google Account → Security → third-party access; after that, sign in again with
+`clasp login --no-localhost` and update the variable.
+
 **Mode pill:** the desk header shows `/dev` or `/exec` beside the session date as a plain label.
 
 **Desk page on the club site:** `desk.html` (served at `/desk`) shows the live desk inside a frame, which
