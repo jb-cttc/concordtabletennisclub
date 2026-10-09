@@ -63,11 +63,12 @@
   </section>
 
   <section class="notice closures" aria-labelledby="closures-heading">
-    <h2 id="closures-heading">Known gym closures</h2>
+    <h2 id="closures-heading">Gym closures and holiday hours</h2>
     <ul>
       <li><strong>Fri, Nov 13</strong> Closed</li>
       <li><strong>Fri, Dec 4 and Sat, Dec 5</strong> Open with a reduced play area (10 tables max)</li>
       <li><strong>Dec 7&ndash;12</strong> Closed Mon, Dec 7; Wed, Dec 9; Fri, Dec 11; and Sat, Dec 12</li>
+      <li><strong>Fri, Dec 25 and Fri, Jan 1</strong> Open on holiday (Christmas and New Year&rsquo;s Day), regular hours</li>
       <li><strong>Fri, Jan 22</strong> Closed</li>
     </ul>
     <div id="closure-calendar" class="closure-calendar" aria-hidden="true"></div>
@@ -75,6 +76,7 @@
       <span><i class="cal-key cal-open"></i>Open</span>
       <span><i class="cal-key cal-partial"></i>Open, 10 tables max</span>
       <span><i class="cal-key cal-full"></i>Closed</span>
+      <span><i class="cal-key cal-holiday"></i>Open on holiday</span>
     </p>
   </section>
 
@@ -227,6 +229,7 @@
       "2026-11-13": "full",
       "2026-12-04": "partial", "2026-12-05": "partial",
       "2026-12-07": "full", "2026-12-09": "full", "2026-12-11": "full", "2026-12-12": "full",
+      "2026-12-25": "holiday", "2027-01-01": "holiday",
       "2027-01-22": "full"
     };
     var months = [[2026, 10], [2026, 11], [2027, 0]];

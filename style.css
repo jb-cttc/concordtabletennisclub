@@ -221,6 +221,13 @@ main {
   font-weight: 600;
 }
 
+.cal-day.cal-holiday,
+.cal-key.cal-holiday {
+  background: #2f6b3a;
+  color: #fff;
+  font-weight: 600;
+}
+
 .closure-legend {
   display: flex;
   flex-wrap: wrap;
