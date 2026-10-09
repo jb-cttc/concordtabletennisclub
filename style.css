@@ -153,7 +153,7 @@ main {
 }
 
 .closures li strong {
-  flex: 0 0 110px;
+  flex: 0 0 190px;
 }
 
 @media (max-width: 560px) {
@@ -218,6 +218,13 @@ main {
 .cal-key.cal-partial {
   background: repeating-linear-gradient(135deg, #e6a23c 0 4px, #f3c77d 4px 8px);
   color: var(--text);
+  font-weight: 600;
+}
+
+.cal-day.cal-holiday,
+.cal-key.cal-holiday {
+  background: #2f6b3a;
+  color: #fff;
   font-weight: 600;
 }
 
