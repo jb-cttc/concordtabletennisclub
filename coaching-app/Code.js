@@ -17,11 +17,16 @@
 //
 // Coaching is only offered on Friday 7 to 10 PM and Saturday 3 to 6 PM (Pacific), in 30 or 60 minute slots. A coach
 // sets slots, a student requests one, and the lesson is confirmed when the coach accepts it.
+//
+// Which step a booking is at, who must reply, and where it can get stuck: docs/coaching-flow.md.
 var TZ = 'America/Los_Angeles';
 var WINDOWS = { 5: { start: '19:00', end: '22:00' }, 6: { start: '15:00', end: '18:00' } };
 var SLOT_MINUTES = [30, 60];
 var LEAD_HOURS = 24;
 var HOLD_HOURS = 48;
+// One reminder to whoever owes the next YES: the student this long after asking, the coach this long after the student's YES.
+var REMIND_STUDENT_MS = 60 * 60 * 1000;
+var REMIND_COACH_MS = 2 * 60 * 60 * 1000;
 var RELEASE_BEFORE_HOURS = 12;
 var HORIZON_DAYS = 28;
 var MAX_OPEN_REQUESTS_PER_STUDENT = 2;
@@ -84,7 +89,9 @@ var TABS = {
   Requests: ['request_id', 'coach_id', 'date', 'start', 'minutes', 'student_label', 'student_name', 'student_email', 'guardian_name', 'note',
     'status', 'created_at', 'expires_at', 'cancelled_by', 'student_emailed', 'coach_emailed', 'updated_at', 'coach_texted', 'student_texted', 'table',
     // change is 'cancel' or 'move:' and the new slot, waiting for the student's YES since change_at.
-    'verified_at', 'change', 'change_at']
+    'verified_at', 'change', 'change_at',
+    // reminded is the waiting status ('unverified' or 'pending') a reminder was sent for, so each step is reminded once.
+    'reminded']
 };
 // Public Sheet. Nothing private ever goes in here.
 var PUBLIC_TABS = {
@@ -170,8 +177,9 @@ function publicBook_() { return book_('COACHING_PUBLIC_ID'); }
 
 // Opening a Sheet is the slowest step of a request, so each one is opened once per run.
 var openBooks_ = {};
+var bookIds_ = {};
 function book_(key) {
-  var id = PropertiesService.getScriptProperties().getProperty(key);
+  var id = bookIds_[key] || (bookIds_[key] = PropertiesService.getScriptProperties().getProperty(key));
   if (!id) throw new Error('Run setup once from the Apps Script editor.');
   if (!openBooks_[id]) openBooks_[id] = SpreadsheetApp.openById(id);
   return openBooks_[id];
@@ -403,6 +411,18 @@ function holds_(request, now) {
   return status === 'unverified' || status === 'pending' || status === 'proposed' || status === 'confirmed';
 }
 
+// Who must reply next: 'student' (to confirm the request), 'coach' (to accept it) or '' (nobody).
+function waitingOn_(request, now) {
+  var status = effectiveStatus_(request, now);
+  return status === 'unverified' ? 'student' : status === 'pending' ? 'coach' : '';
+}
+
+// The public wording for a held time: "Booked", or who it is waiting on.
+function stepLabel_(request, coach, now) {
+  var waiting = waitingOn_(request, now);
+  return waiting === 'student' ? 'Waiting for ' + studentName_(request) + ' to confirm' : waiting === 'coach' ? 'Waiting for ' + coach + ' to accept' : 'Booked';
+}
+
 function active_(coach) { return String(coach.status).trim().toLowerCase() !== 'disabled'; }
 
 // The club has TABLES tables for coaching. The table asked for (prefer) if no other coach has it during any part of this slot,
@@ -467,7 +487,8 @@ function board_(coaches, availability, requests, now) {
       key: entry.avail_id, date: entry.date, day: dayLabel_(entry.date), start: entry.start, slot: Number(entry.minutes), minutes: lessonMinutes_(entry.minutes),
       time: rangeLabel_(entry.start, entry.minutes), table: Number(entry.table) || 1, coach: coachName_(byId[entry.coach_id]), coachId: entry.coach_id,
       status: holder ? (effectiveStatus_(holder, now) === 'confirmed' ? 'booked' : 'requested') : soon ? 'closed' : 'open',
-      student: holder ? studentName_(holder) : '', waitlist: !!holder && !soon
+      student: holder ? studentName_(holder) : '', waitlist: !!holder && !soon, waiting: holder ? waitingOn_(holder, now) : '',
+      step: holder ? stepLabel_(holder, coachName_(byId[entry.coach_id]), now) : ''
     };
   }).sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start) || a.table - b.table; });
   // No waitlist while another table is open at the same time: the student can just request that one.
@@ -481,7 +502,7 @@ function openAtSameTime_(entries, entry) {
   return entries.some(function (other) { return other.status === 'open' && other.date === entry.date && other.start === entry.start; });
 }
 
-// What the public sees: open slots, requests and booked lessons, with first names only.
+// What the public sees: open slots, requests (and who must reply next) and booked lessons, with first names only.
 function scheduleEntries_(slots, coaches, requests, now) {
   var labels = {};
   coaches.forEach(function (coach) { labels[coach.coach_id] = coachName_(coach); });
@@ -492,9 +513,10 @@ function scheduleEntries_(slots, coaches, requests, now) {
   requests.filter(function (request) { return holds_(request, now) && request.date >= today; }).forEach(function (request) {
     var coach = labels[request.coach_id] || 'a coach';
     var booked = effectiveStatus_(request, now) === 'confirmed';
+    var step = stepLabel_(request, coach, now);
     entries.push({
-      date: request.date, start: request.start, minutes: Number(request.minutes), coach: coach, status: booked ? 'Booked' : 'Requested', student: studentName_(request),
-      summary: studentName_(request) + (booked ? ' has session with ' : ' requested a session with ') + coach
+      date: request.date, start: request.start, minutes: Number(request.minutes), coach: coach, status: booked ? 'Booked' : step, student: studentName_(request),
+      summary: studentName_(request) + (booked ? ' has session with ' + coach : ' requested a session with ' + coach + '. ' + step)
     });
   });
   return entries.sort(function (a, b) { return (a.date + a.start + a.coach).localeCompare(b.date + b.start + b.coach); });
@@ -546,6 +568,18 @@ function openSlots() {
     }),
     sheetUrl: property_('COACHING_PUBLIC_URL', '')
   };
+}
+
+// Columns added in a later version get their header names on the next sweep, so nobody has to run setup() again. Data is
+// read and written by position, so this is only for people reading the Sheet.
+function ensureHeaders_() {
+  var properties = PropertiesService.getScriptProperties();
+  var version = Object.keys(TABS).map(function (name) { return name + ':' + TABS[name].join(','); }).join('|');
+  if (properties.getProperty('HEADERS') === version) return;
+  Object.keys(TABS).forEach(function (name) {
+    tab_(name).getRange(1, 1, 1, TABS[name].length).setNumberFormat('@').setValues([TABS[name]]).setFontWeight('bold');
+  });
+  properties.setProperty('HEADERS', version);
 }
 
 // Called by the booking form. A request holds its slot, so two people cannot take the same time. It goes to the coach only once
@@ -600,11 +634,17 @@ function requestSlot(form) {
   } finally {
     lock.releaseLock();
   }
-  if (texted) {
-    askStudentText_(student, 'v:' + created.request_id, 'CTTC: Reply YES to send ' + studentName_(created) + '\'s request to ' + coachLabel + ': ' +
-      lessonMinutes_(created.minutes) + ' min, ' + shortWhen_(created.date, created.start) + ', Table ' + created.table + '. Reply NO to cancel it.');
+  // The request is saved and holds its time. Nothing after this may turn it into an error on the page: the student would try
+  // again and be told the time is taken (by their own request). Whatever fails here is retried by the hourly sweep.
+  try {
+    if (texted) {
+      askStudentText_(student, 'v:' + created.request_id, 'CTTC: Reply YES to send ' + studentName_(created) + '\'s request to ' + coachLabel + ': ' +
+        lessonMinutes_(created.minutes) + ' min, ' + shortWhen_(created.date, created.start) + ', Table ' + created.table + '. Reply NO to cancel it.');
+    }
+    sweep_();
+  } catch (error) {
+    console.error('Request ' + created.request_id + ' was saved, but the follow-up failed: ' + error);
   }
-  sweep_();
   return {
     ok: true, label: studentName_(created), texts: !!phone, textNumber: TEXT_NUMBER,
     message: 'Almost done: we emailed you' + (texted ? ' and texted your mobile' : '') + '. Reply YES to ' + (texted ? 'either one' : 'that email') +
@@ -759,7 +799,7 @@ function coachBoard(coachId) {
     ok: true, id: coach.coach_id, label: coach.label, name: coachName_(coach), ready: ready_(coach), email: !!cleanEmail_(coach.email), text: !!phoneDigits_(coach.phone),
     tables: TABLES, days: days, textNumber: TEXT_NUMBER,
     board: board_(rows_('Coaches'), rows_('Availability'), rows_('Requests'), now).map(function (entry) {
-      return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student };
+      return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student, waiting: entry.waiting };
     }),
     pending: pending, pendingSince: pending ? momentLabel_(Number(coach.ask_made)) : ''
   };
@@ -1007,6 +1047,18 @@ function askStudentChange_(question) {
 
 // Texts a student who opted in to texts a YES or NO question; the latest question is the one a bare YES or NO answers.
 function askStudentText_(student, ref, body) {
+  if (!student) return;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    textStudentQuestion_(rows_('Students').filter(function (entry) { return entry.email === student.email; })[0], ref, body);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Call while holding the lock. The student's latest texted question is the one a bare YES or NO answers.
+function textStudentQuestion_(student, ref, body) {
   if (!student || student.texts !== 'yes' || !phoneDigits_(student.phone)) return;
   try {
     sendText_({ name: student.name, phone: student.phone }, body);
@@ -1014,21 +1066,13 @@ function askStudentText_(student, ref, body) {
     console.error('Could not text a student a question: ' + error);
     return;
   }
-  var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    var fresh = rows_('Students').filter(function (entry) { return entry.email === student.email; })[0];
-    if (!fresh) return;
-    fresh.ask_ref = ref;
-    fresh.ask_at = String(Date.now());
-    save_('Students', fresh);
-  } finally {
-    lock.releaseLock();
-  }
+  student.ask_ref = ref;
+  student.ask_at = String(Date.now());
+  save_('Students', student);
 }
 
 // Applies a student's YES or NO. kind 'v' confirms a new request; 'c' a cancellation or move.
-function studentAnswer_(requestId, kind, answer, channel) {
+function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
   var reply = '';
   var request = null;
   var student = null;
@@ -1047,12 +1091,15 @@ function studentAnswer_(requestId, kind, answer, channel) {
     }
     var status = effectiveStatus_(request, now);
     if (kind === 'v') {
-      if (status !== 'unverified') {
+      // An answer sent before the deadline but read after it still counts if the time is free.
+      var late = status === 'expired' && answeredAt && answeredAt < Number(request.expires_at) && lateVerify_(request, requests, rows_('Availability'), now);
+      if (status !== 'unverified' && !late) {
         reply = 'That request is no longer waiting for you (it is ' + status + '), so nothing changed.';
       } else if (answer === 'yes') {
         request.status = 'pending';
         request.verified_at = nowIso_();
         request.expires_at = String(expiryFor_(request.date, request.start));
+        request.reminded = '';
       } else {
         request.status = 'cancelled';
         request.cancelled_by = 'student';
@@ -1110,6 +1157,7 @@ function sweep_() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    ensureHeaders_();
     var now = Date.now();
     var coaches = ensureCoachIds_(rows_('Coaches'));
     var students = rows_('Students');
@@ -1134,6 +1182,7 @@ function sweep_() {
       deliver_(request, coach, 'student_texted', function () { return studentText_(request, coach, student); });
     });
     askCoaches_(coaches, requests, now);
+    remindWaiting_(coaches, students, requests, now);
     notifyWaitlist_(coaches, now);
     var today = pacificNow_().date;
     rows_('Availability').filter(function (entry) { return entry.date < today; }).reverse().forEach(function (entry) {
@@ -1162,6 +1211,65 @@ function deliver_(request, coach, field, compose) {
   }
   request[field] = request.status;
   save_('Requests', request);
+}
+
+// Call while holding the lock. A request still waiting on someone's YES after a while gets one reminder, saying exactly who must
+// reply and to what. The reminder keeps the question's reference code, so a reply to it counts as an answer. Once the student has
+// confirmed, they are also told it now waits on the coach. The coach hears nothing before the student's YES, so nobody can use the
+// page to message a coach in someone else's name. Each waiting step is reminded at most once (reminded is set before sending).
+function remindWaiting_(coaches, students, requests, now) {
+  requests.forEach(function (request) {
+    var status = effectiveStatus_(request, now);
+    if ((status !== 'unverified' && status !== 'pending') || request.reminded === status) return;
+    var since = status === 'unverified' ? Date.parse(request.created_at) : Date.parse(request.verified_at);
+    if (!(now - since >= (status === 'unverified' ? REMIND_STUDENT_MS : REMIND_COACH_MS)) || Number(request.expires_at) - now < 2 * 60000) return;
+    var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
+    if (!coach || !mailAvailable_()) return;
+    var student = students.filter(function (entry) { return entry.email === request.student_email; })[0];
+    var who = request.guardian_name ? 'Hello ' + request.guardian_name + ', this is about the lesson for ' + request.student_name + '.' : 'Hello ' + request.student_name + ',';
+    var lesson = studentName_(request) + '\'s ' + lessonMinutes_(request.minutes) + ' minute lesson with ' + coachName_(coach) + ' on ' + whenLabel_(request.date, request.start, request.minutes);
+    var deadline = momentLabel_(Number(request.expires_at));
+    // Marked first, so a part that fails is never resent: one reminder per step at most.
+    request.reminded = status;
+    save_('Requests', request);
+    var attempt = function (send) {
+      try {
+        send();
+      } catch (error) {
+        console.error('Could not send part of a coaching reminder: ' + error);
+      }
+    };
+    if (status === 'unverified') {
+      attempt(function () {
+        var ask = studentMail_(request, coach);
+        sendMail_(ask.to, 'Reminder: ' + ask.subject, [who,
+          { callout: '**Still waiting for you:** ' + lesson + ' has **not** been sent to the coach yet. Reply **YES** to this email by **' + deadline +
+            '** to send it. If you do not reply, the request expires and the time is released.', tone: 'action' },
+          'Reply from this same email address. Replying to the earlier "Confirm your coaching request" email works too.'
+        ].concat(ask.lines.slice(2)));
+      });
+      attempt(function () {
+        textStudentQuestion_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
+          lessonMinutes_(request.minutes) + ' min, ' + shortWhen_(request.date, request.start) + ', Table ' + (Number(request.table) || 1) + '. Reply NO to cancel it.');
+      });
+      return;
+    }
+    attempt(function () {
+        var question = coachMail_(request, coach, student);
+        if (question) sendMail_(question.to, 'Reminder: ' + question.subject, [
+          { callout: '**Still waiting for you:** ' + request.student_name + ' confirmed this request and it is **waiting for your YES**. Reply **YES** (or NO) to this email by **' + deadline +
+            '**, or the request expires and the club is told.', tone: 'action' },
+          'Reply from this same email address.'].concat(question.lines));
+    });
+    attempt(function () {
+        if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true));
+    });
+    attempt(function () {
+        sendMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
+          { callout: lesson + ' is **waiting for ' + coachName_(coach) + ' to accept it.** You confirmed it, so **nothing more is needed from you**. It is not booked until the coach accepts.', tone: 'action' },
+          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.']);
+    });
+  });
 }
 
 function lessonRows_(request) {
@@ -1329,8 +1437,13 @@ function studentMail_(request, coach) {
       'The club has been copied on this email and will follow up with the coach. You can pick another time at ' + PAGE_URL] };
   }
   if (request.status === 'expired') {
-    return { to: to, subject: 'Coaching request expired', lines: [who,
-      'Your request for ' + when + ' with ' + coachShown + ' was not confirmed by a reply in time, so it expired and the time was released. You can pick another time at ' + PAGE_URL] };
+    return { to: to, subject: 'Coaching request expired: we did not get your YES', lines: [who,
+      { callout: 'Your request for **' + when + '** with ' + coachShown + ' **expired** because we did not receive your **YES** reply in time. **You are not booked**, and the coach was not asked.', tone: 'action' },
+      { heading: 'To book' },
+      { steps: ['Request the time again at ' + PAGE_URL + ' (first come, first served).',
+        'Reply **YES** to the "Confirm your coaching request" email within **2 hours**. Reply from the same email address.',
+        'Cannot find that email? Check your spam or junk folder.',
+        'Once you reply, the request goes to ' + coachShown + ' to accept, and we email you the answer.'] }] };
   }
   if (request.status === 'cancelled' && request.cancelled_by === 'student') {
     return { to: to, subject: 'Coaching lesson cancelled', lines: [who, 'As you asked, the lesson with ' + coachShown + ' on ' + when + ' is cancelled and the time was released.'] };
@@ -1492,12 +1605,63 @@ function sendText_(coach, body) {
   latest.message.reply(body);
 }
 
-// 'yes', 'no' or '' for a text's first line.
+// Mail and phone apps add invisible characters (zero-width spaces, left-to-right marks from "dir=auto" HTML, soft hyphens, byte
+// order marks) and unusual spaces. Drop the first and turn the rest into plain spaces, so "YES" is just YES.
+function plainText_(text) {
+  return String(text || '').replace(/[\u00AD\u034F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF]/g, '')
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
+}
+
+// Invisible or unusual space characters in a reply that could not be read, as code points (never the text, and never letters in
+// any language): for the status read-out.
+function oddCharacters_(text) {
+  var found = {};
+  String(text || '').slice(0, 400).replace(/[\u00A0\u00AD\u034F\u061C\u1680\u180E\u2000-\u200F\u202A-\u202F\u205F-\u206F\u3000\uFE00-\uFE0F\uFEFF]/g, function (character) {
+    found['U+' + ('000' + character.charCodeAt(0).toString(16).toUpperCase()).slice(-4)] = true;
+    return '';
+  });
+  return Object.keys(found).slice(0, 8).join(',') || 'none';
+}
+
+// What the person wrote themselves in a reply: everything before the quoted earlier message or a signature. Our own emails
+// say both "Reply YES" and "Reply NO", so the quoted part must never be read as their answer.
+function ownWords_(text) {
+  var lines = plainText_(text).split(/\r?\n/).map(function (line) { return line.trim(); });
+  var mine = [];
+  for (var i = 0; i < lines.length; i += 1) {
+    var line = lines[i];
+    var next = lines[i + 1] || '';
+    // Some apps send only HTML, and Gmail's plain-text version can run lines together ("YESSent from my Galaxy"): a signature
+    // or quote marker inside a line ends their words there too.
+    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no):|concord table tennis club|_{5,}/i);
+    if (glued > 0) {
+      mine.push(line.slice(0, glued).trim());
+      break;
+    }
+    if (/^>/.test(line) || /^-{2,}\s*(original message|forwarded message)/i.test(line) || /^_{5,}$/.test(line) ||
+      /^(sent from|get outlook for)\b/i.test(line) || /^--\s*$/.test(line) || /\[CTTC ref |^reply (yes|no)\b|concord table tennis club/i.test(line) || (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) ||
+      /^on\b.{4,}\bwrote:?$/i.test(line) || (/^on\b.{4,}/i.test(line) && /\bwrote:?$/i.test(next))) break;
+    mine.push(line);
+  }
+  return mine.join('\n').trim();
+}
+
+// 'yes', 'no' or '' for a reply by text or email: the first line of the person's own words must start with yes or no, in any
+// case, after a greeting or "ok" ("Yes, see you Friday", "ok yes", "no thanks", "y"). A yes or no further in ("there is no
+// parking", "I have no idea", an out-of-office note) is not an answer, and nor is a line with both ("Yes, but no").
 function answerOf_(text) {
-  var line = String(text || '').split('\n')[0].trim();
-  if (/^(yes|y|yes please)[\s.!]*$/i.test(line)) return 'yes';
-  if (/^(no|n|nope|no thanks)[\s.!]*$/i.test(line)) return 'no';
-  return '';
+  // A greeting on its own line ("Hi John,", "Good morning,") comes before the answer.
+  var line = (ownWords_(text).split('\n').filter(function (each) {
+    return each && !/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b(?!.*\b(y|yes|yeah|yep|yup|n|no|nope|nah)\b)[^.!?]{0,30}[,.!:]*$/i.test(each);
+  })[0] || '').toLowerCase()
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hey|hello|dear|good (morning|afternoon|evening))\b[\s,.!:-]*([a-z]+[\s,.!:-]+)?(?=(y|yes|yeah|yep|yup|n|no|nope|nah)\b))+/, '')
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries)\b[\s,.!:-]*)+/, '');
+  var rest = line.replace(/\bno (problem|worries|prob|issues?|rush)\b/g, ' ');
+  var yes = /^(y|yes|yeah|yep|yup|yess+)\b/.test(line);
+  var no = /^(n|no|nope|nah)\b/.test(line);
+  if (yes && /\b(no|nope|nah|not|can't|cannot|cant)\b/.test(rest)) return '';
+  if (no && /\b(yes|yeah|yep|yup)\b/.test(rest)) return '';
+  return yes ? 'yes' : no ? 'no' : '';
 }
 
 function requestQuestion_(request, again) {
@@ -1622,21 +1786,83 @@ function checkTexts() {
 }
 
 function checkTexts_() {
+  step_('read coach texts', function () { checkCoachTexts_(); });
+  step_('read student texts', function () { checkStudentAnswers_(); });
+  step_('read STUDENT and STOP texts', checkStudentTexts_);
+  step_('read email answers', checkMail_);
+  step_('verify coaches', verifyCoaches_);
+  reportStatus_();
+}
+
+// What the last minute check did, as counts only. reportStatus_ shows it in the NAME of a separate, empty spreadsheet
+// ("CTTC Coaching status | 10-10 14:30 | mail q=1 ..."), so a maintainer can see whether the check runs and where it stops
+// without opening any private data. It never holds a name, an email address or a phone number.
+var STATUS_ = { failed: [], mail: 'not run' };
+
+function reportStatus_() {
+  try {
+    var properties = PropertiesService.getScriptProperties();
+    var id = properties.getProperty('COACHING_STATUS_ID');
+    var book = null;
+    try {
+      book = id ? SpreadsheetApp.openById(id) : null;
+    } catch (error) {
+      book = null;
+    }
+    if (!book) {
+      book = SpreadsheetApp.create('CTTC Coaching status');
+      properties.setProperty('COACHING_STATUS_ID', book.getId());
+    }
+    var now = new Date(Math.floor(Date.now() / 600000) * 600000);
+    var name = 'CTTC Coaching status | ' + Utilities.formatDate(now, TZ, 'yyyy-MM-dd HH:mm') + ' | mail ' + STATUS_.mail +
+      ' | failed: ' + (STATUS_.failed.join('; ') || 'none');
+    if (book.getName() !== name) book.rename(name.slice(0, 250));
+  } catch (error) {
+    console.error('Could not update the status read-out: ' + error);
+  }
+}
+
+function checkCoachTexts_() {
   rows_('Coaches').filter(function (coach) { return coach.coach_id && active_(coach) && coach.ask_ref && Number(coach.ask_at) > 0; }).forEach(function (coach) {
     var asked = Number(coach.ask_at);
     var reply = voiceTextsFrom_(coach, 2).filter(function (text) { return text.at > asked && answerOf_(text.text); })
       .sort(function (a, b) { return a.at - b.at; })[0];
     if (reply) answer_(coach.coach_id, coach.ask_ref, answerOf_(reply.text), 'text');
   });
+}
+
+function checkStudentAnswers_() {
   rows_('Students').filter(function (student) { return student.ask_ref && Number(student.ask_at) > 0 && phoneDigits_(student.phone); }).forEach(function (student) {
     var asked = Number(student.ask_at);
     var reply = voiceTextsFrom_({ name: student.name, phone: student.phone }, 2).filter(function (text) { return text.at > asked && answerOf_(text.text); })
       .sort(function (a, b) { return a.at - b.at; })[0];
     if (reply) studentAnswer_(student.ask_ref.slice(2), student.ask_ref.slice(0, 1), answerOf_(reply.text), 'text');
   });
-  checkStudentTexts_();
-  checkMail_();
-  verifyCoaches_();
+}
+
+// One failing step never stops the others (a Gmail hiccup reading texts must not stop email answers being read). The club is
+// emailed about a failing step at most every 6 hours.
+function step_(name, run) {
+  try {
+    run();
+  } catch (error) {
+    console.error('Could not ' + name + ': ' + error);
+    STATUS_.failed.push(name + ': ' + String(error).replace(/\S+@\S+/g, '<address>').replace(/\+?\d[\d\s().-]{5,}\d/g, '<number>')
+      .replace(/"[^"]*"/g, '"…"').slice(0, 80));
+    alertAdmin_('step:' + name, 'Coaching app: could not ' + name, ['The coaching app could not ' + name + '. It tries again every minute. The error was: ' + error]);
+  }
+}
+
+// Emails the club about something it should know, at most once every 6 hours per key.
+function alertAdmin_(key, subject, lines) {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('alert:' + key) || !mailAvailable_()) return;
+    cache.put('alert:' + key, '1', 21600);
+    sendMail_(adminEmail_(), subject, lines);
+  } catch (error) {
+    console.error('Could not alert the club: ' + error);
+  }
 }
 
 // A coach on the list whose number (or Voice contact name) has texted the club, COACH or anything else, can be texted back: that
@@ -1696,6 +1922,8 @@ function changeCode_(request) { return code_('c:' + request.request_id + ':' + r
 // Every question still waiting for an emailed answer: {code, email, after, kind, id}.
 function emailQuestions_(now) {
   var questions = [];
+  var offered = null;
+  var availability = function () { return offered || (offered = rows_('Availability')); };
   var coaches = rows_('Coaches').filter(function (coach) { return coach.coach_id && active_(coach) && cleanEmail_(coach.email); });
   var byId = {};
   coaches.forEach(function (coach) {
@@ -1704,10 +1932,14 @@ function emailQuestions_(now) {
       questions.push({ code: proposalCode_(coach.coach_id, coach.ask_made), email: cleanEmail_(coach.email), after: Number(coach.ask_made), kind: 'slots', id: coach.coach_id });
     }
   });
-  rows_('Requests').forEach(function (request) {
+  var requests = rows_('Requests');
+  requests.forEach(function (request) {
     var status = effectiveStatus_(request, now);
     var after = Date.parse(request.created_at) || 0;
     if (status === 'unverified') questions.push({ code: verifyCode_(request), email: request.student_email, after: after, kind: 'v', id: request.request_id });
+    if (status === 'expired' && lateVerify_(request, requests, availability(), now)) {
+      questions.push({ code: verifyCode_(request), email: request.student_email, after: after, before: Number(request.expires_at), kind: 'v', id: request.request_id });
+    }
     if (status === 'pending' && byId[request.coach_id]) {
       questions.push({ code: requestCode_(request), email: cleanEmail_(byId[request.coach_id].email), after: after, kind: 'request', id: request.request_id, coachId: request.coach_id });
     }
@@ -1719,36 +1951,164 @@ function emailQuestions_(now) {
 function checkMail_() {
   var now = Date.now();
   var questions = emailQuestions_(now);
+  STATUS_.mail = 'q=' + questions.length + ' late=' + questions.filter(function (question) { return question.before; }).length;
   if (!questions.length) return;
   var byCode = {};
   questions.forEach(function (question) { byCode[question.code] = question; });
   var answers = {};
-  GmailApp.search('newer_than:3d subject:"CTTC ref"', 0, 50).forEach(function (thread) {
+  var us = [Session.getEffectiveUser().getEmail(), adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
+  // Gmail reads count against a daily quota (about 20,000 on a free account) and this runs every minute, so only threads with a
+  // message from someone else since the oldest open question are opened, never threads holding only our own sent questions.
+  var since = Math.floor(Math.min.apply(null, questions.map(function (question) { return question.after; })) / 1000);
+  var threads = GmailApp.search(mailQuery_(since), 0, 50);
+  var seen = { messages: 0, matched: 0 };
+  threads.forEach(function (thread) {
     thread.getMessages().forEach(function (message) {
+      seen.messages += 1;
       var code = (String(message.getSubject() || '').match(/\[CTTC ref ([0-9A-F]{10})\]/) || [])[1];
       var question = code && byCode[code];
       if (!question) return;
       var from = String(message.getFrom() || '');
       var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
       var at = message.getDate().getTime();
-      if (address !== question.email || at <= question.after) return;
-      var line = String(message.getPlainBody() || '').split(/\r?\n/).map(function (text) { return text.trim(); }).filter(Boolean)[0];
-      var answer = answerOf_(line);
-      if (answer && (!answers[code] || at < answers[code].at)) answers[code] = { question: question, answer: answer, at: at };
+      seen.matched += 1;
+      if (at <= question.after || (question.before && at >= question.before)) return;
+      // Notices go out only for a recent reply to a question still open; a late YES is only looked for.
+      var notify = !question.before && Date.now() - at < 5 * 3600000;
+      if (!sameAddress_(address, question.email)) {
+        if (us.indexOf(address) < 0 && notify) wrongSender_(message.getId(), address, question.email, String(message.getSubject() || ''));
+        return;
+      }
+      if (autoReply_(message)) return;
+      var body = replyText_(message);
+      var answer = answerOf_(body);
+      if (!answer) {
+        seen.unreadable = (seen.unreadable || 0) + 1;
+        seen.odd = oddCharacters_(ownWords_(body).split('\n')[0] || body);
+        seen.length = (ownWords_(body).split('\n')[0] || '').length;
+        if (notify) unreadableReply_(message.getId(), address, String(message.getSubject() || ''), ownWords_(body).split('\n')[0]);
+        return;
+      }
+      if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at, address: address };
     });
   });
+  STATUS_.mail += ' threads=' + threads.length + ' messages=' + seen.messages + ' coded=' + seen.matched + ' answers=' + Object.keys(answers).length +
+    (seen.unreadable ? ' unreadable=' + seen.unreadable + ' firstlen=' + seen.length + ' odd=' + seen.odd : '');
   Object.keys(answers).forEach(function (code) {
     var found = answers[code];
     var question = found.question;
     if (question.kind === 'slots') answer_(question.id, 'slots', found.answer, 'email');
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
-    else studentAnswer_(question.id, question.kind, found.answer, 'email');
+    else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
+}
+
+// The reply as the person sees it. Gmail's plain-text version of an HTML-only email can run lines together ("YESSent from my
+// Galaxy"), so when there is HTML its line breaks are used, with the quoted earlier message marked as a quote.
+function replyText_(message) {
+  var plain = String(message.getPlainBody() || '');
+  var html = '';
+  try {
+    html = typeof message.getBody === 'function' ? String(message.getBody() || '') : '';
+  } catch (error) {
+    html = '';
+  }
+  if (!/<(div|p|br|blockquote)\b/i.test(html)) return plain;
+  var text = html.replace(/<(style|script|head)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(blockquote|div[^>]*(gmail_quote|divRplyFwdMsg|appendonsend|yahoo_quoted|moz-cite-prefix))\b[^>]*>/gi, '\n> ')
+    .replace(/<br\s*\/?>|<\/(div|p|li|tr|h[1-6]|table)>|<(div|p|li|tr|h[1-6])\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, function (match, code) { return String.fromCharCode(Number(code)); }).replace(/&amp;/gi, '&');
+  return answerOf_(text) ? text : plain;
+}
+
+// Out-of-office and other automatic replies are never answers.
+function autoReply_(message) {
+  if (/^(automatic reply|auto(-| )?reply|out of (the )?office|autoreply|away)/i.test(String(message.getSubject() || '').replace(/^(re|fwd?):\s*/i, ''))) return true;
+  try {
+    var header = String(message.getHeader ? message.getHeader('Auto-Submitted') || '' : '').toLowerCase();
+    return !!header && header !== 'no';
+  } catch (error) {
+    return false;
+  }
+}
+
+function mailQuery_(since) { return 'newer_than:3d subject:"CTTC ref" -from:me after:' + since; }
+
+// The same mailbox: case never matters, and for Gmail neither do dots or a +tag in the name.
+function sameAddress_(a, b) {
+  var key = function (address) {
+    var parts = String(address || '').trim().toLowerCase().split('@');
+    if (parts.length !== 2) return parts.join('@');
+    if (parts[1] === 'gmail.com' || parts[1] === 'googlemail.com') return parts[0].split('+')[0].replace(/\./g, '') + '@gmail.com';
+    return parts.join('@');
+  };
+  return key(a) === key(b);
+}
+
+// A reply quoting our code from another address does not count (nobody may answer for someone else), but it is never silent:
+// the sender is told to reply from the address the question went to, and the club is told, once per reply.
+function wrongSender_(messageId, address, expected, subject) {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('sender:' + messageId) || !mailAvailable_()) return;
+    cache.put('sender:' + messageId, '1', 21600);
+    try {
+      sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
+        '", but it came from a different email address than the one the question was sent to, so nothing changed.',
+        { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }]);
+    } catch (error) {
+      console.error('Could not tell a sender to use the right address: ' + error);
+    }
+    alertAdmin_('sender:' + messageId, 'Coaching: a reply came from the wrong address', ['A reply to "' + subject + '" came from ' + address + ', but the question went to ' +
+      expected + ', so it was not counted. The sender was asked to reply from ' + expected + '.']);
+  } catch (error) {
+    console.error('Could not send a reply notice: ' + error);
+  }
+}
+
+// A reply to one of our questions that is not a clear YES or NO: tell the sender how to answer, and the club, once per reply.
+function unreadableReply_(messageId, address, subject, line) {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('unread:' + messageId) || !mailAvailable_()) return;
+    cache.put('unread:' + messageId, '1', 21600);
+    try {
+      sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
+        { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }]);
+    } catch (error) {
+      console.error('Could not tell a sender their reply was unreadable: ' + error);
+    }
+    alertAdmin_('unread:' + messageId, 'Coaching: a reply could not be read', ['A reply to "' + subject + '" from ' + address + ' started with "' +
+      String(line || '').slice(0, 80) + '", which is not YES or NO. They were asked to reply again.']);
+  } catch (error) {
+    console.error('Could not send a reply notice: ' + error);
+  }
+}
+
+// A student's YES that arrived before the request expired, but was read late (or not at all, before the fixes of 2026-10-10),
+// still counts while the lesson is far enough ahead and nobody else holds the time.
+function lateVerify_(request, requests, availability, now) {
+  if (effectiveStatus_(request, now) !== 'expired' || request.verified_at || request.cancelled_by) return false;
+  if (now - (Date.parse(request.created_at) || 0) > 3 * 86400000 || expiryFor_(request.date, request.start) - now < 60 * 60000) return false;
+  var taken = requests.some(function (other) {
+    return other.request_id !== request.request_id && holds_(other, now) && other.coach_id === request.coach_id && other.date === request.date &&
+      overlaps_(other.start, other.minutes, request.start, request.minutes);
+  });
+  var offered = availability.some(function (entry) {
+    return entry.coach_id === request.coach_id && entry.confirmed === 'yes' && entry.date === request.date && overlaps_(entry.start, entry.minutes, request.start, request.minutes);
+  });
+  return !taken && offered && !!coachById_(request.coach_id);
 }
 
 // STUDENT turns on lesson texts for every student whose mobile number (or, for a saved Voice contact, name) matches; STOP turns
 // them off. Gmail is only searched once some student has given a number.
 function checkStudentTexts_() {
+  // STUDENT and STOP only switch texts on or off, so every 5 minutes is soon enough and saves Gmail reads.
+  var cache = CacheService.getScriptCache();
+  if (cache.get('student-texts')) return;
+  cache.put('student-texts', '1', 300);
   if (!rows_('Students').some(function (student) { return phoneDigits_(student.phone); })) return;
   var seen = {};
   var texts = [];

@@ -34,6 +34,7 @@ const sent = [];
 const allSent = [];
 let quota = 100;
 let mailFails = false;
+let quotaThrows = false;
 let cache = {};
 let held = 0;
 let activeEmail = '';
@@ -75,6 +76,8 @@ const makeBook = id => {
     getSheets: () => Object.keys(sheets),
     deleteSheet: () => {},
     getUrl: () => 'https://docs.google.com/spreadsheets/d/' + id,
+    getName: () => books[id].title || '',
+    rename: title => { assert.doesNotMatch(title, /@|\d{3}\) \d{3}-|Student |Coach /, 'the status read-out holds counts only'); books[id].title = title; },
     names: () => Object.keys(sheets).sort()
   });
 };
@@ -107,10 +110,10 @@ const context = {
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = value; } }) },
   SpreadsheetApp: {
     create: name => {
-      const id = /public/.test(name) ? 'public-book-id' : 'private-book-id';
+      const id = /public/.test(name) ? 'public-book-id' : /status/.test(name) ? 'status-book-id' : 'private-book-id';
       created.push(name);
       const book = makeBook(id);
-      return { getId: () => id, getUrl: () => book.getUrl() };
+      return Object.assign({ getId: () => id }, book);
     },
     openById: id => { assert.ok(books[id], 'only the two Sheets the app made are opened'); return books[id]; }
   },
@@ -122,7 +125,7 @@ const context = {
   LockService: { getScriptLock: () => ({ waitLock: () => { assert.equal(held, 0, 'locks are never nested'); held += 1; }, releaseLock: () => { held -= 1; } }) },
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; }, remove: key => { delete cache[key]; } }) },
   MailApp: {
-    getRemainingDailyQuota: () => quota,
+    getRemainingDailyQuota: () => { if (quotaThrows) throw new Error('Service invoked too many times'); return quota; },
     sendEmail: message => { if (mailFails) throw new Error('mail refused'); sent.push(message); allSent.push(message); }
   },
   GmailApp: {
@@ -130,7 +133,12 @@ const context = {
     search: query => {
       gmailQueries.push(query);
       // Emailed answers: replies whose subject carries a [CTTC ref] code.
-      if (query === 'newer_than:3d subject:"CTTC ref"') return mailbox.length ? [{ getMessages: () => mailbox.slice() }] : [];
+      const replies = query.match(/^newer_than:3d subject:"CTTC ref" -from:me after:(\d+)$/);
+      if (replies) {
+        // Gmail returns threads with a message from someone else after that moment; ours are never in the mailbox.
+        const found = mailbox.filter(message => message.getDate().getTime() >= Number(replies[1]) * 1000);
+        return found.length ? [{ getMessages: () => mailbox.slice() }] : [];
+      }
       if (voiceDown) throw new Error('Google Voice is unavailable');
       assert.match(query, /^in:anywhere from:txt\.voice\.google\.com newer_than:\d+d \((subject:"[A-Za-z ]+" OR "\(\d{3}\) \d{3}-\d{4}"|subject:"[A-Za-z ]+"|"\(\d{3}\) \d{3}-\d{4}"|STUDENT OR STOP)\)$/);
       return inbox.length ? [{ getMessages: () => inbox.slice() }] : [];
@@ -171,12 +179,12 @@ const requestRows = () => grids.Requests.slice(1);
 const requestBy = email => requestRows().filter(line => cell('Requests', line, 'student_email') === email);
 const weekday = date => new Date(date + 'T00:00:00Z').getUTCDay();
 // Everything on the public Sheet is readable by anyone: first names only, never a full name, an address or a number.
-const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
+const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Rex Reminder|Lou Late|Val Voice|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
 const assertPublicIsAnonymous = () => {
   assert.doesNotMatch(JSON.stringify([grids.Schedule, grids.About]), PRIVATE, 'public Sheet leaks');
 };
 // The minute-by-minute trigger, without its 20 second and 10 minute throttles.
-const check = () => { delete cache['check-texts']; delete cache['verify-coaches']; context.checkTexts(); };
+const check = () => { delete cache['check-texts']; delete cache['verify-coaches']; delete cache['student-texts']; context.checkTexts(); };
 // A text from a phone. Each one arrives a minute after the last, the way real replies come after the question.
 const say = (name, body, from) => { clock += 60000; inbound(name, body, clock, from); check(); };
 const allTextsTo = (...names) => replies.filter(reply => names.some(name => reply.subject === 'New text message from ' + name)).map(reply => reply.body);
@@ -260,9 +268,54 @@ assert.deepEqual(triggers, ['sweep', 'checkTexts']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
-assert.equal(grids.Requests[0].length, 23);
+assert.equal(grids.Requests[0].length, 24);
 assert.deepEqual(grids.Schedule[0], ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']);
 assert.match(grids.About[0][0], /does not change any booking/);
+
+// ---- Reading a YES or NO: any case, other words allowed, never the quoted earlier message ----
+[
+  ['yes', 'yes'], ['Yes', 'yes'], ['YES!', 'yes'], ['yEs please', 'yes'], ['Yes, see you Friday', 'yes'], ['y', 'yes'], ['ok yes', 'yes'],
+  ['No problem, yes I can', 'yes'], ['no', 'no'], ['No thanks', 'no'], ['NO, I cannot make it', 'no'], ['n', 'no'], ['Nope', 'no'],
+  ['maybe', ''], ['yes no', ''], ['No problem!', ''], ['Yesterday works', ''], ['I know', ''], ['\n\nyes\n', 'yes'],
+  ['\u200bYES\u200b\r\n\r\nSent from my Galaxy', 'yes'],
+  ['\u200eYES\u200e\r\n\r\nSent from my Galaxy', 'yes'],
+  // HTML-only replies whose plain text runs the lines together (a real reply from a Samsung phone read this way).
+  ['YESSent from my Galaxy', 'yes'], ['NoSent from my iPhone', 'no'], ['yes-------- Original message --------From: Concord', 'yes'],
+  ['YesOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <club@example.com> wrote:', 'yes'], ['I sent from my phone yes', ''], ['\u202aYES\u202c', 'yes'], ['\u2068YES\u2069', 'yes'], ['\u00a0YES\u00a0', 'yes'], ['Y\u00adES', 'yes'],
+  ['Yes\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <club@example.com> wrote:\n> Reply YES: Send\n> Reply NO: Cancel', 'yes'],
+  ['no\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <\nclub@example.com> wrote:\nReply YES: Send', 'no'],
+  ['YES\n\nSent from my Galaxy\n\n-------- Original message --------\nFrom: Concord <club@example.com>\nReply YES: Send\nReply NO: Cancel', 'yes'],
+  ['Yes\n________________________________\nFrom: Concord Table Tennis Club\nSent: Saturday\nReply NO: cancel', 'yes'],
+  ['Yes.\n\nOn Oct 10, 2026, at 11:57 AM, Concord Table Tennis Club <club@example.com> wrote:\n\nReply NO', 'yes'],
+  // Only a leading yes or no is an answer: ordinary messages that mention one are not.
+  ['I am out of the office with no access to email', ''], ['Running late tonight, there is no parking', ''], ['Is there no earlier time?', ''],
+  ['I have no idea what this is', ''], ['Can I bring my son? No pressure', ''], ['Yes, but I can\'t make it', ''], ['I said yes', ''],
+  ['Hi, yes please', 'yes'], ['Ok, no thanks', 'no'], ['no.', 'no'], ['Y', 'yes'], ['N', 'no'], ['yes!!!', 'yes'], ['', ''],
+  // A reply app in another language: our own quoted lines are never read as their words.
+  ['Ja, YES\n\nAm Sa., 10. Okt. 2026 um 11:57 schrieb Concord Table Tennis Club <club@example.com>:\nConfirm your coaching request [CTTC ref 0123456789]\nReply YES: Send\nReply NO: Cancel', ''],
+  ['YES\n\nAm Sa., 10. Okt. 2026 um 11:57 schrieb Concord Table Tennis Club <club@example.com>:\nReply YES: Send\nReply NO: Cancel', 'yes'],
+  ['yes\n-- \nBryan\nNo calls after 9', 'yes'],
+  // A greeting first, on its own line or with a name, then the answer.
+  ['Hi John,\n\nYes, I can do it.', 'yes'], ['Hi,\nYes', 'yes'], ['Dear Dee,\nYes', 'yes'], ['Good morning,\n\nYes please', 'yes'], ['Hello Coach Dee,\nyes', 'yes'],
+  ['Hi Dee, yes', 'yes'], ['hi yes, see you', 'yes'], ['Hey,\nno thanks', 'no'], ['Thanks!\nNo idea what this is', ''],
+  // The club's name in their own words, or Outlook's divider run onto the answer, does not lose the answer.
+  ['Yes, see you at Concord Table Tennis Club!', 'yes'], ['Yes - thanks Concord Table Tennis Club', 'yes'],
+  ['Yes________________________________From: Concord Table Tennis Club <club@example.com>', 'yes']
+].forEach(([reply, expected]) => assert.equal(context.answerOf_(reply), expected, JSON.stringify(reply)));
+
+// HTML replies are read with their own line breaks; the quoted earlier message is never read.
+{
+  const reply = (plain, html) => ({ getPlainBody: () => plain, getBody: () => html });
+  const samsung = '<div dir="auto">YES</div><div dir="auto"><br></div><div id="composer_signature" dir="auto"><div>Sent from my Galaxy</div></div>' +
+    '<div><br></div><div align="left" dir="auto"><div>-------- Original message --------</div><div>Reply YES: Send my request</div><div>Reply NO: Cancel</div></div>';
+  assert.equal(context.answerOf_(context.replyText_(reply('YESSent from my Galaxy-------- Original message --------', samsung))), 'yes');
+  const gmail = '<div dir="ltr">No thanks&nbsp;</div><br><div class="gmail_quote"><div>On Sat, Oct 10 the club wrote:</div><blockquote>Reply YES: Confirm<br>Reply NO: Decline</blockquote></div>';
+  assert.equal(context.answerOf_(context.replyText_(reply('No thanks\n\nOn Sat, Oct 10 the club wrote:\n> Reply YES', gmail))), 'no');
+  assert.equal(context.answerOf_(context.replyText_(reply('YES', ''))), 'yes', 'a plain-text reply is read as it is');
+  assert.equal(context.answerOf_(context.replyText_({ getPlainBody: () => 'yes' })), 'yes', 'and so is a message with no HTML at all');
+  // The status read-out never spells out a reply: only invisible characters are listed, never letters in any language.
+  assert.equal(context.oddCharacters_('是的 да YES‎'), 'U+200E');
+}
 
 // ---- Coaches: only the ones the owner listed, picked from a list; no sign-in ----
 assert.deepEqual(grids.Coaches[0], ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at'], 'the owner types the first three columns');
@@ -387,14 +440,23 @@ assert.doesNotMatch(verifyMail.htmlBody.replace(/Sam Student/g, ''), PRIVATE);
 assert.match(verifyMail.body, /You will show on the site as "Student Sam"/);
 assert.doesNotMatch(verifyMail.body.replace(/sam@example\.com|Sam Student/g, ''), PRIVATE);
 assert.equal(run('openSlots').slots.length, 6, 'the time is held while we wait');
-assert.deepEqual(run('openSlots').schedule, [{ day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Requested', summary: 'Student Sam requested a session with Coach Ann' }]);
+assert.deepEqual(run('openSlots').schedule, [{ day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Waiting for Student Sam to confirm', summary: 'Student Sam requested a session with Coach Ann. Waiting for Student Sam to confirm' }]);
 // Only a YES or NO, from the address the request was made with, quoting the code, after the question, answers it.
 answerMail('sam@example.com', 'Maybe, is it the east door?', verifyMail.subject);
 answerMail('pat@example.com', 'YES', verifyMail.subject);
 answerMail('"Sam" <sam@example.com>', 'YES', verifyMail.subject.replace(/ref [0-9A-F]+/, 'ref 0123456789'));
 answerMail('"Sam" <sam@example.com>', 'YES', 'Confirm your coaching request');
 assert.equal(statusOf('sam@example.com'), 'unverified', 'a maybe, a stranger, a wrong code and no code are not answers');
-assert.equal(sent.length, 1);
+// ...but a reply to a real question is never silently ignored: the sender is told what to do, and so is the club.
+assert.deepEqual(sent.slice(1).map(message => [message.to.toLowerCase(), message.subject]), [
+  ['sam@example.com', 'We could not read your reply'],
+  ['owner@example.com', 'Coaching: a reply could not be read'],
+  ['pat@example.com', 'Your reply did not count: please answer from the right address'],
+  ['owner@example.com', 'Coaching: a reply came from the wrong address']]);
+assert.doesNotMatch(sent[3].body, /sam@example/, 'the other sender is not shown the booked address');
+check();
+assert.equal(sent.length, 5, 'each unanswerable reply is answered once');
+sent.splice(1);
 answerMail('"Sam Student" <SAM@example.com>', 'Yes', verifyMail.subject);
 assert.equal(statusOf('sam@example.com'), 'pending', 'her YES sends it to the coach');
 assert.ok(cell('Requests', latestRequest('sam@example.com'), 'verified_at'));
@@ -416,7 +478,8 @@ assert.doesNotMatch(pendingCoach.body, /concordtabletennisclub\.com|script\.goog
 // The coach is asked by text straight away, and a bare YES or NO answers it.
 assert.equal(ann()[2], 'CTTC: Lesson request from Sam Student: 50 min, Fri Oct 9, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.');
 assert.equal(run('openSlots').slots.length, 6, 'a requested slot is held');
-assert.equal(grids.Schedule.find(line => line[5] === 'Requested')[7], 'Student Sam requested a session with Coach Ann');
+assert.equal(grids.Schedule.find(line => line[5] === 'Waiting for Coach Ann to accept')[7], 'Student Sam requested a session with Coach Ann. Waiting for Coach Ann to accept',
+  'the public schedule says who must reply next');
 assert.equal(grids.Schedule.filter(line => line[5] === 'Open').length, 6);
 assertPublicIsAnonymous();
 assert.equal(run('requestSlot', form(slots[0], { name: 'Pat Other', email: 'pat@example.com' })).ok, false, 'a second student cannot take the same slot');
@@ -663,6 +726,111 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   context.sweep();
   assert.equal(mailTo('low@example.com').length, 1, 'held mail goes out once there is quota');
 }
+// A saved request is a success on the page even when the follow-up (emails, the public Sheet) throws: otherwise the student
+// tries again and is told their own request has taken the time.
+{
+  const picked = run('openSlots').slots[0];
+  quotaThrows = true; sent.length = 0;
+  const result = run('requestSlot', { key: picked.key, name: 'Sweep Throws', email: 'throws@example.com' });
+  quotaThrows = false;
+  assert.equal(result.ok, true, 'a saved request is never reported as a failure');
+  assert.equal(statusOf('throws@example.com'), 'unverified');
+  assert.equal(held, 0, 'the lock is released');
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Sweep Throws', email: 'throws@example.com' }).ok, false, 'the time is held by the saved request');
+  context.sweep();
+  assert.equal(mailTo('throws@example.com').length, 1, 'the next sweep sends the confirmation email');
+}
+// A request still waiting on someone's YES gets one reminder that says who must reply; a YES to the reminder counts.
+{
+  const picked = run('openSlots').slots[0];
+  const coachAddress = picked.coach === 'Coach Ann' ? 'ann@example.com' : null;
+  sent.length = 0;
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Rex Reminder', email: 'rex@example.com' }).ok, true);
+  context.sweep();
+  assert.equal(mailTo('rex@example.com').filter(message => /^Reminder:/.test(message.subject)).length, 0, 'no reminder straight away');
+  clock += hours(1) + 60000;
+  context.sweep();
+  context.sweep();
+  const nudges = mailTo('rex@example.com').filter(message => /^Reminder: Confirm your coaching request \[CTTC ref [0-9A-F]{10}\]$/.test(message.subject));
+  assert.equal(nudges.length, 1, 'the student is reminded once');
+  assert.match(nudges[0].body, /Still waiting for you: .* has not been sent to the coach yet\. Reply YES/);
+  assert.equal(sent.filter(message => message.to.toLowerCase() !== 'rex@example.com' && /Rex/.test(message.subject + message.body)).length, 0, 'the coach hears nothing before the student says YES');
+  answerMail('rex@example.com', 'YES', nudges[0].subject);
+  assert.equal(statusOf('rex@example.com'), 'pending', 'a YES to the reminder confirms the request');
+  const coachMail = sent.filter(message => /^Lesson request from Rex Reminder/.test(message.subject)).pop();
+  assert.ok(coachMail, 'the coach is asked once the student confirms');
+  const coachTo = coachMail.to.toLowerCase();
+  if (coachAddress) assert.equal(coachTo, coachAddress);
+  clock += hours(1);
+  context.sweep();
+  assert.equal(mailTo(coachTo).filter(message => /^Reminder:/.test(message.subject)).length, 0, 'the coach gets two hours first');
+  clock += hours(1) + 60000;
+  context.sweep();
+  context.sweep();
+  const coachNudges = mailTo(coachTo).filter(message => /^Reminder: Lesson request from Rex Reminder \[CTTC ref [0-9A-F]{10}\]$/.test(message.subject));
+  assert.equal(coachNudges.length, 1, 'the coach is reminded once');
+  assert.match(coachNudges[0].body, /waiting for your YES/);
+  const waiting = mailTo('rex@example.com').filter(message => /^Your coaching request is waiting on Coach /.test(message.subject));
+  assert.equal(waiting.length, 1, 'the student is told it now waits on the coach');
+  assert.match(waiting[0].body, /nothing more is needed from you/);
+  answerMail(coachTo, 'YES', coachNudges[0].subject);
+  assert.equal(statusOf('rex@example.com'), 'confirmed', 'a YES to the coach reminder confirms the lesson');
+  assertPublicIsAnonymous();
+}
+// A YES sent in time but read late (the minute check was failing, or the reply was missed) still counts if the time is free.
+{
+  const picked = run('openSlots').slots[0];
+  sent.length = 0;
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Lou Late', email: 'lou.late@gmail.com' }).ok, true);
+  const subject = askedBy('lou.late@gmail.com', /^Confirm your coaching request/);
+  clock += hours(1);
+  const at = clock;
+  const id = 'e' + messageCount++;
+  // Gmail ignores dots, and phones add invisible characters: this is still Lou's YES.
+  mailbox.push({ getId: () => id, getFrom: () => '"lou" <LouLate@gmail.com>', getSubject: () => 'Re: ' + subject, getDate: () => new Date(at),
+    getPlainBody: () => '\u200bYES\u200b\r\n\r\nSent from my Galaxy' });
+  clock += hours(1) + 60000;
+  context.sweep();
+  assert.equal(statusOf('lou.late@gmail.com'), 'expired', 'nobody read the reply before the deadline');
+  assert.ok(run('openSlots').slots.some(slot => slot.key === picked.key), 'the time was released');
+  sent.length = 0;
+  check();
+  assert.equal(statusOf('lou.late@gmail.com'), 'pending', 'the YES was sent before the deadline, so it counts once read');
+  assert.ok(!run('openSlots').slots.some(slot => slot.key === picked.key), 'the time is held again');
+  assert.ok(sent.some(message => /^Lesson request from Lou Late/.test(message.subject)), 'the coach is asked');
+  assert.ok(sent.some(message => message.to === 'lou.late@gmail.com' && /^Coaching request sent to /.test(message.subject)), 'the student is told it went to the coach');
+  check();
+  assert.equal(statusOf('lou.late@gmail.com'), 'pending');
+}
+// A failing step of the minute check (here Google Voice) never stops email answers being read, and the club is told once.
+{
+  const picked = run('openSlots').slots[0];
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Val Voice', email: 'val@example.com' }).ok, true);
+  const coaches = grids.Coaches.slice(1);
+  const asked = coaches.find(line => cell('Coaches', line, 'ask_ref'));
+  const saved = asked ? null : coaches[0].slice();
+  if (!asked) { coaches[0][column('Coaches', 'ask_ref')] = 'slots'; coaches[0][column('Coaches', 'ask_at')] = String(clock); }
+  voiceDown = true; sent.length = 0;
+  replyTo('val@example.com', 'YES', /^Confirm your coaching request/);
+  assert.equal(statusOf('val@example.com'), 'pending', 'the email YES is read even though texts cannot be');
+  assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'the club is told');
+  check();
+  assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'once');
+  // A new column gets its header at the next sweep, without running setup() again.
+  grids.Requests[0] = grids.Requests[0].slice(0, 23);
+  delete properties.HEADERS;
+  context.sweep();
+  assert.equal(grids.Requests[0][23], 'reminded');
+  // A deleted status sheet is made again.
+  properties.COACHING_STATUS_ID = 'deleted-status-id';
+  check();
+  assert.equal(properties.COACHING_STATUS_ID, 'status-book-id');
+  assert.match(books['status-book-id'].title, /^CTTC Coaching status \| \d{4}-\d{2}-\d{2} \d{2}:\d0 \| mail q=\d+ late=\d+.* \| failed: read coach texts: Error: Google Voice is unavailable/,
+    'the status read-out shows the minute check ran and which step failed');
+  voiceDown = false;
+  if (saved) grids.Coaches[grids.Coaches.indexOf(coaches[0])] = saved;
+  cache = {};
+}
 // An unanswered request is released after two hours, and the coach never hears of it.
 {
   const picked = run('openSlots').slots[0];
@@ -673,8 +841,8 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.ok(run('openSlots').slots.some(entry => entry.key === picked.key), 'the time is open again');
   context.sweep();
   assert.equal(statusOf('silent@example.com'), 'expired');
-  assert.match(mailTo('silent@example.com').pop().body, /was not confirmed by a reply in time/);
-  assert.equal(mailTo('ann@example.com').length, 0, 'the coach was never told');
+  assert.match(mailTo('silent@example.com').pop().body, /expired because we did not receive your YES reply in time. You are not booked[\s\S]*Check your spam or junk folder/);
+  assert.equal(mailTo('ann@example.com').filter(message => /Quota Silent/.test(message.subject + message.body)).length, 0, 'the coach was never told');
   clock -= hours(2) + 60000;
 }
 assert.equal(held, 0, 'the lock is always released');
@@ -781,11 +949,11 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.deepEqual(verifiedTo('Dee Coach'), ['CTTC: Thanks, you are verified as Coach Dee. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
     'tap I am a coach and pick Coach D. We will text you here to confirm your times and lesson requests.']);
   assert.equal(deeLive().length, 0, 'a YES sent before the question does not count');
-  inbound('Dee Coach', 'Yes, but call me', clock + 1000);
+  inbound('Dee Coach', 'Call me first', clock + 1000);
   inbound('Someone Else', 'YES', clock + 2000, otherFrom);
   inbound('Dee Coach', 'YES', clock + 3000, '"Dee" <dee@example.com>');
   check();
-  assert.equal(deeLive().length, 0, "someone else's YES, a spoofed email and a reply that is not just YES do not count");
+  assert.equal(deeLive().length, 0, "someone else's YES, a spoofed email and a reply with no yes in it do not count");
   assert.equal(dee().length, 1);
   say('(925) 555-0142', 'Yes.');
   assert.deepEqual(deeLive().map(entry => [entry.start, entry.minutes]), [['19:00', 50], ['20:00', 25]], 'a YES from the number on the list publishes the listed times');
@@ -1102,6 +1270,7 @@ const openBooks = Object.keys(books).length;
 const brokenId = properties.COACHING_DB_ID;
 properties.COACHING_DB_ID = '';
 context.openBooks_ = {};
+context.bookIds_ = {};
 const fallback = context.doGet({});
 assert.match(fallback.getContent(), /var INITIAL = null;/, 'on a problem the page loads its data itself');
 properties.COACHING_DB_ID = brokenId;

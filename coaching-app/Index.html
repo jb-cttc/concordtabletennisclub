@@ -46,6 +46,7 @@
   button.tbl.removing { background: #fff; border: 2px dashed #8b1a1a; color: #8b1a1a; text-decoration: line-through; }
   button.tbl.removing::after { background: #f0d6d6; }
   .tbl.taken { background: #8a8a8a; border-color: #6f6f6f; color: #fff; }
+  .tbl .step { display: block; margin-top: 2px; font-size: 0.78rem; font-style: italic; }
   .tbl.empty { background: #fff; border: 2px dashed #ddd; color: #aaa; font-weight: 400; }
   .tbl:disabled { opacity: 1; }
   .legend { font-size: 0.85rem; color: #555; margin: 4px 0 8px; }
@@ -270,6 +271,8 @@
       el('b', { text: (entry.status === 'booked' ? 'Booked by ' : 'Requested by ') + entry.student }),
       el('span', { text: entry.coach + ' · ' + when })
     ]);
+    // Who must reply next, so a student or coach can see a request is stuck on them.
+    if (entry.status === 'requested' && entry.step) cell.appendChild(el('span', { 'class': 'step', text: entry.step }));
     var mine = el('button', { type: 'button', 'class': 'mini', text: 'Mine', 'aria-label': 'This is my lesson: cancel or move ' + entry.student + ' at ' + entry.time });
     mine.addEventListener('click', function () { change(entry); });
     cell.appendChild(mine);
@@ -315,7 +318,7 @@
     if (!result.schedule.length) box.appendChild(el('p', { text: 'No sessions are booked or requested yet.' }));
     var items = el('ul', { 'class': 'board' });
     result.schedule.forEach(function (entry) {
-      items.appendChild(el('li', {}, [el('b', { text: entry.summary }), el('span', { text: ' - ' + entry.day + ', ' + entry.time + ' (' + entry.status.toLowerCase() + ')' })]));
+      items.appendChild(el('li', {}, [el('b', { text: entry.summary }), el('span', { text: ' - ' + entry.day + ', ' + entry.time + ' (' + (entry.status === 'Booked' ? 'booked' : 'requested') + ')' })]));
     });
     box.appendChild(items);
     if (result.sheetUrl) box.appendChild(el('p', {}, [el('a', { href: result.sheetUrl, target: '_blank', rel: 'noopener', text: 'Open the public schedule Sheet' })]));
@@ -618,7 +621,9 @@
       var when = time12(cell.slot.start).replace(/ (AM|PM)$/, '') + ' to ' + time12(fromMinutes(toMinutes(cell.slot.start) + (cell.entry ? cell.entry.slot : cell.slot.minutes)));
       if (cell.kind === 'other') return el('div', { 'class': 'tbl taken', style: style }, [el('b', { text: cell.entry.coach }), el('span', { text: when })]);
       if (cell.kind === 'held') {
-        return el('div', { 'class': 'tbl held', style: style }, [el('b', { text: cell.entry.student + (cell.entry.status === 'booked' ? ' booked' : ' requested') }), el('span', { text: when })]);
+        var step = cell.entry.status === 'booked' ? '' : cell.entry.waiting === 'coach' ? 'Your YES needed: reply to our message' : 'Waiting for the student to confirm';
+        return el('div', { 'class': 'tbl held', style: style }, [el('b', { text: cell.entry.student + (cell.entry.status === 'booked' ? ' booked' : ' requested') }), el('span', { text: when }),
+          step ? el('span', { 'class': 'step', text: step }) : null]);
       }
       var text = { mine: 'Yours', draft: 'New', removing: 'Removing' }[cell.kind];
       var button = el('button', { type: 'button', 'class': 'tbl ' + cell.kind, style: style, 'aria-label': text + ', Table ' + cell.table + ', ' + when + (cell.kind === 'removing' ? ', tap to keep' : ', tap to remove') }, [el('b', { text: text }), el('span', { text: when })]);
