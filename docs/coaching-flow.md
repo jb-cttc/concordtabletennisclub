@@ -53,8 +53,9 @@ succeeded, so a mismatch means the message has not gone out yet:
 | `coach_texted` | `pending` once the coach was **asked** by text; afterwards the last status texted | `status = pending`, `coach_texted` empty → the coach has not been texted (no mobile, never texted COACH, or another question is open, see §4) |
 | `student_texted` | the last status texted to the student | only for students with `Students.texts = yes` |
 
-**Reminders.** A request still waiting gets one reminder per step, sent by
-the sweep: the student 1 hour after asking (*Reminder: Confirm your coaching
+**Reminders.** A request still waiting gets at most one reminder per step,
+sent by the sweep (hourly or after any change), so it can come a little later
+than the times below and is skipped in the last 2 minutes before a deadline: the student 1 hour after asking (*Reminder: Confirm your coaching
 request [CTTC ref …]*, plus a text if they get texts), and the coach 2 hours
 after the student's YES (*Reminder: Lesson request from {student} [CTTC ref
 …]*, plus the text question again if it is the coach's open one). At that
@@ -107,14 +108,17 @@ Answers are read by the `checkTexts` trigger, which runs every minute.
   dots and `+tags`, do not matter). A reply from another account, alias or
   relay address (for example Apple's *Hide My Email*) does not count, but the
   sender is told to reply from the right address and the club is alerted;
-- the person's own words say **yes** or **no**, in any case and with other
-  words around it (`Yes, see you Friday`, `no thanks`, `y`, `yep`, `nope`).
-  The quoted earlier message (`On … wrote:`, `>` lines, `-------- Original
-  message --------`, an Outlook `From:` block) and `Sent from my …`
-  signatures are ignored, since our own emails say both "Reply YES" and
-  "Reply NO". `no problem` / `no worries` are not a no. A reply with both or
-  neither is not guessed at: the sender is asked to reply again and the club
-  is told;
+- the **first line of the person's own words starts with yes or no**, in any
+  case, optionally after a greeting or `ok` (`Yes, see you Friday`, `ok yes`,
+  `no thanks`, `y`, `yep`, `nope`). A yes or no further in (`there is no
+  parking`, an out-of-office note) is not an answer, nor is a line with both
+  (`Yes, but I can't make it`). Automatic replies are skipped. The quoted
+  earlier message (`On … wrote:`, `>` lines, `-------- Original message
+  --------`, an Outlook `From:` block, our own `Reply YES`/`[CTTC ref`
+  lines) and signatures (`Sent from my …`, `-- `) are cut off, even when an
+  HTML-only reply arrives with lines run together (`YESSent from my
+  Galaxy`). Invisible characters are removed first. An unreadable reply to an
+  open question gets one "please reply again" email and the club is told;
 - it arrives within 3 days and after the question was asked, and the
   question is still open.
 
@@ -132,11 +136,23 @@ Answers are read by the `checkTexts` trigger, which runs every minute.
   after the open one is answered; a fresh request replaces an open question
   only after 10 minutes (`PROPOSE_WAIT_MS`).
 
-A reply is never ignored silently any more: an unreadable reply or a wrong
-address gets an explanation, and the club is emailed. A failing step of the
-minute check (for example Google Voice) no longer stops email answers being
-read; the club is emailed about it at most every 6 hours. A student's YES
-sent before the deadline but read after it still counts if the time is free.
+An email reply to an open question that cannot be used gets an explanation
+(unreadable, or wrong address) within about 5 hours of arriving, and the club
+is emailed. Text replies with no yes/no are still ignored without a message.
+Each step of the minute check runs on its own, so a failing step (for
+example Google Voice) does not stop email answers being read; the club is
+emailed about a failing step at most every 6 hours. A student's YES sent
+before the deadline but read after it still counts if the lesson is still
+offered, free, at least about an hour from its own deadline, and the coach
+is active.
+
+**Status read-out.** After each minute check the app renames a separate,
+empty spreadsheet in the club's Drive, *CTTC Coaching status | {time} | mail
+q=… late=… threads=… messages=… coded=… answers=… | failed: …*. It holds
+counts only: open email questions, late-YES look-backs, threads and messages
+read, replies quoting a code, answers applied, unreadable replies (with the
+length and any unusual code points of the first line), and failed steps. If
+it is not updating, the minute check is not running.
 
 ## 5. Coaches' offered times
 
@@ -168,7 +184,7 @@ Students can only request times that are confirmed, **at least 24 hours away**
 | Symptom | Likely cause | Check | Fix |
 | --- | --- | --- | --- |
 | Page said "Something went wrong", retries say the time is taken, but a "requested" row exists for the student | Before `fix(coaching): never report a saved lesson request as a failure`, an error *after* saving (email, text, public Sheet rebuild) was shown as a failure. | Row is `unverified`; `student_emailed` may be empty. Executions show a failed `requestSlot`. | Fixed in code. For the stuck case, the next sweep sends the confirm email if it has not gone out. The student replies YES before `expires_at`. |
-| Student says they replied YES but row is still `unverified` | Reply not recognised (§4): different address, edited subject, extra words on the first line, or too late. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or have them submit again after it expires. |
+| Student says they replied YES but row is still `unverified` | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or have them submit again after it expires. |
 | Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | `coach_emailed = pending`? `coach_texted = pending`? `Coaches.ask_ref` = this `request_id`? | Remind the coach to reply `YES` to the email or text. |
 | Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | `Coaches.registered_at` empty; `phone` column. | Have them text `COACH` to the club number. |
 | No emails at all for a while | Daily mail quota low (sending pauses at 10 left), or Gmail/MailApp errors. | Executions log; `student_emailed`/`coach_emailed` lagging behind `status`. | Wait for the quota reset; the sweep retries for 3 days. |
