@@ -1748,6 +1748,30 @@ function checkTexts_() {
   step_('read STUDENT and STOP texts', checkStudentTexts_);
   step_('read email answers', checkMail_);
   step_('verify coaches', verifyCoaches_);
+  reportStatus_();
+}
+
+// What the last minute check did, as counts only. reportStatus_ shows it in the NAME of a separate, empty spreadsheet
+// ("CTTC Coaching status | 10-10 14:30 | mail q=1 ..."), so a maintainer can see whether the check runs and where it stops
+// without opening any private data. It never holds a name, an email address or a phone number.
+var STATUS_ = { failed: [], mail: 'not run' };
+
+function reportStatus_() {
+  try {
+    var properties = PropertiesService.getScriptProperties();
+    var id = properties.getProperty('COACHING_STATUS_ID');
+    var book = id ? SpreadsheetApp.openById(id) : null;
+    if (!book) {
+      book = SpreadsheetApp.create('CTTC Coaching status');
+      properties.setProperty('COACHING_STATUS_ID', book.getId());
+    }
+    var now = new Date(Math.floor(Date.now() / 600000) * 600000);
+    var name = 'CTTC Coaching status | ' + Utilities.formatDate(now, TZ, 'yyyy-MM-dd HH:mm') + ' | mail ' + STATUS_.mail +
+      ' | failed: ' + (STATUS_.failed.join('; ') || 'none');
+    if (book.getName() !== name) book.rename(name.slice(0, 250));
+  } catch (error) {
+    console.error('Could not update the status read-out: ' + error);
+  }
 }
 
 function checkCoachTexts_() {
@@ -1775,6 +1799,7 @@ function step_(name, run) {
     run();
   } catch (error) {
     console.error('Could not ' + name + ': ' + error);
+    STATUS_.failed.push(name + ': ' + String(error).replace(/\S+@\S+/g, '<address>').slice(0, 80));
     alertAdmin_('step:' + name, 'Coaching app: could not ' + name, ['The coaching app could not ' + name + '. It tries again every minute. The error was: ' + error]);
   }
 }
@@ -1877,6 +1902,7 @@ function emailQuestions_(now) {
 function checkMail_() {
   var now = Date.now();
   var questions = emailQuestions_(now);
+  STATUS_.mail = 'q=' + questions.length + ' late=' + questions.filter(function (question) { return question.before; }).length;
   if (!questions.length) return;
   var byCode = {};
   questions.forEach(function (question) { byCode[question.code] = question; });
@@ -1885,14 +1911,18 @@ function checkMail_() {
   // Gmail reads count against a daily quota (about 20,000 on a free account) and this runs every minute, so only threads with a
   // message from someone else since the oldest open question are opened, never threads holding only our own sent questions.
   var since = Math.floor(Math.min.apply(null, questions.map(function (question) { return question.after; })) / 1000);
-  GmailApp.search(mailQuery_(since), 0, 50).forEach(function (thread) {
+  var threads = GmailApp.search(mailQuery_(since), 0, 50);
+  var seen = { messages: 0, matched: 0 };
+  threads.forEach(function (thread) {
     thread.getMessages().forEach(function (message) {
+      seen.messages += 1;
       var code = (String(message.getSubject() || '').match(/\[CTTC ref ([0-9A-F]{10})\]/) || [])[1];
       var question = code && byCode[code];
       if (!question) return;
       var from = String(message.getFrom() || '');
       var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
       var at = message.getDate().getTime();
+      seen.matched += 1;
       if (at <= question.after || (question.before && at >= question.before) || autoReply_(message)) return;
       // Notices go out only for a recent reply to a question still open; a late YES is only looked for.
       var notify = !question.before && Date.now() - at < 5 * 3600000;
@@ -1909,6 +1939,7 @@ function checkMail_() {
       if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at, address: address };
     });
   });
+  STATUS_.mail += ' threads=' + threads.length + ' messages=' + seen.messages + ' coded=' + seen.matched + ' answers=' + Object.keys(answers).length;
   Object.keys(answers).forEach(function (code) {
     var found = answers[code];
     var question = found.question;

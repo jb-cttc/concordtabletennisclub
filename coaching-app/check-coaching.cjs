@@ -76,6 +76,8 @@ const makeBook = id => {
     getSheets: () => Object.keys(sheets),
     deleteSheet: () => {},
     getUrl: () => 'https://docs.google.com/spreadsheets/d/' + id,
+    getName: () => books[id].title || '',
+    rename: title => { assert.doesNotMatch(title, /@|\d{3}\) \d{3}-|Student |Coach /, 'the status read-out holds counts only'); books[id].title = title; },
     names: () => Object.keys(sheets).sort()
   });
 };
@@ -108,7 +110,7 @@ const context = {
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = value; } }) },
   SpreadsheetApp: {
     create: name => {
-      const id = /public/.test(name) ? 'public-book-id' : 'private-book-id';
+      const id = /public/.test(name) ? 'public-book-id' : /status/.test(name) ? 'status-book-id' : 'private-book-id';
       created.push(name);
       const book = makeBook(id);
       return { getId: () => id, getUrl: () => book.getUrl() };
@@ -790,6 +792,8 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'the club is told');
   check();
   assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'once');
+  assert.match(books['status-book-id'].title, /^CTTC Coaching status \| \d{4}-\d{2}-\d{2} \d{2}:\d0 \| mail q=\d+ late=\d+.* \| failed: read coach texts: Error: Google Voice is unavailable/,
+    'the status read-out shows the minute check ran and which step failed');
   voiceDown = false;
   if (saved) grids.Coaches[grids.Coaches.indexOf(coaches[0])] = saved;
   cache = {};
