@@ -172,7 +172,7 @@ const requestRows = () => grids.Requests.slice(1);
 const requestBy = email => requestRows().filter(line => cell('Requests', line, 'student_email') === email);
 const weekday = date => new Date(date + 'T00:00:00Z').getUTCDay();
 // Everything on the public Sheet is readable by anyone: first names only, never a full name, an address or a number.
-const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Rex Reminder|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
+const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Rex Reminder|Lou Late|Val Voice|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
 const assertPublicIsAnonymous = () => {
   assert.doesNotMatch(JSON.stringify([grids.Schedule, grids.About]), PRIVATE, 'public Sheet leaks');
 };
@@ -395,7 +395,16 @@ answerMail('pat@example.com', 'YES', verifyMail.subject);
 answerMail('"Sam" <sam@example.com>', 'YES', verifyMail.subject.replace(/ref [0-9A-F]+/, 'ref 0123456789'));
 answerMail('"Sam" <sam@example.com>', 'YES', 'Confirm your coaching request');
 assert.equal(statusOf('sam@example.com'), 'unverified', 'a maybe, a stranger, a wrong code and no code are not answers');
-assert.equal(sent.length, 1);
+// ...but a reply to a real question is never silently ignored: the sender is told what to do, and so is the club.
+assert.deepEqual(sent.slice(1).map(message => [message.to.toLowerCase(), message.subject]), [
+  ['sam@example.com', 'We could not read your reply'],
+  ['owner@example.com', 'Coaching: a reply could not be read'],
+  ['pat@example.com', 'Your reply did not count: please answer from the right address'],
+  ['owner@example.com', 'Coaching: a reply came from the wrong address']]);
+assert.doesNotMatch(sent[3].body, /sam@example/, 'the other sender is not shown the booked address');
+check();
+assert.equal(sent.length, 5, 'each unanswerable reply is answered once');
+sent.splice(1);
 answerMail('"Sam Student" <SAM@example.com>', 'Yes', verifyMail.subject);
 assert.equal(statusOf('sam@example.com'), 'pending', 'her YES sends it to the coach');
 assert.ok(cell('Requests', latestRequest('sam@example.com'), 'verified_at'));
@@ -716,6 +725,49 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.equal(statusOf('rex@example.com'), 'confirmed', 'a YES to the coach reminder confirms the lesson');
   assertPublicIsAnonymous();
 }
+// A YES sent in time but read late (the minute check was failing, or the reply was missed) still counts if the time is free.
+{
+  const picked = run('openSlots').slots[0];
+  sent.length = 0;
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Lou Late', email: 'lou.late@gmail.com' }).ok, true);
+  const subject = askedBy('lou.late@gmail.com', /^Confirm your coaching request/);
+  clock += hours(1);
+  const at = clock;
+  const id = 'e' + messageCount++;
+  // Gmail ignores dots, and phones add invisible characters: this is still Lou's YES.
+  mailbox.push({ getId: () => id, getFrom: () => '"lou" <LouLate@gmail.com>', getSubject: () => 'Re: ' + subject, getDate: () => new Date(at),
+    getPlainBody: () => '​YES​\r\n\r\nSent from my Galaxy' });
+  clock += hours(1) + 60000;
+  context.sweep();
+  assert.equal(statusOf('lou.late@gmail.com'), 'expired', 'nobody read the reply before the deadline');
+  assert.ok(run('openSlots').slots.some(slot => slot.key === picked.key), 'the time was released');
+  sent.length = 0;
+  check();
+  assert.equal(statusOf('lou.late@gmail.com'), 'pending', 'the YES was sent before the deadline, so it counts once read');
+  assert.ok(!run('openSlots').slots.some(slot => slot.key === picked.key), 'the time is held again');
+  assert.ok(sent.some(message => /^Lesson request from Lou Late/.test(message.subject)), 'the coach is asked');
+  assert.ok(sent.some(message => message.to === 'lou.late@gmail.com' && /^Coaching request sent to /.test(message.subject)), 'the student is told it went to the coach');
+  check();
+  assert.equal(statusOf('lou.late@gmail.com'), 'pending');
+}
+// A failing step of the minute check (here Google Voice) never stops email answers being read, and the club is told once.
+{
+  const picked = run('openSlots').slots[0];
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Val Voice', email: 'val@example.com' }).ok, true);
+  const coaches = grids.Coaches.slice(1);
+  const asked = coaches.find(line => cell('Coaches', line, 'ask_ref'));
+  const saved = asked ? null : coaches[0].slice();
+  if (!asked) { coaches[0][column('Coaches', 'ask_ref')] = 'slots'; coaches[0][column('Coaches', 'ask_at')] = String(clock); }
+  voiceDown = true; sent.length = 0;
+  replyTo('val@example.com', 'YES', /^Confirm your coaching request/);
+  assert.equal(statusOf('val@example.com'), 'pending', 'the email YES is read even though texts cannot be');
+  assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'the club is told');
+  check();
+  assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'once');
+  voiceDown = false;
+  if (saved) grids.Coaches[grids.Coaches.indexOf(coaches[0])] = saved;
+  cache = {};
+}
 // An unanswered request is released after two hours, and the coach never hears of it.
 {
   const picked = run('openSlots').slots[0];
@@ -727,7 +779,7 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   context.sweep();
   assert.equal(statusOf('silent@example.com'), 'expired');
   assert.match(mailTo('silent@example.com').pop().body, /expired because we did not receive your YES reply in time. You are not booked[\s\S]*Check your spam or junk folder/);
-  assert.equal(mailTo('ann@example.com').length, 0, 'the coach was never told');
+  assert.equal(mailTo('ann@example.com').filter(message => /Quota Silent/.test(message.subject + message.body)).length, 0, 'the coach was never told');
   clock -= hours(2) + 60000;
 }
 assert.equal(held, 0, 'the lock is always released');

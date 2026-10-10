@@ -1055,7 +1055,7 @@ function askStudentText_(student, ref, body) {
 }
 
 // Applies a student's YES or NO. kind 'v' confirms a new request; 'c' a cancellation or move.
-function studentAnswer_(requestId, kind, answer, channel) {
+function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
   var reply = '';
   var request = null;
   var student = null;
@@ -1074,12 +1074,15 @@ function studentAnswer_(requestId, kind, answer, channel) {
     }
     var status = effectiveStatus_(request, now);
     if (kind === 'v') {
-      if (status !== 'unverified') {
+      // An answer sent before the deadline but read after it still counts if the time is free.
+      var late = status === 'expired' && answeredAt && answeredAt < Number(request.expires_at) && lateVerify_(request, requests, rows_('Availability'), now);
+      if (status !== 'unverified' && !late) {
         reply = 'That request is no longer waiting for you (it is ' + status + '), so nothing changed.';
       } else if (answer === 'yes') {
         request.status = 'pending';
         request.verified_at = nowIso_();
         request.expires_at = String(expiryFor_(request.date, request.start));
+        request.reminded = '';
       } else {
         request.status = 'cancelled';
         request.cancelled_by = 'student';
@@ -1573,7 +1576,8 @@ function sendText_(coach, body) {
 
 // 'yes', 'no' or '' for a text's first line.
 function answerOf_(text) {
-  var line = String(text || '').split('\n')[0].trim();
+  // Some mail and phone apps add invisible characters around a word.
+  var line = String(text || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').split('\n')[0].trim();
   if (/^(yes|y|yes please)[\s.!]*$/i.test(line)) return 'yes';
   if (/^(no|n|nope|no thanks)[\s.!]*$/i.test(line)) return 'no';
   return '';
@@ -1701,21 +1705,52 @@ function checkTexts() {
 }
 
 function checkTexts_() {
+  step_('read coach texts', function () { checkCoachTexts_(); });
+  step_('read student texts', function () { checkStudentAnswers_(); });
+  step_('read STUDENT and STOP texts', checkStudentTexts_);
+  step_('read email answers', checkMail_);
+  step_('verify coaches', verifyCoaches_);
+}
+
+function checkCoachTexts_() {
   rows_('Coaches').filter(function (coach) { return coach.coach_id && active_(coach) && coach.ask_ref && Number(coach.ask_at) > 0; }).forEach(function (coach) {
     var asked = Number(coach.ask_at);
     var reply = voiceTextsFrom_(coach, 2).filter(function (text) { return text.at > asked && answerOf_(text.text); })
       .sort(function (a, b) { return a.at - b.at; })[0];
     if (reply) answer_(coach.coach_id, coach.ask_ref, answerOf_(reply.text), 'text');
   });
+}
+
+function checkStudentAnswers_() {
   rows_('Students').filter(function (student) { return student.ask_ref && Number(student.ask_at) > 0 && phoneDigits_(student.phone); }).forEach(function (student) {
     var asked = Number(student.ask_at);
     var reply = voiceTextsFrom_({ name: student.name, phone: student.phone }, 2).filter(function (text) { return text.at > asked && answerOf_(text.text); })
       .sort(function (a, b) { return a.at - b.at; })[0];
     if (reply) studentAnswer_(student.ask_ref.slice(2), student.ask_ref.slice(0, 1), answerOf_(reply.text), 'text');
   });
-  checkStudentTexts_();
-  checkMail_();
-  verifyCoaches_();
+}
+
+// One failing step never stops the others (a Gmail hiccup reading texts must not stop email answers being read). The club is
+// emailed about a failing step at most every 6 hours.
+function step_(name, run) {
+  try {
+    run();
+  } catch (error) {
+    console.error('Could not ' + name + ': ' + error);
+    alertAdmin_('step:' + name, 'Coaching app: could not ' + name, ['The coaching app could not ' + name + '. It tries again every minute. The error was: ' + error]);
+  }
+}
+
+// Emails the club about something it should know, at most once every 6 hours per key.
+function alertAdmin_(key, subject, lines) {
+  var cache = CacheService.getScriptCache();
+  if (cache.get('alert:' + key) || !mailAvailable_()) return;
+  cache.put('alert:' + key, '1', 21600);
+  try {
+    sendMail_(adminEmail_(), subject, lines);
+  } catch (error) {
+    console.error('Could not alert the club: ' + error);
+  }
 }
 
 // A coach on the list whose number (or Voice contact name) has texted the club, COACH or anything else, can be texted back: that
@@ -1775,6 +1810,8 @@ function changeCode_(request) { return code_('c:' + request.request_id + ':' + r
 // Every question still waiting for an emailed answer: {code, email, after, kind, id}.
 function emailQuestions_(now) {
   var questions = [];
+  var offered = null;
+  var availability = function () { return offered || (offered = rows_('Availability')); };
   var coaches = rows_('Coaches').filter(function (coach) { return coach.coach_id && active_(coach) && cleanEmail_(coach.email); });
   var byId = {};
   coaches.forEach(function (coach) {
@@ -1783,10 +1820,14 @@ function emailQuestions_(now) {
       questions.push({ code: proposalCode_(coach.coach_id, coach.ask_made), email: cleanEmail_(coach.email), after: Number(coach.ask_made), kind: 'slots', id: coach.coach_id });
     }
   });
-  rows_('Requests').forEach(function (request) {
+  var requests = rows_('Requests');
+  requests.forEach(function (request) {
     var status = effectiveStatus_(request, now);
     var after = Date.parse(request.created_at) || 0;
     if (status === 'unverified') questions.push({ code: verifyCode_(request), email: request.student_email, after: after, kind: 'v', id: request.request_id });
+    if (status === 'expired' && lateVerify_(request, requests, availability(), now)) {
+      questions.push({ code: verifyCode_(request), email: request.student_email, after: after, before: Number(request.expires_at), kind: 'v', id: request.request_id });
+    }
     if (status === 'pending' && byId[request.coach_id]) {
       questions.push({ code: requestCode_(request), email: cleanEmail_(byId[request.coach_id].email), after: after, kind: 'request', id: request.request_id, coachId: request.coach_id });
     }
@@ -1802,6 +1843,7 @@ function checkMail_() {
   var byCode = {};
   questions.forEach(function (question) { byCode[question.code] = question; });
   var answers = {};
+  var us = [Session.getEffectiveUser().getEmail(), adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
   GmailApp.search('newer_than:3d subject:"CTTC ref"', 0, 50).forEach(function (thread) {
     thread.getMessages().forEach(function (message) {
       var code = (String(message.getSubject() || '').match(/\[CTTC ref ([0-9A-F]{10})\]/) || [])[1];
@@ -1810,10 +1852,18 @@ function checkMail_() {
       var from = String(message.getFrom() || '');
       var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
       var at = message.getDate().getTime();
-      if (address !== question.email || at <= question.after) return;
+      if (us.indexOf(address) >= 0 || at <= question.after || (question.before && at >= question.before)) return;
+      if (!sameAddress_(address, question.email)) {
+        wrongSender_(message.getId(), address, question.email, String(message.getSubject() || ''));
+        return;
+      }
       var line = String(message.getPlainBody() || '').split(/\r?\n/).map(function (text) { return text.trim(); }).filter(Boolean)[0];
       var answer = answerOf_(line);
-      if (answer && (!answers[code] || at < answers[code].at)) answers[code] = { question: question, answer: answer, at: at };
+      if (!answer) {
+        unreadableReply_(message.getId(), address, String(message.getSubject() || ''), line);
+        return;
+      }
+      if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at, address: address };
     });
   });
   Object.keys(answers).forEach(function (code) {
@@ -1821,8 +1871,66 @@ function checkMail_() {
     var question = found.question;
     if (question.kind === 'slots') answer_(question.id, 'slots', found.answer, 'email');
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
-    else studentAnswer_(question.id, question.kind, found.answer, 'email');
+    else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
+}
+
+// The same mailbox: case never matters, and for Gmail neither do dots or a +tag in the name.
+function sameAddress_(a, b) {
+  var key = function (address) {
+    var parts = String(address || '').trim().toLowerCase().split('@');
+    if (parts.length !== 2) return parts.join('@');
+    if (parts[1] === 'gmail.com' || parts[1] === 'googlemail.com') return parts[0].split('+')[0].replace(/\./g, '') + '@gmail.com';
+    return parts.join('@');
+  };
+  return key(a) === key(b);
+}
+
+// A reply quoting our code from another address does not count (nobody may answer for someone else), but it is never silent:
+// the sender is told to reply from the address the question went to, and the club is told, once per reply.
+function wrongSender_(messageId, address, expected, subject) {
+  var cache = CacheService.getScriptCache();
+  if (cache.get('sender:' + messageId) || !mailAvailable_()) return;
+  cache.put('sender:' + messageId, '1', 21600);
+  try {
+    sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
+      '", but it came from a different email address than the one the question was sent to, so nothing changed.',
+      { callout: 'Please **reply from the email address the question was sent to**, with **YES** or **NO** on the first line.', tone: 'action' }]);
+  } catch (error) {
+    console.error('Could not tell a sender to use the right address: ' + error);
+  }
+  alertAdmin_('sender:' + messageId, 'Coaching: a reply came from the wrong address', ['A reply to "' + subject + '" came from ' + address + ', but the question went to ' +
+    expected + ', so it was not counted. The sender was asked to reply from ' + expected + '.']);
+}
+
+// A reply to one of our questions that is not a clear YES or NO: tell the sender how to answer, and the club, once per reply.
+function unreadableReply_(messageId, address, subject, line) {
+  var cache = CacheService.getScriptCache();
+  if (cache.get('unread:' + messageId) || !mailAvailable_()) return;
+  cache.put('unread:' + messageId, '1', 21600);
+  try {
+    sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
+      { callout: 'Please **reply to that email again** with only **YES** or **NO** on the first line.', tone: 'action' }]);
+  } catch (error) {
+    console.error('Could not tell a sender their reply was unreadable: ' + error);
+  }
+  alertAdmin_('unread:' + messageId, 'Coaching: a reply could not be read', ['A reply to "' + subject + '" from ' + address + ' started with "' +
+    String(line || '').slice(0, 80) + '", which is not YES or NO. They were asked to reply again.']);
+}
+
+// A student's YES that arrived before the request expired, but was read late (or not at all, before the fixes of 2026-10-10),
+// still counts while the lesson is far enough ahead and nobody else holds the time.
+function lateVerify_(request, requests, availability, now) {
+  if (effectiveStatus_(request, now) !== 'expired' || request.verified_at || request.cancelled_by) return false;
+  if (now - (Date.parse(request.created_at) || 0) > 3 * 86400000 || expiryFor_(request.date, request.start) - now < 60 * 60000) return false;
+  var taken = requests.some(function (other) {
+    return other.request_id !== request.request_id && holds_(other, now) && other.coach_id === request.coach_id && other.date === request.date &&
+      overlaps_(other.start, other.minutes, request.start, request.minutes);
+  });
+  var offered = availability.some(function (entry) {
+    return entry.coach_id === request.coach_id && entry.confirmed === 'yes' && entry.date === request.date && overlaps_(entry.start, entry.minutes, request.start, request.minutes);
+  });
+  return !taken && offered;
 }
 
 // STUDENT turns on lesson texts for every student whose mobile number (or, for a saved Voice contact, name) matches; STOP turns
