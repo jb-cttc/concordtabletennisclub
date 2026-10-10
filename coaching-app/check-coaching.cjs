@@ -131,7 +131,12 @@ const context = {
     search: query => {
       gmailQueries.push(query);
       // Emailed answers: replies whose subject carries a [CTTC ref] code.
-      if (query === 'newer_than:3d subject:"CTTC ref"') return mailbox.length ? [{ getMessages: () => mailbox.slice() }] : [];
+      const replies = query.match(/^newer_than:3d subject:"CTTC ref" -from:me after:(\d+)$/);
+      if (replies) {
+        // Gmail returns threads with a message from someone else after that moment; ours are never in the mailbox.
+        const found = mailbox.filter(message => message.getDate().getTime() >= Number(replies[1]) * 1000);
+        return found.length ? [{ getMessages: () => mailbox.slice() }] : [];
+      }
       if (voiceDown) throw new Error('Google Voice is unavailable');
       assert.match(query, /^in:anywhere from:txt\.voice\.google\.com newer_than:\d+d \((subject:"[A-Za-z ]+" OR "\(\d{3}\) \d{3}-\d{4}"|subject:"[A-Za-z ]+"|"\(\d{3}\) \d{3}-\d{4}"|STUDENT OR STOP)\)$/);
       return inbox.length ? [{ getMessages: () => inbox.slice() }] : [];
@@ -177,7 +182,7 @@ const assertPublicIsAnonymous = () => {
   assert.doesNotMatch(JSON.stringify([grids.Schedule, grids.About]), PRIVATE, 'public Sheet leaks');
 };
 // The minute-by-minute trigger, without its 20 second and 10 minute throttles.
-const check = () => { delete cache['check-texts']; delete cache['verify-coaches']; context.checkTexts(); };
+const check = () => { delete cache['check-texts']; delete cache['verify-coaches']; delete cache['student-texts']; context.checkTexts(); };
 // A text from a phone. Each one arrives a minute after the last, the way real replies come after the question.
 const say = (name, body, from) => { clock += 60000; inbound(name, body, clock, from); check(); };
 const allTextsTo = (...names) => replies.filter(reply => names.some(name => reply.subject === 'New text message from ' + name)).map(reply => reply.body);

@@ -1862,7 +1862,10 @@ function checkMail_() {
   questions.forEach(function (question) { byCode[question.code] = question; });
   var answers = {};
   var us = [Session.getEffectiveUser().getEmail(), adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
-  GmailApp.search('newer_than:3d subject:"CTTC ref"', 0, 50).forEach(function (thread) {
+  // Gmail reads count against a daily quota (about 20,000 on a free account) and this runs every minute, so only threads with a
+  // message from someone else since the oldest open question are opened, never threads holding only our own sent questions.
+  var since = Math.floor(Math.min.apply(null, questions.map(function (question) { return question.after; })) / 1000);
+  GmailApp.search(mailQuery_(since), 0, 50).forEach(function (thread) {
     thread.getMessages().forEach(function (message) {
       var code = (String(message.getSubject() || '').match(/\[CTTC ref ([0-9A-F]{10})\]/) || [])[1];
       var question = code && byCode[code];
@@ -1892,6 +1895,8 @@ function checkMail_() {
     else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
 }
+
+function mailQuery_(since) { return 'newer_than:3d subject:"CTTC ref" -from:me after:' + since; }
 
 // The same mailbox: case never matters, and for Gmail neither do dots or a +tag in the name.
 function sameAddress_(a, b) {
@@ -1954,6 +1959,10 @@ function lateVerify_(request, requests, availability, now) {
 // STUDENT turns on lesson texts for every student whose mobile number (or, for a saved Voice contact, name) matches; STOP turns
 // them off. Gmail is only searched once some student has given a number.
 function checkStudentTexts_() {
+  // STUDENT and STOP only switch texts on or off, so every 5 minutes is soon enough and saves Gmail reads.
+  var cache = CacheService.getScriptCache();
+  if (cache.get('student-texts')) return;
+  cache.put('student-texts', '1', 300);
   if (!rows_('Students').some(function (student) { return phoneDigits_(student.phone); })) return;
   var seen = {};
   var texts = [];
