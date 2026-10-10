@@ -315,6 +315,8 @@ assert.match(grids.About[0][0], /does not change any booking/);
   assert.equal((page.match(/resetStatus\(form\);/g) || []).length, 4, 'every form, reopened, starts without an old answer');
   assert.match(page, /'class': 'field-error', id: input\.id \+ 'Error'/, 'the reason is shown right under the field at fault');
   assert.equal(context.fail_('x').field, undefined, 'fail_ without a field is unchanged');
+  assert.match(page, /@media \(prefers-reduced-motion: reduce\) \{ \.slide-open, \.slide-shut \{ animation: none; \} \}/, 'the guardian slide respects reduced motion');
+  assert.match(page, /if \(guardianBox\.className === 'slide-shut'\) guardianBox\.hidden = !minor\.checked;/, 'and hides only once it has slid up, unless ticked again');
 }
 
 // HTML replies are read with their own line breaks; the quoted earlier message is never read.
