@@ -103,12 +103,18 @@ Answers are read by the `checkTexts` trigger, which runs every minute.
 
 - the reply's subject still contains the `[CTTC ref XXXXXXXXXX]` code (a normal
   "Reply" keeps it; editing the subject or writing a new email loses it);
-- it comes **from the exact address the question went to**. Replying from
-  another account, an alias, or a relay address (for example Apple's *Hide My
-  Email*) is ignored;
-- the **first non-empty line** is `YES`, `Y`, `yes please`, `NO`, `N`, `nope`
-  or `no thanks` (case-insensitive; trailing `.` or `!` is fine). `Yes, see
-  you then` or a greeting on the first line is ignored;
+- it comes **from the address the question went to** (case, and for Gmail
+  dots and `+tags`, do not matter). A reply from another account, alias or
+  relay address (for example Apple's *Hide My Email*) does not count, but the
+  sender is told to reply from the right address and the club is alerted;
+- the person's own words say **yes** or **no**, in any case and with other
+  words around it (`Yes, see you Friday`, `no thanks`, `y`, `yep`, `nope`).
+  The quoted earlier message (`On … wrote:`, `>` lines, `-------- Original
+  message --------`, an Outlook `From:` block) and `Sent from my …`
+  signatures are ignored, since our own emails say both "Reply YES" and
+  "Reply NO". `no problem` / `no worries` are not a no. A reply with both or
+  neither is not guessed at: the sender is asked to reply again and the club
+  is told;
 - it arrives within 3 days and after the question was asked, and the
   question is still open.
 
@@ -126,8 +132,11 @@ Answers are read by the `checkTexts` trigger, which runs every minute.
   after the open one is answered; a fresh request replaces an open question
   only after 10 minutes (`PROPOSE_WAIT_MS`).
 
-If an answer was ignored, the person gets no error message. Check the
-club's Gmail for their reply and compare it with the rules above.
+A reply is never ignored silently any more: an unreadable reply or a wrong
+address gets an explanation, and the club is emailed. A failing step of the
+minute check (for example Google Voice) no longer stops email answers being
+read; the club is emailed about it at most every 6 hours. A student's YES
+sent before the deadline but read after it still counts if the time is free.
 
 ## 5. Coaches' offered times
 

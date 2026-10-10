@@ -265,6 +265,19 @@ assert.equal(grids.Requests[0].length, 24);
 assert.deepEqual(grids.Schedule[0], ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']);
 assert.match(grids.About[0][0], /does not change any booking/);
 
+// ---- Reading a YES or NO: any case, other words allowed, never the quoted earlier message ----
+[
+  ['yes', 'yes'], ['Yes', 'yes'], ['YES!', 'yes'], ['yEs please', 'yes'], ['Yes, see you Friday', 'yes'], ['y', 'yes'], ['ok yes', 'yes'],
+  ['No problem, yes I can', 'yes'], ['no', 'no'], ['No thanks', 'no'], ['NO, I cannot make it', 'no'], ['n', 'no'], ['Nope', 'no'],
+  ['maybe', ''], ['yes no', ''], ['No problem!', ''], ['Yesterday works', ''], ['I know', ''], ['\n\nyes\n', 'yes'],
+  ['​YES​\r\n\r\nSent from my Galaxy', 'yes'],
+  ['Yes\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <club@example.com> wrote:\n> Reply YES: Send\n> Reply NO: Cancel', 'yes'],
+  ['no\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <\nclub@example.com> wrote:\nReply YES: Send', 'no'],
+  ['YES\n\nSent from my Galaxy\n\n-------- Original message --------\nFrom: Concord <club@example.com>\nReply YES: Send\nReply NO: Cancel', 'yes'],
+  ['Yes\n________________________________\nFrom: Concord Table Tennis Club\nSent: Saturday\nReply NO: cancel', 'yes'],
+  ['Yes.\n\nOn Oct 10, 2026, at 11:57 AM, Concord Table Tennis Club <club@example.com> wrote:\n\nReply NO', 'yes']
+].forEach(([reply, expected]) => assert.equal(context.answerOf_(reply), expected, JSON.stringify(reply)));
+
 // ---- Coaches: only the ones the owner listed, picked from a list; no sign-in ----
 assert.deepEqual(grids.Coaches[0], ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at'], 'the owner types the first three columns');
 assert.deepEqual(run('coachList'), { ok: true, coaches: [] }, 'nobody is a coach until the owner lists them');
@@ -886,11 +899,11 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.deepEqual(verifiedTo('Dee Coach'), ['CTTC: Thanks, you are verified as Coach Dee. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
     'tap I am a coach and pick Coach D. We will text you here to confirm your times and lesson requests.']);
   assert.equal(deeLive().length, 0, 'a YES sent before the question does not count');
-  inbound('Dee Coach', 'Yes, but call me', clock + 1000);
+  inbound('Dee Coach', 'Call me first', clock + 1000);
   inbound('Someone Else', 'YES', clock + 2000, otherFrom);
   inbound('Dee Coach', 'YES', clock + 3000, '"Dee" <dee@example.com>');
   check();
-  assert.equal(deeLive().length, 0, "someone else's YES, a spoofed email and a reply that is not just YES do not count");
+  assert.equal(deeLive().length, 0, "someone else's YES, a spoofed email and a reply with no yes in it do not count");
   assert.equal(dee().length, 1);
   say('(925) 555-0142', 'Yes.');
   assert.deepEqual(deeLive().map(entry => [entry.start, entry.minutes]), [['19:00', 50], ['20:00', 25]], 'a YES from the number on the list publishes the listed times');

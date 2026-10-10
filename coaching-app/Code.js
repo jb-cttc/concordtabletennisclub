@@ -1217,7 +1217,7 @@ function remindWaiting_(coaches, students, requests, now) {
         sendMail_(ask.to, 'Reminder: ' + ask.subject, [who,
           { callout: '**Still waiting for you:** ' + lesson + ' has **not** been sent to the coach yet. Reply **YES** to this email by **' + deadline +
             '** to send it. If you do not reply, the request expires and the time is released.', tone: 'action' },
-          'Reply from this same email address, with YES on the first line. Replying to the earlier "Confirm your coaching request" email works too.'
+          'Reply from this same email address. Replying to the earlier "Confirm your coaching request" email works too.'
         ].concat(ask.lines.slice(2)));
         askStudentText_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
           lessonMinutes_(request.minutes) + ' min, ' + shortWhen_(request.date, request.start) + ', Table ' + (Number(request.table) || 1) + '. Reply NO to cancel it.');
@@ -1226,7 +1226,7 @@ function remindWaiting_(coaches, students, requests, now) {
         if (question) sendMail_(question.to, 'Reminder: ' + question.subject, [
           { callout: '**Still waiting for you:** ' + request.student_name + ' confirmed this request and it is **waiting for your YES**. Reply **YES** (or NO) to this email by **' + deadline +
             '**, or the request expires and the club is told.', tone: 'action' },
-          'Reply from this same email address, with YES or NO on the first line.'].concat(question.lines));
+          'Reply from this same email address.'].concat(question.lines));
         if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true));
         sendMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
           { callout: lesson + ' is **waiting for ' + coachName_(coach) + ' to accept it.** You confirmed it, so **nothing more is needed from you**. It is not booked until the coach accepts.', tone: 'action' },
@@ -1410,7 +1410,7 @@ function studentMail_(request, coach) {
       { callout: 'Your request for **' + when + '** with ' + coachShown + ' **expired** because we did not receive your **YES** reply in time. **You are not booked**, and the coach was not asked.', tone: 'action' },
       { heading: 'To book' },
       { steps: ['Request the time again at ' + PAGE_URL + ' (first come, first served).',
-        'Reply **YES** to the "Confirm your coaching request" email within **2 hours**. Reply from the same email address, with YES on the first line.',
+        'Reply **YES** to the "Confirm your coaching request" email within **2 hours**. Reply from the same email address.',
         'Cannot find that email? Check your spam or junk folder.',
         'Once you reply, the request goes to ' + coachShown + ' to accept, and we email you the answer.'] }] };
   }
@@ -1574,13 +1574,31 @@ function sendText_(coach, body) {
   latest.message.reply(body);
 }
 
-// 'yes', 'no' or '' for a text's first line.
+// What the person wrote themselves in a reply: everything before the quoted earlier message or a signature. Our own emails
+// say both "Reply YES" and "Reply NO", so the quoted part must never be read as their answer.
+function ownWords_(text) {
+  var lines = String(text || '').replace(/[​-‍⁠﻿]/g, '').split(/\r?\n/).map(function (line) { return line.trim(); });
+  var mine = [];
+  for (var i = 0; i < lines.length; i += 1) {
+    var line = lines[i];
+    var next = lines[i + 1] || '';
+    if (/^>/.test(line) || /^-{2,}\s*(original message|forwarded message)/i.test(line) || /^_{5,}$/.test(line) ||
+      /^(sent from|get outlook for)\b/i.test(line) || (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) ||
+      /^on\b.{4,}\bwrote:?$/i.test(line) || (/^on\b.{4,}/i.test(line) && /\bwrote:?$/i.test(next))) break;
+    mine.push(line);
+  }
+  return mine.join('\n').trim();
+}
+
+// 'yes', 'no' or '' for a reply by text or email, in any case and with other words around it ("Yes, see you Friday", "no
+// thanks"). A reply with both or neither is not guessed at.
 function answerOf_(text) {
-  // Some mail and phone apps add invisible characters around a word.
-  var line = String(text || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').split('\n')[0].trim();
-  if (/^(yes|y|yes please)[\s.!]*$/i.test(line)) return 'yes';
-  if (/^(no|n|nope|no thanks)[\s.!]*$/i.test(line)) return 'no';
-  return '';
+  var words = ownWords_(text).toLowerCase().replace(/\bno (problem|worries|prob|issue|issues)\b/g, ' ');
+  if (/^\s*y\s*[.!]*\s*$/.test(words)) return 'yes';
+  if (/^\s*n\s*[.!]*\s*$/.test(words)) return 'no';
+  var yes = /\b(yes|yeah|yep|yup|yess+)\b/.test(words);
+  var no = /\b(no|nope|nah)\b/.test(words);
+  return yes === no ? '' : yes ? 'yes' : 'no';
 }
 
 function requestQuestion_(request, again) {
@@ -1857,10 +1875,10 @@ function checkMail_() {
         wrongSender_(message.getId(), address, question.email, String(message.getSubject() || ''));
         return;
       }
-      var line = String(message.getPlainBody() || '').split(/\r?\n/).map(function (text) { return text.trim(); }).filter(Boolean)[0];
-      var answer = answerOf_(line);
+      var body = String(message.getPlainBody() || '');
+      var answer = answerOf_(body);
       if (!answer) {
-        unreadableReply_(message.getId(), address, String(message.getSubject() || ''), line);
+        unreadableReply_(message.getId(), address, String(message.getSubject() || ''), ownWords_(body).split('\n')[0]);
         return;
       }
       if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at, address: address };
@@ -1895,7 +1913,7 @@ function wrongSender_(messageId, address, expected, subject) {
   try {
     sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
       '", but it came from a different email address than the one the question was sent to, so nothing changed.',
-      { callout: 'Please **reply from the email address the question was sent to**, with **YES** or **NO** on the first line.', tone: 'action' }]);
+      { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }]);
   } catch (error) {
     console.error('Could not tell a sender to use the right address: ' + error);
   }
@@ -1910,7 +1928,7 @@ function unreadableReply_(messageId, address, subject, line) {
   cache.put('unread:' + messageId, '1', 21600);
   try {
     sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
-      { callout: 'Please **reply to that email again** with only **YES** or **NO** on the first line.', tone: 'action' }]);
+      { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }]);
   } catch (error) {
     console.error('Could not tell a sender their reply was unreadable: ' + error);
   }
