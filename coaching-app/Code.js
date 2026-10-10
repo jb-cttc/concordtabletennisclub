@@ -1034,6 +1034,18 @@ function askStudentChange_(question) {
 
 // Texts a student who opted in to texts a YES or NO question; the latest question is the one a bare YES or NO answers.
 function askStudentText_(student, ref, body) {
+  if (!student) return;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    textStudentQuestion_(rows_('Students').filter(function (entry) { return entry.email === student.email; })[0], ref, body);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Call while holding the lock. The student's latest texted question is the one a bare YES or NO answers.
+function textStudentQuestion_(student, ref, body) {
   if (!student || student.texts !== 'yes' || !phoneDigits_(student.phone)) return;
   try {
     sendText_({ name: student.name, phone: student.phone }, body);
@@ -1041,17 +1053,9 @@ function askStudentText_(student, ref, body) {
     console.error('Could not text a student a question: ' + error);
     return;
   }
-  var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    var fresh = rows_('Students').filter(function (entry) { return entry.email === student.email; })[0];
-    if (!fresh) return;
-    fresh.ask_ref = ref;
-    fresh.ask_at = String(Date.now());
-    save_('Students', fresh);
-  } finally {
-    lock.releaseLock();
-  }
+  student.ask_ref = ref;
+  student.ask_at = String(Date.now());
+  save_('Students', student);
 }
 
 // Applies a student's YES or NO. kind 'v' confirms a new request; 'c' a cancellation or move.
@@ -1204,40 +1208,53 @@ function remindWaiting_(coaches, students, requests, now) {
     var status = effectiveStatus_(request, now);
     if ((status !== 'unverified' && status !== 'pending') || request.reminded === status) return;
     var since = status === 'unverified' ? Date.parse(request.created_at) : Date.parse(request.verified_at);
-    if (!(now - since >= (status === 'unverified' ? REMIND_STUDENT_MS : REMIND_COACH_MS)) || Number(request.expires_at) - now < 10 * 60000) return;
+    if (!(now - since >= (status === 'unverified' ? REMIND_STUDENT_MS : REMIND_COACH_MS)) || Number(request.expires_at) - now < 2 * 60000) return;
     var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
     if (!coach || !mailAvailable_()) return;
     var student = students.filter(function (entry) { return entry.email === request.student_email; })[0];
     var who = request.guardian_name ? 'Hello ' + request.guardian_name + ', this is about the lesson for ' + request.student_name + '.' : 'Hello ' + request.student_name + ',';
     var lesson = studentName_(request) + '\'s ' + lessonMinutes_(request.minutes) + ' minute lesson with ' + coachName_(coach) + ' on ' + whenLabel_(request.date, request.start, request.minutes);
     var deadline = momentLabel_(Number(request.expires_at));
-    try {
-      if (status === 'unverified') {
+    // Marked first, so a part that fails is never resent: one reminder per step at most.
+    request.reminded = status;
+    save_('Requests', request);
+    var attempt = function (send) {
+      try {
+        send();
+      } catch (error) {
+        console.error('Could not send part of a coaching reminder: ' + error);
+      }
+    };
+    if (status === 'unverified') {
+      attempt(function () {
         var ask = studentMail_(request, coach);
         sendMail_(ask.to, 'Reminder: ' + ask.subject, [who,
           { callout: '**Still waiting for you:** ' + lesson + ' has **not** been sent to the coach yet. Reply **YES** to this email by **' + deadline +
             '** to send it. If you do not reply, the request expires and the time is released.', tone: 'action' },
           'Reply from this same email address. Replying to the earlier "Confirm your coaching request" email works too.'
         ].concat(ask.lines.slice(2)));
-        askStudentText_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
+      });
+      attempt(function () {
+        textStudentQuestion_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
           lessonMinutes_(request.minutes) + ' min, ' + shortWhen_(request.date, request.start) + ', Table ' + (Number(request.table) || 1) + '. Reply NO to cancel it.');
-      } else {
+      });
+      return;
+    }
+    attempt(function () {
         var question = coachMail_(request, coach, student);
         if (question) sendMail_(question.to, 'Reminder: ' + question.subject, [
           { callout: '**Still waiting for you:** ' + request.student_name + ' confirmed this request and it is **waiting for your YES**. Reply **YES** (or NO) to this email by **' + deadline +
             '**, or the request expires and the club is told.', tone: 'action' },
           'Reply from this same email address.'].concat(question.lines));
+    });
+    attempt(function () {
         if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true));
+    });
+    attempt(function () {
         sendMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
           { callout: lesson + ' is **waiting for ' + coachName_(coach) + ' to accept it.** You confirmed it, so **nothing more is needed from you**. It is not booked until the coach accepts.', tone: 'action' },
           'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.']);
-      }
-    } catch (error) {
-      console.error('Could not send a coaching reminder: ' + error);
-      return;
-    }
-    request.reminded = status;
-    save_('Requests', request);
+    });
   });
 }
 
@@ -1577,28 +1594,31 @@ function sendText_(coach, body) {
 // What the person wrote themselves in a reply: everything before the quoted earlier message or a signature. Our own emails
 // say both "Reply YES" and "Reply NO", so the quoted part must never be read as their answer.
 function ownWords_(text) {
-  var lines = String(text || '').replace(/[​-‍⁠﻿]/g, '').split(/\r?\n/).map(function (line) { return line.trim(); });
+  var lines = String(text || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').split(/\r?\n/).map(function (line) { return line.trim(); });
   var mine = [];
   for (var i = 0; i < lines.length; i += 1) {
     var line = lines[i];
     var next = lines[i + 1] || '';
     if (/^>/.test(line) || /^-{2,}\s*(original message|forwarded message)/i.test(line) || /^_{5,}$/.test(line) ||
-      /^(sent from|get outlook for)\b/i.test(line) || (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) ||
+      /^(sent from|get outlook for)\b/i.test(line) || /^--\s*$/.test(line) || /\[CTTC ref |^reply (yes|no)\b|concord table tennis club/i.test(line) || (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) ||
       /^on\b.{4,}\bwrote:?$/i.test(line) || (/^on\b.{4,}/i.test(line) && /\bwrote:?$/i.test(next))) break;
     mine.push(line);
   }
   return mine.join('\n').trim();
 }
 
-// 'yes', 'no' or '' for a reply by text or email, in any case and with other words around it ("Yes, see you Friday", "no
-// thanks"). A reply with both or neither is not guessed at.
+// 'yes', 'no' or '' for a reply by text or email: the first line of the person's own words must start with yes or no, in any
+// case, after a greeting or "ok" ("Yes, see you Friday", "ok yes", "no thanks", "y"). A yes or no further in ("there is no
+// parking", "I have no idea", an out-of-office note) is not an answer, and nor is a line with both ("Yes, but no").
 function answerOf_(text) {
-  var words = ownWords_(text).toLowerCase().replace(/\bno (problem|worries|prob|issue|issues)\b/g, ' ');
-  if (/^\s*y\s*[.!]*\s*$/.test(words)) return 'yes';
-  if (/^\s*n\s*[.!]*\s*$/.test(words)) return 'no';
-  var yes = /\b(yes|yeah|yep|yup|yess+)\b/.test(words);
-  var no = /\b(no|nope|nah)\b/.test(words);
-  return yes === no ? '' : yes ? 'yes' : 'no';
+  var line = (ownWords_(text).split('\n').filter(Boolean)[0] || '').toLowerCase()
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hello|dear [a-z]+)\b[\s,.!:-]*)+/, '');
+  var rest = line.replace(/\bno (problem|worries|prob|issues?|rush)\b/g, ' ');
+  var yes = /^(y|yes|yeah|yep|yup|yess+)\b/.test(line);
+  var no = /^(n|no|nope|nah)\b/.test(line);
+  if (yes && /\b(no|nope|nah|not|can't|cannot|cant)\b/.test(rest)) return '';
+  if (no && /\b(yes|yeah|yep|yup)\b/.test(rest)) return '';
+  return yes ? 'yes' : no ? 'no' : '';
 }
 
 function requestQuestion_(request, again) {
@@ -1761,10 +1781,10 @@ function step_(name, run) {
 
 // Emails the club about something it should know, at most once every 6 hours per key.
 function alertAdmin_(key, subject, lines) {
-  var cache = CacheService.getScriptCache();
-  if (cache.get('alert:' + key) || !mailAvailable_()) return;
-  cache.put('alert:' + key, '1', 21600);
   try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('alert:' + key) || !mailAvailable_()) return;
+    cache.put('alert:' + key, '1', 21600);
     sendMail_(adminEmail_(), subject, lines);
   } catch (error) {
     console.error('Could not alert the club: ' + error);
@@ -1873,15 +1893,17 @@ function checkMail_() {
       var from = String(message.getFrom() || '');
       var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
       var at = message.getDate().getTime();
-      if (us.indexOf(address) >= 0 || at <= question.after || (question.before && at >= question.before)) return;
+      if (at <= question.after || (question.before && at >= question.before) || autoReply_(message)) return;
+      // Notices go out only for a recent reply to a question still open; a late YES is only looked for.
+      var notify = !question.before && Date.now() - at < 5 * 3600000;
       if (!sameAddress_(address, question.email)) {
-        wrongSender_(message.getId(), address, question.email, String(message.getSubject() || ''));
+        if (us.indexOf(address) < 0 && notify) wrongSender_(message.getId(), address, question.email, String(message.getSubject() || ''));
         return;
       }
       var body = String(message.getPlainBody() || '');
       var answer = answerOf_(body);
       if (!answer) {
-        unreadableReply_(message.getId(), address, String(message.getSubject() || ''), ownWords_(body).split('\n')[0]);
+        if (notify) unreadableReply_(message.getId(), address, String(message.getSubject() || ''), ownWords_(body).split('\n')[0]);
         return;
       }
       if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at, address: address };
@@ -1894,6 +1916,17 @@ function checkMail_() {
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
     else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
+}
+
+// Out-of-office and other automatic replies are never answers.
+function autoReply_(message) {
+  if (/^(automatic reply|auto(-| )?reply|out of (the )?office|autoreply|away)/i.test(String(message.getSubject() || '').replace(/^(re|fwd?):\s*/i, ''))) return true;
+  try {
+    var header = String(message.getHeader ? message.getHeader('Auto-Submitted') || '' : '').toLowerCase();
+    return !!header && header !== 'no';
+  } catch (error) {
+    return false;
+  }
 }
 
 function mailQuery_(since) { return 'newer_than:3d subject:"CTTC ref" -from:me after:' + since; }
@@ -1912,39 +1945,48 @@ function sameAddress_(a, b) {
 // A reply quoting our code from another address does not count (nobody may answer for someone else), but it is never silent:
 // the sender is told to reply from the address the question went to, and the club is told, once per reply.
 function wrongSender_(messageId, address, expected, subject) {
-  var cache = CacheService.getScriptCache();
-  if (cache.get('sender:' + messageId) || !mailAvailable_()) return;
-  cache.put('sender:' + messageId, '1', 21600);
   try {
-    sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
-      '", but it came from a different email address than the one the question was sent to, so nothing changed.',
-      { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }]);
+    var cache = CacheService.getScriptCache();
+    if (cache.get('sender:' + messageId) || !mailAvailable_()) return;
+    cache.put('sender:' + messageId, '1', 21600);
+    try {
+      sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
+        '", but it came from a different email address than the one the question was sent to, so nothing changed.',
+        { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }]);
+    } catch (error) {
+      console.error('Could not tell a sender to use the right address: ' + error);
+    }
+    alertAdmin_('sender:' + messageId, 'Coaching: a reply came from the wrong address', ['A reply to "' + subject + '" came from ' + address + ', but the question went to ' +
+      expected + ', so it was not counted. The sender was asked to reply from ' + expected + '.']);
   } catch (error) {
-    console.error('Could not tell a sender to use the right address: ' + error);
+    console.error('Could not send a reply notice: ' + error);
   }
-  alertAdmin_('sender:' + messageId, 'Coaching: a reply came from the wrong address', ['A reply to "' + subject + '" came from ' + address + ', but the question went to ' +
-    expected + ', so it was not counted. The sender was asked to reply from ' + expected + '.']);
 }
 
 // A reply to one of our questions that is not a clear YES or NO: tell the sender how to answer, and the club, once per reply.
 function unreadableReply_(messageId, address, subject, line) {
-  var cache = CacheService.getScriptCache();
-  if (cache.get('unread:' + messageId) || !mailAvailable_()) return;
-  cache.put('unread:' + messageId, '1', 21600);
   try {
-    sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
-      { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }]);
+    var cache = CacheService.getScriptCache();
+    if (cache.get('unread:' + messageId) || !mailAvailable_()) return;
+    cache.put('unread:' + messageId, '1', 21600);
+    try {
+      sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
+        { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }]);
+    } catch (error) {
+      console.error('Could not tell a sender their reply was unreadable: ' + error);
+    }
+    alertAdmin_('unread:' + messageId, 'Coaching: a reply could not be read', ['A reply to "' + subject + '" from ' + address + ' started with "' +
+      String(line || '').slice(0, 80) + '", which is not YES or NO. They were asked to reply again.']);
   } catch (error) {
-    console.error('Could not tell a sender their reply was unreadable: ' + error);
+    console.error('Could not send a reply notice: ' + error);
   }
-  alertAdmin_('unread:' + messageId, 'Coaching: a reply could not be read', ['A reply to "' + subject + '" from ' + address + ' started with "' +
-    String(line || '').slice(0, 80) + '", which is not YES or NO. They were asked to reply again.']);
 }
 
 // A student's YES that arrived before the request expired, but was read late (or not at all, before the fixes of 2026-10-10),
 // still counts while the lesson is far enough ahead and nobody else holds the time.
 function lateVerify_(request, requests, availability, now) {
-  if (effectiveStatus_(request, now) !== 'expired' || request.verified_at || request.cancelled_by) return false;
+  var coach = coachById_(request.coach_id);
+  if (!coach || effectiveStatus_(request, now) !== 'expired' || request.verified_at || request.cancelled_by) return false;
   if (now - (Date.parse(request.created_at) || 0) > 3 * 86400000 || expiryFor_(request.date, request.start) - now < 60 * 60000) return false;
   var taken = requests.some(function (other) {
     return other.request_id !== request.request_id && holds_(other, now) && other.coach_id === request.coach_id && other.date === request.date &&

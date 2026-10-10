@@ -280,7 +280,15 @@ assert.match(grids.About[0][0], /does not change any booking/);
   ['no\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <\nclub@example.com> wrote:\nReply YES: Send', 'no'],
   ['YES\n\nSent from my Galaxy\n\n-------- Original message --------\nFrom: Concord <club@example.com>\nReply YES: Send\nReply NO: Cancel', 'yes'],
   ['Yes\n________________________________\nFrom: Concord Table Tennis Club\nSent: Saturday\nReply NO: cancel', 'yes'],
-  ['Yes.\n\nOn Oct 10, 2026, at 11:57 AM, Concord Table Tennis Club <club@example.com> wrote:\n\nReply NO', 'yes']
+  ['Yes.\n\nOn Oct 10, 2026, at 11:57 AM, Concord Table Tennis Club <club@example.com> wrote:\n\nReply NO', 'yes'],
+  // Only a leading yes or no is an answer: ordinary messages that mention one are not.
+  ['I am out of the office with no access to email', ''], ['Running late tonight, there is no parking', ''], ['Is there no earlier time?', ''],
+  ['I have no idea what this is', ''], ['Can I bring my son? No pressure', ''], ['Yes, but I can\'t make it', ''], ['I said yes', ''],
+  ['Hi, yes please', 'yes'], ['Ok, no thanks', 'no'], ['no.', 'no'], ['Y', 'yes'], ['N', 'no'], ['yes!!!', 'yes'], ['', ''],
+  // A reply app in another language: our own quoted lines are never read as their words.
+  ['Ja, YES\n\nAm Sa., 10. Okt. 2026 um 11:57 schrieb Concord Table Tennis Club <club@example.com>:\nConfirm your coaching request [CTTC ref 0123456789]\nReply YES: Send\nReply NO: Cancel', ''],
+  ['YES\n\nAm Sa., 10. Okt. 2026 um 11:57 schrieb Concord Table Tennis Club <club@example.com>:\nReply YES: Send\nReply NO: Cancel', 'yes'],
+  ['yes\n-- \nBryan\nNo calls after 9', 'yes']
 ].forEach(([reply, expected]) => assert.equal(context.answerOf_(reply), expected, JSON.stringify(reply)));
 
 // ---- Coaches: only the ones the owner listed, picked from a list; no sign-in ----

@@ -621,7 +621,7 @@
       var when = time12(cell.slot.start).replace(/ (AM|PM)$/, '') + ' to ' + time12(fromMinutes(toMinutes(cell.slot.start) + (cell.entry ? cell.entry.slot : cell.slot.minutes)));
       if (cell.kind === 'other') return el('div', { 'class': 'tbl taken', style: style }, [el('b', { text: cell.entry.coach }), el('span', { text: when })]);
       if (cell.kind === 'held') {
-        var step = cell.entry.status === 'booked' ? '' : cell.entry.waiting === 'coach' ? 'Your YES needed: reply to our email or text' : 'Waiting for the student to confirm';
+        var step = cell.entry.status === 'booked' ? '' : cell.entry.waiting === 'coach' ? 'Your YES needed: reply to our message' : 'Waiting for the student to confirm';
         return el('div', { 'class': 'tbl held', style: style }, [el('b', { text: cell.entry.student + (cell.entry.status === 'booked' ? ' booked' : ' requested') }), el('span', { text: when }),
           step ? el('span', { 'class': 'step', text: step }) : null]);
       }
