@@ -113,7 +113,7 @@ const context = {
       const id = /public/.test(name) ? 'public-book-id' : /status/.test(name) ? 'status-book-id' : 'private-book-id';
       created.push(name);
       const book = makeBook(id);
-      return { getId: () => id, getUrl: () => book.getUrl() };
+      return Object.assign({ getId: () => id }, book);
     },
     openById: id => { assert.ok(books[id], 'only the two Sheets the app made are opened'); return books[id]; }
   },
@@ -294,8 +294,28 @@ assert.match(grids.About[0][0], /does not change any booking/);
   // A reply app in another language: our own quoted lines are never read as their words.
   ['Ja, YES\n\nAm Sa., 10. Okt. 2026 um 11:57 schrieb Concord Table Tennis Club <club@example.com>:\nConfirm your coaching request [CTTC ref 0123456789]\nReply YES: Send\nReply NO: Cancel', ''],
   ['YES\n\nAm Sa., 10. Okt. 2026 um 11:57 schrieb Concord Table Tennis Club <club@example.com>:\nReply YES: Send\nReply NO: Cancel', 'yes'],
-  ['yes\n-- \nBryan\nNo calls after 9', 'yes']
+  ['yes\n-- \nBryan\nNo calls after 9', 'yes'],
+  // A greeting first, on its own line or with a name, then the answer.
+  ['Hi John,\n\nYes, I can do it.', 'yes'], ['Hi,\nYes', 'yes'], ['Dear Dee,\nYes', 'yes'], ['Good morning,\n\nYes please', 'yes'], ['Hello Coach Dee,\nyes', 'yes'],
+  ['Hi Dee, yes', 'yes'], ['hi yes, see you', 'yes'], ['Hey,\nno thanks', 'no'], ['Thanks!\nNo idea what this is', ''],
+  // The club's name in their own words, or Outlook's divider run onto the answer, does not lose the answer.
+  ['Yes, see you at Concord Table Tennis Club!', 'yes'], ['Yes - thanks Concord Table Tennis Club', 'yes'],
+  ['Yes________________________________From: Concord Table Tennis Club <club@example.com>', 'yes']
 ].forEach(([reply, expected]) => assert.equal(context.answerOf_(reply), expected, JSON.stringify(reply)));
+
+// HTML replies are read with their own line breaks; the quoted earlier message is never read.
+{
+  const reply = (plain, html) => ({ getPlainBody: () => plain, getBody: () => html });
+  const samsung = '<div dir="auto">YES</div><div dir="auto"><br></div><div id="composer_signature" dir="auto"><div>Sent from my Galaxy</div></div>' +
+    '<div><br></div><div align="left" dir="auto"><div>-------- Original message --------</div><div>Reply YES: Send my request</div><div>Reply NO: Cancel</div></div>';
+  assert.equal(context.answerOf_(context.replyText_(reply('YESSent from my Galaxy-------- Original message --------', samsung))), 'yes');
+  const gmail = '<div dir="ltr">No thanks&nbsp;</div><br><div class="gmail_quote"><div>On Sat, Oct 10 the club wrote:</div><blockquote>Reply YES: Confirm<br>Reply NO: Decline</blockquote></div>';
+  assert.equal(context.answerOf_(context.replyText_(reply('No thanks\n\nOn Sat, Oct 10 the club wrote:\n> Reply YES', gmail))), 'no');
+  assert.equal(context.answerOf_(context.replyText_(reply('YES', ''))), 'yes', 'a plain-text reply is read as it is');
+  assert.equal(context.answerOf_(context.replyText_({ getPlainBody: () => 'yes' })), 'yes', 'and so is a message with no HTML at all');
+  // The status read-out never spells out a reply: only invisible characters are listed, never letters in any language.
+  assert.equal(context.oddCharacters_('是的 да YES‎'), 'U+200E');
+}
 
 // ---- Coaches: only the ones the owner listed, picked from a list; no sign-in ----
 assert.deepEqual(grids.Coaches[0], ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at'], 'the owner types the first three columns');
@@ -796,6 +816,15 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'the club is told');
   check();
   assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'once');
+  // A new column gets its header at the next sweep, without running setup() again.
+  grids.Requests[0] = grids.Requests[0].slice(0, 23);
+  delete properties.HEADERS;
+  context.sweep();
+  assert.equal(grids.Requests[0][23], 'reminded');
+  // A deleted status sheet is made again.
+  properties.COACHING_STATUS_ID = 'deleted-status-id';
+  check();
+  assert.equal(properties.COACHING_STATUS_ID, 'status-book-id');
   assert.match(books['status-book-id'].title, /^CTTC Coaching status \| \d{4}-\d{2}-\d{2} \d{2}:\d0 \| mail q=\d+ late=\d+.* \| failed: read coach texts: Error: Google Voice is unavailable/,
     'the status read-out shows the minute check ran and which step failed');
   voiceDown = false;
@@ -1241,6 +1270,7 @@ const openBooks = Object.keys(books).length;
 const brokenId = properties.COACHING_DB_ID;
 properties.COACHING_DB_ID = '';
 context.openBooks_ = {};
+context.bookIds_ = {};
 const fallback = context.doGet({});
 assert.match(fallback.getContent(), /var INITIAL = null;/, 'on a problem the page loads its data itself');
 properties.COACHING_DB_ID = brokenId;

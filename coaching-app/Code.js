@@ -177,8 +177,9 @@ function publicBook_() { return book_('COACHING_PUBLIC_ID'); }
 
 // Opening a Sheet is the slowest step of a request, so each one is opened once per run.
 var openBooks_ = {};
+var bookIds_ = {};
 function book_(key) {
-  var id = PropertiesService.getScriptProperties().getProperty(key);
+  var id = bookIds_[key] || (bookIds_[key] = PropertiesService.getScriptProperties().getProperty(key));
   if (!id) throw new Error('Run setup once from the Apps Script editor.');
   if (!openBooks_[id]) openBooks_[id] = SpreadsheetApp.openById(id);
   return openBooks_[id];
@@ -567,6 +568,18 @@ function openSlots() {
     }),
     sheetUrl: property_('COACHING_PUBLIC_URL', '')
   };
+}
+
+// Columns added in a later version get their header names on the next sweep, so nobody has to run setup() again. Data is
+// read and written by position, so this is only for people reading the Sheet.
+function ensureHeaders_() {
+  var properties = PropertiesService.getScriptProperties();
+  var version = Object.keys(TABS).map(function (name) { return name + ':' + TABS[name].join(','); }).join('|');
+  if (properties.getProperty('HEADERS') === version) return;
+  Object.keys(TABS).forEach(function (name) {
+    tab_(name).getRange(1, 1, 1, TABS[name].length).setNumberFormat('@').setValues([TABS[name]]).setFontWeight('bold');
+  });
+  properties.setProperty('HEADERS', version);
 }
 
 // Called by the booking form. A request holds its slot, so two people cannot take the same time. It goes to the coach only once
@@ -1144,6 +1157,7 @@ function sweep_() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    ensureHeaders_();
     var now = Date.now();
     var coaches = ensureCoachIds_(rows_('Coaches'));
     var students = rows_('Students');
@@ -1202,7 +1216,7 @@ function deliver_(request, coach, field, compose) {
 // Call while holding the lock. A request still waiting on someone's YES after a while gets one reminder, saying exactly who must
 // reply and to what. The reminder keeps the question's reference code, so a reply to it counts as an answer. Once the student has
 // confirmed, they are also told it now waits on the coach. The coach hears nothing before the student's YES, so nobody can use the
-// page to message a coach in someone else's name. Each waiting step is reminded once (reminded); a failed send is retried later.
+// page to message a coach in someone else's name. Each waiting step is reminded at most once (reminded is set before sending).
 function remindWaiting_(coaches, students, requests, now) {
   requests.forEach(function (request) {
     var status = effectiveStatus_(request, now);
@@ -1598,10 +1612,11 @@ function plainText_(text) {
     .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
 }
 
-// Characters outside plain ASCII in a reply that could not be read, as code points only (never the text): for the status read-out.
+// Invisible or unusual space characters in a reply that could not be read, as code points (never the text, and never letters in
+// any language): for the status read-out.
 function oddCharacters_(text) {
   var found = {};
-  String(text || '').slice(0, 400).replace(/[^\x09\x0A\x0D\x20-\x7E]/g, function (character) {
+  String(text || '').slice(0, 400).replace(/[\u00A0\u00AD\u034F\u061C\u1680\u180E\u2000-\u200F\u202A-\u202F\u205F-\u206F\u3000\uFE00-\uFE0F\uFEFF]/g, function (character) {
     found['U+' + ('000' + character.charCodeAt(0).toString(16).toUpperCase()).slice(-4)] = true;
     return '';
   });
@@ -1618,7 +1633,7 @@ function ownWords_(text) {
     var next = lines[i + 1] || '';
     // Some apps send only HTML, and Gmail's plain-text version can run lines together ("YESSent from my Galaxy"): a signature
     // or quote marker inside a line ends their words there too.
-    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no):/i);
+    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no):|concord table tennis club|_{5,}/i);
     if (glued > 0) {
       mine.push(line.slice(0, glued).trim());
       break;
@@ -1635,8 +1650,12 @@ function ownWords_(text) {
 // case, after a greeting or "ok" ("Yes, see you Friday", "ok yes", "no thanks", "y"). A yes or no further in ("there is no
 // parking", "I have no idea", an out-of-office note) is not an answer, and nor is a line with both ("Yes, but no").
 function answerOf_(text) {
-  var line = (ownWords_(text).split('\n').filter(Boolean)[0] || '').toLowerCase()
-    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hello|dear [a-z]+)\b[\s,.!:-]*)+/, '');
+  // A greeting on its own line ("Hi John,", "Good morning,") comes before the answer.
+  var line = (ownWords_(text).split('\n').filter(function (each) {
+    return each && !/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b(?!.*\b(y|yes|yeah|yep|yup|n|no|nope|nah)\b)[^.!?]{0,30}[,.!:]*$/i.test(each);
+  })[0] || '').toLowerCase()
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hey|hello|dear|good (morning|afternoon|evening))\b[\s,.!:-]*([a-z]+[\s,.!:-]+)?(?=(y|yes|yeah|yep|yup|n|no|nope|nah)\b))+/, '')
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries)\b[\s,.!:-]*)+/, '');
   var rest = line.replace(/\bno (problem|worries|prob|issues?|rush)\b/g, ' ');
   var yes = /^(y|yes|yeah|yep|yup|yess+)\b/.test(line);
   var no = /^(n|no|nope|nah)\b/.test(line);
@@ -1784,7 +1803,12 @@ function reportStatus_() {
   try {
     var properties = PropertiesService.getScriptProperties();
     var id = properties.getProperty('COACHING_STATUS_ID');
-    var book = id ? SpreadsheetApp.openById(id) : null;
+    var book = null;
+    try {
+      book = id ? SpreadsheetApp.openById(id) : null;
+    } catch (error) {
+      book = null;
+    }
     if (!book) {
       book = SpreadsheetApp.create('CTTC Coaching status');
       properties.setProperty('COACHING_STATUS_ID', book.getId());
@@ -1823,7 +1847,8 @@ function step_(name, run) {
     run();
   } catch (error) {
     console.error('Could not ' + name + ': ' + error);
-    STATUS_.failed.push(name + ': ' + String(error).replace(/\S+@\S+/g, '<address>').slice(0, 80));
+    STATUS_.failed.push(name + ': ' + String(error).replace(/\S+@\S+/g, '<address>').replace(/\+?\d[\d\s().-]{5,}\d/g, '<number>')
+      .replace(/"[^"]*"/g, '"…"').slice(0, 80));
     alertAdmin_('step:' + name, 'Coaching app: could not ' + name, ['The coaching app could not ' + name + '. It tries again every minute. The error was: ' + error]);
   }
 }
@@ -1947,14 +1972,15 @@ function checkMail_() {
       var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
       var at = message.getDate().getTime();
       seen.matched += 1;
-      if (at <= question.after || (question.before && at >= question.before) || autoReply_(message)) return;
+      if (at <= question.after || (question.before && at >= question.before)) return;
       // Notices go out only for a recent reply to a question still open; a late YES is only looked for.
       var notify = !question.before && Date.now() - at < 5 * 3600000;
       if (!sameAddress_(address, question.email)) {
         if (us.indexOf(address) < 0 && notify) wrongSender_(message.getId(), address, question.email, String(message.getSubject() || ''));
         return;
       }
-      var body = String(message.getPlainBody() || '');
+      if (autoReply_(message)) return;
+      var body = replyText_(message);
       var answer = answerOf_(body);
       if (!answer) {
         seen.unreadable = (seen.unreadable || 0) + 1;
@@ -1975,6 +2001,26 @@ function checkMail_() {
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
     else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
+}
+
+// The reply as the person sees it. Gmail's plain-text version of an HTML-only email can run lines together ("YESSent from my
+// Galaxy"), so when there is HTML its line breaks are used, with the quoted earlier message marked as a quote.
+function replyText_(message) {
+  var plain = String(message.getPlainBody() || '');
+  var html = '';
+  try {
+    html = typeof message.getBody === 'function' ? String(message.getBody() || '') : '';
+  } catch (error) {
+    html = '';
+  }
+  if (!/<(div|p|br|blockquote)\b/i.test(html)) return plain;
+  var text = html.replace(/<(style|script|head)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(blockquote|div[^>]*(gmail_quote|divRplyFwdMsg|appendonsend|yahoo_quoted|moz-cite-prefix))\b[^>]*>/gi, '\n> ')
+    .replace(/<br\s*\/?>|<\/(div|p|li|tr|h[1-6]|table)>|<(div|p|li|tr|h[1-6])\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, function (match, code) { return String.fromCharCode(Number(code)); }).replace(/&amp;/gi, '&');
+  return answerOf_(text) ? text : plain;
 }
 
 // Out-of-office and other automatic replies are never answers.
@@ -2044,8 +2090,7 @@ function unreadableReply_(messageId, address, subject, line) {
 // A student's YES that arrived before the request expired, but was read late (or not at all, before the fixes of 2026-10-10),
 // still counts while the lesson is far enough ahead and nobody else holds the time.
 function lateVerify_(request, requests, availability, now) {
-  var coach = coachById_(request.coach_id);
-  if (!coach || effectiveStatus_(request, now) !== 'expired' || request.verified_at || request.cancelled_by) return false;
+  if (effectiveStatus_(request, now) !== 'expired' || request.verified_at || request.cancelled_by) return false;
   if (now - (Date.parse(request.created_at) || 0) > 3 * 86400000 || expiryFor_(request.date, request.start) - now < 60 * 60000) return false;
   var taken = requests.some(function (other) {
     return other.request_id !== request.request_id && holds_(other, now) && other.coach_id === request.coach_id && other.date === request.date &&
@@ -2054,7 +2099,7 @@ function lateVerify_(request, requests, availability, now) {
   var offered = availability.some(function (entry) {
     return entry.coach_id === request.coach_id && entry.confirmed === 'yes' && entry.date === request.date && overlaps_(entry.start, entry.minutes, request.start, request.minutes);
   });
-  return !taken && offered;
+  return !taken && offered && !!coachById_(request.coach_id);
 }
 
 // STUDENT turns on lesson texts for every student whose mobile number (or, for a saved Voice contact, name) matches; STOP turns

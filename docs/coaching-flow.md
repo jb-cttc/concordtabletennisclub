@@ -61,7 +61,8 @@ after the student's YES (*Reminder: Lesson request from {student} [CTTC ref
 …]*, plus the text question again if it is the coach's open one). At that
 point the student is also emailed *Your coaching request is waiting on Coach
 …*. Reminders keep the original reference code, so a reply to either email
-counts. The `reminded` column holds the step (`unverified` or `pending`)
+counts. The `reminded` column (its header is added by the next sweep; no need to run
+`setup()` again) holds the step (`unverified` or `pending`)
 already reminded. No reminder is sent within 10 minutes of the deadline, and
 the coach never hears about a request before the student's YES.
 
@@ -110,14 +111,16 @@ Answers are read by the `checkTexts` trigger, which runs every minute.
   sender is told to reply from the right address and the club is alerted;
 - the **first line of the person's own words starts with yes or no**, in any
   case, optionally after a greeting or `ok` (`Yes, see you Friday`, `ok yes`,
-  `no thanks`, `y`, `yep`, `nope`). A yes or no further in (`there is no
+  `Hi Dee, yes`, `no thanks`, `y`, `yep`, `nope`); a greeting on its own line
+  (`Hi John,` then `Yes`) is skipped. A yes or no further in (`there is no
   parking`, an out-of-office note) is not an answer, nor is a line with both
   (`Yes, but I can't make it`). Automatic replies are skipped. The quoted
   earlier message (`On … wrote:`, `>` lines, `-------- Original message
   --------`, an Outlook `From:` block, our own `Reply YES`/`[CTTC ref`
   lines) and signatures (`Sent from my …`, `-- `) are cut off, even when an
   HTML-only reply arrives with lines run together (`YESSent from my
-  Galaxy`). Invisible characters are removed first. An unreadable reply to an
+  Galaxy`): when an email has an HTML version, its own line breaks are used.
+Invisible characters are removed first. An unreadable reply to an
   open question gets one "please reply again" email and the club is told;
 - it arrives within 3 days and after the question was asked, and the
   question is still open.
@@ -147,11 +150,14 @@ offered, free, at least about an hour from its own deadline, and the coach
 is active.
 
 **Status read-out.** After each minute check the app renames a separate,
-empty spreadsheet in the club's Drive, *CTTC Coaching status | {time} | mail
+empty spreadsheet in the club's Drive (recreated if deleted), *CTTC Coaching
+status | {time, rounded down to 10 minutes} | mail
 q=… late=… threads=… messages=… coded=… answers=… | failed: …*. It holds
 counts only: open email questions, late-YES look-backs, threads and messages
 read, replies quoting a code, answers applied, unreadable replies (with the
-length and any unusual code points of the first line), and failed steps. If
+length of the first line and any invisible or unusual space characters in it,
+as code points; never letters), and failed steps (addresses, numbers and
+quoted text masked). If
 it is not updating, the minute check is not running.
 
 ## 5. Coaches' offered times
