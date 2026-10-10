@@ -76,6 +76,7 @@
   .form-status:empty { display: none; }
   .form-status.error { color: #8b1a1a; font-weight: 600; }
   .form-status.ok { color: #1f6b3a; font-weight: 600; }
+  .field-error { margin: 4px 0 8px; color: #8b1a1a; font-size: 0.9rem; font-weight: 600; }
   input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #8b1a1a; box-shadow: 0 0 0 2px #f3c7c7; }
   .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
   [hidden] { display: none !important; }
@@ -109,15 +110,39 @@
     }
     line.textContent = text || '';
     line.className = 'form-status' + (kind ? ' ' + kind : '');
-    Array.prototype.forEach.call(form.querySelectorAll('[aria-invalid="true"]'), function (input) { input.removeAttribute('aria-invalid'); });
+    line.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    unmark(form);
     var input = field && fields && fields[field] ? form.querySelector(fields[field]) : null;
     if (input) {
+      // The same words right under the field, so the field and the reason are seen together on a small screen.
+      var note = el('p', { 'class': 'field-error', id: input.id + 'Error', text: text });
+      input.parentNode.insertBefore(note, input.nextSibling);
       input.setAttribute('aria-invalid', 'true');
-      input.focus();
+      input.setAttribute('aria-describedby', note.id);
+      input.focus({ preventScroll: true });
     }
-    if (kind === 'error' || kind === 'ok') (form.hidden ? messageBox : line).scrollIntoView({ block: 'center' });
+    // The field to fix, if any (the error line is just under the Send button nearby), else the answer itself.
+    if (kind === 'error' || kind === 'ok') (form.hidden ? messageBox : input || line).scrollIntoView({ block: 'center' });
   }
-  function clearInvalid(event) { if (event.target.getAttribute('aria-invalid')) event.target.removeAttribute('aria-invalid'); }
+  // A form reopened for another time starts with no old answer or outline.
+  function resetStatus(form) {
+    var line = form.querySelector('.form-status');
+    if (line) {
+      line.textContent = '';
+      line.className = 'form-status';
+    }
+    unmark(form);
+  }
+  function unmark(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('[aria-invalid="true"]'), unmarkInput);
+  }
+  function unmarkInput(input) {
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-describedby');
+    var note = document.getElementById(input.id + 'Error');
+    if (note) note.parentNode.removeChild(note);
+  }
+  function clearInvalid(event) { if (event.target.getAttribute('aria-invalid')) unmarkInput(event.target); }
   function el(tag, attributes, children) {
     var node = document.createElement(tag);
     Object.keys(attributes || {}).forEach(function (key) {
@@ -219,6 +244,7 @@
         Array.prototype.forEach.call(grids.querySelectorAll('button.tbl.mine'), function (other) { other.className = 'tbl free'; });
         button.className = 'tbl mine';
         waitForm.hidden = true;
+        resetStatus(form);
         form.hidden = false;
         form.querySelector('#picked').textContent = 'Requesting a ' + entry.minutes + ' minute lesson on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + '.' +
           (entry.whole ? ' The other half of that hour stays open for someone else.' : '');
@@ -324,8 +350,10 @@
       [el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'waitWebsite', tabindex: '-1', autocomplete: 'off' }))),
         el('div', { 'class': 'actions' }, [submit])]
     ));
+    form.addEventListener('input', clearInvalid);
     form.open = function (entry) {
       target = entry;
+      resetStatus(form);
       form.hidden = false;
       form.querySelector('#waitPicked').textContent = 'We will email you if ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + ' opens up through a cancellation or a reschedule. The first student to request it then gets it.';
       var me = saved('cttc-student');
@@ -379,6 +407,7 @@
       confirmBox.hidden = false;
       // A phone number is allowed too, so the email check is the server's job.
       contact.type = 'text';
+      resetStatus(form);
       var me = saved('cttc-student');
       if (me && !contact.value) contact.value = me.email || '';
       form.hidden = false;
@@ -386,9 +415,11 @@
     }
     cancel.addEventListener('click', function () { target = null; ask('Cancel ' + source.student + '\'s lesson with ' + source.coach + ' on ' + source.day + ', ' + source.time + '.'); });
     move.addEventListener('click', function () { form.hidden = true; startMove(source); });
+    form.addEventListener('input', clearInvalid);
     form.open = function (entry, to) {
       source = entry;
       target = to || null;
+      resetStatus(form);
       if (target) { ask('Move ' + entry.student + '\'s lesson on ' + entry.day + ', ' + entry.time + ' to ' + to.day + ', ' + to.time + ' with ' + to.coach + ' at Table ' + to.table + '. The new time goes to the coach to accept.'); return; }
       form.querySelector('#changeWhat').textContent = 'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
       choice.hidden = false;

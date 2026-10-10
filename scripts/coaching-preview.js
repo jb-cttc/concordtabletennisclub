@@ -194,7 +194,9 @@ const SHIM = `<script>
 const escapeHtml = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function appPage() {
-  return fs.readFileSync(path.join(APP, 'Index.html'), 'utf8').replace('<script>', SHIM + '\n<script>');
+  // The real doGet adds the same viewport tag, so phones render the preview as they do the real page.
+  return fs.readFileSync(path.join(APP, 'Index.html'), 'utf8').replace('<script>', SHIM + '\n<script>')
+    .replace(/<head>/i, '<head><meta name="viewport" content="width=device-width, initial-scale=1">');
 }
 
 function mailPage() {

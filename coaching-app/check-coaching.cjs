@@ -312,6 +312,9 @@ assert.match(grids.About[0][0], /does not change any booking/);
   assert.match(page, /report\(form, result\.message, 'error', result\.field, fields\)/);
   assert.match(page, /if \(minor\.checked && !form\.querySelector\('#guardian'\)\.value\.trim\(\)\)/, 'a missing guardian name is caught on the page');
   assert.match(page, /scrollIntoView\(\{ block: 'center' \}\)/);
+  assert.equal((page.match(/resetStatus\(form\);/g) || []).length, 4, 'every form, reopened, starts without an old answer');
+  assert.match(page, /'class': 'field-error', id: input\.id \+ 'Error'/, 'the reason is shown right under the field at fault');
+  assert.equal(context.fail_('x').field, undefined, 'fail_ without a field is unchanged');
 }
 
 // HTML replies are read with their own line breaks; the quoted earlier message is never read.
@@ -429,6 +432,9 @@ assert.equal(run('requestSlot', form(slots[0], { phone: '123' })).field, 'phone'
 ['Pat & Sam Parent', 'Smith, John', 'Pat/Sam Parent', 'Pat (mom)', 'Mary-Jane O\'Neil', 'Zo\u00eb', 'Jos\u00e9 Garc\u00eda', '\u674e\u534e'].forEach(name =>
   assert.equal(context.cleanName_(name), name, name));
 ['', '2Pat', '=HYPERLINK("x")', 'Pat <b>', 'Pat "P"', 'Pat2', '-Pat'].forEach(name => assert.equal(context.cleanName_(name), '', name));
+// The public label is only ever one first name, whatever punctuation a name uses.
+[['John/Smith', 'John'], ['John(Smith', 'John'], ['John&Smith', 'John'], ['Smith, John, Jr', 'John'], ['John,Smith', 'Smith'], ['Pat (mom)', 'Pat'],
+  ['Smith, John', 'John'], ['Mary-Jane O\'Neil', 'Mary-Jane'], ['(mom) Pat', 'Pat']].forEach(([name, first]) => assert.equal(context.firstName_(name), first, name));
 assert.equal(run('requestSlot', form({ key: 'f'.repeat(16) })).ok, false, 'only offered slots can be requested');
 assert.equal(run('requestSlot', form({ key: undefined })).ok, false);
 assert.equal(run('requestSlot', form(slots[0], { website: 'http://spam.example' })).ok, true);

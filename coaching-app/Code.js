@@ -282,7 +282,8 @@ function property_(key, fallback) { return PropertiesService.getScriptProperties
 function firstName_(name) {
   var text = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
   var comma = text.match(/^[^,]+,\s*(.+)$/);
-  return (comma ? comma[1] : text).split(' ')[0];
+  // Only ever one word: "John/Smith", "Pat&Sam" or "John,Smith" give "John", "Pat", "John".
+  return ((comma ? comma[1] : text).split(/[\s\/&,()]+/).filter(Boolean)[0] || '');
 }
 
 // What the public page and messages call a coach or a student: first name only.
@@ -626,7 +627,7 @@ function requestSlot(form) {
       var status = effectiveStatus_(request, now);
       return request.student_email === email && (status === 'unverified' || status === 'pending' || status === 'proposed');
     }).length;
-    if (open >= MAX_OPEN_REQUESTS_PER_STUDENT) return fail_('You already have ' + MAX_OPEN_REQUESTS_PER_STUDENT + ' requests waiting for an answer. Please wait for a reply or cancel one.');
+    if (open >= MAX_OPEN_REQUESTS_PER_STUDENT) return fail_('This email address already has ' + MAX_OPEN_REQUESTS_PER_STUDENT + ' requests waiting for an answer (for any student). Please wait for a reply, or cancel one.', 'email');
     var label = studentLabel_(email, guardian || name, phone);
     if (!label) return fail_('Requests are closed for now. Please contact the club.');
     if (minutes !== slot.minutes) splitSlot_(slot.key);
