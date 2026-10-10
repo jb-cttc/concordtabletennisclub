@@ -449,7 +449,7 @@
 
   function requestForm(getChosen, getLength) {
     var minor = el('input', { type: 'checkbox', id: 'minor' });
-    var guardianBox = el('div', { id: 'guardianBox', hidden: 'hidden' }, field('Parent or guardian name', el('input', { type: 'text', id: 'guardian', name: 'guardian', maxlength: '60', autocomplete: 'off' })));
+    var guardianBox = el('div', { id: 'guardianBox', hidden: 'hidden' }, field('Parent or guardian name (required)', el('input', { type: 'text', id: 'guardian', name: 'guardian', maxlength: '60', autocomplete: 'off' })));
     var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     minor.addEventListener('change', function () {
       guardianBox.className = '';
