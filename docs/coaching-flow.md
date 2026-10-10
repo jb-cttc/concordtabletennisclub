@@ -52,6 +52,17 @@ succeeded, so a mismatch means the message has not gone out yet:
 | `coach_texted` | `pending` once the coach was **asked** by text; afterwards the last status texted | `status = pending`, `coach_texted` empty → the coach has not been texted (no mobile, never texted COACH, or another question is open, see §4) |
 | `student_texted` | the last status texted to the student | only for students with `Students.texts = yes` |
 
+**Reminders.** A request still waiting gets one reminder per step, sent by
+the sweep: the student 1 hour after asking (*Reminder: Confirm your coaching
+request [CTTC ref …]*, plus a text if they get texts), and the coach 2 hours
+after the student's YES (*Reminder: Lesson request from {student} [CTTC ref
+…]*, plus the text question again if it is the coach's open one). At that
+point the student is also emailed *Your coaching request is waiting on Coach
+…*. Reminders keep the original reference code, so a reply to either email
+counts. The `reminded` column holds the step (`unverified` or `pending`)
+already reminded. No reminder is sent within 10 minutes of the deadline, and
+the coach never hears about a request before the student's YES.
+
 Unsent messages are retried by every sweep (hourly, and after every booking
 or answer), but only while `updated_at` is under 3 days old
 (`RETRY_MAIL_DAYS`) and the daily mail quota is above 10 (`MIN_QUOTA`). After
@@ -165,5 +176,6 @@ Students can only request times that are confirmed, **at least 24 hours away**
 | `HORIZON_DAYS` | 28 days | how far ahead times can be offered or requested |
 | `ASK_TTL_MS` | 24 hours | a coach's submitted list of times lapses |
 | `CHANGE_WAIT_MS` | 10 minutes | gap between cancel/move requests for one lesson |
+| `REMIND_STUDENT_MS`, `REMIND_COACH_MS` | 1 hour, 2 hours | when the one reminder for each waiting step goes out |
 | `RETRY_MAIL_DAYS` | 3 days | unsent messages are retried this long |
 | Triggers | `checkTexts` every minute, `sweep` hourly | replies are picked up within about a minute |

@@ -172,7 +172,7 @@ const requestRows = () => grids.Requests.slice(1);
 const requestBy = email => requestRows().filter(line => cell('Requests', line, 'student_email') === email);
 const weekday = date => new Date(date + 'T00:00:00Z').getUTCDay();
 // Everything on the public Sheet is readable by anyone: first names only, never a full name, an address or a number.
-const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
+const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Rex Reminder|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
 const assertPublicIsAnonymous = () => {
   assert.doesNotMatch(JSON.stringify([grids.Schedule, grids.About]), PRIVATE, 'public Sheet leaks');
 };
@@ -261,7 +261,7 @@ assert.deepEqual(triggers, ['sweep', 'checkTexts']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
-assert.equal(grids.Requests[0].length, 23);
+assert.equal(grids.Requests[0].length, 24);
 assert.deepEqual(grids.Schedule[0], ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']);
 assert.match(grids.About[0][0], /does not change any booking/);
 
@@ -677,6 +677,43 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.equal(run('requestSlot', { key: picked.key, name: 'Sweep Throws', email: 'throws@example.com' }).ok, false, 'the time is held by the saved request');
   context.sweep();
   assert.equal(mailTo('throws@example.com').length, 1, 'the next sweep sends the confirmation email');
+}
+// A request still waiting on someone's YES gets one reminder that says who must reply; a YES to the reminder counts.
+{
+  const picked = run('openSlots').slots[0];
+  const coachAddress = picked.coach === 'Coach Ann' ? 'ann@example.com' : null;
+  sent.length = 0;
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Rex Reminder', email: 'rex@example.com' }).ok, true);
+  context.sweep();
+  assert.equal(mailTo('rex@example.com').filter(message => /^Reminder:/.test(message.subject)).length, 0, 'no reminder straight away');
+  clock += hours(1) + 60000;
+  context.sweep();
+  context.sweep();
+  const nudges = mailTo('rex@example.com').filter(message => /^Reminder: Confirm your coaching request \[CTTC ref [0-9A-F]{10}\]$/.test(message.subject));
+  assert.equal(nudges.length, 1, 'the student is reminded once');
+  assert.match(nudges[0].body, /Still waiting for you: .* has not been sent to the coach yet\. Reply YES/);
+  assert.equal(sent.filter(message => message.to.toLowerCase() !== 'rex@example.com' && /Rex/.test(message.subject + message.body)).length, 0, 'the coach hears nothing before the student says YES');
+  answerMail('rex@example.com', 'YES', nudges[0].subject);
+  assert.equal(statusOf('rex@example.com'), 'pending', 'a YES to the reminder confirms the request');
+  const coachMail = sent.filter(message => /^Lesson request from Rex Reminder/.test(message.subject)).pop();
+  assert.ok(coachMail, 'the coach is asked once the student confirms');
+  const coachTo = coachMail.to.toLowerCase();
+  if (coachAddress) assert.equal(coachTo, coachAddress);
+  clock += hours(1);
+  context.sweep();
+  assert.equal(mailTo(coachTo).filter(message => /^Reminder:/.test(message.subject)).length, 0, 'the coach gets two hours first');
+  clock += hours(1) + 60000;
+  context.sweep();
+  context.sweep();
+  const coachNudges = mailTo(coachTo).filter(message => /^Reminder: Lesson request from Rex Reminder \[CTTC ref [0-9A-F]{10}\]$/.test(message.subject));
+  assert.equal(coachNudges.length, 1, 'the coach is reminded once');
+  assert.match(coachNudges[0].body, /waiting for your YES/);
+  const waiting = mailTo('rex@example.com').filter(message => /^Your coaching request is waiting on Coach /.test(message.subject));
+  assert.equal(waiting.length, 1, 'the student is told it now waits on the coach');
+  assert.match(waiting[0].body, /nothing more is needed from you/);
+  answerMail(coachTo, 'YES', coachNudges[0].subject);
+  assert.equal(statusOf('rex@example.com'), 'confirmed', 'a YES to the coach reminder confirms the lesson');
+  assertPublicIsAnonymous();
 }
 // An unanswered request is released after two hours, and the coach never hears of it.
 {

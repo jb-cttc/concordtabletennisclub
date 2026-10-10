@@ -24,6 +24,9 @@ var WINDOWS = { 5: { start: '19:00', end: '22:00' }, 6: { start: '15:00', end: '
 var SLOT_MINUTES = [30, 60];
 var LEAD_HOURS = 24;
 var HOLD_HOURS = 48;
+// One reminder to whoever owes the next YES: the student this long after asking, the coach this long after the student's YES.
+var REMIND_STUDENT_MS = 60 * 60 * 1000;
+var REMIND_COACH_MS = 2 * 60 * 60 * 1000;
 var RELEASE_BEFORE_HOURS = 12;
 var HORIZON_DAYS = 28;
 var MAX_OPEN_REQUESTS_PER_STUDENT = 2;
@@ -86,7 +89,9 @@ var TABS = {
   Requests: ['request_id', 'coach_id', 'date', 'start', 'minutes', 'student_label', 'student_name', 'student_email', 'guardian_name', 'note',
     'status', 'created_at', 'expires_at', 'cancelled_by', 'student_emailed', 'coach_emailed', 'updated_at', 'coach_texted', 'student_texted', 'table',
     // change is 'cancel' or 'move:' and the new slot, waiting for the student's YES since change_at.
-    'verified_at', 'change', 'change_at']
+    'verified_at', 'change', 'change_at',
+    // reminded is the waiting status ('unverified' or 'pending') a reminder was sent for, so each step is reminded once.
+    'reminded']
 };
 // Public Sheet. Nothing private ever goes in here.
 var PUBLIC_TABS = {
@@ -1142,6 +1147,7 @@ function sweep_() {
       deliver_(request, coach, 'student_texted', function () { return studentText_(request, coach, student); });
     });
     askCoaches_(coaches, requests, now);
+    remindWaiting_(coaches, students, requests, now);
     notifyWaitlist_(coaches, now);
     var today = pacificNow_().date;
     rows_('Availability').filter(function (entry) { return entry.date < today; }).reverse().forEach(function (entry) {
@@ -1170,6 +1176,52 @@ function deliver_(request, coach, field, compose) {
   }
   request[field] = request.status;
   save_('Requests', request);
+}
+
+// Call while holding the lock. A request still waiting on someone's YES after a while gets one reminder, saying exactly who must
+// reply and to what. The reminder keeps the question's reference code, so a reply to it counts as an answer. Once the student has
+// confirmed, they are also told it now waits on the coach. The coach hears nothing before the student's YES, so nobody can use the
+// page to message a coach in someone else's name. Each waiting step is reminded once (reminded); a failed send is retried later.
+function remindWaiting_(coaches, students, requests, now) {
+  requests.forEach(function (request) {
+    var status = effectiveStatus_(request, now);
+    if ((status !== 'unverified' && status !== 'pending') || request.reminded === status) return;
+    var since = status === 'unverified' ? Date.parse(request.created_at) : Date.parse(request.verified_at);
+    if (!(now - since >= (status === 'unverified' ? REMIND_STUDENT_MS : REMIND_COACH_MS)) || Number(request.expires_at) - now < 10 * 60000) return;
+    var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
+    if (!coach || !mailAvailable_()) return;
+    var student = students.filter(function (entry) { return entry.email === request.student_email; })[0];
+    var who = request.guardian_name ? 'Hello ' + request.guardian_name + ', this is about the lesson for ' + request.student_name + '.' : 'Hello ' + request.student_name + ',';
+    var lesson = studentName_(request) + '\'s ' + lessonMinutes_(request.minutes) + ' minute lesson with ' + coachName_(coach) + ' on ' + whenLabel_(request.date, request.start, request.minutes);
+    var deadline = momentLabel_(Number(request.expires_at));
+    try {
+      if (status === 'unverified') {
+        var ask = studentMail_(request, coach);
+        sendMail_(ask.to, 'Reminder: ' + ask.subject, [who,
+          { callout: '**Still waiting for you:** ' + lesson + ' has **not** been sent to the coach yet. Reply **YES** to this email by **' + deadline +
+            '** to send it. If you do not reply, the request expires and the time is released.', tone: 'action' },
+          'Reply from this same email address, with YES on the first line. Replying to the earlier "Confirm your coaching request" email works too.'
+        ].concat(ask.lines.slice(2)));
+        askStudentText_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
+          lessonMinutes_(request.minutes) + ' min, ' + shortWhen_(request.date, request.start) + ', Table ' + (Number(request.table) || 1) + '. Reply NO to cancel it.');
+      } else {
+        var question = coachMail_(request, coach, student);
+        if (question) sendMail_(question.to, 'Reminder: ' + question.subject, [
+          { callout: '**Still waiting for you:** ' + request.student_name + ' confirmed this request and it is **waiting for your YES**. Reply **YES** (or NO) to this email by **' + deadline +
+            '**, or the request expires and the club is told.', tone: 'action' },
+          'Reply from this same email address, with YES or NO on the first line.'].concat(question.lines));
+        if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true));
+        sendMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
+          { callout: lesson + ' is **waiting for ' + coachName_(coach) + ' to accept it.** You confirmed it, so **nothing more is needed from you**. It is not booked until the coach accepts.', tone: 'action' },
+          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.']);
+      }
+    } catch (error) {
+      console.error('Could not send a coaching reminder: ' + error);
+      return;
+    }
+    request.reminded = status;
+    save_('Requests', request);
+  });
 }
 
 function lessonRows_(request) {
