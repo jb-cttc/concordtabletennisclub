@@ -27,6 +27,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 | `scripts/` | Data import, publishing, email, and check scripts. |
 | `apps-script/` | Owner desk (Google Apps Script): roster, groups, promotions, scoring, printing, payments, Voice signups. |
 | `docs/round-robin-operations.md` | How the desk and site fit together, rating rules, and the go-live checklist. |
+| `coaching-app/`, `docs/coaching-flow.md` | Public coaching booking app (its own Apps Script project), and the guide to which step a booking is at and where it can get stuck. |
 | `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
 
 ## Request an app or website change

@@ -17,6 +17,8 @@
 //
 // Coaching is only offered on Friday 7 to 10 PM and Saturday 3 to 6 PM (Pacific), in 30 or 60 minute slots. A coach
 // sets slots, a student requests one, and the lesson is confirmed when the coach accepts it.
+//
+// Which step a booking is at, who must reply, and where it can get stuck: docs/coaching-flow.md.
 var TZ = 'America/Los_Angeles';
 var WINDOWS = { 5: { start: '19:00', end: '22:00' }, 6: { start: '15:00', end: '18:00' } };
 var SLOT_MINUTES = [30, 60];
