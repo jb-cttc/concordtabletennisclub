@@ -600,11 +600,17 @@ function requestSlot(form) {
   } finally {
     lock.releaseLock();
   }
-  if (texted) {
-    askStudentText_(student, 'v:' + created.request_id, 'CTTC: Reply YES to send ' + studentName_(created) + '\'s request to ' + coachLabel + ': ' +
-      lessonMinutes_(created.minutes) + ' min, ' + shortWhen_(created.date, created.start) + ', Table ' + created.table + '. Reply NO to cancel it.');
+  // The request is saved and holds its time. Nothing after this may turn it into an error on the page: the student would try
+  // again and be told the time is taken (by their own request). Whatever fails here is retried by the hourly sweep.
+  try {
+    if (texted) {
+      askStudentText_(student, 'v:' + created.request_id, 'CTTC: Reply YES to send ' + studentName_(created) + '\'s request to ' + coachLabel + ': ' +
+        lessonMinutes_(created.minutes) + ' min, ' + shortWhen_(created.date, created.start) + ', Table ' + created.table + '. Reply NO to cancel it.');
+    }
+    sweep_();
+  } catch (error) {
+    console.error('Request ' + created.request_id + ' was saved, but the follow-up failed: ' + error);
   }
-  sweep_();
   return {
     ok: true, label: studentName_(created), texts: !!phone, textNumber: TEXT_NUMBER,
     message: 'Almost done: we emailed you' + (texted ? ' and texted your mobile' : '') + '. Reply YES to ' + (texted ? 'either one' : 'that email') +

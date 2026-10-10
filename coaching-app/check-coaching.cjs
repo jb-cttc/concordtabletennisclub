@@ -34,6 +34,7 @@ const sent = [];
 const allSent = [];
 let quota = 100;
 let mailFails = false;
+let quotaThrows = false;
 let cache = {};
 let held = 0;
 let activeEmail = '';
@@ -122,7 +123,7 @@ const context = {
   LockService: { getScriptLock: () => ({ waitLock: () => { assert.equal(held, 0, 'locks are never nested'); held += 1; }, releaseLock: () => { held -= 1; } }) },
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; }, remove: key => { delete cache[key]; } }) },
   MailApp: {
-    getRemainingDailyQuota: () => quota,
+    getRemainingDailyQuota: () => { if (quotaThrows) throw new Error('Service invoked too many times'); return quota; },
     sendEmail: message => { if (mailFails) throw new Error('mail refused'); sent.push(message); allSent.push(message); }
   },
   GmailApp: {
@@ -662,6 +663,20 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   quota = 100;
   context.sweep();
   assert.equal(mailTo('low@example.com').length, 1, 'held mail goes out once there is quota');
+}
+// A saved request is a success on the page even when the follow-up (emails, the public Sheet) throws: otherwise the student
+// tries again and is told their own request has taken the time.
+{
+  const picked = run('openSlots').slots[0];
+  quotaThrows = true; sent.length = 0;
+  const result = run('requestSlot', { key: picked.key, name: 'Sweep Throws', email: 'throws@example.com' });
+  quotaThrows = false;
+  assert.equal(result.ok, true, 'a saved request is never reported as a failure');
+  assert.equal(statusOf('throws@example.com'), 'unverified');
+  assert.equal(held, 0, 'the lock is released');
+  assert.equal(run('requestSlot', { key: picked.key, name: 'Sweep Throws', email: 'throws@example.com' }).ok, false, 'the time is held by the saved request');
+  context.sweep();
+  assert.equal(mailTo('throws@example.com').length, 1, 'the next sweep sends the confirmation email');
 }
 // An unanswered request is released after two hours, and the coach never hears of it.
 {
