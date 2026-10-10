@@ -176,10 +176,15 @@ Students can only request times that are confirmed, **at least 24 hours away**
 
 ## 6. What the page said, and what it means
 
+Each form shows its answer right under its own Send button (and at the top of the page), scrolls to it, and outlines and
+focuses the field to fix. Before 2026-10-10 errors appeared only at the top of the page, which on a phone is usually off
+screen, so a refused request looked like nothing happened.
+
 | Message on the page | What happened |
 | --- | --- |
 | "Almost done: we emailed you… Reply YES… within 2 hours" | Saved as `unverified`. Waiting for the student. |
 | "That time is no longer available. Please pick another." | Someone holds that time, **including the same student's own earlier request**. Look for an existing row before assuming a bug. |
+| "Please enter the parent or guardian's name…" / "Please check the parent or guardian name…" | "The student is under 18" is ticked and the guardian name is blank, or has numbers or symbols. Names may use letters, spaces and `- ' . , & / ( )`. |
 | "You already have 2 requests waiting for an answer." | The student has 2 `unverified`/`pending` rows (`MAX_OPEN_REQUESTS_PER_STUDENT`). |
 | "Too many requests right now." | More than 30 calls in a minute across the whole app (`MAX_PER_MINUTE`). |
 | "Requests are closed for now." | The Requests or Students tab hit its size cap (`MAX_REQUESTS`, `MAX_STUDENTS`). |
