@@ -410,6 +410,18 @@ function holds_(request, now) {
   return status === 'unverified' || status === 'pending' || status === 'proposed' || status === 'confirmed';
 }
 
+// Who must reply next: 'student' (to confirm the request), 'coach' (to accept it) or '' (nobody).
+function waitingOn_(request, now) {
+  var status = effectiveStatus_(request, now);
+  return status === 'unverified' ? 'student' : status === 'pending' ? 'coach' : '';
+}
+
+// The public wording for a held time: "Booked", or who it is waiting on.
+function stepLabel_(request, coach, now) {
+  var waiting = waitingOn_(request, now);
+  return waiting === 'student' ? 'Waiting for ' + studentName_(request) + ' to confirm' : waiting === 'coach' ? 'Waiting for ' + coach + ' to accept' : 'Booked';
+}
+
 function active_(coach) { return String(coach.status).trim().toLowerCase() !== 'disabled'; }
 
 // The club has TABLES tables for coaching. The table asked for (prefer) if no other coach has it during any part of this slot,
@@ -474,7 +486,8 @@ function board_(coaches, availability, requests, now) {
       key: entry.avail_id, date: entry.date, day: dayLabel_(entry.date), start: entry.start, slot: Number(entry.minutes), minutes: lessonMinutes_(entry.minutes),
       time: rangeLabel_(entry.start, entry.minutes), table: Number(entry.table) || 1, coach: coachName_(byId[entry.coach_id]), coachId: entry.coach_id,
       status: holder ? (effectiveStatus_(holder, now) === 'confirmed' ? 'booked' : 'requested') : soon ? 'closed' : 'open',
-      student: holder ? studentName_(holder) : '', waitlist: !!holder && !soon
+      student: holder ? studentName_(holder) : '', waitlist: !!holder && !soon, waiting: holder ? waitingOn_(holder, now) : '',
+      step: holder ? stepLabel_(holder, coachName_(byId[entry.coach_id]), now) : ''
     };
   }).sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start) || a.table - b.table; });
   // No waitlist while another table is open at the same time: the student can just request that one.
@@ -488,7 +501,7 @@ function openAtSameTime_(entries, entry) {
   return entries.some(function (other) { return other.status === 'open' && other.date === entry.date && other.start === entry.start; });
 }
 
-// What the public sees: open slots, requests and booked lessons, with first names only.
+// What the public sees: open slots, requests (and who must reply next) and booked lessons, with first names only.
 function scheduleEntries_(slots, coaches, requests, now) {
   var labels = {};
   coaches.forEach(function (coach) { labels[coach.coach_id] = coachName_(coach); });
@@ -499,9 +512,10 @@ function scheduleEntries_(slots, coaches, requests, now) {
   requests.filter(function (request) { return holds_(request, now) && request.date >= today; }).forEach(function (request) {
     var coach = labels[request.coach_id] || 'a coach';
     var booked = effectiveStatus_(request, now) === 'confirmed';
+    var step = stepLabel_(request, coach, now);
     entries.push({
-      date: request.date, start: request.start, minutes: Number(request.minutes), coach: coach, status: booked ? 'Booked' : 'Requested', student: studentName_(request),
-      summary: studentName_(request) + (booked ? ' has session with ' : ' requested a session with ') + coach
+      date: request.date, start: request.start, minutes: Number(request.minutes), coach: coach, status: booked ? 'Booked' : step, student: studentName_(request),
+      summary: studentName_(request) + (booked ? ' has session with ' + coach : ' requested a session with ' + coach + '. ' + step)
     });
   });
   return entries.sort(function (a, b) { return (a.date + a.start + a.coach).localeCompare(b.date + b.start + b.coach); });
@@ -772,7 +786,7 @@ function coachBoard(coachId) {
     ok: true, id: coach.coach_id, label: coach.label, name: coachName_(coach), ready: ready_(coach), email: !!cleanEmail_(coach.email), text: !!phoneDigits_(coach.phone),
     tables: TABLES, days: days, textNumber: TEXT_NUMBER,
     board: board_(rows_('Coaches'), rows_('Availability'), rows_('Requests'), now).map(function (entry) {
-      return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student };
+      return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student, waiting: entry.waiting };
     }),
     pending: pending, pendingSince: pending ? momentLabel_(Number(coach.ask_made)) : ''
   };
@@ -1389,8 +1403,13 @@ function studentMail_(request, coach) {
       'The club has been copied on this email and will follow up with the coach. You can pick another time at ' + PAGE_URL] };
   }
   if (request.status === 'expired') {
-    return { to: to, subject: 'Coaching request expired', lines: [who,
-      'Your request for ' + when + ' with ' + coachShown + ' was not confirmed by a reply in time, so it expired and the time was released. You can pick another time at ' + PAGE_URL] };
+    return { to: to, subject: 'Coaching request expired: we did not get your YES', lines: [who,
+      { callout: 'Your request for **' + when + '** with ' + coachShown + ' **expired** because we did not receive your **YES** reply in time. **You are not booked**, and the coach was not asked.', tone: 'action' },
+      { heading: 'To book' },
+      { steps: ['Request the time again at ' + PAGE_URL + ' (first come, first served).',
+        'Reply **YES** to the "Confirm your coaching request" email within **2 hours**. Reply from the same email address, with YES on the first line.',
+        'Cannot find that email? Check your spam or junk folder.',
+        'Once you reply, the request goes to ' + coachShown + ' to accept, and we email you the answer.'] }] };
   }
   if (request.status === 'cancelled' && request.cancelled_by === 'student') {
     return { to: to, subject: 'Coaching lesson cancelled', lines: [who, 'As you asked, the lesson with ' + coachShown + ' on ' + when + ' is cancelled and the time was released.'] };

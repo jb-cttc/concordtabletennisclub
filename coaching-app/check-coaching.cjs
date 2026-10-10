@@ -388,7 +388,7 @@ assert.doesNotMatch(verifyMail.htmlBody.replace(/Sam Student/g, ''), PRIVATE);
 assert.match(verifyMail.body, /You will show on the site as "Student Sam"/);
 assert.doesNotMatch(verifyMail.body.replace(/sam@example\.com|Sam Student/g, ''), PRIVATE);
 assert.equal(run('openSlots').slots.length, 6, 'the time is held while we wait');
-assert.deepEqual(run('openSlots').schedule, [{ day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Requested', summary: 'Student Sam requested a session with Coach Ann' }]);
+assert.deepEqual(run('openSlots').schedule, [{ day: 'Friday, October 9, 2026', time: '7:00 PM to 7:50 PM', status: 'Waiting for Student Sam to confirm', summary: 'Student Sam requested a session with Coach Ann. Waiting for Student Sam to confirm' }]);
 // Only a YES or NO, from the address the request was made with, quoting the code, after the question, answers it.
 answerMail('sam@example.com', 'Maybe, is it the east door?', verifyMail.subject);
 answerMail('pat@example.com', 'YES', verifyMail.subject);
@@ -417,7 +417,8 @@ assert.doesNotMatch(pendingCoach.body, /concordtabletennisclub\.com|script\.goog
 // The coach is asked by text straight away, and a bare YES or NO answers it.
 assert.equal(ann()[2], 'CTTC: Lesson request from Sam Student: 50 min, Fri Oct 9, 7:00 PM, Table 1. Reply YES to confirm or NO to decline.');
 assert.equal(run('openSlots').slots.length, 6, 'a requested slot is held');
-assert.equal(grids.Schedule.find(line => line[5] === 'Requested')[7], 'Student Sam requested a session with Coach Ann');
+assert.equal(grids.Schedule.find(line => line[5] === 'Waiting for Coach Ann to accept')[7], 'Student Sam requested a session with Coach Ann. Waiting for Coach Ann to accept',
+  'the public schedule says who must reply next');
 assert.equal(grids.Schedule.filter(line => line[5] === 'Open').length, 6);
 assertPublicIsAnonymous();
 assert.equal(run('requestSlot', form(slots[0], { name: 'Pat Other', email: 'pat@example.com' })).ok, false, 'a second student cannot take the same slot');
@@ -725,7 +726,7 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.ok(run('openSlots').slots.some(entry => entry.key === picked.key), 'the time is open again');
   context.sweep();
   assert.equal(statusOf('silent@example.com'), 'expired');
-  assert.match(mailTo('silent@example.com').pop().body, /was not confirmed by a reply in time/);
+  assert.match(mailTo('silent@example.com').pop().body, /expired because we did not receive your YES reply in time. You are not booked[\s\S]*Check your spam or junk folder/);
   assert.equal(mailTo('ann@example.com').length, 0, 'the coach was never told');
   clock -= hours(2) + 60000;
 }
