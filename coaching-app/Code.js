@@ -69,7 +69,9 @@ var CLUB_COACHES = [
 ];
 
 var EMAIL_PATTERN = /^[a-z0-9][a-z0-9._%+'-]{0,63}@(?:[a-z0-9-]+\.)+[a-z]{2,24}$/i;
-var NAME_PATTERN = /^[\p{L}][\p{L} .'\u2019-]{0,59}$/u;
+// A name starts with a letter; after that letters, spaces and the punctuation people use in names and pairs of names:
+// "Mary-Jane O'Neil", "Smith, John", "Pat & Sam Parent", "Pat/Sam", "Pat (mom)". No digits, quotes or symbols.
+var NAME_PATTERN = /^[\p{L}][\p{L}\p{M} .,&/()'\u2019-]{0,59}$/u;
 var TIME_PATTERN = /^([01]\d|2[0-3]):(00|30)$/;
 var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -221,7 +223,8 @@ function save_(name, entry) {
 
 // ---------- Small helpers ----------
 
-function fail_(message) { return { ok: false, message: message }; }
+// field names the form input at fault ('name', 'email', 'phone', 'guardian'), so the page can point at it.
+function fail_(message, field) { return field ? { ok: false, message: message, field: field } : { ok: false, message: message }; }
 
 function id_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 16); }
 
@@ -279,7 +282,8 @@ function property_(key, fallback) { return PropertiesService.getScriptProperties
 function firstName_(name) {
   var text = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
   var comma = text.match(/^[^,]+,\s*(.+)$/);
-  return (comma ? comma[1] : text).split(' ')[0];
+  // Only ever one word: "John/Smith", "Pat&Sam" or "John,Smith" give "John", "Pat", "John".
+  return ((comma ? comma[1] : text).split(/[\s\/&,()]+/).filter(Boolean)[0] || '');
 }
 
 // What the public page and messages call a coach or a student: first name only.
@@ -593,10 +597,14 @@ function requestSlot(form) {
   var minor = form.minor === true;
   var guardian = minor ? cleanName_(form.guardian) : '';
   var phone = phoneDigits_(form.phone);
-  if (!name) return fail_('Please enter the student\'s name using letters only.');
-  if (!email) return fail_('Please enter a valid email address.');
-  if (String(form.phone || '').trim() && !phone) return fail_('Please enter a 10 digit US mobile number, or leave it blank.');
-  if (minor && !guardian) return fail_('Please enter a parent or guardian name. Use the guardian\'s email address for students under 18.');
+  var nameRule = ' Use letters; spaces and - \' . , & / ( ) are fine, numbers are not.';
+  if (!name) return fail_(String(form.name || '').trim() ? 'Please check the student\'s name.' + nameRule : 'Please enter the student\'s name.', 'name');
+  if (!email) return fail_('Please enter a valid email address.', 'email');
+  if (String(form.phone || '').trim() && !phone) return fail_('Please enter a 10 digit US mobile number, or leave it blank.', 'phone');
+  if (minor && !guardian) {
+    return fail_(String(form.guardian || '').trim() ? 'Please check the parent or guardian name.' + nameRule :
+      'Please enter the parent or guardian\'s name. For a student under 18, use the parent or guardian\'s email address.', 'guardian');
+  }
   var created = null;
   var texted = false;
   var student = null;
@@ -619,7 +627,7 @@ function requestSlot(form) {
       var status = effectiveStatus_(request, now);
       return request.student_email === email && (status === 'unverified' || status === 'pending' || status === 'proposed');
     }).length;
-    if (open >= MAX_OPEN_REQUESTS_PER_STUDENT) return fail_('You already have ' + MAX_OPEN_REQUESTS_PER_STUDENT + ' requests waiting for an answer. Please wait for a reply or cancel one.');
+    if (open >= MAX_OPEN_REQUESTS_PER_STUDENT) return fail_('This email address already has ' + MAX_OPEN_REQUESTS_PER_STUDENT + ' requests waiting for an answer (for any student). Please wait for a reply, or cancel one.', 'email');
     var label = studentLabel_(email, guardian || name, phone);
     if (!label) return fail_('Requests are closed for now. Please contact the club.');
     if (minutes !== slot.minutes) splitSlot_(slot.key);
@@ -666,7 +674,7 @@ function joinWaitlist(form) {
   var done = { ok: true, message: 'You are on the waitlist. If this time opens up we will email you; the first student to request it gets it.' };
   if (form.website) return done;
   var email = cleanEmail_(form.email);
-  if (!email) return fail_('Please enter a valid email address.');
+  if (!email) return fail_('Please enter a valid email address.', 'email');
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -984,7 +992,7 @@ function studentChange(form) {
   var email = cleanEmail_(form.contact);
   var phone = email ? '' : phoneDigits_(form.contact);
   if (!action) return fail_('Please choose to cancel or to move the lesson.');
-  if (!email && !phone) return fail_('Please enter the email address or mobile number you booked with.');
+  if (!email && !phone) return fail_('Please enter the email address or mobile number you booked with.', 'contact');
   var question = null;
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);

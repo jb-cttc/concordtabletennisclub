@@ -179,7 +179,7 @@ const requestRows = () => grids.Requests.slice(1);
 const requestBy = email => requestRows().filter(line => cell('Requests', line, 'student_email') === email);
 const weekday = date => new Date(date + 'T00:00:00Z').getUTCDay();
 // Everything on the public Sheet is readable by anyone: first names only, never a full name, an address or a number.
-const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Rex Reminder|Lou Late|Val Voice|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
+const PRIVATE = /@|example|555-\d{4}|\b(Abe|Ann|Bob|Cy|Dee|Hal|Sam|Pia|Tex|Uma|Wes|Xia|Late|Outage) (Coach|Student)\b|Pat Other|Pat & Sam|Alex Kid|Rex Reminder|Lou Late|Val Voice|Lee Waits|Low Quota|Mail Fail|Quiet Failure|Quota Silent/;
 const assertPublicIsAnonymous = () => {
   assert.doesNotMatch(JSON.stringify([grids.Schedule, grids.About]), PRIVATE, 'public Sheet leaks');
 };
@@ -303,6 +303,20 @@ assert.match(grids.About[0][0], /does not change any booking/);
   ['Yes________________________________From: Concord Table Tennis Club <club@example.com>', 'yes']
 ].forEach(([reply, expected]) => assert.equal(context.answerOf_(reply), expected, JSON.stringify(reply)));
 
+// The page answers each form under its own Send button (on a phone the page-top message can be far off screen), names the
+// field at fault, and checks the guardian name before sending.
+{
+  const page = fs.readFileSync(__dirname + '/Index.html', 'utf8');
+  assert.doesNotMatch(page, /show\(result\.message, result\.ok \? 'ok' : 'error'\)/, 'waitlist and change answers go through report(), next to the form');
+  assert.match(page, /#message\.error \{[^}]*position: sticky; top: 0;/, 'any other error stays on screen while scrolling');
+  assert.match(page, /report\(form, result\.message, 'error', result\.field, fields\)/);
+  assert.match(page, /if \(minor\.checked && !form\.querySelector\('#guardian'\)\.value\.trim\(\)\)/, 'a missing guardian name is caught on the page');
+  assert.match(page, /scrollIntoView\(\{ block: 'center' \}\)/);
+  assert.equal((page.match(/resetStatus\(form\);/g) || []).length, 4, 'every form, reopened, starts without an old answer');
+  assert.match(page, /'class': 'field-error', id: input\.id \+ 'Error'/, 'the reason is shown right under the field at fault');
+  assert.equal(context.fail_('x').field, undefined, 'fail_ without a field is unchanged');
+}
+
 // HTML replies are read with their own line breaks; the quoted earlier message is never read.
 {
   const reply = (plain, html) => ({ getPlainBody: () => plain, getBody: () => html });
@@ -407,7 +421,20 @@ assertPublicIsAnonymous();
 const form = (picked, extra) => Object.assign({ key: picked.key, name: 'Sam Student', email: 'sam@example.com', note: 'Left handed' }, extra);
 assert.equal(run('requestSlot', form(slots[0], { name: '' })).ok, false);
 assert.equal(run('requestSlot', form(slots[0], { email: 'nope' })).ok, false);
-assert.equal(run('requestSlot', form(slots[0], { minor: true })).ok, false, 'a minor needs a guardian name');
+assert.deepEqual(run('requestSlot', form(slots[0], { minor: true })), { ok: false, field: 'guardian',
+  message: 'Please enter the parent or guardian\'s name. For a student under 18, use the parent or guardian\'s email address.' }, 'a minor needs a guardian name');
+assert.equal(run('requestSlot', form(slots[0], { minor: true, guardian: 'Mom2' })).field, 'guardian', 'the page is told which field to fix');
+assert.match(run('requestSlot', form(slots[0], { minor: true, guardian: 'Mom2' })).message, /^Please check the parent or guardian name\. .*numbers are not/);
+assert.equal(run('requestSlot', form(slots[0], { name: '' })).field, 'name');
+assert.equal(run('requestSlot', form(slots[0], { email: 'nope' })).field, 'email');
+assert.equal(run('requestSlot', form(slots[0], { phone: '123' })).field, 'phone');
+// Names people really write, for a student or a guardian.
+['Pat & Sam Parent', 'Smith, John', 'Pat/Sam Parent', 'Pat (mom)', 'Mary-Jane O\'Neil', 'Zo\u00eb', 'Jos\u00e9 Garc\u00eda', '\u674e\u534e'].forEach(name =>
+  assert.equal(context.cleanName_(name), name, name));
+['', '2Pat', '=HYPERLINK("x")', 'Pat <b>', 'Pat "P"', 'Pat2', '-Pat'].forEach(name => assert.equal(context.cleanName_(name), '', name));
+// The public label is only ever one first name, whatever punctuation a name uses.
+[['John/Smith', 'John'], ['John(Smith', 'John'], ['John&Smith', 'John'], ['Smith, John, Jr', 'John'], ['John,Smith', 'Smith'], ['Pat (mom)', 'Pat'],
+  ['Smith, John', 'John'], ['Mary-Jane O\'Neil', 'Mary-Jane'], ['(mom) Pat', 'Pat']].forEach(([name, first]) => assert.equal(context.firstName_(name), first, name));
 assert.equal(run('requestSlot', form({ key: 'f'.repeat(16) })).ok, false, 'only offered slots can be requested');
 assert.equal(run('requestSlot', form({ key: undefined })).ok, false);
 assert.equal(run('requestSlot', form(slots[0], { website: 'http://spam.example' })).ok, true);
@@ -830,6 +857,31 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   voiceDown = false;
   if (saved) grids.Coaches[grids.Coaches.indexOf(coaches[0])] = saved;
   cache = {};
+}
+// A student under 18, booked by a parent: the parent's email confirms, the coach accepts, both get the right details.
+{
+  const picked = run('openSlots').slots[0];
+  sent.length = 0;
+  const result = run('requestSlot', { key: picked.key, name: 'Alex Kid', email: 'pat.parent@example.com', minor: true, guardian: 'Pat & Sam Parent', note: 'First lesson' });
+  assert.equal(result.ok, true, result.message);
+  assert.equal(result.label, 'Student Alex', 'the site shows the student, not the parent');
+  const ask = mailTo('pat.parent@example.com').pop();
+  assert.match(ask.subject, /^Confirm your coaching request \[CTTC ref/);
+  assert.match(ask.body, /^Hello Pat & Sam Parent, this is about the lesson for Alex Kid\./, 'the email speaks to the parent about the child');
+  replyTo('pat.parent@example.com', 'Yes', /^Confirm your coaching request/);
+  assert.equal(statusOf('pat.parent@example.com'), 'pending');
+  const request = sent.filter(message => /^Lesson request from Alex Kid/.test(message.subject)).pop();
+  assert.ok(request, 'the coach is asked');
+  assert.match(request.body, /Alex Kid \(under 18\) asked for/, 'the coach knows the student is a minor');
+  assert.doesNotMatch(request.body, /pat\.parent@|Pat & Sam/, 'and gets no contact details before accepting');
+  answerMail(request.to, 'YES', request.subject);
+  assert.equal(statusOf('pat.parent@example.com'), 'confirmed');
+  const coachDone = mailTo(request.to.toLowerCase()).filter(message => /^Lesson confirmed/.test(message.subject)).pop();
+  assert.match(coachDone.body, /Alex Kid \(guardian: Pat & Sam Parent\), pat\.parent@example\.com/, 'once confirmed the coach gets the guardian and their email');
+  const parentDone = mailTo('pat.parent@example.com').filter(message => /^Lesson confirmed/.test(message.subject)).pop();
+  assert.match(parentDone.body, /^Hello Pat & Sam Parent, this is about the lesson for Alex Kid\./);
+  assert.ok(grids.Schedule.some(line => line[6] === 'Student Alex' && line[5] === 'Booked'), 'the public schedule shows Student Alex, booked');
+  assertPublicIsAnonymous();
 }
 // An unanswered request is released after two hours, and the coach never hears of it.
 {

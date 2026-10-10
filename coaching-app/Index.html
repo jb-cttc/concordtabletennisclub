@@ -69,8 +69,15 @@
   .tag.pending, .tag.proposed { background: #fff3c4; }
   .tag.confirmed { background: #d9f0e0; }
   #message { margin: 12px 0; min-height: 1.4em; font-size: 0.95rem; }
-  #message.error { color: #8b1a1a; }
+  /* An error stays at the top of the screen while scrolling, e.g. after tapping a time far down the coach grid. */
+  #message.error { color: #8b1a1a; position: sticky; top: 0; z-index: 5; background: #fff3f3; padding: 6px 8px; border-left: 4px solid #8b1a1a; }
   #message.ok { color: #1f6b3a; font-weight: 600; }
+  .form-status { margin: 8px 0 0; font-size: 0.95rem; }
+  .form-status:empty { display: none; }
+  .form-status.error { color: #8b1a1a; font-weight: 600; }
+  .form-status.ok { color: #1f6b3a; font-weight: 600; }
+  .field-error { margin: 4px 0 8px; color: #8b1a1a; font-size: 0.9rem; font-weight: 600; }
+  input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #8b1a1a; box-shadow: 0 0 0 2px #f3c7c7; }
   .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
   [hidden] { display: none !important; }
 </style>
@@ -88,6 +95,54 @@
   function remember(key, value) { try { if (value) localStorage.setItem(key, JSON.stringify(value)); else localStorage.removeItem(key); } catch (error) {} }
 
   function show(text, kind) { messageBox.textContent = text || ''; messageBox.className = kind || ''; }
+  // A form's own status line, right under its buttons, so the answer to pressing Send is seen where the person is looking (on a
+  // phone the page-top message can be thousands of pixels away). fields maps a server field name to an input in this form; the
+  // input at fault is outlined and focused. Once the form has closed (after a success), the page-top message says it instead.
+  function report(form, text, kind, field, fields) {
+    show(form.hidden ? text : '', form.hidden ? kind : '');
+    var line = form.querySelector('.form-status');
+    if (!line) {
+      line = el('p', { 'class': 'form-status', role: 'status', 'aria-live': 'polite' });
+      var buttons = form.querySelectorAll('.actions');
+      var last = buttons[buttons.length - 1];
+      if (last) last.parentNode.insertBefore(line, last.nextSibling);
+      else form.appendChild(line);
+    }
+    line.textContent = text || '';
+    line.className = 'form-status' + (kind ? ' ' + kind : '');
+    line.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    unmark(form);
+    var input = field && fields && fields[field] ? form.querySelector(fields[field]) : null;
+    if (input) {
+      // The same words right under the field, so the field and the reason are seen together on a small screen.
+      var note = el('p', { 'class': 'field-error', id: input.id + 'Error', text: text });
+      input.parentNode.insertBefore(note, input.nextSibling);
+      input.setAttribute('aria-invalid', 'true');
+      input.setAttribute('aria-describedby', note.id);
+      input.focus({ preventScroll: true });
+    }
+    // The field to fix, if any (the error line is just under the Send button nearby), else the answer itself.
+    if (kind === 'error' || kind === 'ok') (form.hidden ? messageBox : input || line).scrollIntoView({ block: 'center' });
+  }
+  // A form reopened for another time starts with no old answer or outline.
+  function resetStatus(form) {
+    var line = form.querySelector('.form-status');
+    if (line) {
+      line.textContent = '';
+      line.className = 'form-status';
+    }
+    unmark(form);
+  }
+  function unmark(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('[aria-invalid="true"]'), unmarkInput);
+  }
+  function unmarkInput(input) {
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-describedby');
+    var note = document.getElementById(input.id + 'Error');
+    if (note) note.parentNode.removeChild(note);
+  }
+  function clearInvalid(event) { if (event.target.getAttribute('aria-invalid')) unmarkInput(event.target); }
   function el(tag, attributes, children) {
     var node = document.createElement(tag);
     Object.keys(attributes || {}).forEach(function (key) {
@@ -189,6 +244,7 @@
         Array.prototype.forEach.call(grids.querySelectorAll('button.tbl.mine'), function (other) { other.className = 'tbl free'; });
         button.className = 'tbl mine';
         waitForm.hidden = true;
+        resetStatus(form);
         form.hidden = false;
         form.querySelector('#picked').textContent = 'Requesting a ' + entry.minutes + ' minute lesson on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + '.' +
           (entry.whole ? ' The other half of that hour stays open for someone else.' : '');
@@ -294,8 +350,10 @@
       [el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'waitWebsite', tabindex: '-1', autocomplete: 'off' }))),
         el('div', { 'class': 'actions' }, [submit])]
     ));
+    form.addEventListener('input', clearInvalid);
     form.open = function (entry) {
       target = entry;
+      resetStatus(form);
       form.hidden = false;
       form.querySelector('#waitPicked').textContent = 'We will email you if ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + ' opens up through a cancellation or a reschedule. The first student to request it then gets it.';
       var me = saved('cttc-student');
@@ -305,10 +363,10 @@
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       if (!target) return;
-      show('Sending...');
+      report(form, 'Sending...');
       guarded(submit, 'joinWaitlist', [{ key: target.key, email: form.querySelector('#waitEmail').value, website: form.querySelector('#waitWebsite').value }], function (result) {
-        show(result.message, result.ok ? 'ok' : 'error');
         if (result.ok) { form.reset(); form.hidden = true; }
+        report(form, result.message, result.ok ? 'ok' : 'error', result.field, { email: '#waitEmail' });
       });
     });
     return form;
@@ -349,6 +407,7 @@
       confirmBox.hidden = false;
       // A phone number is allowed too, so the email check is the server's job.
       contact.type = 'text';
+      resetStatus(form);
       var me = saved('cttc-student');
       if (me && !contact.value) contact.value = me.email || '';
       form.hidden = false;
@@ -356,9 +415,11 @@
     }
     cancel.addEventListener('click', function () { target = null; ask('Cancel ' + source.student + '\'s lesson with ' + source.coach + ' on ' + source.day + ', ' + source.time + '.'); });
     move.addEventListener('click', function () { form.hidden = true; startMove(source); });
+    form.addEventListener('input', clearInvalid);
     form.open = function (entry, to) {
       source = entry;
       target = to || null;
+      resetStatus(form);
       if (target) { ask('Move ' + entry.student + '\'s lesson on ' + entry.day + ', ' + entry.time + ' to ' + to.day + ', ' + to.time + ' with ' + to.coach + ' at Table ' + to.table + '. The new time goes to the coach to accept.'); return; }
       form.querySelector('#changeWhat').textContent = 'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
       choice.hidden = false;
@@ -369,10 +430,10 @@
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       if (!source) return;
-      show('Sending...');
+      report(form, 'Sending...');
       guarded(submit, 'studentChange', [{ key: source.key, action: target ? 'move' : 'cancel', to: target ? target.key : '', contact: contact.value, website: form.querySelector('#changeWebsite').value }], function (result) {
-        show(result.message, result.ok ? 'ok' : 'error');
         if (result.ok) form.hidden = true;
+        report(form, result.message, result.ok ? 'ok' : 'error', result.field, { contact: '#changeContact' });
       });
     });
     return form;
@@ -381,7 +442,10 @@
   function requestForm(getChosen, getLength) {
     var minor = el('input', { type: 'checkbox', id: 'minor' });
     var guardianBox = el('div', { hidden: 'hidden' }, field('Parent or guardian name', el('input', { type: 'text', id: 'guardian', name: 'guardian', maxlength: '60', autocomplete: 'off' })));
-    minor.addEventListener('change', function () { guardianBox.hidden = !minor.checked; });
+    minor.addEventListener('change', function () {
+      guardianBox.hidden = !minor.checked;
+      if (minor.checked && !form.querySelector('#guardian').value) form.querySelector('#guardian').focus();
+    });
     var keep = el('input', { type: 'checkbox', id: 'remember' });
     var submit = el('button', { type: 'submit', text: 'Send request' });
     var form = el('form', { id: 'request', hidden: 'hidden', novalidate: 'novalidate' }, [
@@ -398,20 +462,27 @@
       [el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'website', tabindex: '-1', autocomplete: 'off' }))),
         el('div', { 'class': 'actions' }, [submit])]
     ));
+    var fields = { name: '#name', email: '#email', phone: '#phone', guardian: '#guardian' };
+    form.addEventListener('input', clearInvalid);
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       var slot = getChosen();
-      if (!slot) { show('Please pick a time first.', 'error'); return; }
-      show('Sending...');
+      if (!slot) { report(form, 'Please pick a time first.', 'error'); return; }
+      if (minor.checked && !form.querySelector('#guardian').value.trim()) {
+        report(form, 'Please enter the parent or guardian\'s name, or untick "The student is under 18".', 'error', 'guardian', fields);
+        return;
+      }
+      report(form, 'Sending...');
       guarded(submit, 'requestSlot', [{
         key: slot.key, start: slot.start, length: getLength(), name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value, minor: minor.checked,
         guardian: form.querySelector('#guardian').value, note: form.querySelector('#note').value, website: form.querySelector('#website').value
       }], function (result) {
-        if (!result.ok) { show(result.message, 'error'); return; }
+        if (!result.ok) { report(form, result.message, 'error', result.field, fields); return; }
         remember('cttc-student', keep.checked ? { name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value,
           minor: minor.checked, guardian: form.querySelector('#guardian').value } : null);
         clear();
         show(result.message, 'ok');
+        window.scrollTo(0, 0);
         app.appendChild(el('p', { 'class': 'card', text: 'You will show on the site as "' + result.label + '", so you can find your time and its status on the schedule.' }));
         app.appendChild(el('p', { 'class': 'card', text: result.texts ?
           'To subscribe to text notifications about any updates such as session cancellations, send a text with the word STUDENT to ' + result.textNumber + ' from the mobile number you gave.' :

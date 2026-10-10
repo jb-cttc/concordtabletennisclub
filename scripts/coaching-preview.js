@@ -64,7 +64,9 @@ const makeBook = (id, url) => {
     insertSheet: name => (sheets[name] = makeSheet(name)),
     getSheets: () => Object.keys(sheets),
     deleteSheet: () => {},
-    getUrl: () => url
+    getUrl: () => url,
+    getName: () => books[id].title || '',
+    rename: title => { books[id].title = title; }
   });
 };
 const pacific = ms => {
@@ -78,9 +80,9 @@ const context = {
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = value; } }) },
   SpreadsheetApp: {
     create: name => {
-      const id = /public/.test(name) ? 'preview-public' : 'preview-private';
+      const id = /public/.test(name) ? 'preview-public' : /status/.test(name) ? 'preview-status' : 'preview-private';
       const book = makeBook(id, LOCAL + (id === 'preview-public' ? '/schedule' : '/mail'));
-      return { getId: () => id, getUrl: () => book.getUrl() };
+      return Object.assign({ getId: () => id }, book);
     },
     openById: id => books[id]
   },
@@ -167,7 +169,8 @@ call('requestSlot', { key: second.key, name: 'Another Student', email: 'another.
 answerLatest('another.student@example.com', /^Confirm your coaching request/, 'YES');
 // The second coach answers YES, so the board shows both a "Requested" and a "Booked" row.
 {
-  const coach = grids.Coaches.find(line => line[5] === second.coach);
+  // The page shows a coach by first name ("Coach Mia"); column A of the Coaches tab is the full name.
+  const coach = grids.Coaches.find(line => 'Coach ' + String(line[0]).split(' ')[0] === second.coach);
   yes(coach[0], coach[2].replace(/\D/g, ''));
 }
 }
@@ -191,7 +194,9 @@ const SHIM = `<script>
 const escapeHtml = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function appPage() {
-  return fs.readFileSync(path.join(APP, 'Index.html'), 'utf8').replace('<script>', SHIM + '\n<script>');
+  // The real doGet adds the same viewport tag, so phones render the preview as they do the real page.
+  return fs.readFileSync(path.join(APP, 'Index.html'), 'utf8').replace('<script>', SHIM + '\n<script>')
+    .replace(/<head>/i, '<head><meta name="viewport" content="width=device-width, initial-scale=1">');
 }
 
 function mailPage() {
