@@ -1616,6 +1616,13 @@ function ownWords_(text) {
   for (var i = 0; i < lines.length; i += 1) {
     var line = lines[i];
     var next = lines[i + 1] || '';
+    // Some apps send only HTML, and Gmail's plain-text version can run lines together ("YESSent from my Galaxy"): a signature
+    // or quote marker inside a line ends their words there too.
+    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no):/i);
+    if (glued > 0) {
+      mine.push(line.slice(0, glued).trim());
+      break;
+    }
     if (/^>/.test(line) || /^-{2,}\s*(original message|forwarded message)/i.test(line) || /^_{5,}$/.test(line) ||
       /^(sent from|get outlook for)\b/i.test(line) || /^--\s*$/.test(line) || /\[CTTC ref |^reply (yes|no)\b|concord table tennis club/i.test(line) || (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) ||
       /^on\b.{4,}\bwrote:?$/i.test(line) || (/^on\b.{4,}/i.test(line) && /\bwrote:?$/i.test(next))) break;

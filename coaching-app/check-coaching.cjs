@@ -278,7 +278,10 @@ assert.match(grids.About[0][0], /does not change any booking/);
   ['No problem, yes I can', 'yes'], ['no', 'no'], ['No thanks', 'no'], ['NO, I cannot make it', 'no'], ['n', 'no'], ['Nope', 'no'],
   ['maybe', ''], ['yes no', ''], ['No problem!', ''], ['Yesterday works', ''], ['I know', ''], ['\n\nyes\n', 'yes'],
   ['\u200bYES\u200b\r\n\r\nSent from my Galaxy', 'yes'],
-  ['\u200eYES\u200e\r\n\r\nSent from my Galaxy', 'yes'], ['\u202aYES\u202c', 'yes'], ['\u2068YES\u2069', 'yes'], ['\u00a0YES\u00a0', 'yes'], ['Y\u00adES', 'yes'],
+  ['\u200eYES\u200e\r\n\r\nSent from my Galaxy', 'yes'],
+  // HTML-only replies whose plain text runs the lines together (a real reply from a Samsung phone read this way).
+  ['YESSent from my Galaxy', 'yes'], ['NoSent from my iPhone', 'no'], ['yes-------- Original message --------From: Concord', 'yes'],
+  ['YesOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <club@example.com> wrote:', 'yes'], ['I sent from my phone yes', ''], ['\u202aYES\u202c', 'yes'], ['\u2068YES\u2069', 'yes'], ['\u00a0YES\u00a0', 'yes'], ['Y\u00adES', 'yes'],
   ['Yes\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <club@example.com> wrote:\n> Reply YES: Send\n> Reply NO: Cancel', 'yes'],
   ['no\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <\nclub@example.com> wrote:\nReply YES: Send', 'no'],
   ['YES\n\nSent from my Galaxy\n\n-------- Original message --------\nFrom: Concord <club@example.com>\nReply YES: Send\nReply NO: Cancel', 'yes'],
