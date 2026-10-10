@@ -277,7 +277,8 @@ assert.match(grids.About[0][0], /does not change any booking/);
   ['yes', 'yes'], ['Yes', 'yes'], ['YES!', 'yes'], ['yEs please', 'yes'], ['Yes, see you Friday', 'yes'], ['y', 'yes'], ['ok yes', 'yes'],
   ['No problem, yes I can', 'yes'], ['no', 'no'], ['No thanks', 'no'], ['NO, I cannot make it', 'no'], ['n', 'no'], ['Nope', 'no'],
   ['maybe', ''], ['yes no', ''], ['No problem!', ''], ['Yesterday works', ''], ['I know', ''], ['\n\nyes\n', 'yes'],
-  ['​YES​\r\n\r\nSent from my Galaxy', 'yes'],
+  ['\u200bYES\u200b\r\n\r\nSent from my Galaxy', 'yes'],
+  ['\u200eYES\u200e\r\n\r\nSent from my Galaxy', 'yes'], ['\u202aYES\u202c', 'yes'], ['\u2068YES\u2069', 'yes'], ['\u00a0YES\u00a0', 'yes'], ['Y\u00adES', 'yes'],
   ['Yes\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <club@example.com> wrote:\n> Reply YES: Send\n> Reply NO: Cancel', 'yes'],
   ['no\n\nOn Sat, Oct 10, 2026 at 11:57 AM Concord Table Tennis Club <\nclub@example.com> wrote:\nReply YES: Send', 'no'],
   ['YES\n\nSent from my Galaxy\n\n-------- Original message --------\nFrom: Concord <club@example.com>\nReply YES: Send\nReply NO: Cancel', 'yes'],
@@ -764,7 +765,7 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   const id = 'e' + messageCount++;
   // Gmail ignores dots, and phones add invisible characters: this is still Lou's YES.
   mailbox.push({ getId: () => id, getFrom: () => '"lou" <LouLate@gmail.com>', getSubject: () => 'Re: ' + subject, getDate: () => new Date(at),
-    getPlainBody: () => '​YES​\r\n\r\nSent from my Galaxy' });
+    getPlainBody: () => '\u200bYES\u200b\r\n\r\nSent from my Galaxy' });
   clock += hours(1) + 60000;
   context.sweep();
   assert.equal(statusOf('lou.late@gmail.com'), 'expired', 'nobody read the reply before the deadline');

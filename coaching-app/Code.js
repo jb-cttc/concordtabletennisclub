@@ -1591,10 +1591,27 @@ function sendText_(coach, body) {
   latest.message.reply(body);
 }
 
+// Mail and phone apps add invisible characters (zero-width spaces, left-to-right marks from "dir=auto" HTML, soft hyphens, byte
+// order marks) and unusual spaces. Drop the first and turn the rest into plain spaces, so "YES" is just YES.
+function plainText_(text) {
+  return String(text || '').replace(/[\u00AD\u034F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF]/g, '')
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
+}
+
+// Characters outside plain ASCII in a reply that could not be read, as code points only (never the text): for the status read-out.
+function oddCharacters_(text) {
+  var found = {};
+  String(text || '').slice(0, 400).replace(/[^\x09\x0A\x0D\x20-\x7E]/g, function (character) {
+    found['U+' + ('000' + character.charCodeAt(0).toString(16).toUpperCase()).slice(-4)] = true;
+    return '';
+  });
+  return Object.keys(found).slice(0, 8).join(',') || 'none';
+}
+
 // What the person wrote themselves in a reply: everything before the quoted earlier message or a signature. Our own emails
 // say both "Reply YES" and "Reply NO", so the quoted part must never be read as their answer.
 function ownWords_(text) {
-  var lines = String(text || '').replace(/[\u200B-\u200D\u2060\uFEFF]/g, '').split(/\r?\n/).map(function (line) { return line.trim(); });
+  var lines = plainText_(text).split(/\r?\n/).map(function (line) { return line.trim(); });
   var mine = [];
   for (var i = 0; i < lines.length; i += 1) {
     var line = lines[i];
@@ -1933,13 +1950,17 @@ function checkMail_() {
       var body = String(message.getPlainBody() || '');
       var answer = answerOf_(body);
       if (!answer) {
+        seen.unreadable = (seen.unreadable || 0) + 1;
+        seen.odd = oddCharacters_(ownWords_(body).split('\n')[0] || body);
+        seen.length = (ownWords_(body).split('\n')[0] || '').length;
         if (notify) unreadableReply_(message.getId(), address, String(message.getSubject() || ''), ownWords_(body).split('\n')[0]);
         return;
       }
       if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at, address: address };
     });
   });
-  STATUS_.mail += ' threads=' + threads.length + ' messages=' + seen.messages + ' coded=' + seen.matched + ' answers=' + Object.keys(answers).length;
+  STATUS_.mail += ' threads=' + threads.length + ' messages=' + seen.messages + ' coded=' + seen.matched + ' answers=' + Object.keys(answers).length +
+    (seen.unreadable ? ' unreadable=' + seen.unreadable + ' firstlen=' + seen.length + ' odd=' + seen.odd : '');
   Object.keys(answers).forEach(function (code) {
     var found = answers[code];
     var question = found.question;
