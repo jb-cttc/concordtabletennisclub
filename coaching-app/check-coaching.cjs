@@ -262,7 +262,27 @@ assert.deepEqual(grids.Coaches.slice(1).map(line => [line[0], line[1], line[2], 
   ['Raymond Trinh', '', '', 'Coach R']
 ], 'the four club coaches are listed once, with no phone numbers in the code');
 assert.equal(run('coachList').coaches.filter(coach => coach.registered).length, 0, 'nobody starts with a green check');
-// The rest of these checks use made-up coaches.
+// ---- The hourly sweep keeps the Coaches tab in line with the club list ----
+{
+  const statusOf = name => (grids.Coaches.find(line => line[0] === name) || [])[3];
+  const labels = () => run('coachList').coaches.map(coach => coach.label);
+  grids.Coaches.push(['Retired Coach', 'retired@example.com', '(925) 555-0199', '', '', '', '', '', '', '', '', '']);
+  context.sweep();
+  assert.equal(statusOf('Retired Coach'), 'disabled', 'a coach no longer in the club list is switched off, not deleted');
+  assert.deepEqual(labels(), ['Coach D', 'Coach F', 'Coach T', 'Coach R'], 'and no longer offered on the page');
+  grids.Coaches.find(line => line[0] === 'Dominic Chan')[3] = 'disabled';
+  grids.Coaches.splice(grids.Coaches.findIndex(line => line[0] === 'Raymond Trinh'), 1);
+  context.sweep();
+  assert.equal(statusOf('Dominic Chan'), '', 'a listed coach is switched back on');
+  assert.equal(statusOf('Raymond Trinh'), '', 'a listed coach missing from the tab is added back');
+  assert.equal(statusOf('Retired Coach'), 'disabled');
+  const before = JSON.stringify(grids.Coaches);
+  context.sweep();
+  assert.equal(JSON.stringify(grids.Coaches), before, 'a sweep with nothing to change writes nothing');
+}
+// The rest of these checks use made-up coaches, which the owner manages in the Sheet: with no club list, the sweep leaves
+// the Coaches tab alone.
+context.CLUB_COACHES = [];
 grids.Coaches.splice(1);
 assert.deepEqual(triggers, ['sweep', 'checkTexts']);
 activeEmail = '';

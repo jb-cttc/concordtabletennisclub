@@ -166,7 +166,7 @@ it is not updating, the minute check is not running.
 | --- | --- |
 | **Coaches** `ask_slots` (JSON) and `ask_made` (ms) | The coach submitted times on the page and we are waiting for their YES (email *Confirm your coaching times [CTTC ref …]* and/or a text). Nothing is published until then. The list lapses after 24 hours (`ASK_TTL_MS`). |
 | **Coaches** `registered_at` | The coach's texts work (they texted the club number). Empty means texting them fails. |
-| **Coaches** `status = disabled` | The coach and all their times are hidden. |
+| **Coaches** `status = disabled` | The coach and all their times are hidden. The hourly sweep sets this for anyone not in `CLUB_COACHES` in `coaching-app/Code.js` and clears it for anyone who is, so add or remove a coach there (and in the table on `coaching.html`), not in the Sheet. |
 | **Availability** rows with `confirmed = yes` | Published times. A row is one slot: `minutes` 30 or 60, `table` 1 to 3. A 25-minute booking on a 60-minute slot splits it into two 30-minute rows. Past rows are deleted by the sweep. |
 | **Waitlist** | People emailed (*A coaching time you wanted is open*) when a held time frees up; each is removed once told. |
 
