@@ -50,6 +50,7 @@ const context = {
   syncConflict: false,
   reconcileNeeded: false,
   reconciling: false,
+  unconfirmedSave: null,
   syncFailures: 0,
   lastSyncError: '',
   runAutoSync: function () {},
@@ -381,6 +382,24 @@ async function checkAutoSync() {
   assert.equal(context.state.session.revision, server.revision);
   assert.equal(context.reconcileNeeded, false);
 
+  // A slow save that arrived after the page stopped waiting, with more scores entered meanwhile, is the page's own
+  // version: it is built on and the newer edits are sent, not reported as a conflict.
+  context.state.matches[0].playerOneGames = 3;
+  context.persistDeviceDraft();
+  failNext = 1;
+  applyBeforeFailing = true;
+  await fire(1500);
+  applyBeforeFailing = false;
+  context.state.matches[0].playerTwoGames = 2;
+  context.persistDeviceDraft();
+  await fire(1500);
+  assert.equal(context.syncConflict, false, 'a late save of our own is not a conflict');
+  assert.equal(live(0), true, 'the newer edits are sent right away');
+  await fire(0);
+  assert.equal(server.matches[0].playerTwoGames, 2, 'the edit made while waiting reaches Google');
+  assert.equal(stored.has(key), false);
+  assert.equal(context.draftNotice.hidden, true);
+
   // Google holds something different: nothing is overwritten and the device copy stays.
   context.state.matches[0].playerOneGames = 0;
   context.persistDeviceDraft();
@@ -396,6 +415,7 @@ async function checkAutoSync() {
   assert.equal(stored.has(key), true);
   context.persistDeviceDraft();
   assert.equal(live(1500), false, 'a conflicted draft is never auto-sent');
+  assert.match(context.draftMessage.textContent, /different version/, 'later edits keep the conflict notice instead of claiming a retry');
 
   // Offline: kept on the device with a notice, then sent when the connection returns.
   reset();

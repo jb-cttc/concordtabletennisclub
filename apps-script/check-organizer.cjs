@@ -48,6 +48,14 @@ groups = O.organize(ids, player);
 O.applyPromotions(groups, [{ playerId: 'p3', groupNumber: 3, groupName: 'Group 3', date: 'x' }], player);
 assert.ok(groups[0].includes('p3'), 'a winner already rated above the target group is left alone');
 
+const deep = roster(24);
+groups = O.organize(deep, player);
+O.applyPromotions(groups, [{ playerId: 'p22', groupNumber: 2, groupName: 'Group 2', date: 'x' }], player);
+assert.deepEqual(plain(groups.map(g => g.length)), [6, 6, 6, 6], 'group sizes are unchanged by a promotion');
+assert.ok(groups[0].includes('p22'), 'a winner rated three groups down still reaches the group above the one they won');
+assert.ok(groups[1].includes('p6') && groups[2].includes('p12') && groups[3].includes('p18'), 'each player passed moves down exactly one group');
+assert.deepEqual(plain(groups[3]), ['p18', 'p19', 'p20', 'p21', 'p23', 'p24'], 'the winner\'s own group keeps its order');
+
 groups = [['p1', 'p2', 'p3', 'p4', 'p5', 'p6'], ['p7', 'p8', 'p9', 'p10', 'p11', 'p12']];
 people.late = { name: 'Late Arrival', currentRating: 1995 };
 O.insert(groups, 'late', ids.slice(0, 12).concat('late'), player);

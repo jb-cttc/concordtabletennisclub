@@ -245,6 +245,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var syncConflict = false;
   var reconcileNeeded = false;
   var reconciling = false;
+  // The last save whose reply never arrived: the revision it was based on and what it sent.
+  var unconfirmedSave = null;
   var syncFailures = 0;
   var lastSyncError = '';
   var saveDone = null;
@@ -460,7 +462,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       }));
       pendingRecovery = null;
       deviceDraftUnsynced = true;
-      if (syncBlocked || navigator.onLine === false) showDraftNotice(blockedMessage(), false);
+      // A conflict notice stays until the page is reloaded; later edits must not turn it back into "retrying".
+      if (!syncConflict && (syncBlocked || navigator.onLine === false)) showDraftNotice(blockedMessage(), false);
       updateSyncCue();
       scheduleAutoSync();
       return true;
@@ -948,6 +951,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       saveNeedsReload = false;
       syncConflict = false;
       reconcileNeeded = false;
+      unconfirmedSave = null;
       syncBlocked = false;
       syncFailures = 0;
       clearTimeout(autoSyncTimer);
@@ -978,7 +982,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         syncFailures = 0;
         setStatus('Checking Google Sheets before saving again...', 'busy');
         scheduleAutoSync(0);
-      } else setStatus('Reload this session to check Google Sheets before saving again.', 'error');
+      } else setStatus(syncConflict
+        ? 'Not saved: Google Sheets has a different version of this session. Your edits are kept on this device. Reload this page, then choose which copy to keep.'
+        : 'Reload this session to check Google Sheets before saving again.', 'error');
       return null;
     }
     if (!state.roster.length) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
@@ -1000,7 +1006,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var promotions = {};
       Object.keys(state.promotions).forEach(function (id) { promotions[id] = state.promotions[id].fromGroup; });
       var submittedState = printState();
+      unconfirmedSave = { revision: Number(state.session.revision), content: contentKey(groupArrays(), state.matches) };
       state.session = await withSaveTimeout(call('saveSessionDraft', { sessionId: state.session.sessionId, revision: state.session.revision, groups: state.groups, matches: state.matches, promotions: promotions }));
+      unconfirmedSave = null;
       state.customized = true;
       savedPrintState = submittedState;
       if (printState() === submittedState) clearDeviceDraft(loadedDate);
@@ -1096,6 +1104,20 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         setStatus('This session was finalized in Google Sheets with these same results. It is locked now.');
         render();
         refreshPublish();
+        return;
+      }
+      // Google holds exactly what an unanswered save sent (it arrived late, after this page stopped waiting) and
+      // the edits made since are newer: build on that version instead of treating it as someone else's.
+      var ownLateSave = !!server && server.status !== 'finalized' && !!mine && !!unconfirmedSave &&
+        Number(server.revision) === unconfirmedSave.revision + 1 && Number(mine.revision) === unconfirmedSave.revision &&
+        contentKey(serverGroups, server.matches || []) === unconfirmedSave.content;
+      if (ownLateSave) {
+        state.session = server;
+        state.customized = true;
+        unconfirmedSave = null;
+        reconcileNeeded = false;
+        saveNeedsReload = false;
+        retryNow = true;
         return;
       }
       var sameBase = server ? (!!mine && Number(server.revision) === Number(mine.revision)) || (!mine && Number(server.revision) === 1 && !serverGroups.length && !(server.matches || []).length) : !mine;
@@ -1398,10 +1420,19 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     collapsedGroups[number] = collapsed;
   }
   function toggleGroup(card) { setGroupCollapsed(card, !card.classList.contains('collapsed'), false); }
+  var foldingTimer = null;
   function setOrganizerCollapsed(collapsed, instant) {
     var apply = function () { organizerFold.classList.toggle('collapsed', collapsed); };
     if (instant) foldInstantly(organizerFold, apply);
-    else { organizerFold.classList.add('folding'); apply(); }
+    else {
+      // `folding` clips the organizer only while it animates. transitionend never fires when no animation runs
+      // (reduced motion, e.g. Windows with animation effects off, or an interrupted fold), and a clip left behind
+      // hides the payment menus on the bottom row of groups, so the timer always clears it.
+      organizerFold.classList.add('folding');
+      apply();
+      clearTimeout(foldingTimer);
+      foldingTimer = setTimeout(function () { organizerFold.classList.remove('folding'); }, 400);
+    }
     organizerToggle.textContent = collapsed ? 'Expand organizer' : 'Collapse organizer';
     organizerToggle.setAttribute('aria-expanded', String(!collapsed));
   }
