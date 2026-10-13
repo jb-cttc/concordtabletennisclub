@@ -58,7 +58,9 @@ var LOCATION = 'Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Cre
 var DEFAULT_ARRIVAL = 'Please arrive about 10 minutes early. Bring athletic shoes; the club has loaner paddles.';
 var DEFAULT_PAYMENT = 'Pay the lesson fee directly to your coach. The regular session fee is paid at the front desk.';
 var DEFAULT_GUIDELINES = 'Be on time, tell your coach about any injury, and treat the club, equipment and other players with respect.';
-// The coaches listed on the public coaching page. setup() adds any that are missing; the owner adds each mobile number in the Sheet.
+// The coaches listed on the public coaching page, and the only coaches the app offers. Every sweep (hourly) adds any that are
+// missing from the Coaches tab, marks a coach no longer listed here 'disabled', and switches a listed coach back on. To add or
+// remove a coach, change this list and the table on coaching.html. The owner adds each mobile number in the Sheet.
 var CLUB_COACHES = [
   ['Dominic Chan', 'dominicchan@sbcglobal.net'],
   ['Fuqun (Bill) Xing', 'xfqslw@gmail.com'],
@@ -140,13 +142,7 @@ function setup() {
   Object.keys(TABS).concat(Object.keys(PUBLIC_TABS)).forEach(tab_);
   // Columns added in later versions get their header names; the data under them is written by position.
   Object.keys(TABS).forEach(function (name) { tab_(name).getRange(1, 1, 1, TABS[name].length).setNumberFormat('@').setValues([TABS[name]]).setFontWeight('bold'); });
-  var listed = rows_('Coaches');
-  CLUB_COACHES.forEach(function (coach) {
-    if (listed.some(function (entry) {
-      return entry.name.trim().toLowerCase() === coach[0].toLowerCase() || (coach[1] && cleanEmail_(entry.email) === coach[1]);
-    })) return;
-    save_('Coaches', { name: coach[0], email: coach[1] });
-  });
+  syncClubCoaches_();
   ensureCoachIds_(rows_('Coaches'));
   var publicBook = publicBook_();
   (publicBook.getSheetByName('About') || publicBook.insertSheet('About')).getRange(1, 1, 1, 1).setValues([[
@@ -1159,11 +1155,32 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
 // and rebuilds the public schedule (which also repairs any edits made to it).
 function sweep() { sweep_(); }
 
+// Call while holding the lock. Makes the Coaches tab match CLUB_COACHES: a listed coach is added if missing and switched back
+// on if disabled; any other coach is disabled. Rows are never deleted, so a coach's id, label and past lessons stay. An empty
+// list changes nothing.
+function syncClubCoaches_() {
+  if (!CLUB_COACHES.length) return;
+  var listed = rows_('Coaches');
+  var matches = function (entry, coach) {
+    return entry.name.trim().toLowerCase() === coach[0].toLowerCase() || (coach[1] && cleanEmail_(entry.email) === coach[1]);
+  };
+  listed.forEach(function (entry) {
+    var club = CLUB_COACHES.some(function (coach) { return matches(entry, coach); });
+    if (club === active_(entry)) return;
+    entry.status = club ? '' : 'disabled';
+    save_('Coaches', entry);
+  });
+  CLUB_COACHES.forEach(function (coach) {
+    if (!listed.some(function (entry) { return matches(entry, coach); })) save_('Coaches', { name: coach[0], email: coach[1] });
+  });
+}
+
 function sweep_() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     ensureHeaders_();
+    syncClubCoaches_();
     var now = Date.now();
     var coaches = ensureCoachIds_(rows_('Coaches'));
     var students = rows_('Students');
