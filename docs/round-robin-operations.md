@@ -280,6 +280,12 @@ it could not confirm, a save conflict) are logged as `desk_problem` rows with
 the time, session revision, connection state, and browser. Reports made
 offline wait on the device and go with the next one.
 
+Each `session_saved` row records `ms` (how long the save took) and `lockMs`
+(how much of that was waiting for other desk work, such as payments). If the
+desk says Google is slow, those two numbers show whether the save itself or
+the queue behind other work was slow. The page waits up to a minute for a
+save's reply and never sends a second save while one is still pending.
+
 ## Live publication cutover (go-live checklist)
 
 > **The desk is the record.** Finalizing is always available. MS Access is

@@ -245,8 +245,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var syncConflict = false;
   var reconcileNeeded = false;
   var reconciling = false;
-  // The last save whose reply never arrived: the revision it was based on and what it sent.
-  var unconfirmedSave = null;
+  // Saves whose reply never arrived, each with the revision it was based on and what it sent. Google can still apply
+  // any of them later, so a version matching one of them is this page's own, not another device's.
+  var unconfirmedSaves = [];
+  // After a device copy is recovered, the next quiet sync says so in the status bar.
+  var announceSync = false;
+  // A slow Google reply is waited for, not abandoned: abandoning it while Google is still applying the save is what
+  // lets the page and Google drift apart. The page only gives up after a minute.
+  var SAVE_SLOW_MS = 10000;
+  var SAVE_GIVE_UP_MS = 60000;
   var syncFailures = 0;
   var lastSyncError = '';
   var saveDone = null;
@@ -590,6 +597,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     state.customized = !!draft.customized;
     setGroups(draft.groups.map(function (group) { return group.playerIds; }));
     pendingRecovery = null;
+    announceSync = true;
     persistDeviceDraft();
     setStatus(replacing ? 'Using this device\'s copy. It replaces Google Sheets\' version when it syncs, in a moment.' : 'Device draft recovered. It will sync to Google Sheets automatically.');
   });
@@ -951,7 +959,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       saveNeedsReload = false;
       syncConflict = false;
       reconcileNeeded = false;
-      unconfirmedSave = null;
+      unconfirmedSaves = [];
+      announceSync = false;
       syncBlocked = false;
       syncFailures = 0;
       clearTimeout(autoSyncTimer);
@@ -998,17 +1007,18 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     saveDone = new Promise(function (resolve) { releaseSave = resolve; });
     updateSyncCue();
     if (!auto) setStatus('Saving draft...', 'busy');
+    var slow = auto ? null : function () { setStatus('Google Sheets is slow to answer; still saving. Your changes are kept on this device, so keep entering scores.', 'busy'); };
     try {
       if (!state.session) {
-        state.session = await withSaveTimeout(call('createSession', date.value));
+        state.session = await withSaveTimeout(call('createSession', date.value), slow);
         persistDeviceDraft();
       }
       var promotions = {};
       Object.keys(state.promotions).forEach(function (id) { promotions[id] = state.promotions[id].fromGroup; });
       var submittedState = printState();
-      unconfirmedSave = { revision: Number(state.session.revision), content: contentKey(groupArrays(), state.matches) };
-      state.session = await withSaveTimeout(call('saveSessionDraft', { sessionId: state.session.sessionId, revision: state.session.revision, groups: state.groups, matches: state.matches, promotions: promotions }));
-      unconfirmedSave = null;
+      unconfirmedSaves.push({ revision: Number(state.session.revision), content: contentKey(groupArrays(), state.matches) });
+      state.session = await withSaveTimeout(call('saveSessionDraft', { sessionId: state.session.sessionId, revision: state.session.revision, groups: state.groups, matches: state.matches, promotions: promotions }), slow);
+      unconfirmedSaves = [];
       state.customized = true;
       savedPrintState = submittedState;
       if (printState() === submittedState) clearDeviceDraft(loadedDate);
@@ -1045,10 +1055,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return { deviceOnly: true };
   }
 
-  function withSaveTimeout(request) {
+  function withSaveTimeout(request, onSlow) {
     return new Promise(function (resolve, reject) {
-      var timer = setTimeout(function () { reject(new Error('Google did not respond in 10 seconds')); }, 10000);
-      request.then(resolve, reject).finally(function () { clearTimeout(timer); });
+      var slowTimer = onSlow ? setTimeout(onSlow, SAVE_SLOW_MS) : null;
+      var timer = setTimeout(function () { reject(new Error('Google did not respond in ' + SAVE_GIVE_UP_MS / 1000 + ' seconds')); }, SAVE_GIVE_UP_MS);
+      request.then(resolve, reject).finally(function () { clearTimeout(timer); clearTimeout(slowTimer); });
     });
   }
 
@@ -1072,7 +1083,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     reconciling = true;
     try {
       var data;
-      try { data = await withSaveTimeout(call('getAppState', sessionDate)); }
+      try { data = await call('getAppState', sessionDate); }
       catch (error) {
         syncFailures += 1;
         lastSyncError = error && error.message || '';
@@ -1088,6 +1099,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         state.session = server;
         state.customized = true;
         savedPrintState = printState();
+        unconfirmedSaves = [];
         reconcileNeeded = false;
         saveNeedsReload = false;
         clearDeviceDraft(loadedDate);
@@ -1108,13 +1120,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       }
       // Google holds exactly what an unanswered save sent (it arrived late, after this page stopped waiting) and
       // the edits made since are newer: build on that version instead of treating it as someone else's.
-      var ownLateSave = !!server && server.status !== 'finalized' && !!mine && !!unconfirmedSave &&
-        Number(server.revision) === unconfirmedSave.revision + 1 && Number(mine.revision) === unconfirmedSave.revision &&
-        contentKey(serverGroups, server.matches || []) === unconfirmedSave.content;
+      var serverContent = contentKey(serverGroups, server ? server.matches || [] : []);
+      var ownLateSave = !!server && server.status !== 'finalized' && !!mine && unconfirmedSaves.some(function (sent) {
+        return Number(server.revision) === sent.revision + 1 && Number(mine.revision) === sent.revision && serverContent === sent.content;
+      });
       if (ownLateSave) {
         state.session = server;
         state.customized = true;
-        unconfirmedSave = null;
+        unconfirmedSaves = [];
         reconcileNeeded = false;
         saveNeedsReload = false;
         retryNow = true;
@@ -1153,10 +1166,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   async function runAutoSync() {
     if (!canAutoSync() || navigator.onLine === false) return;
     if (reconcileNeeded) { await reconcile(); return; }
-    var wasBlocked = syncBlocked;
+    var wasBlocked = syncBlocked || announceSync;
     var saved = await save({ auto: true });
     if (!saved) return;
     syncFailures = 0;
+    announceSync = false;
     if (wasBlocked) setStatus('Changes saved to Google Sheets at ' + new Date().toLocaleTimeString() + '.');
     if (deviceDraftUnsynced) scheduleAutoSync();
   }

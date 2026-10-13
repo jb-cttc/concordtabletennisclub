@@ -227,6 +227,24 @@ assert.equal(sheet.writes, 1, 'one write');
 assert.deepEqual(sheet.rows.map(row => row[0]), ['x-1', 'x-2', 's-1', ''], 'the table shrinks with no row left twice');
 tableContext.replaceSessionRows_('T', 's', []);
 assert.deepEqual(sheet.rows.map(row => row[0]), ['x-1', 'x-2', '', '']);
+// Saves during a session write only that session's rows, so they stay quick as the tables grow.
+const written = [];
+const realGetRange = sheet.getRange;
+sheet.getRange = (row, column, count) => { written.push([row, count]); return realGetRange(row, column, count); };
+sheet.rows = [['x-1', 'other'], ['x-2', 'other']];
+tableContext.replaceSessionRows_('T', 'n', [{ event_id: 'n-1', session_id: 'n' }, { event_id: 'n-2', session_id: 'n' }]);
+assert.deepEqual(written.pop(), [4, 2], 'a new session is added at the end');
+tableContext.replaceSessionRows_('T', 'n', [{ event_id: 'n-1', session_id: 'n' }, { event_id: 'n-2b', session_id: 'n' }]);
+assert.deepEqual(written.pop(), [4, 2], 'a score change rewrites only that session\'s rows');
+tableContext.replaceSessionRows_('T', 'n', [{ event_id: 'n-1', session_id: 'n' }, { event_id: 'n-2b', session_id: 'n' }, { event_id: 'n-3', session_id: 'n' }]);
+assert.deepEqual(written.pop(), [4, 3], 'a session at the end of the table can grow in place');
+tableContext.replaceSessionRows_('T', 'n', [{ event_id: 'n-1', session_id: 'n' }]);
+assert.deepEqual(written.pop(), [4, 3], 'and shrink in place, blanking what it no longer needs');
+assert.deepEqual(sheet.rows.map(row => row[0]), ['x-1', 'x-2', 'n-1', '', '']);
+tableContext.replaceSessionRows_('T', 'other', [{ event_id: 'x-1', session_id: 'other' }]);
+assert.deepEqual(written.pop(), [2, 3], 'an earlier session that changes size rewrites the table');
+assert.deepEqual(sheet.rows.map(row => row[0]).slice(0, 3), ['n-1', 'x-1', ''], 'with no row left twice');
+sheet.getRange = realGetRange;
 // On load, ledger rows for an open session mean a finalize stopped partway; the desk is told.
 reset();
 context.listPlayers = () => [];

@@ -50,7 +50,10 @@ const context = {
   syncConflict: false,
   reconcileNeeded: false,
   reconciling: false,
-  unconfirmedSave: null,
+  unconfirmedSaves: [],
+  announceSync: false,
+  SAVE_SLOW_MS: 10000,
+  SAVE_GIVE_UP_MS: 60000,
   syncFailures: 0,
   lastSyncError: '',
   runAutoSync: function () {},
@@ -329,6 +332,8 @@ async function checkAutoSync() {
     context.syncBlocked = false;
     context.syncConflict = false;
     context.syncFailures = 0;
+    context.announceSync = false;
+    context.unconfirmedSaves = [];
     context.deviceDraftUnsynced = false;
     context.draftNotice.hidden = true;
     context.draftMessage.textContent = '';
@@ -399,6 +404,49 @@ async function checkAutoSync() {
   assert.equal(server.matches[0].playerTwoGames, 2, 'the edit made while waiting reaches Google');
   assert.equal(stored.has(key), false);
   assert.equal(context.draftNotice.hidden, true);
+
+  // Tonight's sequence: a save is still queued at Google when the page checks, finds the old version, and resends
+  // with newer scores. The first save then lands, the resend is refused, and Google holds the first one. That is
+  // still this page's own version, so the newest scores are sent on top of it.
+  context.state.matches[0].playerOneGames = 3;
+  context.state.matches[0].playerTwoGames = 0;
+  context.persistDeviceDraft();
+  failNext = 1;
+  let queued = null;
+  const realApply = apply;
+  await fire(1500);
+  queued = JSON.parse(JSON.stringify({ groups: context.state.groups, matches: context.state.matches }));
+  context.state.matches[0].playerTwoGames = 1;
+  context.persistDeviceDraft();
+  await fire(1500);
+  assert.equal(live(0), true, 'Google still shows the old version, so the newer scores are resent');
+  failNext = 1;
+  await fire(0);
+  realApply(queued);
+  context.state.matches[0].playerTwoGames = 2;
+  context.persistDeviceDraft();
+  await fire(1500);
+  assert.equal(context.syncConflict, false, 'any of the page\'s own unanswered saves is recognized');
+  await fire(0);
+  assert.equal(server.matches[0].playerTwoGames, 2, 'the newest scores reach Google');
+  assert.equal(stored.has(key), false);
+
+  // A reply slower than 10 seconds is waited for: the page says Google is slow and keeps the save, instead of
+  // abandoning it while Google may still apply it.
+  context.state.matches[0].playerOneGames = 1;
+  context.persistDeviceDraft();
+  const realCall = context.call;
+  let answer = null;
+  context.call = (name, payload) => name === 'saveSessionDraft' ? new Promise(resolve => { answer = () => resolve(realCall(name, payload)); }) : realCall(name, payload);
+  const slowSave = context.save();
+  await fire(10000);
+  assert.match(context.status, /slow to answer; still saving/);
+  assert.equal(context.saveNeedsReload, false, 'a slow save is not treated as lost');
+  answer();
+  assert.ok(await slowSave, 'the late reply is accepted');
+  assert.equal(server.matches[0].playerOneGames, 1);
+  assert.equal(context.syncConflict, false);
+  context.call = realCall;
 
   // Google holds something different: nothing is overwritten and the device copy stays.
   context.state.matches[0].playerOneGames = 0;
