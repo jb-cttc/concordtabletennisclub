@@ -28,9 +28,9 @@
     });
   }
 
-  // Last same-weekday group winners are guaranteed one group above the group they won. The winner joins that group
-  // and each group between gives its lowest-rated non-winner to the group below, so everyone they pass moves down
-  // exactly one group (a direct swap could drop a player several groups).
+  // Last same-weekday group winners are guaranteed one group above the group they won. The winner moves there as if
+  // the up arrow were clicked; then any group left larger than before gives its lowest-rated player who is not a
+  // winner to the group below, so the promotion never changes how many players sit at each table.
   function applyPromotions(groups, winners, player) {
     var promotions = {};
     if (groups.length < 2) return promotions;
@@ -40,21 +40,19 @@
       var from = groups.findIndex(function (group) { return group.indexOf(winner.playerId) >= 0; });
       var target = winner.groupNumber - 2;
       if (from < 0 || target < 0 || target >= groups.length || from <= target) return;
-      if (groups.slice(target, from).some(function (group) { return !group.length; })) return;
+      var sizes = groups.map(function (group) { return group.length; });
       groups[from].splice(groups[from].indexOf(winner.playerId), 1);
-      var moving = winner.playerId;
+      groups[target] = byRating(groups[target].concat(winner.playerId), player);
       for (var g = target; g < from; g += 1) {
-        var swap = -1;
-        for (var i = groups[g].length - 1; i >= 0; i -= 1) {
-          if (!eligible[groups[g][i]]) { swap = i; break; }
+        while (groups[g].length > sizes[g]) {
+          var down = -1;
+          for (var i = groups[g].length - 1; i >= 0; i -= 1) {
+            if (!eligible[groups[g][i]]) { down = i; break; }
+          }
+          if (down < 0) down = groups[g].length - 1;
+          groups[g + 1] = byRating(groups[g + 1].concat(groups[g].splice(down, 1)), player);
         }
-        if (swap < 0) swap = groups[g].length - 1;
-        var displaced = groups[g][swap];
-        groups[g][swap] = moving;
-        groups[g] = byRating(groups[g], player);
-        moving = displaced;
       }
-      groups[from] = byRating(groups[from].concat(moving), player);
       promotions[winner.playerId] = { fromGroup: from + 1, toGroup: target + 1, wonGroup: winner.groupName, date: winner.date };
     });
     return promotions;

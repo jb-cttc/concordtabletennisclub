@@ -59,9 +59,10 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
 - Groups of 5 or 6 by rating; the desk flags any group outside that range.
 - Promotions: each winner (except Group 1) of the previous session on the same
   weekday, read from the public site, is guaranteed one group above the group
-  they won. Each group between gives its lowest-rated non-winner to the group
-  below, so everyone the winner passes moves down exactly one group. A winner
-  already rated into that group or higher is left alone. Promotions are saved per
+  they won: the winner moves up as if the up arrow were clicked. Any group
+  then left larger than before gives its lowest-rated non-winner to the group
+  below, so table sizes stay balanced and nobody else moves more than one
+  group. A winner already rated into that group or higher is left alone. Promotions are saved per
   player (`SessionPlayers.promotion_from_group`).
 - Once groups are saved or moved by hand, late arrivals are slotted in by
   rating rank without reshuffling anyone, and promoted players are never
