@@ -197,7 +197,7 @@
   // ----- Students: pick a time and ask -----
   function bookingView() {
     clear(); show('');
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: you confirm by replying YES to the email (or text) we send, and the lesson is booked once the coach accepts. To cancel or move a lesson, tap your time. Coaches and students appear by first name only (Coach Olaf, Student Sam). Your coach sees your full name when you request a lesson; emails and mobile numbers are shared between you and your coach only once the lesson is confirmed.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: you confirm by replying YES to the email (or text) we send, and the lesson is booked once the coach accepts. To cancel or move a lesson, tap your time. Coaches and students appear by first name only (Coach Dominic, Student Sam). Your coach sees your full name when you request a lesson; emails and mobile numbers are shared between you and your coach only once the lesson is confirmed.' }));
     var list = el('div', { id: 'slots' }, [el('p', { text: 'Loading open times...' })]);
     app.appendChild(list);
     load('openSlots', [], function (result) {
@@ -535,7 +535,7 @@
     app.appendChild(el('h2', { text: 'Which CTTC registered coach are you?' }));
     var list = el('div', { 'class': 'actions' }, [el('p', { text: 'Loading...' })]);
     app.appendChild(list);
-    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number. Privacy: students see you only by first name (such as Coach Olaf) until you accept a lesson. You see a student\'s name when they request; once you accept, you and that student each get the other\'s name, email and mobile number (if the club has them).' }));
+    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number. Privacy: students see you only by first name (such as Coach Dominic) until you accept a lesson. You see a student\'s name when they request; once you accept, you and that student each get the other\'s name, email and mobile number (if the club has them).' }));
     var last = saved('cttc-coach');
     load('coachList', [], function (result) {
       preload('openSlots', []);
