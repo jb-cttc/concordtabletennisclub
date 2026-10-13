@@ -5,8 +5,8 @@
 // owner and does all the work. Two Sheets keep the data apart:
 //   - the PRIVATE Sheet (script property COACHING_DB_ID) holds names, emails, notes and the requests themselves;
 //   - the PUBLIC Sheet (COACHING_PUBLIC_ID) is shared "anyone with the link can view". It shows only first names such as
-//     "Coach Olaf" and "Student Sam", dates and times; never a last name, email or phone number. Internally each coach and
-//     student also has a label ("Coach O", "Student A"); coaches still pick their label on the page.
+//     "Coach Dominic" and "Student Sam", dates and times; never a last name, email or phone number. Internally each coach and
+//     student also has a label ("Coach D", "Student A"); coaches still pick their label on the page.
 // The public Sheet is a read-out, never an input: the app rebuilds it from the private records after every change and
 // every hour, and never reads it back. Whatever a visitor types there cannot change, create or cancel a booking.
 // Coaches are a list the owner types into the private Coaches tab (name, email, mobile); there is no self sign-up and no coach
@@ -60,9 +60,7 @@ var DEFAULT_PAYMENT = 'Pay the lesson fee directly to your coach. The regular se
 var DEFAULT_GUIDELINES = 'Be on time, tell your coach about any injury, and treat the club, equipment and other players with respect.';
 // The coaches listed on the public coaching page. setup() adds any that are missing; the owner adds each mobile number in the Sheet.
 var CLUB_COACHES = [
-  ['Olaf Surmann', ''],
   ['Dominic Chan', 'dominicchan@sbcglobal.net'],
-  ['Xin Huang', 'xinwjhuang@gmail.com'],
   ['Fuqun (Bill) Xing', 'xfqslw@gmail.com'],
   ['Tom (Xiaoyun) Zeng', 'xiaoyunzeng64@gmail.com'],
   ['Raymond Trinh', '']
@@ -152,7 +150,7 @@ function setup() {
   ensureCoachIds_(rows_('Coaches'));
   var publicBook = publicBook_();
   (publicBook.getSheetByName('About') || publicBook.insertSheet('About')).getRange(1, 1, 1, 1).setValues([[
-    'This is a read-out of the coaching schedule. It shows only first names (Coach Olaf, Student Sam) and times. Changing it does not change any booking: ' +
+    'This is a read-out of the coaching schedule. It shows only first names (Coach Dominic, Student Sam) and times. Changing it does not change any booking: ' +
     'the schedule is rebuilt from private records after every booking and every hour. Please use the coaching page to book or offer times.'
   ]]);
   [database_(), publicBook].forEach(function (book) {
@@ -311,7 +309,7 @@ function nextLabel_(prefix, used) {
   return prefix + ' ' + letters_(number);
 }
 
-// "Coach O" for Olaf. Two coaches with the same initial become "Coach O" and "Coach O2".
+// "Coach D" for Dominic. Two coaches with the same initial become "Coach D" and "Coach D2".
 function coachLabel_(name, used) {
   var initial = (nameKey_(name).match(/\p{L}/u) || [''])[0].toUpperCase();
   if (!initial) return nextLabel_('Coach', used);
@@ -736,7 +734,7 @@ function notifyWaitlist_(coaches, now) {
 
 // ---------- Public: coaches ----------
 
-// Call while holding the lock. Gives each coach the owner has listed an id and a label such as "Coach O" the first time it is needed.
+// Call while holding the lock. Gives each coach the owner has listed an id and a label such as "Coach D" the first time it is needed.
 function ensureCoachIds_(coaches) {
   coaches.forEach(function (coach) {
     if (coach.coach_id || !String(coach.name).trim()) return;

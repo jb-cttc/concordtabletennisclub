@@ -22,14 +22,14 @@ assert.ok(!hasCoachingLevel([]) && !hasCoachingLevel(undefined) && !hasCoachingL
 // Page rewrite is idempotent and only touches known coaches.
 const page = fs.readFileSync(path.join(__dirname, '..', 'coaching.html'), 'utf8');
 const coaches = readCoaches(page);
-assert.equal(coaches.length, 6);
+assert.equal(coaches.length, 4);
 const statuses = Object.fromEntries(coaches.map(c => [c, c === 'Dominic Chan' ? ACTIVE : PENDING]));
 const once = rewriteTable(page, statuses);
 assert.equal(rewriteTable(once, statuses), once, 'running twice changes nothing');
 assert.equal((once.match(/data-usatt="active"/g) || []).length, 1);
-assert.equal((once.match(/data-usatt="pending"/g) || []).length, 5);
+assert.equal((once.match(/data-usatt="pending"/g) || []).length, 3);
 assert.equal((once.match(/<th>USATT<\/th>/g) || []).length, 1);
-const flipped = rewriteTable(once, Object.assign({}, statuses, { 'Xin Huang': ACTIVE }));
+const flipped = rewriteTable(once, Object.assign({}, statuses, { 'Raymond Trinh': ACTIVE }));
 assert.equal((flipped.match(/data-usatt="active"/g) || []).length, 2, 'a coach appearing later flips to Active');
 
 console.log('coach certification checks passed');
