@@ -101,7 +101,13 @@ function createSession(sessionDate) {
 function getSession(sessionId) {
   var session = findRow_('Sessions', 'session_id', sessionId);
   if (!session) return null;
-  var sessionPlayers = rows_('SessionPlayers').filter(function (row) { return String(row.session_id) === sessionId; });
+  return sessionFromRows_(session,
+    rows_('SessionPlayers').filter(function (row) { return String(row.session_id) === sessionId; }),
+    rows_('Matches').filter(function (row) { return String(row.session_id) === sessionId; }));
+}
+
+// The desk's view of one session, from its Sessions row and its SessionPlayers and Matches rows.
+function sessionFromRows_(session, sessionPlayers, matchRows) {
   var groupsByNumber = {};
   sessionPlayers.forEach(function (row) {
     var number = Number(row.group_number);
@@ -120,7 +126,7 @@ function getSession(sessionId) {
     groups: Object.keys(groupsByNumber).map(Number).sort(function (a, b) { return a - b; }).map(function (number) {
       return { groupNumber: number, players: groupsByNumber[number] };
     }),
-    matches: rows_('Matches').filter(function (row) { return String(row.session_id) === sessionId; }).map(function (row) {
+    matches: matchRows.map(function (row) {
       return {
         matchId: String(row.match_id),
         groupNumber: Number(row.group_number),
@@ -153,10 +159,14 @@ function getAppState(sessionDate) {
   };
 }
 
+// Sent a moment after every change at the desk, so it must stay quick: it writes only this session's rows where it
+// can, and answers from what it wrote instead of reading the tables back.
 function saveSessionDraft(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('Session payload is required.');
+  var started = Date.now();
   var lock = LockService.getScriptLock();
   try { lock.waitLock(30000); } catch (error) { throw new Error(DESK_BUSY_MESSAGE); }
+  var lockMs = Date.now() - started;
   try {
     var sessionId = String(payload.sessionId || '');
     var session = requireEditableSession_(sessionId, payload.revision);
@@ -219,13 +229,11 @@ function saveSessionDraft(payload) {
     ensureMatchesColumns_();
     replaceSessionRows_('SessionPlayers', sessionId, sessionPlayers);
     replaceSessionRows_('Matches', sessionId, matches);
-    updateRow_('Sessions', session.__row, {
-      status: 'active',
-      revision: Number(session.revision) + 1,
-      updated_at: new Date()
-    });
-    appendAudit_('session_saved', 'session', sessionId, { revision: Number(session.revision) + 1, players: sessionPlayers.length, matches: matches.length });
-    return getSession(sessionId);
+    var changes = { status: 'active', revision: Number(session.revision) + 1, updated_at: new Date() };
+    updateRow_('Sessions', session.__row, changes);
+    // lockMs is the wait for other desk work; ms is the whole save. Both show in the AuditLog when Google is slow.
+    appendAudit_('session_saved', 'session', sessionId, { revision: changes.revision, players: sessionPlayers.length, matches: matches.length, lockMs: lockMs, ms: Date.now() - started });
+    return sessionFromRows_(Object.assign({}, session, changes), sessionPlayers, matches);
   } finally {
     lock.releaseLock();
   }
@@ -658,17 +666,32 @@ function updateRow_(sheetName, rowNumber, changes) {
   });
 }
 
+// Always one write, so if Google stops the table is either as before or as intended, never cleared and never
+// holding a moved row twice. Usually only this session's rows are written: a new session's rows are added at the end,
+// and later saves rewrite that block when it keeps its count or ends the table. Otherwise the whole table is rewritten.
 function replaceSessionRows_(sheetName, sessionId, replacements) {
   var sheet = SpreadsheetApp.getActive().getSheetByName(sheetName);
   var headers = TABLES[sheetName];
-  var kept = rows_(sheetName).filter(function (row) { return String(row.session_id) !== sessionId; });
-  var combined = kept.concat(replacements).map(function (object) {
-    return headers.map(function (header) { return object[header] === undefined ? '' : object[header]; });
-  });
-  // One write that also blanks the rows the table no longer needs: if Google stops, the table is either as before
-  // or as intended, never cleared and never holding a moved row twice.
-  var oldCount = Math.max(0, sheet.getLastRow() - 1);
-  while (combined.length < oldCount) combined.push(headers.map(function () { return ''; }));
+  var toValues = function (object) { return headers.map(function (header) { return object[header] === undefined ? '' : object[header]; }); };
+  var blank = function () { return headers.map(function () { return ''; }); };
+  var rows = rows_(sheetName);
+  var own = rows.filter(function (row) { return String(row.session_id) === sessionId; });
+  var lastRow = sheet.getLastRow();
+  if (!own.length) {
+    if (replacements.length) sheet.getRange(lastRow + 1, 1, replacements.length, headers.length).setValues(replacements.map(toValues));
+    return;
+  }
+  var together = own[own.length - 1].__row - own[0].__row === own.length - 1;
+  if (together && (own.length === replacements.length || own[own.length - 1].__row === lastRow)) {
+    var block = replacements.map(toValues);
+    while (block.length < own.length) block.push(blank());
+    if (block.length) sheet.getRange(own[0].__row, 1, block.length, headers.length).setValues(block);
+    return;
+  }
+  var kept = rows.filter(function (row) { return String(row.session_id) !== sessionId; });
+  var combined = kept.concat(replacements).map(toValues);
+  var oldCount = Math.max(0, lastRow - 1);
+  while (combined.length < oldCount) combined.push(blank());
   if (combined.length) sheet.getRange(2, 1, combined.length, headers.length).setValues(combined);
 }
 

@@ -28,7 +28,9 @@
     });
   }
 
-  // Last same-weekday group winners are guaranteed one group above the group they won.
+  // Last same-weekday group winners are guaranteed one group above the group they won. The winner moves there as if
+  // the up arrow were clicked; then any group left larger than before gives its lowest-rated player who is not a
+  // winner to the group below, so the promotion never changes how many players sit at each table.
   function applyPromotions(groups, winners, player) {
     var promotions = {};
     if (groups.length < 2) return promotions;
@@ -38,17 +40,19 @@
       var from = groups.findIndex(function (group) { return group.indexOf(winner.playerId) >= 0; });
       var target = winner.groupNumber - 2;
       if (from < 0 || target < 0 || target >= groups.length || from <= target) return;
-      var swap = -1;
-      for (var i = groups[target].length - 1; i >= 0; i -= 1) {
-        if (!eligible[groups[target][i]]) { swap = i; break; }
+      var sizes = groups.map(function (group) { return group.length; });
+      groups[from].splice(groups[from].indexOf(winner.playerId), 1);
+      groups[target] = byRating(groups[target].concat(winner.playerId), player);
+      for (var g = target; g < from; g += 1) {
+        while (groups[g].length > sizes[g]) {
+          var down = -1;
+          for (var i = groups[g].length - 1; i >= 0; i -= 1) {
+            if (!eligible[groups[g][i]]) { down = i; break; }
+          }
+          if (down < 0) down = groups[g].length - 1;
+          groups[g + 1] = byRating(groups[g + 1].concat(groups[g].splice(down, 1)), player);
+        }
       }
-      if (swap < 0) swap = groups[target].length - 1;
-      if (swap < 0) return;
-      var displaced = groups[target][swap];
-      groups[target][swap] = winner.playerId;
-      groups[from][groups[from].indexOf(winner.playerId)] = displaced;
-      groups[target] = byRating(groups[target], player);
-      groups[from] = byRating(groups[from], player);
       promotions[winner.playerId] = { fromGroup: from + 1, toGroup: target + 1, wonGroup: winner.groupName, date: winner.date };
     });
     return promotions;
