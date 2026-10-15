@@ -62,6 +62,8 @@ async function main() {
     } else {
       console.log('ok   ' + label + ': ' + night.seen.notices.length + ' notice(s), ' + night.world.server.problems().length + ' logged problem(s)');
     }
+    // Each night's pages stay in memory until closed; a long run would otherwise run out of memory.
+    night.tabs.forEach(tab => { if (!tab.closed) tab.close(); });
   }
   if (failed) {
     console.log(failed + ' of ' + count + ' nights failed');
