@@ -144,11 +144,12 @@ published. See [round-robin operations](docs/round-robin-operations.md#ratings).
 going to the club. Roster, group, and score edits are saved to Google Sheets
 automatically a moment after each change, and also kept in that browser's
 device storage until Google confirms them. While everything works there is no
-notice. If Google cannot be reached the yellow notice says the draft is kept
-on the device; the desk then checks what Google holds before sending again (a
-write that did arrive is not repeated, and a different version made elsewhere
-is never overwritten), retries on its own for a few minutes, and sends as soon
-as the connection returns. After repeated failures it stops and asks you to
+notice, and a single save that fails and then goes through on its own retry
+stays quiet too. If Google still cannot be reached the yellow notice says the
+draft is kept on the device; the desk then checks what Google holds before
+sending again (a write that did arrive is not repeated, and a version made
+elsewhere is never overwritten), retries on its own for a few minutes, and
+sends as soon as the connection returns. After repeated failures it stops and asks you to
 click **Save to Sheets**. **Save on device** still confirms a local copy even
 if Wi-Fi appears connected but Google is unreachable. Payments, Open Play,
 membership badges and Voice confirmations use a separate queue that also syncs
@@ -158,12 +159,23 @@ offline, but club/year record figures show `--/--` when Google cannot supply
 them; the match schedule, names, and ratings remain. The logo may not load
 offline unless the browser has cached it. If a tab is reloaded, reconnect
 first. A device copy that matches what Google already holds is dropped
-quietly. One made before the Sheet session last changed is never restored by
-itself: the notice compares the two (players, scored matches, and how many
-results, group placements or promotions differ) and pauses
-Finalize until you choose **Use this device's copy** (it replaces the Sheet's
-version) or **Keep Google's version**; **Download copy** saves it for review
-first. A finalized session is never replaced by a device copy. Use a trusted club device, avoid private
+quietly, and edits Google never confirmed (the tab closed mid-save) are put
+back on top of Google's version by themselves.
+
+**More than one tab or device:** the desk combines changes match by match. Each
+device remembers what Google held when it last synced, so when another tab or
+device has saved in between, results entered on different matches are all
+kept and nothing needs choosing. A device with nothing waiting to be saved
+checks Google every minute and shows the other device's scores and players.
+Only when the same match was recorded two different ways (or both rearranged
+the groups) does the desk stop and ask: the notice compares the two (players,
+scored matches, and how many results, group placements or promotions differ)
+and pauses Finalize until you choose **Use this device's copy** (it replaces
+the Sheet's version) or **Keep Google's version**; **Download copy** saves it
+for review first. A finalized session is never replaced by a device copy.
+Within one browser only the newest desk tab works: an older tab covers itself
+with *The desk is open in another tab* and **Use this tab instead**, because
+tabs share the device copy and would otherwise overwrite each other. Use a trusted club device, avoid private
 browsing or clearing site data, and discard device copies when no longer
 needed. Player creation and finalization still require internet. Opening the
 desk from scratch while offline is unsupported.
@@ -233,7 +245,13 @@ npm test
 ```
 
 `npm test` runs the desk, rating, standings, and publication checks. None of
-them touch the network or change tracked files.
+them touch the network or change tracked files. The desk checks include
+`apps-script/check-night.cjs`, which runs the real desk page and server code
+against a simulated Google on a virtual clock (`scripts/lib/desk-sim.js`) and
+plays out club-night trouble: slow or lost replies, Wi-Fi drops, a tab closed
+mid-save, a second tab or device, slow Gmail. `npm run check:nights` plays
+longer randomized nights with those faults mixed (about a minute each; pass a
+first seed and a count to choose them).
 
 ## Contributing
 

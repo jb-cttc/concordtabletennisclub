@@ -276,7 +276,8 @@ characters of that row's `event_id`. Search the sheet for it. Each finalize
 also logs `finalize_started` (with `repairing`, the number of leftover ledger
 rows) before writing. Problems the page sees itself (a save Google did not
 confirm, a device copy it could not restore, a finalize or reopen whose cause
-it could not confirm, a save conflict) are logged as `desk_problem` rows with
+it could not confirm, a save conflict, a save that found another tab's or
+device's newer version and combined with it) are logged as `desk_problem` rows with
 the time, session revision, connection state, and browser. Reports made
 offline wait on the device and go with the next one.
 
@@ -284,7 +285,10 @@ Each `session_saved` row records `ms` (how long the save took) and `lockMs`
 (how much of that was waiting for other desk work, such as payments). If the
 desk says Google is slow, those two numbers show whether the save itself or
 the queue behind other work was slow. The page waits up to a minute for a
-save's reply and never sends a second save while one is still pending.
+save's reply and never sends a second save while one is still pending. Gmail
+is never read while holding the script lock that saves wait on: Zeffy emails are
+read first and only the new rows are added under the lock, and Voice
+confirmations use the separate document lock.
 
 ## Live publication cutover (go-live checklist)
 
@@ -320,3 +324,12 @@ cutover.
 `npm run check:app` (owner desk), `npm run check:ratings`,
 `npm run check:standings`, `npm run check:publication`,
 `npm run check:disposable`, and `npm run check:data`.
+
+`npm run check:app` includes the whole-desk night checks
+(`apps-script/check-night.cjs`): the real `Index.html` and server files run
+against an in-memory Sheet with a modelled script lock, on a virtual clock, with
+the connection slowed, cut, or losing replies. They check what the volunteer
+sees and what the Sheet ends up holding. `npm run check:nights` runs longer
+randomized nights. When a night goes wrong at the club, reproduce it there
+first: a case that fails before the fix and passes after is the best guard
+against the same problem coming back.

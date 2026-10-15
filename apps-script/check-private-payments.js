@@ -19,6 +19,7 @@ const reads = {};
 const properties = {};
 let inbox = [];
 let searches = [];
+let lockHeld = false;
 const mail = (id, date, subject, body, from = 'Concord Table Tennis Club <contact@communication.mailer.zeffy.com>') => ({
   getId: () => id, getDate: () => new Date(date + 'T18:00:00Z'), getFrom: () => from, getSubject: () => subject, getPlainBody: () => body
 });
@@ -29,11 +30,11 @@ const renewal = (buyer, email) => 'New $65.00 payment received! ' + buyer + ' <'
 const context = {
   TABLES: {},
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = value; } }) },
-  GmailApp: { search: (query, start) => { searches.push(query); return start ? [] : [{ getMessages: () => inbox }]; } },
+  GmailApp: { search: (query, start) => { assert.equal(lockHeld, false, 'Gmail is never read while holding the script lock that saves wait on'); searches.push(query); return start ? [] : [{ getMessages: () => inbox }]; } },
   Utilities: { formatDate: value => value.toISOString().slice(0, 10) },
   Session: { getScriptTimeZone: () => 'UTC' },
   SpreadsheetApp: { getActive: () => ({ getSheetByName: () => ({}) }) },
-  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {}, hasLock: () => false, tryLock: () => true }) },
+  LockService: { getScriptLock: () => ({ waitLock() { lockHeld = true; }, releaseLock() { lockHeld = false; }, hasLock: () => lockHeld, tryLock: () => (lockHeld = true) }) },
   ensureHeader_() {}, formatTable_() {}, appendAudit_() {},
   playerAliases_: () => ({ 'danielle chen': 'b' }),
   displayDate_: value => String(value),
@@ -148,6 +149,12 @@ properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
 context.getZeffyPlayers(null, date);
 assert.equal(searches.length, fullSearches + 1);
 assert.match(searches[searches.length - 1], /newer_than:3d$/, 'later syncs read only recent mail');
+// A payment reads the mailbox before it takes the lock (the search mock fails the check otherwise).
+properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
+const beforePayment = searches.length;
+context.setSessionPayment(date, 'a', 'cash');
+assert.equal(searches.length, beforePayment + 1, 'a payment still brings in new Zeffy mail first');
+assert.equal(lockHeld, false);
 assert.equal(tables.ZeffyPayments.length, 8, 'messages are recorded once');
 tables.ZeffyPayments.length = 0;
 inbox = [];

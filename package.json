@@ -34,13 +34,15 @@
     "email:preview": "node scripts/build-session-email.js",
     "email:send": "node scripts/send-session-email.js",
     "check:coach-certs": "node scripts/check-usatt-coaches-test.js",
-    "check:usatt-coaches": "node scripts/check-usatt-coaches.js"
+    "check:usatt-coaches": "node scripts/check-usatt-coaches.js",
+    "check:nights": "node scripts/check-desk-nights.js"
   },
   "dependencies": {
     "nodemailer": "^9.0.5"
   },
   "devDependencies": {
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "jsdom": "^26.1.0"
   },
   "private": true
 }

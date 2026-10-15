@@ -24,7 +24,7 @@ const listeners = [];
 const navigator = { onLine: true };
 const node = () => ({ hidden: false, textContent: '', setAttribute() {}, addEventListener() {} });
 const context = {
-  window: { addEventListener() {} },
+  window: { addEventListener() {}, cttcTab: { retired: () => false, onRetire() {}, onResume() {} } },
   navigator,
   localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
   document: { body: { appendChild() {} }, createElement: node, dispatchEvent: event => events.push(event.type + ':' + (event.detail && event.detail.playerId)) },

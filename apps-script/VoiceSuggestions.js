@@ -130,11 +130,13 @@ function listVoiceSuggestions(sessionDate) {
 }
 
 // Replies "Confirmed." to the sender's latest text from that date; Voice turns the email reply into an SMS.
+// Gmail is slow and this touches no desk table, so it takes the document lock (one reply at a time) rather than the
+// script lock that score saves wait on.
 function sendVoiceConfirmation(sessionDate, senderKey, playerId) {
   validateSessionDate_(sessionDate);
   senderKey = String(senderKey || '');
   if (!senderKey || senderKey.indexOf('phone:') === 0) throw new Error('This sender has no saved contact name to reply to.');
-  var lock = LockService.getScriptLock();
+  var lock = LockService.getDocumentLock() || LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     var sender = voiceSenders_(sessionDate)[senderKey];

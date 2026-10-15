@@ -68,7 +68,7 @@ const context = {
   GmailApp: { search: query => { assert.match(query, /^in:anywhere from:txt\.voice\.google\.com /, 'Trash and Spam are searched too'); return [{ getMessages: () => inbox }, { getMessages: () => inbox.slice(0, 1) }]; } },
   Utilities: { formatDate: date => new Date(date.getTime() - 7 * 3600000).toISOString().slice(0, 10) },
   Session: { getScriptTimeZone: () => 'America/Los_Angeles' },
-  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }), getDocumentLock: () => ({ waitLock() {}, releaseLock() {} }) },
   appendAudit_: (...args) => audits.push(args)
 };
 vm.createContext(context);

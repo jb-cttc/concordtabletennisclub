@@ -38,6 +38,7 @@ function boot(store) {
   const count = element('count');
   const win = {
     addEventListener: (name, handler) => { (windowListeners[name] = windowListeners[name] || []).push(handler); },
+    cttcTab: { retired: () => false, onRetire() {}, onResume() {} },
     cttcRequest: (name, ...args) => new Promise((resolve, reject) => reads.push({ name, args, resolve, reject }))
   };
   const context = {
