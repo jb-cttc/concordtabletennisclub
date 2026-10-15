@@ -88,6 +88,64 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 })();
 </script>
 <script>
+// One desk tab per device. Tabs of one browser share its storage (the device copy of the draft and the queue of
+// waiting changes), so two open tabs would overwrite each other's copies and save over each other. The newest tab
+// takes over; an older one stops writing and offers to take over again.
+(function () {
+  var KEY = 'cttc-desk-tab-v1';
+  var id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  var retired = false;
+  var listeners = { retire: [], resume: [] };
+  var cover = document.createElement('div');
+  cover.className = 'tab-cover';
+  cover.hidden = true;
+  cover.setAttribute('role', 'alertdialog');
+  cover.setAttribute('aria-labelledby', 'tab-cover-title');
+  cover.innerHTML = '<div class="tab-cover-card"><h2 id="tab-cover-title">The desk is open in another tab</h2><p>This desk was opened again in another tab or window of this browser, so this one has stopped to keep the two from overwriting each other. Nothing here is lost: the other tab has every change.</p><p>Close this tab and keep using the other one, or use this one instead.</p><button type="button" class="primary">Use this tab instead</button></div>';
+  document.body.appendChild(cover);
+  function claim() {
+    try { localStorage.setItem(KEY, JSON.stringify({ id: id, at: Date.now() })); } catch (error) { /* without storage, tabs cannot share a draft either */ }
+  }
+  function emit(name) {
+    return Promise.all(listeners[name].map(function (listener) {
+      try { return Promise.resolve(listener()).catch(function () {}); } catch (error) { return null; }
+    }));
+  }
+  window.addEventListener('storage', function (event) {
+    if (event.key !== KEY || !event.newValue || retired) return;
+    var owner = '';
+    try { owner = JSON.parse(event.newValue).id; } catch (error) { return; }
+    if (owner === id) return;
+    retired = true;
+    cover.hidden = false;
+    emit('retire');
+  });
+  // The cover stays up until this tab has read Google again, so nothing is edited on a stale screen.
+  var takeOver = cover.querySelector('button');
+  takeOver.addEventListener('click', function () {
+    if (!retired || takeOver.disabled) return;
+    claim();
+    retired = false;
+    takeOver.disabled = true;
+    takeOver.textContent = 'Loading\u2026';
+    emit('resume').then(function () {
+      takeOver.disabled = false;
+      takeOver.textContent = 'Use this tab instead';
+      if (!retired) cover.hidden = true;
+    });
+  });
+  window.cttcTab = {
+    retired: function () { return retired; },
+    onRetire: function (listener) { listeners.retire.push(listener); },
+    onResume: function (listener) { listeners.resume.push(listener); }
+  };
+  claim();
+})();
+</script>
+<style>
+.tab-cover{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(245,247,244,.94)}.tab-cover[hidden]{display:none}.tab-cover-card{max-width:440px;padding:22px;background:#fff;border:1px solid var(--line);border-top:4px solid var(--gold);border-radius:6px;box-shadow:0 12px 32px #17211b33;font:15px/1.5 Arial,sans-serif}.tab-cover-card h2{font:700 21px/1.25 Georgia,serif;margin:0 0 10px}
+</style>
+<script>
 // Changes that must reach Google but should never make the desk wait: they are applied on the page at once, kept on
 // this device, and sent one at a time in the background, retrying until Google confirms them.
 (function () {
@@ -110,13 +168,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   note.setAttribute('role', 'status');
   note.setAttribute('aria-live', 'polite');
   document.body.appendChild(note);
-  var entries = (function () {
+  function readSaved() {
     try {
       var saved = JSON.parse(localStorage.getItem(KEY) || '[]');
       return Array.isArray(saved) ? saved.filter(function (entry) { return entry && entry.key && entry.fn && Array.isArray(entry.args); }) : [];
     } catch (error) { return []; }
-  })();
+  }
+  var entries = readSaved();
   function persist() {
+    if (window.cttcTab.retired()) return;
     try {
       if (entries.length) localStorage.setItem(KEY, JSON.stringify(entries));
       else localStorage.removeItem(KEY);
@@ -148,6 +208,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     retryTimer = setTimeout(flush, RETRY_MS[Math.min(failures, RETRY_MS.length) - 1] || RETRY_MS[0]);
   }
   function flush() {
+    if (window.cttcTab.retired()) return;
     if (flushing || !entries.length || navigator.onLine === false) { render(); return; }
     clearTimeout(retryTimer);
     flushing = true;
@@ -211,6 +272,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     onDrain: function (listener) { drainListeners.push(listener); },
     notice: function (name, text) { notices[name] = text; render(); }
   };
+  window.cttcTab.onRetire(function () { clearTimeout(retryTimer); });
+  // Back in charge: the other tab may have queued or sent changes since, so start from what is stored now.
+  window.cttcTab.onResume(function () {
+    entries = readSaved();
+    failures = 0;
+    changed();
+    flush();
+  });
   window.addEventListener('online', function () { render(); flush(); });
   window.addEventListener('offline', render);
   setTimeout(function () { render(); flush(); }, 0);
@@ -406,8 +475,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (syncFailures >= AUTO_RETRY_LIMIT) return 'Unsynced draft saved on this device. Google Sheets did not accept the save' + (lastSyncError ? ' (' + lastSyncError + ')' : '') + '. Click Save to Sheets to try again.';
     return 'Unsynced draft saved on this device. Google Sheets could not be reached; retrying automatically.';
   }
+  // A single save that fails and then succeeds on its own retry is not worth alarming anyone about; the notice
+  // shows once a retry has failed too, or straight away when the device is offline.
+  function syncNoticeDue() {
+    return navigator.onLine === false || syncFailures >= 2;
+  }
   function canAutoSync() {
-    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
+    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && !window.cttcTab.retired() && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
   }
   function scheduleAutoSync(delay) {
     clearTimeout(autoSyncTimer);
@@ -425,7 +499,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     autoSyncTimer = setTimeout(runAutoSync, AUTO_RETRY_MS[Math.min(syncFailures, AUTO_RETRY_MS.length) - 1]);
   }
   function probeConnection(force) {
-    if (!canSyncDeviceDraft() || probeInFlight) return;
+    if (!canSyncDeviceDraft() || probeInFlight || window.cttcTab.retired()) return;
     if (navigator.onLine === false) {
       connectionConfirmed = false;
       updateSyncCue();
@@ -460,17 +534,18 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
   }
   function persistDeviceDraft() {
-    if (loadedDate !== date.value || locked() || pendingRecovery) return false;
+    if (loadedDate !== date.value || locked() || pendingRecovery || window.cttcTab.retired()) return false;
     try {
+      // base: what Google held when this page last synced, so a later load can tell this device's own edits apart.
       localStorage.setItem(draftKeyPrefix + loadedDate, JSON.stringify({
         version: 1, date: loadedDate, revision: state.session ? state.session.revision : null,
         roster: state.roster, groups: state.groups, matches: state.matches,
-        promotions: state.promotions, customized: state.customized
+        promotions: state.promotions, customized: state.customized, base: savedPrintState
       }));
       pendingRecovery = null;
       deviceDraftUnsynced = true;
       // A conflict notice stays until the page is reloaded; later edits must not turn it back into "retrying".
-      if (!syncConflict && (syncBlocked || navigator.onLine === false)) showDraftNotice(blockedMessage(), false);
+      if (!syncConflict && ((syncBlocked && syncNoticeDue()) || navigator.onLine === false)) showDraftNotice(blockedMessage(), false);
       updateSyncCue();
       scheduleAutoSync();
       return true;
@@ -480,7 +555,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
   }
   function clearDeviceDraft(sessionDate) {
-    try { localStorage.removeItem(draftKeyPrefix + sessionDate); }
+    // A tab that stepped aside leaves the device copy to the tab now in charge.
+    try { if (!window.cttcTab.retired()) localStorage.removeItem(draftKeyPrefix + sessionDate); }
     catch (error) { showDraftNotice('Could not clear the device copy. Do not recover it after reloading.', false); return false; }
     pendingRecovery = null;
     deviceDraftUnsynced = false;
@@ -550,6 +626,101 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (promotionKey(draftPromotions(draft)) !== promotionKey(sessionPromotions(session))) parts.push('promotions');
     return parts.length ? ' They differ in ' + parts.join(' and ') + '.' : '';
   }
+  // The session as this page keeps it ({ roster, groups, matches, promotions }), from what Google sent.
+  function sessionCopy(session) {
+    var winnerById = {};
+    (state.winners || []).forEach(function (w) { winnerById[w.playerId] = w; });
+    var promotions = {};
+    var arrays = (session ? session.groups : []).map(function (group, index) {
+      return group.players.map(function (entry) {
+        if (entry.promotionFromGroup) {
+          var won = winnerById[entry.playerId];
+          promotions[entry.playerId] = { fromGroup: entry.promotionFromGroup, toGroup: index + 1, wonGroup: won && won.groupName, date: won && won.date };
+        }
+        return entry.playerId;
+      });
+    }).filter(function (ids) { return ids.length; });
+    return {
+      roster: [].concat.apply([], arrays),
+      groups: arrays.map(function (ids, index) { return { groupNumber: index + 1, playerIds: ids }; }),
+      matches: (session ? session.matches || [] : []).map(function (match) {
+        return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null, wonBy: match.wonBy || null });
+      }),
+      promotions: promotions
+    };
+  }
+  function currentCopy() {
+    return JSON.parse(printState());
+  }
+  // Two copies that both started from `base` (what Google held when this page last synced with it) are combined
+  // match by match: whichever side changed a result keeps it. Edits made on another device or tab are therefore
+  // kept alongside this page's own. Returns null when both sides changed the same match or the groups differently,
+  // which only a person can settle, or when a recorded result would be dropped.
+  function mergeCopies(base, mine, theirs) {
+    function lineupKey(copy) {
+      var promotions = {};
+      Object.keys(copy.promotions || {}).forEach(function (id) { if (copy.promotions[id] && copy.promotions[id].fromGroup) promotions[id] = Number(copy.promotions[id].fromGroup); });
+      return groupPlacement((copy.groups || []).map(function (group) { return group.playerIds || []; })) + '#' + promotionKey(promotions);
+    }
+    function choose(b, m, t) {
+      if (m === t || t === b) return 'mine';
+      if (m === b) return 'theirs';
+      return null;
+    }
+    var lineup = choose(lineupKey(base), lineupKey(mine), lineupKey(theirs));
+    if (!lineup) return null;
+    var chosen = lineup === 'mine' ? mine : theirs;
+    var pairs = {};
+    chosen.groups.forEach(function (group) {
+      O.roundRobinPairs(group.playerIds).forEach(function (pair) { pairs[pair.slice().sort().join('|')] = true; });
+    });
+    function index(list) {
+      var out = {};
+      (list || []).forEach(function (match) { var text = matchSignature(match); out[text.split('|').slice(0, 2).join('|')] = { text: text, match: match }; });
+      return out;
+    }
+    var b = index(base.matches);
+    var m = index(mine.matches);
+    var t = index(theirs.matches);
+    var merged = [];
+    var keys = Object.keys(Object.assign({}, b, m, t, pairs));
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = keys[i];
+      var ids = key.split('|');
+      var blank = matchSignature({ playerOneId: ids[0], playerTwoId: ids[1], playerOneGames: null, playerTwoGames: null, forfeit: false, forfeitedBy: null, wonBy: null });
+      var side = choose(b[key] ? b[key].text : blank, m[key] ? m[key].text : blank, t[key] ? t[key].text : blank);
+      if (!side) return null;
+      var pick = side === 'mine' ? m[key] : t[key];
+      if (!pick || pick.text === blank) continue;
+      if (!pairs[key]) return null;
+      merged.push(Object.assign({}, pick.match));
+    }
+    return {
+      roster: chosen.roster.slice(),
+      groups: chosen.groups.map(function (group) { return { groupNumber: group.groupNumber, playerIds: group.playerIds.slice() }; }),
+      matches: merged,
+      promotions: JSON.parse(JSON.stringify(chosen.promotions || {}))
+    };
+  }
+  function copyKnown(copy) {
+    return copy.groups.every(function (group) { return Array.isArray(group.playerIds) && group.playerIds.every(function (id) { return !!byId[id]; }); });
+  }
+  // Players another device added since this page loaded the directory.
+  function learnPlayers(players) {
+    (players || []).forEach(function (p) {
+      if (byId[p.playerId]) return;
+      state.players.push(p);
+      byId[p.playerId] = p;
+      byName[p.name] = p.playerId;
+    });
+  }
+  function applyCopy(copy) {
+    state.roster = copy.roster.slice();
+    state.promotions = copy.promotions || {};
+    state.matches = copy.matches;
+    state.customized = true;
+    setGroups(copy.groups.map(function (group) { return group.playerIds.slice(); }));
+  }
   function copySummary(groupIds, matchList) {
     var players = groupIds.reduce(function (total, ids) { return total + ids.length; }, 0);
     var scored = matchList.filter(function (m) { return m.playerOneGames != null || m.playerTwoGames != null || !!m.forfeitedBy; }).length;
@@ -562,11 +733,25 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     showDraftNotice('', false);
     updateSyncCue();
     pendingRecovery = readDeviceDraft(sessionDate);
-    if (!pendingRecovery) return;
+    if (!pendingRecovery) return '';
     var session = state.session;
     if (draftMatchesSession(pendingRecovery, session)) {
       clearDeviceDraft(sessionDate);
-      return;
+      return '';
+    }
+    // Edits this device made but Google never confirmed (a tab closed or reloaded during a save, or the connection
+    // dropped) are put back on top of Google's version by themselves, unless Google changed the same matches.
+    var draft = pendingRecovery;
+    if (!draft.invalid && draft.base && !(session && session.status === 'finalized')) {
+      var merged = null;
+      try { merged = mergeCopies(JSON.parse(draft.base), draft, sessionCopy(session)); } catch (error) { merged = null; }
+      if (merged && copyKnown(merged) && merged.roster.length) {
+        pendingRecovery = null;
+        applyCopy(merged);
+        announceSync = true;
+        persistDeviceDraft();
+        return 'Session loaded. Changes this device had not yet sent to Google Sheets were put back and are being saved now.';
+      }
     }
     var recoverable = canRecoverDraft(pendingRecovery, session);
     var adoptable = !recoverable && canAdoptDraft(pendingRecovery, session);
@@ -580,6 +765,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       : 'This device has an unsaved copy that differs from Google Sheets. Google Sheets: ' + (session ? copySummary(sessionGroupIds(session), session.matches || []) : 'no session') + '. This device: ' + copySummary(draftGroupIds(pendingRecovery), pendingRecovery.matches) + '.' + copyDifferences(pendingRecovery, session) + ' Google Sheets changed after this copy was made (on another device, or by a save whose reply never arrived). Choose which to keep.' + paused,
       recoverable || adoptable, adoptable);
     if (!recoverable) reportDeskProblem('device copy not restorable', draftMessage.textContent, { copyRevision: pendingRecovery.revision == null ? null : pendingRecovery.revision });
+    return '';
   }
   recoverButton.addEventListener('click', function () {
     var draft = pendingRecovery;
@@ -955,7 +1141,6 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
-      offerDeviceDraft(sessionDate);
       saveNeedsReload = false;
       syncConflict = false;
       reconcileNeeded = false;
@@ -964,7 +1149,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       syncBlocked = false;
       syncFailures = 0;
       clearTimeout(autoSyncTimer);
+      var recovered = offerDeviceDraft(sessionDate);
       if (pendingRecovery) setStatus('Session loaded. This device also has an unsaved copy: choose which to keep in the notice above.', 'error');
+      else if (recovered) setStatus(recovered);
       else setStatus(state.session ? 'Session loaded. Changes are stored in Google Sheets.' : 'No session exists for this date. Add players to begin.');
       refreshPublish();
       sendDeskLog();
@@ -979,6 +1166,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   async function save(options) {
     var auto = !!(options && options.auto);
+    if (window.cttcTab.retired()) return null;
     if (loadedDate !== date.value || pendingRecovery) { if (!auto) setStatus('Load and resolve the device draft before saving.', 'error'); return null; }
     if (saveInFlight) {
       if (auto) return null;
@@ -1030,12 +1218,20 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       saveNeedsReload = true;
       reconcileNeeded = true;
       updateSyncCue();
+      if (/changed on another device or tab/.test(error && error.message || '')) {
+        // Not a connection problem: another tab or device saved first. Combine its changes with these right away.
+        if (!auto) setStatus('Another tab or device saved changes to this session. Combining them with yours; check the scores, then try again in a moment.', 'busy');
+        reportDeskProblem('save found newer version', error.message, { auto: auto });
+        clearTimeout(autoSyncTimer);
+        autoSyncTimer = setTimeout(runAutoSync, 0);
+        return null;
+      }
       if (!auto) setStatus('Google save not confirmed: ' + error.message + '. Your changes are kept on this device; checking again automatically.', 'error');
       syncBlocked = true;
       syncFailures += 1;
       lastSyncError = error && error.message || '';
       if (!auto || syncFailures === 1 || syncFailures === AUTO_RETRY_LIMIT) reportDeskProblem('save not confirmed', lastSyncError, { auto: auto, failures: syncFailures });
-      showDraftNotice(blockedMessage(), false);
+      if (!auto || syncNoticeDue()) showDraftNotice(blockedMessage(), false);
       scheduleRetry();
       return null;
     } finally {
@@ -1087,11 +1283,12 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       catch (error) {
         syncFailures += 1;
         lastSyncError = error && error.message || '';
-        showDraftNotice(blockedMessage(), false);
+        if (syncNoticeDue()) showDraftNotice(blockedMessage(), false);
         scheduleRetry();
         return;
       }
       if (sessionDate !== loadedDate || sessionDate !== date.value) return;
+      learnPlayers(data.players);
       var server = data.session;
       var mine = state.session;
       var serverGroups = server ? server.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); }) : [];
@@ -1126,6 +1323,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       });
       if (ownLateSave) {
         state.session = server;
+        savedPrintState = JSON.stringify(sessionCopy(server));
         state.customized = true;
         unconfirmedSaves = [];
         reconcileNeeded = false;
@@ -1144,6 +1342,23 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       if (!server && sameBase) {
         reconcileNeeded = false;
         saveNeedsReload = false;
+        retryNow = true;
+        return;
+      }
+      // Google holds a newer version from another tab or device. Edits to different matches are combined and saved
+      // on top of it; only the same match changed two ways (or the groups rearranged on both) needs a person.
+      var merged = null;
+      if (server && server.status !== 'finalized' && savedPrintState) {
+        try { merged = mergeCopies(JSON.parse(savedPrintState), currentCopy(), sessionCopy(server)); } catch (error) { merged = null; }
+      }
+      if (merged && copyKnown(merged) && merged.roster.length) {
+        state.session = server;
+        savedPrintState = JSON.stringify(sessionCopy(server));
+        unconfirmedSaves = [];
+        applyCopy(merged);
+        reconcileNeeded = false;
+        saveNeedsReload = false;
+        persistDeviceDraft();
         retryNow = true;
         return;
       }
@@ -1322,7 +1537,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
   setInterval(function () {
     var info = publish.info;
-    if (!info) return;
+    if (!info || window.cttcTab.retired()) return;
     var dueAt = info.state === 'pending' ? info.dueAt : info.state === 'email_pending' ? info.emailDueAt : null;
     if (dueAt) {
       var left = dueAt - (Date.now() + publish.offset);
@@ -1559,6 +1774,45 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       setStatus(error.message, 'error');
     }
   });
+
+  // A second device (a phone at the tables, a laptop at the front) saves to the same session. While this page has
+  // nothing of its own waiting to be saved, it checks Google every minute and shows the other device's changes, so
+  // nobody enters a score that is already in.
+  var REFRESH_MS = 60000;
+  var refreshing = false;
+  function quietForRefresh() {
+    return !!loadedDate && loadedDate === date.value && !deviceDraftUnsynced && !saveInFlight && !reconciling && !pendingRecovery &&
+      !syncConflict && !saveNeedsReload && !lockBusy && !refreshing && !window.cttcTab.retired() && navigator.onLine !== false && !document.hidden;
+  }
+  async function refreshFromGoogle() {
+    if (!quietForRefresh()) return;
+    var before = printState();
+    var sessionDate = loadedDate;
+    var revision = state.session ? state.session.revision : 0;
+    refreshing = true;
+    try {
+      var data = await call('getAppState', sessionDate);
+      refreshing = false;
+      var server = data.session;
+      if (!server || !quietForRefresh() || printState() !== before || sessionDate !== loadedDate || Number(server.revision) === Number(revision) || (state.session ? state.session.revision : 0) !== revision) return;
+      learnPlayers(data.players);
+      // Started on another device, or finalized or reopened there: load it as a fresh page would.
+      if (!state.session || server.status !== state.session.status || !copyKnown(sessionCopy(server))) { await load(); return; }
+      state.session = server;
+      applyCopy(sessionCopy(server));
+      savedPrintState = printState();
+    } catch (error) {
+      /* the next check, or this page's next save, catches up */
+    } finally {
+      refreshing = false;
+    }
+  }
+  setInterval(refreshFromGoogle, REFRESH_MS);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshFromGoogle(); });
+
+  window.cttcTab.onRetire(function () { clearTimeout(autoSyncTimer); });
+  // Taking over again: read what Google and this device hold now, as a fresh load does.
+  window.cttcTab.onResume(function () { return lockBusy ? null : load(); });
 
   var requestedDate = '<?= initialDate ?>';
   date.value = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') ? requestedDate : today();
@@ -2440,12 +2694,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are saved to Google Sheets automatically a moment after you make them, and kept on this device if the connection drops.', target: '#groups .group-list li' },
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change. Coaches and students with a lesson confirmed in the coaching app are listed here automatically, and their texts are left out of Voice signups.', target: '.open-play-section' },
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
-    { title: 'If the connection drops', text: 'Nothing to do: changes sync to Google Sheets by themselves. If Google cannot be reached, a yellow notice says your draft is kept on this device and syncs automatically when the connection returns. If you reopened the tab, load this date and recover the device draft first. If Google holds a different version of the session, nothing is overwritten; reload to review it.', target: '#save' },
+    { title: 'If the connection drops', text: 'Nothing to do: changes sync to Google Sheets by themselves. If Google cannot be reached, a yellow notice says your draft is kept on this device and syncs automatically when the connection returns. Changes this device had not yet sent are put back when the tab is opened again, and scores entered on another tab or device are combined with yours. Only if the same match was recorded two different ways does the desk stop and ask which to keep.', target: '#save' },
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
     { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in, and the scores sync to Google Sheets automatically. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site in 15 minutes; once the site is updated, a second 15-minute countdown sends the results email. Reopen the session before publishing to correct it, or press Publish now or Send now to skip a wait. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
-    { title: 'Questions or feedback?', text: 'After the tour, select today\'s date to return from the example session. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
+    { title: 'Questions or feedback?', text: 'Closing the tour takes the desk back to the date you were on. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
   ];
   var shield = document.createElement('div');
   shield.className = 'tour-shield';
@@ -2473,6 +2727,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var mergeTimer = 0;
   var spawning = false;
   var resizeObserver = new ResizeObserver(place);
+  // The date the desk was on before the tour loaded the example, so closing the tour can go back to it.
+  var returnDate = '';
 
   function setSpotlight(hole, border, bounds) {
     hole.style.cssText = 'x:' + bounds.left + 'px;y:' + bounds.top + 'px;width:' + (bounds.right - bounds.left) + 'px;height:' + (bounds.bottom - bounds.top) + 'px';
@@ -2589,6 +2845,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     resizeObserver.disconnect();
     document.removeEventListener('keydown', onKey);
     launcher.focus();
+    if (returnDate && returnDate !== exampleDate && date.value === exampleDate) {
+      date.value = returnDate;
+      date.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    returnDate = '';
   }
 
   function onKey(event) {
@@ -2625,6 +2886,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     document.addEventListener('keydown', onKey);
     showStep();
     next.focus();
+    returnDate = date.value;
     date.value = exampleDate;
     date.dispatchEvent(new Event('change', { bubbles: true }));
   });

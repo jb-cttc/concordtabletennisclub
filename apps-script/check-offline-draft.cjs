@@ -22,6 +22,7 @@ function button() {
 const classes = new Set();
 const syncClasses = new Set();
 const context = {
+  window: { cttcTab: { retired: () => false, onRetire() {}, onResume() {} } },
   localStorage: {
     getItem: key => stored.get(key) || null,
     setItem: (key, value) => stored.set(key, value),
@@ -67,6 +68,7 @@ const context = {
   date: { value: '2026-10-07' },
   loadedDate: '2026-10-07',
   pendingRecovery: null,
+  savedPrintState: null,
   state: {
     session: { revision: 4, status: 'active', groups: [], matches: [] },
     roster: ['player-example'], groups: [{ groupNumber: 1, playerIds: ['player-example'] }],
@@ -355,13 +357,13 @@ async function checkAutoSync() {
   assert.equal(context.draftNotice.hidden, true);
   assert.equal(context.status, 'untouched', 'a quiet sync does not touch the status bar');
 
-  // A failed send keeps the device copy, says so, and retries after checking what Google holds.
+  // A failed send keeps the device copy and retries after checking what Google holds. One failure that its own retry
+  // may fix is not announced; the notice appears once the trouble persists (below).
   context.state.matches[0].playerOneGames = 2;
   context.persistDeviceDraft();
   failNext = 1;
   await fire(1500);
-  assert.equal(context.draftNotice.hidden, false);
-  assert.match(context.draftMessage.textContent, /retrying automatically/);
+  assert.equal(context.draftNotice.hidden, true, 'a single failed send is retried quietly');
   assert.equal(context.reconcileNeeded, true);
   assert.equal(stored.has(key), true);
   const beforeRetry = sent.filter(name => name === 'saveSessionDraft').length;

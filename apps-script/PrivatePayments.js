@@ -20,13 +20,14 @@ function ensurePrivatePaymentTables_() {
 
 // Zeffy is an optional monthly play pass; holders owe no per-session fee.
 // Zeffy emails decide for anyone they mention; manual ZeffyPasses rows cover everyone else.
-function getZeffyPlayers(playerRows, sessionDate) {
+// skipMailbox: use the Zeffy emails already recorded, without reading Gmail (for callers holding the script lock).
+function getZeffyPlayers(playerRows, sessionDate, skipMailbox) {
   ensurePrivatePaymentTables_();
   playerRows = playerRows || rows_('Players');
   sessionDate = sessionDate || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   var names = {};
   playerRows.forEach(function (player) { names[String(player.player_id)] = String(player.display_name); });
-  syncZeffyPayments_();
+  if (!skipMailbox) syncZeffyPayments_();
   var passes = zeffyPassesForDate_(zeffyPaymentRows_(), sessionDate, zeffyNameResolver_(playerRows, playerAliases_()));
   var tracked = {};
   passes.forEach(function (pass) { if (pass.playerId) tracked[pass.playerId] = true; });
@@ -107,13 +108,14 @@ function setSessionPayment(sessionDate, playerId, method) {
   playerId = String(playerId || '');
   method = String(method || '').toLowerCase();
   if (method && PAYMENT_METHODS.indexOf(method) < 0) throw new Error('Invalid payment method');
+  ensurePrivatePaymentTables_();
+  try { syncZeffyPayments_(); } catch (error) { /* recorded Zeffy emails still decide below */ }
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    ensurePrivatePaymentTables_();
     var player = findRow_('Players', 'player_id', playerId);
     if (!player || !asBoolean_(player.active)) throw new Error('Unknown or inactive player');
-    if (getZeffyCoveredPlayerIds(getZeffyPlayers(null, sessionDate)).indexOf(playerId) >= 0) throw new Error('Zeffy play pass covers this session');
+    if (getZeffyCoveredPlayerIds(getZeffyPlayers(null, sessionDate, true)).indexOf(playerId) >= 0) throw new Error('Zeffy play pass covers this session');
     var sessionId = 'session-' + sessionDate;
     var matches = rows_('SessionPayments').filter(function (row) {
       return String(row.session_id) === sessionId && String(row.player_id) === playerId;

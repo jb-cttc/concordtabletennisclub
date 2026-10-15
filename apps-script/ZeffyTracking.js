@@ -35,40 +35,46 @@ function parseZeffyEmail_(from, subject, body, paidOn) {
   });
 }
 
+// Gmail can take many seconds to answer, and score saves wait on the script lock, so the mailbox is read without
+// the lock. The lock is taken only to add the new rows, and a message another run already recorded is skipped then.
+// Never call this while holding the lock: it would keep the desk waiting on Gmail.
 function syncZeffyPayments_() {
   var properties = PropertiesService.getScriptProperties();
   var last = Number(properties.getProperty(ZEFFY_SYNCED_AT_)) || 0;
   var now = Date.now();
   if (now - last < ZEFFY_SYNC_INTERVAL_MS_) return;
+  // A caller already holding the lock uses the emails recorded so far; the next caller without it reads Gmail.
   var lock = LockService.getScriptLock();
-  var held = lock.hasLock();
-  if (!held && !lock.tryLock(10000)) return;
-  try {
-    var known = {};
-    rows_('ZeffyPayments').forEach(function (row) { known[String(row.message_id)] = true; });
-    var query = ZEFFY_QUERY_ + (last ? ' newer_than:' + (Math.ceil((now - last) / 86400000) + 2) + 'd' : '');
-    var added = [];
-    for (var start = 0; ; start += 100) {
-      var threads = GmailApp.search(query, start, 100);
-      threads.forEach(function (thread) {
-        thread.getMessages().forEach(function (message) {
-          var id = message.getId();
-          if (known[id]) return;
-          known[id] = true;
-          var paidOn = Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-          parseZeffyEmail_(message.getFrom(), message.getSubject(), message.getPlainBody(), paidOn).forEach(function (row) {
-            row.message_id = id;
-            row.created_at = new Date();
-            added.push(row);
-          });
+  if (lock.hasLock()) return;
+  var known = {};
+  rows_('ZeffyPayments').forEach(function (row) { known[String(row.message_id)] = true; });
+  var query = ZEFFY_QUERY_ + (last ? ' newer_than:' + (Math.ceil((now - last) / 86400000) + 2) + 'd' : '');
+  var found = [];
+  for (var start = 0; ; start += 100) {
+    var threads = GmailApp.search(query, start, 100);
+    threads.forEach(function (thread) {
+      thread.getMessages().forEach(function (message) {
+        var id = message.getId();
+        if (known[id]) return;
+        known[id] = true;
+        var paidOn = Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        parseZeffyEmail_(message.getFrom(), message.getSubject(), message.getPlainBody(), paidOn).forEach(function (row) {
+          row.message_id = id;
+          row.created_at = new Date();
+          found.push(row);
         });
       });
-      if (threads.length < 100) break;
-    }
-    appendObjects_('ZeffyPayments', added);
+    });
+    if (threads.length < 100) break;
+  }
+  if (!lock.tryLock(10000)) return;
+  try {
+    var recorded = {};
+    rows_('ZeffyPayments').forEach(function (row) { recorded[String(row.message_id)] = true; });
+    appendObjects_('ZeffyPayments', found.filter(function (row) { return !recorded[String(row.message_id)]; }));
     properties.setProperty(ZEFFY_SYNCED_AT_, String(now));
   } finally {
-    if (!held) lock.releaseLock();
+    lock.releaseLock();
   }
 }
 
