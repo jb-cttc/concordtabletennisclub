@@ -1062,7 +1062,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       document.dispatchEvent(new CustomEvent('cttc:ratings', { detail: changed }));
       setStatus('Ratings updated from club results through ' + result.syncedThrough + ' (' + result.updated + ' players).');
     } catch (error) {
-      setStatus('Ratings could not be updated from the club site: ' + error.message, 'error');
+      // Routine since the desk became the rating authority; the next load checks again. It must not cover up the
+      // status bar (for example a load that is still being retried).
+      ratingsChecked = false;
     }
   }
 
@@ -1099,7 +1101,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   async function load() {
     var sessionDate = date.value;
+    clearTimeout(loadRetryTimer);
+    loadRetryDate = '';
     var pendingHistory = fetchHistory(sessionDate);
+    var previousBase = savedPrintState;
     savedPrintState = null;
     setStatus('Loading ' + sessionDate + '...', 'busy');
     try {
@@ -1156,13 +1161,35 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       refreshPublish();
       sendDeskLog();
       if (data.interruptedFinalize && !locked()) setStatus('An earlier finalize or reopen of this session did not finish. Check the scores, then click Finalize RR Results: it repairs the earlier attempt, so no rating change counts twice.' + (pendingRecovery ? ' First choose which copy to keep in the notice above.' : ''), 'error');
+      loadFailures = 0;
+      syncRatings();
       document.dispatchEvent(new CustomEvent('cttc:session-loaded', { detail: { date: sessionDate, ready: !!state.session } }));
     } catch (error) {
-      if (loadedDate && sessionDate !== loadedDate) date.value = loadedDate;
-      setStatus(error.message, 'error');
+      savedPrintState = previousBase;
+      if (loadedDate && sessionDate !== loadedDate) {
+        // Switching dates failed: the session already on screen stays loaded and usable.
+        date.value = loadedDate;
+        setStatus('Could not load ' + sessionDate + ' from Google Sheets: ' + sentence(error.message) + ' Still showing ' + loadedDate + '.', 'error');
+      } else if (sessionDate === date.value) {
+        var wait = LOAD_RETRY_MS[Math.min(loadFailures, LOAD_RETRY_MS.length - 1)];
+        loadFailures += 1;
+        loadRetryDate = sessionDate;
+        loadRetryTimer = setTimeout(function () { if (date.value === sessionDate && !lockBusy) load(); }, wait);
+        setStatus('Could not load ' + sessionDate + ' from Google Sheets (' + error.message + '). Trying again in ' + Math.round(wait / 1000) + ' seconds; nothing needs doing.', 'error');
+        if (loadFailures === 3) reportDeskProblem('load failed', error.message, { failures: loadFailures });
+      }
       document.dispatchEvent(new CustomEvent('cttc:session-loaded', { detail: { date: sessionDate, ready: false } }));
     }
   }
+  // A load that fails (one lost reply while the desk opens is enough) is tried again by itself, so the desk never
+  // sits empty waiting for someone to notice and click Load session.
+  var LOAD_RETRY_MS = [3000, 8000, 15000, 30000, 60000];
+  var loadFailures = 0;
+  var loadRetryTimer = null;
+  var loadRetryDate = '';
+  window.addEventListener('online', function () {
+    if (loadRetryDate && loadRetryDate === date.value) { clearTimeout(loadRetryTimer); load(); }
+  });
 
   async function save(options) {
     var auto = !!(options && options.auto);
@@ -1816,7 +1843,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   var requestedDate = '<?= initialDate ?>';
   date.value = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') ? requestedDate : today();
-  load().then(syncRatings);
+  load();
   call('listArchivedPlayers').then(function (list) {
     state.archived = list;
     applyPendingActivations();
@@ -2173,10 +2200,22 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   ['open-roster', 'groups'].forEach(function (id) {
     new MutationObserver(decorate).observe(document.getElementById(id), { childList: true, subtree: true });
   });
-  document.addEventListener('cttc:players', function () { window.cttcRequest('getMemberStatuses').then(apply); });
-  window.cttcRequest('getMemberStatuses').then(apply).catch(function (error) {
-    setStatus('Membership unavailable: ' + (error.message || error));
-  });
+  // Retried by itself: one lost reply while the desk opens must not leave the badges unloaded.
+  var memberFailures = 0;
+  var memberRetry = null;
+  function loadStatuses() {
+    clearTimeout(memberRetry);
+    window.cttcRequest('getMemberStatuses').then(function (result) {
+      memberFailures = 0;
+      apply(result);
+    }).catch(function (error) {
+      memberFailures += 1;
+      if (memberFailures === 3) setStatus('Membership badges unavailable: ' + (error.message || error) + '. Still trying.');
+      memberRetry = setTimeout(loadStatuses, Math.min(60000, 5000 * memberFailures));
+    });
+  }
+  document.addEventListener('cttc:players', loadStatuses);
+  loadStatuses();
 })();
 </script>
 <script>
@@ -2280,6 +2319,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var ratings = {};
   var requestNumber = 0;
   var loadedDate = '';
+  var openFailures = 0;
   var outbox = window.cttcOutbox;
   function inCoaching(playerId) { return coaching.some(function (entry) { return entry.playerId === playerId; }); }
   function time12(time) {
@@ -2420,8 +2460,13 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     } catch (error) {
       if (current === requestNumber && loadedDate !== sessionDate) withWaiting([], sessionDate);
       renderOpen();
-      document.getElementById('status').textContent = 'Open play unavailable: ' + (error.message || error);
+      // Tried again by itself; only a lasting failure is mentioned in the status bar.
+      openFailures += 1;
+      if (openFailures === 3) document.getElementById('status').textContent = 'Open play unavailable: ' + (error.message || error) + '. Still trying.';
+      if (current === requestNumber) setTimeout(function () { if (current === requestNumber && date.value === sessionDate) loadOpen(); }, Math.min(60000, 5000 * openFailures));
+      return;
     }
+    openFailures = 0;
   }
   results.addEventListener('click', function (event) {
     var button = event.target.closest('[data-open-add]');

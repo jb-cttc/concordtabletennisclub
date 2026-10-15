@@ -44,7 +44,7 @@ function plan(seed) {
   };
 }
 
-(async () => {
+async function main() {
   const first = Number(process.argv[2] || 1);
   const count = Number(process.argv[3] || 4);
   let failed = 0;
@@ -52,7 +52,8 @@ function plan(seed) {
     const options = plan(seed);
     const night = await playNight(options);
     const tabs = night.tabs.filter(tab => !tab.closed && !tab.covered());
-    const problems = [].concat.apply([], tabs.map(tab => verdict(night, tab).map(problem => tab.device.name + ': ' + problem)));
+    const problems = [].concat.apply([], tabs.map(tab => verdict(night, tab).map(problem => tab.device.name + ': ' + problem)))
+      .concat(night.seen.errors.filter(text => / showed \d+ of \d+ matches/.test(text)));
     const finalized = !problems.length && await finalizeNight(night, tabs[0]);
     const label = 'night ' + seed + ' (' + options.players + ' players, ' + options.events.length + ' incidents, slow x' + options.slow.toFixed(1) + ')';
     if (problems.length || !finalized) {
@@ -67,4 +68,7 @@ function plan(seed) {
     process.exit(1);
   }
   console.log('Randomized desk nights passed: ' + count);
-})().catch(error => { console.error(error); process.exit(1); });
+}
+
+module.exports = { plan };
+if (require.main === module) main().catch(error => { console.error(error); process.exit(1); });

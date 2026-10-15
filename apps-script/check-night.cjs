@@ -168,6 +168,30 @@ const cases = {
     assert.equal(a.status().includes('different version') || b.status().includes('different version'), false);
   },
 
+  // The desk is opened (or reloaded) just as Google fails or drops a reply: it loads by itself once Google answers.
+  async openedDuringABlip() {
+    for (const fault of ['failReply', 'loseReply']) {
+      const world = sim.createWorld({ seed: 23 });
+      const device = world.device();
+      const first = await deskWith(world, device);
+      first.scoreMatch(0, 'one', 1);
+      await run(world, 20000);
+      first.close();
+      device.net[fault] = 1;
+      const tab = device.open();
+      await run(world, 2000);
+      device.net[fault] = 0;
+      await run(world, 90000);
+      assert.equal(tab.roster().length, 11, 'the session loads by itself (' + fault + ')');
+      assert.doesNotMatch(tab.status(), /could not|unavailable/i, fault);
+      assert.ok(tab.window.document.querySelectorAll('#groups .member-badge.visitor, #groups .member-badge.member').length > 0, 'membership badges load too (' + fault + ')');
+      tab.scoreMatch(1, 'two', 0);
+      await run(world, 20000);
+      inStep(world, tab, 'opened during a blip (' + fault + ')');
+      assert.equal(googleScored(world), 2);
+    }
+  },
+
   // The phone was opened before anyone started tonight's session; the laptop then builds the roster. The phone shows
   // it within a minute, and a player the phone adds later shows up on the laptop.
   async lateStarterAndNewPlayer() {

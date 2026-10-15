@@ -54,6 +54,11 @@ async function playNight(options) {
   const order = Array.from({ length: total }, (_, i) => i).sort(() => random() - 0.5);
   for (let n = 0; n < order.length; n += 1) {
     const tab = night.scorer ? await night.scorer(order[n]) : night.tab;
+    // A screen showing fewer matches than the session has is itself a failure: say which, rather than crash.
+    if (order[n] >= tab.matchCount()) {
+      night.seen.errors.push(tab.device.name + ' showed ' + tab.matchCount() + ' of ' + total + ' matches (' + tab.status() + ' | ' + tab.notice() + ')');
+      continue;
+    }
     tab.scoreMatch(order[n], random.chance(0.5) ? 'one' : 'two', Math.floor(random.between(0, 3)));
     await fire('scoring', (n + 1) / order.length);
     await world.clock.run(random.between(20000, 140000));
