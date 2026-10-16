@@ -71,6 +71,18 @@ or answer), but only while `updated_at` is under 3 days old
 (`RETRY_MAIL_DAYS`) and the daily mail quota is above 10 (`MIN_QUOTA`). After
 that the app gives up silently.
 
+**Send log.** Every email and text the app sends also writes one log line,
+for example `coaching sent email student_emailed:pending ref=<request_id> to=D811B0`:
+the channel, the kind of message (for the sweep's status messages, the column
+above and the status), the request (or coach, wait or reply) it is about, and
+the recipient as a six-character code. The same person always gets the same
+code, but no name, address or number is ever logged. Two lines with the same
+kind, `ref` and `to` mean someone really did get the same message twice. A
+minute check that starts while the previous one is still running logs
+`coaching checkTexts skipped: …` and does nothing. Read the lines in the
+script editor under **Executions** (open a run to see its logs), or with
+`clasp logs` once the script is linked to a Google Cloud project.
+
 ## 3. The request lifecycle
 
 ```mermaid
