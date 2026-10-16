@@ -1800,12 +1800,21 @@ function answer_(coachId, ref, answer, channel) {
 }
 
 // Run every minute by a trigger. Looks for a YES or NO, by text or by email, from each coach or student we asked a question.
-// Does nothing, and never touches Gmail, when nobody is waiting.
+// Does nothing, and never touches Gmail, when nobody is waiting. A run can outlast the minute (waiting behind the hourly sweep,
+// a slow Gmail), so a run that starts while another is still going does nothing: both would read the same reply and apply it
+// twice, and the second would email "no longer waiting" about an answer that just counted. Only this function takes the user
+// lock, so it never waits on the script lock the rest of the app uses.
 function checkTexts() {
   var cache = CacheService.getScriptCache();
   if (cache.get('check-texts')) return;
-  cache.put('check-texts', '1', 20);
-  checkTexts_();
+  var running = LockService.getUserLock();
+  if (!running.tryLock(0)) return;
+  try {
+    cache.put('check-texts', '1', 20);
+    checkTexts_();
+  } finally {
+    running.releaseLock();
+  }
 }
 
 function checkTexts_() {
