@@ -718,7 +718,7 @@ function notifyWaitlist_(coaches, now) {
         { callout: '**Good news:** a time you were waiting for just opened up. It is **first come, first served**, and everyone on the waitlist was told at the same time.', tone: 'good' },
         { rows: [['When', slot.label], ['Coach', slot.coach], ['Table', 'Table ' + slot.table], ['Request it', PAGE_URL, PAGE_URL]] }].concat(
         scheduleBlocks_('On the schedule', [{ date: slot.date, coachId: slot.coachId, start: slot.start, minutes: slot.minutes, kind: 'opened' }]), [
-        'You were on the waitlist for this time and have now been taken off it.']));
+        'You were on the waitlist for this time and have now been taken off it.']), null, ['waitlist-open', wait.avail_id]);
     } catch (error) {
       console.error('Could not email the waitlist: ' + error);
       return;
@@ -858,7 +858,7 @@ function coachPropose(coachId, slots) {
           phoneDigits_(coach.phone) ? 'We also texted your mobile. You can answer either one.' :
             'Want to confirm by text instead? Ask the club to add your mobile number to the coach list.',
           'If you did not ask for this, ignore this email and nothing will change.'
-        ]);
+        ], null, ['coach-times-confirm', coach.coach_id]);
         sent.email = true;
       } catch (error) {
         console.error('Could not email a coach to confirm times: ' + error);
@@ -866,7 +866,7 @@ function coachPropose(coachId, slots) {
     }
     if (phoneDigits_(coach.phone)) {
       try {
-        sendText_(coach, proposalText_(coach, plan));
+        sendText_(coach, proposalText_(coach, plan), ['coach-times-confirm', coach.coach_id]);
         sent.text = true;
       } catch (error) {
         console.error('Could not text a coach to confirm times: ' + error);
@@ -1038,7 +1038,7 @@ function askStudentChange_(question) {
         { rows: move ? [['Now', when + ', ' + coachLabel + ', Table ' + (Number(request.table) || 1)], ['New time', move]] :
           lessonRows_(request).concat([['Coach', coachLabel]]) }].concat(
         scheduleBlocks_('On the schedule', move ? [current, { date: target.date, coachId: target.coachId, start: target.start, minutes: target.minutes, kind: 'to' }] : [current]), [
-        'If you did not ask for this, ignore this email.']));
+        'If you did not ask for this, ignore this email.']), null, ['student-change-confirm', request.request_id]);
     }
   } catch (error) {
     console.error('Could not email a student about a change: ' + error);
@@ -1063,7 +1063,7 @@ function askStudentText_(student, ref, body) {
 function textStudentQuestion_(student, ref, body) {
   if (!student || student.texts !== 'yes' || !phoneDigits_(student.phone)) return;
   try {
-    sendText_({ name: student.name, phone: student.phone }, body);
+    sendText_({ name: student.name, phone: student.phone }, body, ['student-question', ref]);
   } catch (error) {
     console.error('Could not text a student a question: ' + error);
     return;
@@ -1140,8 +1140,8 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
   }
   if (reply) {
     try {
-      if (channel === 'text') sendText_({ name: student.name, phone: student.phone }, 'CTTC: ' + reply);
-      else if (mailAvailable_()) sendMail_(request.student_email, 'Your coaching lesson', [reply]);
+      if (channel === 'text') sendText_({ name: student.name, phone: student.phone }, 'CTTC: ' + reply, ['student-answer-reply', requestId]);
+      else if (mailAvailable_()) sendMail_(request.student_email, 'Your coaching lesson', [reply], null, ['student-answer-reply', requestId]);
     } catch (error) {
       console.error('Could not answer a student: ' + error);
     }
@@ -1225,8 +1225,9 @@ function deliver_(request, coach, field, compose) {
   if (message) {
     if (!message.text && !mailAvailable_()) return;
     try {
-      if (message.text) sendText_(message.person, message.text);
-      else sendMail_(message.to, message.subject, message.lines, message.cc);
+      var log = [field + ':' + request.status, request.request_id];
+      if (message.text) sendText_(message.person, message.text, log);
+      else sendMail_(message.to, message.subject, message.lines, message.cc, log);
     } catch (error) {
       console.error('Could not send a coaching ' + (message.text ? 'text' : 'email') + ': ' + error);
       return;
@@ -1269,7 +1270,7 @@ function remindWaiting_(coaches, students, requests, now) {
           { callout: '**Still waiting for you:** ' + lesson + ' has **not** been sent to the coach yet. Reply **YES** to this email by **' + deadline +
             '** to send it. If you do not reply, the request expires and the time is released.', tone: 'action' },
           'Reply from this same email address. Replying to the earlier "Confirm your coaching request" email works too.'
-        ].concat(ask.lines.slice(2)));
+        ].concat(ask.lines.slice(2)), null, ['student-reminder', request.request_id]);
       });
       attempt(function () {
         textStudentQuestion_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
@@ -1282,15 +1283,15 @@ function remindWaiting_(coaches, students, requests, now) {
         if (question) sendMail_(question.to, 'Reminder: ' + question.subject, [
           { callout: '**Still waiting for you:** ' + request.student_name + ' confirmed this request and it is **waiting for your YES**. Reply **YES** (or NO) to this email by **' + deadline +
             '**, or the request expires and the club is told.', tone: 'action' },
-          'Reply from this same email address.'].concat(question.lines));
+          'Reply from this same email address.'].concat(question.lines), null, ['coach-reminder', request.request_id]);
     });
     attempt(function () {
-        if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true));
+        if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true), ['coach-reminder', request.request_id]);
     });
     attempt(function () {
         sendMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
           { callout: lesson + ' is **waiting for ' + coachName_(coach) + ' to accept it.** You confirmed it, so **nothing more is needed from you**. It is not booked until the coach accepts.', tone: 'action' },
-          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.']);
+          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.'], null, ['student-waiting-on-coach', request.request_id]);
     });
   });
 }
@@ -1620,12 +1621,13 @@ function voiceTextsFrom_(coach, days) {
 }
 
 // Replies to the coach's latest text to the club number, which Voice turns into a text back to them. Throws if they have not texted in.
-function sendText_(coach, body) {
+function sendText_(coach, body, log) {
   var latest = voiceTextsFrom_(coach, THREAD_DAYS)[0];
   if (!latest) throw new Error('this coach has not texted the club number yet');
   var replyTo = String(latest.message.getReplyTo() || latest.message.getFrom() || '');
   if (!/@txt\.voice\.google\.com\b/i.test(replyTo)) throw new Error('the text had no Google Voice reply address');
   latest.message.reply(body);
+  if (log) logSent_('text', log[0], log[1], phoneDigits_(coach.phone) || coach.name);
 }
 
 // Mail and phone apps add invisible characters (zero-width spaces, left-to-right marks from "dir=auto" HTML, soft hyphens, byte
@@ -1721,7 +1723,7 @@ function askCoaches_(coaches, requests, now) {
       var request = waiting.filter(function (entry) { return entry.request_id === next; })[0];
       try {
         sendText_(coach, request ? requestQuestion_(request, request.coach_texted === 'pending') :
-          'CTTC: Still waiting: reply YES to publish the coaching times you sent ' + momentLabel_(Number(coach.ask_made)) + ', or NO to cancel.');
+          'CTTC: Still waiting: reply YES to publish the coaching times you sent ' + momentLabel_(Number(coach.ask_made)) + ', or NO to cancel.', ['coach-question', next]);
         coach.ask_ref = next;
         coach.ask_at = String(now);
         changed = true;
@@ -1790,8 +1792,8 @@ function answer_(coachId, ref, answer, channel) {
   }
   if (reply) {
     try {
-      if (channel === 'text') sendText_(coach, reply);
-      else if (mailAvailable_()) sendMail_(cleanEmail_(coach.email), ref === 'slots' ? 'Your coaching times' : 'Lesson request', [reply.replace(/^CTTC: /, '')]);
+      if (channel === 'text') sendText_(coach, reply, ['coach-answer-reply', ref]);
+      else if (mailAvailable_()) sendMail_(cleanEmail_(coach.email), ref === 'slots' ? 'Your coaching times' : 'Lesson request', [reply.replace(/^CTTC: /, '')], null, ['coach-answer-reply', ref]);
     } catch (error) {
       console.error('Could not answer a coach: ' + error);
     }
@@ -1808,7 +1810,10 @@ function checkTexts() {
   var cache = CacheService.getScriptCache();
   if (cache.get('check-texts')) return;
   var running = LockService.getUserLock();
-  if (!running.tryLock(0)) return;
+  if (!running.tryLock(0)) {
+    console.log('coaching checkTexts skipped: the previous minute check is still running');
+    return;
+  }
   try {
     cache.put('check-texts', '1', 20);
     checkTexts_();
@@ -1891,7 +1896,7 @@ function alertAdmin_(key, subject, lines) {
     var cache = CacheService.getScriptCache();
     if (cache.get('alert:' + key) || !mailAvailable_()) return;
     cache.put('alert:' + key, '1', 21600);
-    sendMail_(adminEmail_(), subject, lines);
+    sendMail_(adminEmail_(), subject, lines, null, ['club-alert', key]);
   } catch (error) {
     console.error('Could not alert the club: ' + error);
   }
@@ -1918,7 +1923,7 @@ function verifyCoaches_() {
       if (!found[coach.coach_id] || coach.registered_at) return;
       coach.registered_at = nowIso_();
       save_('Coaches', coach);
-      told.push({ message: found[coach.coach_id].message, label: coach.label, name: coachName_(coach) });
+      told.push({ message: found[coach.coach_id].message, label: coach.label, name: coachName_(coach), coach: coach });
     });
   } finally {
     lock.releaseLock();
@@ -1927,6 +1932,7 @@ function verifyCoaches_() {
     try {
       entry.message.reply('CTTC: Thanks, you are verified as ' + entry.name + '. To offer coaching times, open ' + PAGE_URL.replace('https://', '') +
         ', tap I am a coach and pick ' + entry.label + '. We will text you here to confirm your times and lesson requests.');
+      logSent_('text', 'coach-verified', entry.coach.coach_id, phoneDigits_(entry.coach.phone) || entry.coach.name);
     } catch (error) {
       console.error('Could not tell a coach they are verified: ' + error);
     }
@@ -2089,7 +2095,7 @@ function wrongSender_(messageId, address, expected, subject) {
     try {
       sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
         '", but it came from a different email address than the one the question was sent to, so nothing changed.',
-        { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }]);
+        { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }], null, ['wrong-sender', messageId]);
     } catch (error) {
       console.error('Could not tell a sender to use the right address: ' + error);
     }
@@ -2108,7 +2114,7 @@ function unreadableReply_(messageId, address, subject, line) {
     cache.put('unread:' + messageId, '1', 21600);
     try {
       sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
-        { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }]);
+        { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }], null, ['unreadable-reply', messageId]);
     } catch (error) {
       console.error('Could not tell a sender their reply was unreadable: ' + error);
     }
@@ -2172,7 +2178,7 @@ function checkStudentTexts_() {
         student.texts_at = String(text.at);
         save_('Students', student);
       });
-      answers.push({ message: text.message, body: text.word === 'STUDENT' ?
+      answers.push({ message: text.message, word: text.word.toLowerCase(), digits: text.digits || text.name, body: text.word === 'STUDENT' ?
         'CTTC: You will get texts about your coaching lessons, such as cancellations. Text STOP to stop.' :
         'CTTC: Coaching texts are off. Text STUDENT to turn them back on.' });
     });
@@ -2182,6 +2188,7 @@ function checkStudentTexts_() {
   answers.forEach(function (answer) {
     try {
       answer.message.reply(answer.body);
+      logSent_('text', 'student-texts-' + answer.word, answer.message.getId(), answer.digits);
     } catch (error) {
       console.error('Could not answer a student text: ' + error);
     }
@@ -2234,7 +2241,7 @@ function blockHtml_(block) {
   return block.html || '';
 }
 
-function sendMail_(to, subject, lines, cc) {
+function sendMail_(to, subject, lines, cc, log) {
   var blocks = lines.filter(Boolean);
   var footer = 'This message is only about your coaching request. It does not add you to the results mailing list.';
   var body = blocks.map(blockText_).filter(Boolean).concat(footer).join('\n\n');
@@ -2243,6 +2250,18 @@ function sendMail_(to, subject, lines, cc) {
   var message = { to: to, subject: subject, body: body, htmlBody: html, name: FROM_NAME };
   if (cc) message.cc = cc;
   MailApp.sendEmail(message);
+  if (log) logSent_('email', log[0], log[1], cleanEmail_(to) || to);
+}
+
+// One log line per message sent, so a maintainer can count exactly what went to whom, and when, in the execution logs. It names
+// the kind of message and the request (or coach, wait, reply) it is about, and the recipient only as a short code made with the
+// app's secret: the same person always gets the same code, but no name, address or number is ever written to the logs.
+function logSent_(channel, kind, ref, to) {
+  try {
+    console.log('coaching sent ' + channel + ' ' + kind + ' ref=' + (ref || '-') + ' to=' + code_('to:' + String(to || '').trim().toLowerCase()).slice(0, 6));
+  } catch (error) {
+    console.error('Could not log a sent message: ' + error);
+  }
 }
 
 // ---------- The app's secret ----------

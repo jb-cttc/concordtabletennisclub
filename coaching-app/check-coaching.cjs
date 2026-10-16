@@ -39,6 +39,7 @@ let cache = {};
 let held = 0;
 let userHeld = false;
 let overlap = null;
+const logs = [];
 let activeEmail = '';
 const triggers = [];
 const makeSheet = name => {
@@ -108,7 +109,7 @@ const inbound = (subjectName, body, at = clock, from = voiceFrom) => {
   });
 };
 const context = {
-  Date: FakeDate, Math, Number, String, JSON, Object, console: { error: () => {}, log: () => {} },
+  Date: FakeDate, Math, Number, String, JSON, Object, console: { error: () => {}, log: line => { logs.push(line); } },
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = value; } }) },
   SpreadsheetApp: {
     create: name => {
@@ -517,8 +518,18 @@ sent.splice(1);
 // The next minute's check starts while this one is still reading mail: it must not read and apply the same YES again, which
 // sent the student a second email saying "That request is no longer waiting for you (it is pending)".
 overlap = () => { delete cache['check-texts']; context.checkTexts(); };
+logs.length = 0;
 answerMail('"Sam Student" <SAM@example.com>', 'Yes', verifyMail.subject);
 assert.equal(overlap, null);
+assert.ok(logs.includes('coaching checkTexts skipped: the previous minute check is still running'), 'a skipped check says so in the logs');
+// Every message sent is logged once, by kind and request, with the recipient only as a code.
+const samId = cell('Requests', latestRequest('sam@example.com'), 'request_id');
+const sentLogs = logs.filter(line => line.startsWith('coaching sent '));
+assert.deepEqual(sentLogs.map(line => line.replace(/ to=[0-9A-F]{6}$/, '')).sort(), [
+  'coaching sent email coach_emailed:pending ref=' + samId,
+  'coaching sent email student_emailed:pending ref=' + samId,
+  'coaching sent text coach-question ref=' + samId]);
+assert.equal(new Set(sentLogs.filter(line => / email student/.test(line)).map(line => line.slice(-6))).size, 1, 'the same person always has the same code');
 assert.equal(statusOf('sam@example.com'), 'pending', 'her YES sends it to the coach');
 assert.ok(cell('Requests', latestRequest('sam@example.com'), 'verified_at'));
 assert.deepEqual(sent.map(message => message.to.toLowerCase()).sort(), ['ann@example.com', 'sam@example.com', 'sam@example.com']);
@@ -1446,4 +1457,10 @@ assert.equal(site['coaching-dialog'].opened, false, 'the page opens nothing by i
 site['coaching-launch'].listeners.click();
 assert.equal(site['coaching-frame'].attributes.src, appUrl, 'and nothing from the address reaches the frame');
 
+assert.ok(logs.length, 'the logs were checked');
+assert.doesNotMatch(logs.join('\n'), PRIVATE, 'the logs never hold a name, address or number');
+assert.doesNotMatch(logs.join('\n').replace(/ (ref|to)=\S+/g, ''), /\d{3}\D?\d{3}\D?\d{4}/, 'or a phone number');
+logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
+  assert.match(line, /^coaching sent (email|text) [a-z_-]+(:[a-z]+)? ref=\S.* to=[0-9A-F]{6}$/, 'each line names the channel, the kind, what it is about and a recipient code');
+});
 console.log('Coaching app checks passed');
