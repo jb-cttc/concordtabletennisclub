@@ -37,6 +37,8 @@ let mailFails = false;
 let quotaThrows = false;
 let cache = {};
 let held = 0;
+let userHeld = false;
+let overlap = null;
 let activeEmail = '';
 const triggers = [];
 const makeSheet = name => {
@@ -122,7 +124,10 @@ const context = {
     getProjectTriggers: () => triggers.map(handler => ({ getHandlerFunction: () => handler })),
     newTrigger: handler => ({ timeBased: () => ({ everyHours: () => ({ create: () => { triggers.push(handler); } }), everyMinutes: () => ({ create: () => { triggers.push(handler); } }) }) })
   },
-  LockService: { getScriptLock: () => ({ waitLock: () => { assert.equal(held, 0, 'locks are never nested'); held += 1; }, releaseLock: () => { held -= 1; } }) },
+  LockService: {
+    getScriptLock: () => ({ waitLock: () => { assert.equal(held, 0, 'locks are never nested'); held += 1; }, releaseLock: () => { held -= 1; } }),
+    getUserLock: () => ({ tryLock: () => (userHeld ? false : (userHeld = true)), releaseLock: () => { userHeld = false; } })
+  },
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; }, remove: key => { delete cache[key]; } }) },
   MailApp: {
     getRemainingDailyQuota: () => { if (quotaThrows) throw new Error('Service invoked too many times'); return quota; },
@@ -135,6 +140,8 @@ const context = {
       // Emailed answers: replies whose subject carries a [CTTC ref] code.
       const replies = query.match(/^newer_than:3d subject:"CTTC ref" -from:me after:(\d+)$/);
       if (replies) {
+        // A run that is still reading mail when the next minute's trigger fires.
+        if (overlap) { const next = overlap; overlap = null; next(); }
         // Gmail returns threads with a message from someone else after that moment; ours are never in the mailbox.
         const found = mailbox.filter(message => message.getDate().getTime() >= Number(replies[1]) * 1000);
         return found.length ? [{ getMessages: () => mailbox.slice() }] : [];
@@ -507,7 +514,11 @@ assert.doesNotMatch(sent[3].body, /sam@example/, 'the other sender is not shown 
 check();
 assert.equal(sent.length, 5, 'each unanswerable reply is answered once');
 sent.splice(1);
+// The next minute's check starts while this one is still reading mail: it must not read and apply the same YES again, which
+// sent the student a second email saying "That request is no longer waiting for you (it is pending)".
+overlap = () => { delete cache['check-texts']; context.checkTexts(); };
 answerMail('"Sam Student" <SAM@example.com>', 'Yes', verifyMail.subject);
+assert.equal(overlap, null);
 assert.equal(statusOf('sam@example.com'), 'pending', 'her YES sends it to the coach');
 assert.ok(cell('Requests', latestRequest('sam@example.com'), 'verified_at'));
 assert.deepEqual(sent.map(message => message.to.toLowerCase()).sort(), ['ann@example.com', 'sam@example.com', 'sam@example.com']);
