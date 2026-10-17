@@ -11,6 +11,18 @@ references are to [`coaching-app/Code.js`](../coaching-app/Code.js).
 
 ## 1. Two-minute triage
 
+**Start with the booking code.** Every email about a booking ends with
+*Booking code: 3F09A1*, the same six characters the log uses. Ask the student
+or coach for it (it is safe to share: it says nothing about the person), then
+open the web app's `/exec` address with `?log=3F09A1`. It needs no sign-in and
+shows that booking's lesson time, current `status`, who it is waiting on and
+the deadline (`booking`), and every line about it in order (`lines`): each
+step (`step:unverified`, `step:pending`, …), each email or text sent, each
+YES or NO read and whether it was applied, and any failure. `runs` shows
+whether the minute check and the sweep are running. Section 2 explains each
+line. If that answers the question, stop here; otherwise use the private
+Sheet:
+
 1. Open the private Sheet, **Requests** tab. Find the row by `date`
    (`2026-10-16`) and `start` (`21:00`, 24-hour Pacific). A move creates a
    *new* row, so check every row for that student (`student_email`).
@@ -98,10 +110,21 @@ the log holds:
   `send-coach_emailed:pending`, `read-coach-texts`), and `detail` the error
   with addresses, numbers, quoted text and long ids replaced. The same failure
   is logged at most every 10 minutes.
+- **Steps**: `channel` `step`, kind `step:<status>` each time a booking
+  changes status (made, confirmed by the student, accepted, declined,
+  cancelled, moved, expired), with `detail` saying who must act next and by
+  when (`waiting on coach until Saturday, October 10, 2026, 3:00 PM Pacific
+  Time`), who cancelled (`by student`), or for a move, `moved from <old code>`.
 - **Skipped minute checks**: kind `check-skipped`.
 
+`?log=<code>` shows only that booking's lines, plus a `booking` summary
+(`code`, `date`, `start`, `status`, `waitingOn`, `deadline`) from the private
+Sheet; it finds bookings made in the last 60 days. The log keeps the latest
+500 lines, so an older booking's early lines may be gone.
+
 Above the lines, `runs` shows the last minute check and the last sweep: when
-they finished, `ok`, and which steps failed. A `checkTexts` time more than a
+they finished, `ok`, and which steps failed; the minute check also has
+`mail`, the same counts as the status read-out below. A `checkTexts` time more than a
 few minutes old means the minute trigger has stopped.
 
 ## 3. The request lifecycle
