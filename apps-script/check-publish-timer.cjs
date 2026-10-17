@@ -49,17 +49,17 @@ const reset = () => {
 };
 const plain = value => JSON.parse(JSON.stringify(value));
 const dispatches = () => requests.filter(request => request.url.endsWith('/dispatches'));
-const HOLD = 15 * 60 * 1000;
+const HOLD = 2 * 60 * 1000;
 const TOKEN = 'ghp_secret_value';
 const run = (createdMs, status, conclusion) => ({ created_at: new Date(createdMs).toISOString(), status, conclusion });
 
 // Nothing scheduled.
 assert.equal(ctx.getPublishState().state, 'none');
 
-// Finalizing starts a 15-minute hold and a backup trigger.
+// Finalizing starts a 2-minute hold and a backup trigger.
 ctx.schedulePublish_('s1', '2026-10-05');
 let state = plain(ctx.getPublishState());
-assert.deepEqual([state.state, state.sessionId, state.sessionDate, state.dueAt, state.holdMinutes], ['pending', 's1', '2026-10-05', now + HOLD, 15]);
+assert.deepEqual([state.state, state.sessionId, state.sessionDate, state.dueAt, state.holdMinutes], ['pending', 's1', '2026-10-05', now + HOLD, 2]);
 assert.equal(triggers.length, 1);
 assert.equal(triggers[0].getHandlerFunction(), 'publishDue');
 assert.ok(triggers[0].after >= HOLD, 'the backup trigger fires after the hold');
@@ -88,7 +88,7 @@ assert.equal(publishRequest.options.method, 'post');
 assert.equal(publishRequest.options.headers.Authorization, 'Bearer ' + TOKEN);
 assert.equal(publishRequest.options.payload, JSON.stringify({ ref: 'main' }), 'publishing never asks for the email');
 assert.equal(triggers.length, 1, 'a short backup trigger keeps checking the started publish');
-assert.ok(triggers[0].after < HOLD);
+assert.equal(triggers[0].after, ctx.PUBLISH_CHECK_MS, 'every few minutes');
 ctx.publishNow('s1');
 assert.equal(dispatches().length, 1, 'publishing is never started twice');
 assert.ok(audits.some(entry => entry[0] === 'publish_dispatched'));
@@ -99,7 +99,7 @@ assert.equal(ctx.getPublishState().state, 'dispatched');
 onSite = false;
 assert.equal(ctx.getPublishState().state, 'dispatched');
 
-// Once the site lists it, a second 15-minute hold starts before the email.
+// Once the site lists it, a second 2-minute hold starts before the email.
 onSite = true;
 state = plain(ctx.getPublishState());
 assert.equal(state.state, 'email_pending');

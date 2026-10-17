@@ -8,16 +8,16 @@ on:
         type: boolean
         default: false
       send_email:
-        description: "Also send the session summary email (the desk sets this 15 minutes after the site is published)"
+        description: "Also send the session summary email (the desk sets this 2 minutes after the site is published)"
         type: boolean
         default: false
   schedule:
-    # Normally the desk starts this workflow itself: 15 minutes after a session is
-    # finalized (publish only), then again 15 minutes after the site lists it with
+    # Normally the desk starts this workflow itself: 2 minutes after a session is
+    # finalized (publish only), then again 2 minutes after the site lists it with
     # send_email=true (the results email). Pushes and plain manual runs never email.
     # These scheduled runs publish and email, and are the fallback for when
     # that does not happen (no GitHub token, desk tab closed, late entry): 11:45 PM
-    # Pacific after Monday and Wednesday sessions (later than any 15-minute hold that
+    # Pacific after Monday and Wednesday sessions (later than any 2-minute hold that
     # started by 11:30 PM), and 8:00 AM Pacific the next morning. A run that finds
     # nothing new is a safe no-op (send-session-email.js has its own already-sent
     # guard), so these never double-send.

@@ -34,7 +34,7 @@ Until cutover, the club's session reports are the rating authority.
 `RatingSync.js` pulls `data/players.json` from the live site hourly (and each
 time the desk loads) and updates `Players.current_rating` for exact name or
 `Aliases` matches, then records the latest posted session date as
-`CTTC_RATINGS_SYNCED_THROUGH`. A finalized session publishes about 15 minutes
+`CTTC_RATINGS_SYNCED_THROUGH`. A finalized session publishes about 2 minutes
 after it is finalized (or at once with Publish now), so ratings are current
 within minutes. Consequences:
 
@@ -171,7 +171,7 @@ saved contact name show only the last four digits of their number.
 
 **Finalize RR Results** checks that every match is complete, updates every
 player's rating, writes the rating ledger, and locks the session. The button
-then reads **Finalized** with a lock. A banner starts a 15-minute countdown;
+then reads **Finalized** with a lock. A banner starts a 2-minute countdown;
 when it reaches zero the desk asks GitHub to run the "Update Data and Deploy"
 workflow, which publishes the session and sends the session email. **Publish
 now** in the banner skips the wait (after publishing, a session can no longer
@@ -182,7 +182,7 @@ workflow's own fallback runs (11:45 PM and 8:00 AM Pacific on Mon/Wed nights)
 publish the session instead.
 
 **Results email.** When the desk sees the club site list the session, the banner
-starts a second 15-minute countdown. At zero (or with **Send now**) the desk
+starts a second 2-minute countdown. At zero (or with **Send now**) the desk
 runs the workflow again with `send_email` on, which sends the session summary
 email to the distribution list, then reports when that run finishes. Only that
 run, and the scheduled fallback runs, send the email; pushes and plain manual
