@@ -34,7 +34,7 @@ Until cutover, the club's session reports are the rating authority.
 `RatingSync.js` pulls `data/players.json` from the live site hourly (and each
 time the desk loads) and updates `Players.current_rating` for exact name or
 `Aliases` matches, then records the latest posted session date as
-`CTTC_RATINGS_SYNCED_THROUGH`. A finalized session publishes about 15 minutes
+`CTTC_RATINGS_SYNCED_THROUGH`. A finalized session publishes about 2 minutes
 after it is finalized (or at once with Publish now), so ratings are current
 within minutes. Consequences:
 
@@ -171,7 +171,7 @@ saved contact name show only the last four digits of their number.
 
 **Finalize RR Results** checks that every match is complete, updates every
 player's rating, writes the rating ledger, and locks the session. The button
-then reads **Finalized** with a lock. A banner starts a 15-minute countdown;
+then reads **Finalized** with a lock. A banner starts a 2-minute countdown;
 when it reaches zero the desk asks GitHub to run the "Update Data and Deploy"
 workflow, which publishes the session and sends the session email. **Publish
 now** in the banner skips the wait (after publishing, a session can no longer
@@ -182,7 +182,7 @@ workflow's own fallback runs (11:45 PM and 8:00 AM Pacific on Mon/Wed nights)
 publish the session instead.
 
 **Results email.** When the desk sees the club site list the session, the banner
-starts a second 15-minute countdown. At zero (or with **Send now**) the desk
+starts a second 2-minute countdown. At zero (or with **Send now**) the desk
 runs the workflow again with `send_email` on, which sends the session summary
 email to the distribution list, then reports when that run finishes. Only that
 run, and the scheduled fallback runs, send the email; pushes and plain manual
@@ -289,6 +289,39 @@ save's reply and never sends a second save while one is still pending. Gmail
 is never read while holding the script lock that saves wait on: Zeffy emails are
 read first and only the new rows are added under the lock, and Voice
 confirmations use the separate document lock.
+
+### The desk log (`CTTC Desk Logs`)
+
+The `CTTC Desk Logs` tab (made the first time the desk logs something) has one
+row per key step or problem, readable without opening the Sheet:
+**Actions → Desk log → Run workflow** on GitHub (optionally one session date,
+or the Reference from a desk error). The report lists problems in the last 7
+days, steps that should have followed a finalize and did not (site publish
+started and confirmed, results email sent), a finalize that started and never
+finished, the last time each key step happened, and the latest lines.
+
+Columns: `at` (UTC), `level`, `what`, `session` (date), `ref`, `detail`.
+
+- **`step`**: every row the desk adds to the `AuditLog` is copied here:
+  session created and saved (with revision, player and match counts and
+  timings), payments, member and open-play changes, finalize started and
+  done, publish scheduled, started and confirmed, results email sent,
+  ratings synced, reopen.
+- **`error`**: a failed finalize or reopen (`ref` is the same *Reference* the
+  desk showed, so the private `AuditLog` row is easy to find), a problem the
+  page reported (`page: …`, including any error in the page itself), and a
+  publish timer, hourly rating sync or page load that failed with nobody
+  watching (`publish_timer_failed`, `rating_sync_failed`, `page_load_failed`).
+- **`warn`**: a call to Google that failed or timed out (`page: call failed`,
+  with which call). The desk retries these itself; the same failure is
+  logged at most every 10 minutes, and a report Google kept but whose reply
+  was lost is logged once.
+
+The workflow's logs are public, so this tab never holds a name, email
+address, phone number, payment method or member status: players appear only
+as a code (`player=P1A2B3C`), and error text has addresses, numbers, quoted
+text, player ids and long ids replaced. The full detail stays in the private
+`AuditLog`. The tab keeps the latest 2,000 rows.
 
 ## Live publication cutover (go-live checklist)
 

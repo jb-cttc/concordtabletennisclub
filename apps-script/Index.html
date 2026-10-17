@@ -83,6 +83,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         byControl.set(control, remaining);
         if (!remaining) control.classList.remove('request-pending');
       }
+    }).catch(function (error) {
+      // Every failed or timed-out call to Google is reported to the desk log (reportCallFailure, set further down).
+      if (window.cttcCallFailed) window.cttcCallFailed(name, error);
+      throw error;
     });
   };
 })();
@@ -201,6 +205,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         .withSuccessHandler(function (result) { clearTimeout(timer); resolve(result); })
         .withFailureHandler(function (error) { clearTimeout(timer); reject(new Error(error && error.message || String(error))); });
       runner[name].apply(runner, args);
+    }).catch(function (error) {
+      if (window.cttcCallFailed) window.cttcCallFailed(name, error);
+      throw error;
     });
   }
   function scheduleRetry() {
@@ -415,6 +422,25 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     } catch (error) { deskLogSending = false; }
   }
   window.addEventListener('online', function () { sendDeskLog(); });
+  // The net under everything else: any call to Google that fails or times out, and any error in the page itself, is
+  // reported, even where no code above expected it. The same problem is reported at most every 10 minutes, so a desk
+  // that is offline for a while sends one report, not one per retry.
+  var reportedAt = {};
+  function reportOnce(kind, message, extra) {
+    var key = kind + '|' + message;
+    if (reportedAt[key] && Date.now() - reportedAt[key] < 600000) return;
+    reportedAt[key] = Date.now();
+    reportDeskProblem(kind, message, extra);
+  }
+  window.cttcCallFailed = function (name, error) {
+    try { reportOnce('call failed', String(name) + ': ' + (error && error.message || String(error)), { call: String(name) }); } catch (ignored) { /* never interrupts the desk */ }
+  };
+  window.addEventListener('error', function (event) {
+    try { reportOnce('page error', (event && event.message || 'error') + (event && event.lineno ? ' (line ' + event.lineno + ')' : '')); } catch (ignored) { /* never interrupts the desk */ }
+  });
+  window.addEventListener('unhandledrejection', function (event) {
+    try { reportOnce('page error', 'unhandled: ' + (event && event.reason && event.reason.message || String(event && event.reason))); } catch (ignored) { /* never interrupts the desk */ }
+  });
   function today() {
     var now = new Date();
     return new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -1434,7 +1460,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (saved.deviceOnly) { setStatus('Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.', 'error'); return; }
     var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
     if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
-    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks and publishes to the club site in 15 minutes, and the results email goes out 15 minutes after that. Until publishing you can click the lock button to reopen and correct it, or use Publish now to go out immediately.')) return;
+    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks and publishes to the club site in 2 minutes, and the results email goes out 2 minutes after the site shows it. Until publishing you can click the lock button to reopen and correct it, or use Publish now to go out immediately.')) return;
     var stopClock = busyStatus('Finalizing ratings...');
     try {
       state.session = await call('finalizeSession', saved.sessionId, saved.revision);
@@ -1521,7 +1547,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     saveDraft: save
   };
 
-  // After finalizing, the session is held for 15 minutes before it publishes; this banner shows the countdown.
+  // After finalizing, the session is held for 2 minutes before it publishes; this banner shows the countdown.
   var publishBar = document.getElementById('publish-bar');
   var publish = { info: null, offset: 0, dueSent: false, lastPoll: 0 };
   function publishApply(info) {
@@ -2743,7 +2769,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
     { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in, and the scores sync to Google Sheets automatically. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
-    { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site in 15 minutes; once the site is updated, a second 15-minute countdown sends the results email. Reopen the session before publishing to correct it, or press Publish now or Send now to skip a wait. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
+    { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site in 2 minutes; once the site is updated, a second 2-minute countdown sends the results email. Reopen the session before publishing to correct it, or press Publish now or Send now to skip a wait. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
     { title: 'Questions or feedback?', text: 'Closing the tour takes the desk back to the date you were on. Use Request a change to send questions, feedback, or ideas to the CTTC Tech Team.', target: '.change-link' }
   ];
   var shield = document.createElement('div');

@@ -1,11 +1,11 @@
-// Publishing to the club site, then emailing the results. Two holds of 15 minutes each:
+// Publishing to the club site, then emailing the results. Two holds of 2 minutes each:
 //   1. After a session is finalized: a window to reopen and fix it, then the desk asks GitHub to run the
 //      "Update Data and Deploy" workflow (publishes the site). "Publish now" skips the wait.
 //   2. After the club site lists the session: a window before the results email goes to the distribution
 //      list (the workflow is run again with send_email=true). "Send now" skips the wait.
 // The GitHub token lives only in the script property CTTC_GITHUB_TOKEN and is never sent to the page.
-var PUBLISH_HOLD_MS = 15 * 60 * 1000;
-var EMAIL_HOLD_MS = 15 * 60 * 1000;
+var PUBLISH_HOLD_MS = 2 * 60 * 1000;
+var EMAIL_HOLD_MS = 2 * 60 * 1000;
 var PUBLISH_CHECK_MS = 3 * 60 * 1000;
 var PUBLISH_PENDING_KEY = 'CTTC_PENDING_PUBLISH';
 var PUBLISH_TOKEN_KEY = 'CTTC_GITHUB_TOKEN';
@@ -224,7 +224,12 @@ function getPublishState() {
 
 // Called by the desk page when a timer runs out and by the backup trigger: starts whatever is due, then
 // re-arms the trigger while a started publish or email is still being checked.
+// Run by the publish timer as well as the page, so a failure with nobody watching is still recorded.
 function publishDue() {
+  return guardDesk_('publish_timer', publishDue_);
+}
+
+function publishDue_() {
   var pending = pendingPublish_();
   if (!pending) return getPublishState();
   var now = Date.now();

@@ -115,11 +115,13 @@ function showDatabaseStatus() {
   SpreadsheetApp.getUi().alert(JSON.stringify(databaseStatus(), null, 2));
 }
 
-// Returns the new row's event_id, or '' when there is no AuditLog sheet.
+// Returns the new row's event_id, or '' when there is no AuditLog sheet. Every entry is also copied, without personal
+// details, to the CTTC Desk Logs tab (DeskLog.js).
 function appendAudit_(action, entityType, entityId, details) {
   var sheet = SpreadsheetApp.getActive().getSheetByName('AuditLog');
+  var eventId = sheet ? Utilities.getUuid() : '';
+  deskLogFromAudit_(action, entityType, entityId, details, eventId);
   if (!sheet) return '';
-  var eventId = Utilities.getUuid();
   sheet.appendRow([
     eventId,
     new Date(),
@@ -133,6 +135,10 @@ function appendAudit_(action, entityType, entityId, details) {
 }
 
 function doGet(event) {
+  return guardDesk_('page_load', function () { return deskPage_(event); });
+}
+
+function deskPage_(event) {
   var template = HtmlService.createTemplateFromFile('Index');
   var requestedDate = event && event.parameter && event.parameter.date;
   template.initialDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') ? requestedDate : '';
@@ -159,8 +165,16 @@ function checkDeskConnection() {
 // summary of plain values is kept.
 function logDeskEvents(entries) {
   if (!Array.isArray(entries)) return false;
+  var cache = null;
+  try { cache = CacheService.getScriptCache(); } catch (error) { cache = null; }
   entries.slice(0, 20).forEach(function (entry) {
     if (!entry || typeof entry !== 'object') return;
+    // A report Google kept but whose reply was lost comes again with the same id; it is recorded once.
+    var seen = entry.id ? 'desk-event:' + String(entry.id).slice(0, 40) : '';
+    try {
+      if (seen && cache && cache.get(seen)) return;
+      if (seen && cache) cache.put(seen, '1', 21600);
+    } catch (error) { /* without the cache a repeat is recorded twice; harmless */ }
     var sessionDate = /^\d{4}-\d{2}-\d{2}$/.test(String(entry.date || '')) ? String(entry.date) : '';
     var details = {};
     Object.keys(entry).slice(0, 30).forEach(function (key) {

@@ -91,6 +91,8 @@ function createSpreadsheet(DateClass) {
   function coerce(value) {
     if (value === null || value === undefined) return '';
     if (typeof value === 'string') {
+      // Like Sheets, a leading ' keeps the rest as plain text and is not stored.
+      if (value[0] === "'") return value.slice(1);
       if (/^-?\d+(\.\d+)?$/.test(value.trim()) && value.trim() !== '') return Number(value);
       const date = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (date) return new DateClass(Number(date[1]), Number(date[2]) - 1, Number(date[3]));
@@ -129,6 +131,7 @@ function createSpreadsheet(DateClass) {
       },
       appendRow: values => { const at = sheet.getLastRow() + 1; range(at, 1, 1, values.length).setValues([values]); return sheet; },
       deleteRow: row => { cells.splice(row - 1, 1); return sheet; },
+      deleteRows: (row, count) => { cells.splice(row - 1, count); return sheet; },
       setFrozenRows: () => sheet,
       autoResizeColumns: () => sheet,
       setColumnWidth: () => sheet,
@@ -193,6 +196,7 @@ function createServer(clock, options) {
   let current = null;
   const cost = options.cost || (() => 200);
   const gmail = { searchMs: 0, threads: [] };
+  const cache = new Map();
 
   class LockWait extends Error {}
   const lock = {
@@ -232,6 +236,7 @@ function createServer(clock, options) {
       flush: () => {},
       getUi: () => { throw new Error('No UI in the simulator'); }
     },
+    CacheService: { getScriptCache: () => ({ get: key => (cache.has(key) ? cache.get(key) : null), put: (key, value) => { cache.set(key, value); }, remove: key => { cache.delete(key); } }) },
     LockService: { getScriptLock: () => lock, getDocumentLock: () => ({ waitLock() {}, tryLock: () => true, hasLock: () => true, releaseLock() {} }) },
     PropertiesService: {
       getScriptProperties: () => propertyStore(properties),
@@ -240,7 +245,9 @@ function createServer(clock, options) {
     Session: { getScriptTimeZone: () => 'America/Los_Angeles', getActiveUser: () => ({ getEmail: () => 'desk@example.test' }) },
     Utilities: {
       getUuid: () => { const r = options.random; return 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Math.floor(r() * 16).toString(16)); },
-      formatDate: (date, zone, pattern) => formatDate(date, zone, pattern)
+      formatDate: (date, zone, pattern) => formatDate(date, zone, pattern),
+      DigestAlgorithm: { SHA_256: 'sha256' },
+      computeDigest: (algorithm, value) => Array.from(require('node:crypto').createHash(algorithm).update(String(value)).digest()).map(byte => (byte > 127 ? byte - 256 : byte))
     },
     UrlFetchApp: { fetch: url => options.fetch(url) },
     GmailApp: {

@@ -64,7 +64,7 @@ function seedSession(date) {
 }
 seedSession('2026-09-28');
 
-// Publishing countdown stand-in: a short hold (PREVIEW_PUBLISH_SECONDS, default 20) instead of 15 minutes.
+// Publishing countdown stand-in: a short hold (PREVIEW_PUBLISH_SECONDS, default 20) instead of 2 minutes.
 const HOLD_MS = Number(process.env.PREVIEW_PUBLISH_SECONDS || 20) * 1000;
 let publishing = null;
 function publishPayload() {
