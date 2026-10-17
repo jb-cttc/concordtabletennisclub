@@ -69,7 +69,7 @@ const makeSheet = name => {
     deleteRow: row => { grid.splice(row - 1, 1); },
     deleteRows: (row, count) => { grid.splice(row - 1, count); },
     // Sheets reads a leading ' as "plain text" and does not store it.
-    appendRow: values => { grid.push(values.map(value => { assert.equal(String(value)[0], "'", 'appended values are kept as plain text'); return String(value).slice(1); })); },
+    appendRow: values => { grid.push(Array.from(values, value => { assert.equal(String(value)[0], "'", 'appended values are kept as plain text'); return String(value).slice(1); })); },
     clearContents: () => { grid.length = 0; },
     setFrozenRows: () => {}
   };
@@ -537,9 +537,10 @@ assert.deepEqual(sentLogs.map(line => line.replace(/ to=[0-9A-F]{6}$/, '')).sort
   'coaching sent email student_emailed:pending ref=' + samId,
   'coaching sent text coach-question ref=' + samId]);
 assert.equal(new Set(sentLogs.filter(line => / email student/.test(line)).map(line => line.slice(-6))).size, 1, 'the same person always has the same code');
-// The same lines go to the private Log tab, and the skipped check too.
-const logTail = grids.Log.slice(-4).map(line => line.slice(1).join(' '));
-assert.deepEqual(logTail.slice().sort(), ['-' + ' check-skipped - -'].concat(sentLogs.map(line => line.replace(/^coaching sent /, '').replace(' ref=', ' ').replace(' to=', ' '))).sort());
+// The same lines go to the private Log tab, with the skipped check and the YES that was read and applied.
+const logTail = grids.Log.slice(-5).map(line => line.slice(1).join(' ').trim());
+assert.deepEqual(logTail.slice().sort(), ['- check-skipped - -', 'email reply:student-v:yes ' + samId + ' - applied, now pending']
+  .concat(sentLogs.map(line => line.replace(/^coaching sent /, '').replace(' ref=', ' ').replace(' to=', ' '))).sort());
 assert.ok(grids.Log.slice(1).every(line => /^\d{4}-\d\d-\d\dT/.test(line[0])), 'each row has its time');
 assert.equal(statusOf('sam@example.com'), 'pending', 'her YES sends it to the coach');
 assert.ok(cell('Requests', latestRequest('sam@example.com'), 'verified_at'));
@@ -765,6 +766,8 @@ assert.deepEqual(ann().slice(-2), [
 assert.deepEqual(sent.map(message => message.to).sort(), ['ann@example.com', 'lee@example.com']);
 assert.ok(sent.every(message => /expired/i.test(message.subject)));
 assert.ok(sent.every(message => message.cc === 'owner@example.com'), 'the club is copied when a coach does not answer');
+assert.deepEqual(grids.Log.slice(1).filter(line => line[2] === 'reply:coach-request:yes').pop().slice(1, 6).filter((value, index) => index !== 2),
+  ['text', 'reply:coach-request:yes', '-', 'not applied, now expired'], 'a reply that came too late is logged as not applied');
 context.sweep();
 assert.equal(sent.length, 2, 'expiry is announced once');
 assert.ok(!grids.Availability.some(line => line[2] === '2026-10-02'), 'a slot whose day has passed is dropped');
@@ -910,6 +913,13 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.equal(properties.COACHING_STATUS_ID, 'status-book-id');
   assert.match(books['status-book-id'].title, /^CTTC Coaching status \| \d{4}-\d{2}-\d{2} \d{2}:\d0 \| mail q=\d+ late=\d+.* \| failed: read coach texts: Error: Google Voice is unavailable/,
     'the status read-out shows the minute check ran and which step failed');
+  // ...and so do ?log's last-run record and an error line.
+  cache = {};
+  const failedView = JSON.parse(context.doGet({ parameter: { log: '' } }).text);
+  assert.equal(failedView.runs.checkTexts.ok, false);
+  assert.deepEqual(failedView.runs.checkTexts.failed, ['read coach texts: Error: Google Voice is unavailable']);
+  assert.ok(failedView.lines.some(line => line.channel === 'error' && line.kind === 'read-coach-texts' && line.detail === 'Error: Google Voice is unavailable'));
+  assert.equal(grids.Log.slice(1).filter(line => line[2] === 'read-coach-texts').length, 1, 'a failure that repeats every minute is logged once per 10 minutes');
   voiceDown = false;
   if (saved) grids.Coaches[grids.Coaches.indexOf(coaches[0])] = saved;
   cache = {};
@@ -1468,18 +1478,31 @@ assert.equal(site['coaching-dialog'].opened, false, 'the page opens nothing by i
 site['coaching-launch'].listeners.click();
 assert.equal(site['coaching-frame'].attributes.src, appUrl, 'and nothing from the address reaches the frame');
 
+// A failure's detail keeps the error but never an address, a number, quoted text or a long id.
+cache = {};
+context.logError_('check the cleaner', new Error('Invalid email: sam@example.com, "Sam Student", \'Pat\', +1 (925) 555-1234, sheet 1d1vTRF839PRzLy4cEt70sA3yX1A'), 'r1');
+assert.deepEqual(grids.Log[grids.Log.length - 1].slice(1), ['error', 'check-the-cleaner', 'r1', '-',
+  'Error: Invalid email: <address> "…", \'…\', <number>, sheet <id>']);
+context.logError_('check the cleaner', new Error('again'), 'r1');
+assert.equal(grids.Log[grids.Log.length - 1][5].startsWith('Error: Invalid'), true, 'the same failure is not logged twice within 10 minutes');
+context.checkTexts();
+context.sweep();
 // ?log shows the latest sends to anyone, as JSON: times, kinds and codes only.
 cache = {};
 const logView = context.doGet({ parameter: { log: '' } });
 assert.equal(logView.type, 'JSON');
 const viewed = JSON.parse(logView.text);
 assert.equal(viewed.ok, true);
+assert.equal(viewed.runs.checkTexts.ok, true, 'the last minute check is shown');
+assert.deepEqual(viewed.runs.checkTexts.failed, []);
+assert.equal(viewed.runs.sweep.ok, true, 'and the last sweep');
+assert.match(viewed.runs.sweep.at, /^\d{4}-\d\d-\d\dT/);
 assert.equal(viewed.lines.length, Math.min(context.LOG_SHOWN, grids.Log.length - 1));
 viewed.lines.forEach(line => {
-  assert.deepEqual(Object.keys(line), ['at', 'channel', 'kind', 'ref', 'to']);
+  assert.deepEqual(Object.keys(line), ['at', 'channel', 'kind', 'ref', 'to', 'detail']);
   assert.match(line.at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/);
-  assert.match(line.channel, /^(email|text|-)$/);
-  assert.match(line.kind, /^[a-z_-]+(:[a-z]+)?$/);
+  assert.match(line.channel, /^(email|text|error|-)$/);
+  assert.match(line.kind, /^[a-z0-9_:-]+$/);
   assert.match(line.ref, /^([0-9A-F]{6}|-)$/, 'what a message was about is shown only as a code');
   assert.match(line.to, /^([0-9A-F]{6}|-)$/);
 });
@@ -1498,8 +1521,8 @@ for (let extra = grids.Log.length - 1; extra <= context.LOG_KEEP + 5; extra += 1
 const newest = grids.Log[grids.Log.length - 1];
 context.sweep();
 assert.equal(grids.Log.length - 1, context.LOG_KEEP);
-assert.equal(grids.Log[grids.Log.length - 1], newest, 'the oldest rows go first');
-assert.deepEqual(grids.Log[0], ['at', 'channel', 'kind', 'ref', 'to']);
+assert.ok(grids.Log.includes(newest), 'the oldest rows go first');
+assert.deepEqual(grids.Log[0], ['at', 'channel', 'kind', 'ref', 'to', 'detail']);
 assert.ok(logs.length, 'the logs were checked');
 assert.doesNotMatch(logs.join('\n'), PRIVATE, 'the logs never hold a name, address or number');
 assert.doesNotMatch(logs.join('\n').replace(/ (ref|to)=\S+/g, ''), /\d{3}\D?\d{3}\D?\d{4}/, 'or a phone number');
