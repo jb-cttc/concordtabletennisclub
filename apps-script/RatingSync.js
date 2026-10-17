@@ -12,7 +12,12 @@ function ratingsCheckedAt_() {
 }
 
 // Called by the hourly trigger and on desk load.
+// Run by the hourly trigger as well as the page, so a failure with nobody watching is still recorded.
 function syncRatingsFromPublicSite() {
+  return guardDesk_('rating_sync', syncRatingsFromPublicSite_);
+}
+
+function syncRatingsFromPublicSite_() {
   var started = Date.now();
   var response = UrlFetchApp.fetch(PUBLIC_PLAYERS_URL + '?t=' + Date.now(), { muteHttpExceptions: true });
   var fetched = Date.now();

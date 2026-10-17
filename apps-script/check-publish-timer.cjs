@@ -40,6 +40,8 @@ const ctx = {
 };
 vm.createContext(ctx);
 vm.runInContext(source, ctx);
+vm.runInContext(fs.readFileSync(__dirname + '/DeskLog.js', 'utf8'), ctx);
+ctx.safeAudit_ = (...args) => ctx.appendAudit_(...args);
 const reset = () => {
   Object.keys(props).forEach(key => delete props[key]);
   triggers.length = 0; requests.length = 0; audits.length = 0; runs = [];

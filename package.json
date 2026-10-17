@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs",
+    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs && npm run -s check:desk-log",
     "build:sessions": "NODE_USE_SYSTEM_CA=1 node scripts/build-sessions.js",
     "build:data": "NODE_USE_SYSTEM_CA=1 node scripts/fetch-and-parse.js",
     "build:data:full": "NODE_USE_SYSTEM_CA=1 CTTC_FULL_REFRESH=true node scripts/fetch-and-parse.js",
@@ -13,6 +13,8 @@
     "build:latest-email": "node scripts/build-latest-email.js",
     "build:player-index": "node -e \"const fs=require('fs'),p=JSON.parse(fs.readFileSync('./data/players.json'));fs.writeFileSync('./data/player-index.json',JSON.stringify(p.players.map(function(p){return p.name}))+'\\n');console.log('Player index:',p.players.length,'names');\"",
     "check:data": "node scripts/check-data.js",
+    "check:desk-log": "node scripts/check-desk-log-report.js",
+    "desk-log": "node scripts/desk-log.js",
     "check:app": "for f in apps-script/check-*; do node \"$f\" || exit 1; done",
     "check:ratings": "node scripts/check-rating-engine.js",
     "check:standings": "node scripts/check-standings.js",

@@ -290,6 +290,39 @@ is never read while holding the script lock that saves wait on: Zeffy emails are
 read first and only the new rows are added under the lock, and Voice
 confirmations use the separate document lock.
 
+### The desk log (`CTTC Desk Logs`)
+
+The `CTTC Desk Logs` tab (made the first time the desk logs something) has one
+row per key step or problem, readable without opening the Sheet:
+**Actions → Desk log → Run workflow** on GitHub (optionally one session date,
+or the Reference from a desk error). The report lists problems in the last 7
+days, steps that should have followed a finalize and did not (site publish
+started and confirmed, results email sent), a finalize that started and never
+finished, the last time each key step happened, and the latest lines.
+
+Columns: `at` (UTC), `level`, `what`, `session` (date), `ref`, `detail`.
+
+- **`step`**: every row the desk adds to the `AuditLog` is copied here:
+  session created and saved (with revision, player and match counts and
+  timings), payments, member and open-play changes, finalize started and
+  done, publish scheduled, started and confirmed, results email sent,
+  ratings synced, reopen.
+- **`error`**: a failed finalize or reopen (`ref` is the same *Reference* the
+  desk showed, so the private `AuditLog` row is easy to find), a problem the
+  page reported (`page: …`, including any error in the page itself), and a
+  publish timer, hourly rating sync or page load that failed with nobody
+  watching (`publish_timer_failed`, `rating_sync_failed`, `page_load_failed`).
+- **`warn`**: a call to Google that failed or timed out (`page: call failed`,
+  with which call). The desk retries these itself; the same failure is
+  logged at most every 10 minutes, and a report Google kept but whose reply
+  was lost is logged once.
+
+The workflow's logs are public, so this tab never holds a name, email
+address, phone number, payment method or member status: players appear only
+as a code (`player=P1A2B3C`), and error text has addresses, numbers, quoted
+text, player ids and long ids replaced. The full detail stays in the private
+`AuditLog`. The tab keeps the latest 2,000 rows.
+
 ## Live publication cutover (go-live checklist)
 
 > **The desk is the record.** Finalizing is always available. MS Access is

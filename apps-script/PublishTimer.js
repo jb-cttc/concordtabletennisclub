@@ -224,7 +224,12 @@ function getPublishState() {
 
 // Called by the desk page when a timer runs out and by the backup trigger: starts whatever is due, then
 // re-arms the trigger while a started publish or email is still being checked.
+// Run by the publish timer as well as the page, so a failure with nobody watching is still recorded.
 function publishDue() {
+  return guardDesk_('publish_timer', publishDue_);
+}
+
+function publishDue_() {
   var pending = pendingPublish_();
   if (!pending) return getPublishState();
   var now = Date.now();

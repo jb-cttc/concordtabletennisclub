@@ -25,6 +25,8 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(__dirname + '/Code.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync(__dirname + '/DeskLog.js', 'utf8'), context);
+context.safeAudit_ = () => '';
 assert.equal(context.doGet({ parameter: { date: '2026-09-23' } }).initialDate, '2026-09-23');
 assert.equal(context.doGet({ parameter: { date: '2026-09-23\"' } }).initialDate, '');
 assert.equal(context.doGet().initialDate, '');
