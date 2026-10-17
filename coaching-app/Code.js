@@ -48,6 +48,9 @@ var MIN_QUOTA = 10;
 // How long a new request holds its time while waiting for the student's YES.
 var VERIFY_MS = 2 * 60 * 60 * 1000;
 var CHANGE_WAIT_MS = 10 * 60 * 1000;
+var LOG_KEEP = 500;
+var LOG_SHOWN = 300;
+var MAX_LOG_READS_PER_MINUTE = 20;
 
 var SITE_URL = 'https://concordtabletennisclub.com';
 var PAGE_URL = SITE_URL + '/coaching.html';
@@ -93,14 +96,18 @@ var TABS = {
     // change is 'cancel' or 'move:' and the new slot, waiting for the student's YES since change_at.
     'verified_at', 'change', 'change_at',
     // reminded is the waiting status ('unverified' or 'pending') a reminder was sent for, so each step is reminded once.
-    'reminded']
+    'reminded'],
+  // One row per message sent (see logSent_), newest last; the sweep keeps the latest LOG_KEEP. to is already a code, never an
+  // address or number. Shown, with ref coded too, at the web app's address with ?log (see logView_).
+  Log: ['at', 'channel', 'kind', 'ref', 'to']
 };
 // Public Sheet. Nothing private ever goes in here.
 var PUBLIC_TABS = {
   Schedule: ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']
 };
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.log !== undefined) return logView_();
   var output = HtmlService.createTemplateFromFile('Index').evaluate();
   var initial = initialData_();
   if (initial) output.setContent(output.getContent().replace('var INITIAL = null;', 'var INITIAL = ' + scriptJson_(initial) + ';'));
@@ -1212,6 +1219,7 @@ function sweep_() {
       tab_('Availability').deleteRow(entry._row);
     });
     publish_(now);
+    trimLog_();
   } finally {
     lock.releaseLock();
   }
@@ -1812,6 +1820,7 @@ function checkTexts() {
   var running = LockService.getUserLock();
   if (!running.tryLock(0)) {
     console.log('coaching checkTexts skipped: the previous minute check is still running');
+    logRow_('-', 'check-skipped', '-', '-');
     return;
   }
   try {
@@ -2256,12 +2265,49 @@ function sendMail_(to, subject, lines, cc, log) {
 // One log line per message sent, so a maintainer can count exactly what went to whom, and when, in the execution logs. It names
 // the kind of message and the request (or coach, wait, reply) it is about, and the recipient only as a short code made with the
 // app's secret: the same person always gets the same code, but no name, address or number is ever written to the logs.
+// The line also goes to the private Log tab, which ?log shows (logView_). appendRow adds a whole row in one step, so two sends at
+// once never overwrite each other's row, and the leading ' keeps every value as plain text.
 function logSent_(channel, kind, ref, to) {
   try {
-    console.log('coaching sent ' + channel + ' ' + kind + ' ref=' + (ref || '-') + ' to=' + code_('to:' + String(to || '').trim().toLowerCase()).slice(0, 6));
+    var code = code_('to:' + String(to || '').trim().toLowerCase()).slice(0, 6);
+    console.log('coaching sent ' + channel + ' ' + kind + ' ref=' + (ref || '-') + ' to=' + code);
+    logRow_(channel, kind, ref || '-', code);
   } catch (error) {
     console.error('Could not log a sent message: ' + error);
   }
+}
+
+function logRow_(channel, kind, ref, to) {
+  try {
+    tab_('Log').appendRow([nowIso_(), channel, kind, ref, to].map(function (value) { return "'" + value; }));
+  } catch (error) {
+    console.error('Could not write to the Log tab: ' + error);
+  }
+}
+
+// Call while holding the lock. Keeps the Log tab to its latest LOG_KEEP rows.
+function trimLog_() {
+  var sheet = tab_('Log');
+  var extra = sheet.getLastRow() - 1 - LOG_KEEP;
+  if (extra > 0) sheet.deleteRows(2, extra);
+}
+
+// The web app's address with ?log: the latest messages sent, as JSON, for a maintainer checking that nobody got the same message
+// twice. Anyone can open it, so it holds only the time, the channel, the kind of message, and codes made with the app's secret
+// for what it was about and who got it: never a name, address, number or id from the private Sheet. Read at most
+// MAX_LOG_READS_PER_MINUTE times a minute.
+function logView_() {
+  var cache = CacheService.getScriptCache();
+  var key = 'log-reads:' + Math.floor(Date.now() / 60000);
+  var reads = Number(cache.get(key) || 0) + 1;
+  cache.put(key, String(reads), 120);
+  var body = reads > MAX_LOG_READS_PER_MINUTE ? { ok: false, message: 'Too many reads. Try again in a minute.' } : {
+    ok: true,
+    lines: rows_('Log').slice(-LOG_SHOWN).map(function (entry) {
+      return { at: entry.at, channel: entry.channel, kind: entry.kind, ref: entry.ref === '-' ? '-' : code_('ref:' + entry.ref).slice(0, 6), to: entry.to };
+    })
+  };
+  return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
 }
 
 // ---------- The app's secret ----------

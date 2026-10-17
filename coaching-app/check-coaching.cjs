@@ -67,6 +67,9 @@ const makeSheet = name => {
     getDataRange: () => ({ getValues: () => grid.map(line => line.slice()) }),
     getRange: range,
     deleteRow: row => { grid.splice(row - 1, 1); },
+    deleteRows: (row, count) => { grid.splice(row - 1, count); },
+    // Sheets reads a leading ' as "plain text" and does not store it.
+    appendRow: values => { grid.push(values.map(value => { assert.equal(String(value)[0], "'", 'appended values are kept as plain text'); return String(value).slice(1); })); },
     clearContents: () => { grid.length = 0; },
     setFrozenRows: () => {}
   };
@@ -162,6 +165,10 @@ const context = {
     base64DecodeWebSafe: text => Array.from(Buffer.from(text.replace(/-/g, '+').replace(/_/g, '/'), 'base64')),
     newBlob: bytes => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }),
     formatDate: (date, zone, format) => { assert.equal(zone, 'America/Los_Angeles'); assert.equal(format, 'yyyy-MM-dd HH:mm'); return pacific(date.getTime()); }
+  },
+  ContentService: {
+    MimeType: { JSON: 'JSON' },
+    createTextOutput: text => { const output = { text, setMimeType: type => { output.type = type; return output; } }; return output; }
   },
   HtmlService: {
     XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
@@ -259,7 +266,7 @@ assert.match(setupResult.privateSheet, /^https:\/\/docs\.google\.com\/spreadshee
 assert.match(setupResult.publicSheet, /^https:\/\/docs\.google\.com\/spreadsheets\//);
 assert.notEqual(setupResult.privateSheet, setupResult.publicSheet);
 assert.equal(created.length, 2, 'one private and one public Sheet');
-assert.deepEqual(books['private-book-id'].names(), ['Availability', 'Coaches', 'Requests', 'Students', 'Waitlist']);
+assert.deepEqual(books['private-book-id'].names(), ['Availability', 'Coaches', 'Log', 'Requests', 'Students', 'Waitlist'], 'the send log is a private tab');
 assert.deepEqual(books['public-book-id'].names(), ['About', 'Schedule'], 'the public Sheet has only the schedule and a note');
 assert.deepEqual(triggers, ['sweep', 'checkTexts'], 'an hourly sweep and a minute-by-minute text check are installed');
 context.setup();
@@ -530,6 +537,10 @@ assert.deepEqual(sentLogs.map(line => line.replace(/ to=[0-9A-F]{6}$/, '')).sort
   'coaching sent email student_emailed:pending ref=' + samId,
   'coaching sent text coach-question ref=' + samId]);
 assert.equal(new Set(sentLogs.filter(line => / email student/.test(line)).map(line => line.slice(-6))).size, 1, 'the same person always has the same code');
+// The same lines go to the private Log tab, and the skipped check too.
+const logTail = grids.Log.slice(-4).map(line => line.slice(1).join(' '));
+assert.deepEqual(logTail.slice().sort(), ['-' + ' check-skipped - -'].concat(sentLogs.map(line => line.replace(/^coaching sent /, '').replace(' ref=', ' ').replace(' to=', ' '))).sort());
+assert.ok(grids.Log.slice(1).every(line => /^\d{4}-\d\d-\d\dT/.test(line[0])), 'each row has its time');
 assert.equal(statusOf('sam@example.com'), 'pending', 'her YES sends it to the coach');
 assert.ok(cell('Requests', latestRequest('sam@example.com'), 'verified_at'));
 assert.deepEqual(sent.map(message => message.to.toLowerCase()).sort(), ['ann@example.com', 'sam@example.com', 'sam@example.com']);
@@ -1457,6 +1468,38 @@ assert.equal(site['coaching-dialog'].opened, false, 'the page opens nothing by i
 site['coaching-launch'].listeners.click();
 assert.equal(site['coaching-frame'].attributes.src, appUrl, 'and nothing from the address reaches the frame');
 
+// ?log shows the latest sends to anyone, as JSON: times, kinds and codes only.
+cache = {};
+const logView = context.doGet({ parameter: { log: '' } });
+assert.equal(logView.type, 'JSON');
+const viewed = JSON.parse(logView.text);
+assert.equal(viewed.ok, true);
+assert.equal(viewed.lines.length, Math.min(context.LOG_SHOWN, grids.Log.length - 1));
+viewed.lines.forEach(line => {
+  assert.deepEqual(Object.keys(line), ['at', 'channel', 'kind', 'ref', 'to']);
+  assert.match(line.at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/);
+  assert.match(line.channel, /^(email|text|-)$/);
+  assert.match(line.kind, /^[a-z_-]+(:[a-z]+)?$/);
+  assert.match(line.ref, /^([0-9A-F]{6}|-)$/, 'what a message was about is shown only as a code');
+  assert.match(line.to, /^([0-9A-F]{6}|-)$/);
+});
+const rawIds = new Set(requestRows().map(line => cell('Requests', line, 'request_id')));
+assert.ok(!viewed.lines.some(line => rawIds.has(line.ref)), 'never a request id from the private Sheet');
+assert.doesNotMatch(logView.text, PRIVATE, 'never a name or address');
+assert.doesNotMatch(logView.text.replace(/"(ref|to)":"[0-9A-F-]+"|"at":"[^"]+"/g, ''), /\d{3}\D?\d{3}\D?\d{4}/, 'or a number');
+const sameRef = viewed.lines.filter(line => line.kind === 'student_emailed:pending' || line.kind === 'coach_emailed:pending');
+assert.ok(sameRef.length >= 2 && sameRef.every(line => viewed.lines.filter(other => other.ref === line.ref).length >= 2), 'messages about one request share its code');
+for (let read = 1; read < context.MAX_LOG_READS_PER_MINUTE; read += 1) context.doGet({ parameter: { log: '' } });
+assert.deepEqual(JSON.parse(context.doGet({ parameter: { log: '' } }).text), { ok: false, message: 'Too many reads. Try again in a minute.' }, 'reads are limited');
+assert.notEqual(context.doGet({}).getContent, undefined, 'without ?log the page is served as before');
+// The sweep keeps only the latest LOG_KEEP rows.
+cache = {};
+for (let extra = grids.Log.length - 1; extra <= context.LOG_KEEP + 5; extra += 1) grids.Log.push(['2026-10-01T00:00:00.000Z', 'email', 'old', '-', '-']);
+const newest = grids.Log[grids.Log.length - 1];
+context.sweep();
+assert.equal(grids.Log.length - 1, context.LOG_KEEP);
+assert.equal(grids.Log[grids.Log.length - 1], newest, 'the oldest rows go first');
+assert.deepEqual(grids.Log[0], ['at', 'channel', 'kind', 'ref', 'to']);
 assert.ok(logs.length, 'the logs were checked');
 assert.doesNotMatch(logs.join('\n'), PRIVATE, 'the logs never hold a name, address or number');
 assert.doesNotMatch(logs.join('\n').replace(/ (ref|to)=\S+/g, ''), /\d{3}\D?\d{3}\D?\d{4}/, 'or a phone number');

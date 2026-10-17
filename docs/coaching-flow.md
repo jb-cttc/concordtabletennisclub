@@ -80,8 +80,15 @@ code, but no name, address or number is ever logged. Two lines with the same
 kind, `ref` and `to` mean someone really did get the same message twice. A
 minute check that starts while the previous one is still running logs
 `coaching checkTexts skipped: …` and does nothing. Read the lines in the
-script editor under **Executions** (open a run to see its logs), or with
-`clasp logs` once the script is linked to a Google Cloud project.
+script editor under **Executions** (open a run to see its logs).
+
+The same lines go to the private Sheet's **Log** tab (the latest 500 are
+kept), and the web app shows the latest 300 to anyone at its `/exec` address
+with `?log` added, as JSON:
+`{"at":"2026-10-17T19:02:11.000Z","channel":"email","kind":"student_emailed:pending","ref":"3F09A1","to":"D811B0"}`.
+There `ref` is a code too, so nothing from the private Sheet is shown; lines
+with the same `kind`, `ref` and `to` are the same message sent twice. A skipped
+minute check shows as kind `check-skipped`. It answers 20 reads a minute.
 
 ## 3. The request lifecycle
 
