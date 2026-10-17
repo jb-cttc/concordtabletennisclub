@@ -538,8 +538,9 @@ assert.deepEqual(sentLogs.map(line => line.replace(/ to=[0-9A-F]{6}$/, '')).sort
   'coaching sent text coach-question ref=' + samId]);
 assert.equal(new Set(sentLogs.filter(line => / email student/.test(line)).map(line => line.slice(-6))).size, 1, 'the same person always has the same code');
 // The same lines go to the private Log tab, with the skipped check and the YES that was read and applied.
-const logTail = grids.Log.slice(-5).map(line => line.slice(1).join(' ').trim());
-assert.deepEqual(logTail.slice().sort(), ['- check-skipped - -', 'email reply:student-v:yes ' + samId + ' - applied, now pending']
+const logTail = grids.Log.slice(-6).map(line => line.slice(1).join(' ').trim());
+assert.deepEqual(logTail.slice().sort(), ['- check-skipped - -', 'email reply:student-v:yes ' + samId + ' - applied, now pending',
+  'step step:pending ' + samId + ' - waiting on coach until Sunday, October 4, 2026, 10:06 AM Pacific Time']
   .concat(sentLogs.map(line => line.replace(/^coaching sent /, '').replace(' ref=', ' ').replace(' to=', ' '))).sort());
 assert.ok(grids.Log.slice(1).every(line => /^\d{4}-\d\d-\d\dT/.test(line[0])), 'each row has its time');
 assert.equal(statusOf('sam@example.com'), 'pending', 'her YES sends it to the coach');
@@ -1501,7 +1502,7 @@ assert.equal(viewed.lines.length, Math.min(context.LOG_SHOWN, grids.Log.length -
 viewed.lines.forEach(line => {
   assert.deepEqual(Object.keys(line), ['at', 'channel', 'kind', 'ref', 'to', 'detail']);
   assert.match(line.at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/);
-  assert.match(line.channel, /^(email|text|error|-)$/);
+  assert.match(line.channel, /^(email|text|step|error|-)$/);
   assert.match(line.kind, /^[a-z0-9_:-]+$/);
   assert.match(line.ref, /^([0-9A-F]{6}|-)$/, 'what a message was about is shown only as a code');
   assert.match(line.to, /^([0-9A-F]{6}|-)$/);
@@ -1512,7 +1513,34 @@ assert.doesNotMatch(logView.text, PRIVATE, 'never a name or address');
 assert.doesNotMatch(logView.text.replace(/"(ref|to)":"[0-9A-F-]+"|"at":"[^"]+"/g, ''), /\d{3}\D?\d{3}\D?\d{4}/, 'or a number');
 const sameRef = viewed.lines.filter(line => line.kind === 'student_emailed:pending' || line.kind === 'coach_emailed:pending');
 assert.ok(sameRef.length >= 2 && sameRef.every(line => viewed.lines.filter(other => other.ref === line.ref).length >= 2), 'messages about one request share its code');
-for (let read = 1; read < context.MAX_LOG_READS_PER_MINUTE; read += 1) context.doGet({ parameter: { log: '' } });
+// One booking's whole story at ?log=<code>: the code in its emails, its steps, what was sent and the replies, in order.
+cache = {};
+const samRequest = requestBy('sam@example.com')[0];
+const samCode = context.bookingCode_({ request_id: cell('Requests', samRequest, 'request_id') });
+assert.match(samCode, /^[0-9A-F]{6}$/);
+const samCodes = requestBy('sam@example.com').map(line => context.bookingCode_({ request_id: cell('Requests', line, 'request_id') }));
+const samMail = allSent.filter(message => message.to.toLowerCase() === 'sam@example.com' && message.subject !== 'We could not read your reply');
+assert.ok(samMail.every(message => samCodes.some(code => message.body.includes('Booking code: ' + code + '. Quote it if you contact the club about this lesson.'))),
+  'every email to the student about a booking carries its code');
+assert.ok(samMail.filter(message => message.body.includes(samCode)).length >= 5);
+assert.ok(allSent.filter(message => /^Lesson (request from|confirmed)/.test(message.subject) && message.to === 'ann@example.com' && message.body.includes(samCode)).length >= 2,
+  'and so do the coach\'s');
+const story = JSON.parse(context.doGet({ parameter: { log: samCode.toLowerCase() } }).text);
+assert.ok(story.lines.length && story.lines.every(line => line.ref === samCode), 'only that booking\'s lines');
+assert.deepEqual(story.lines.filter(line => line.channel === 'step').map(line => line.kind), ['step:unverified', 'step:pending', 'step:confirmed', 'step:cancelled']);
+assert.match(story.lines[0].detail, /^waiting on student until \w+day, /, 'each step says who must act and by when');
+assert.deepEqual(story.lines.filter(line => line.kind.startsWith('reply:')).map(line => line.kind + ' ' + line.detail),
+  ['reply:student-v:yes applied, now pending', 'reply:coach-request:yes applied, now confirmed', 'reply:student-c:yes applied, now cancelled']);
+assert.deepEqual(Object.keys(story.booking), ['code', 'date', 'start', 'status', 'waitingOn', 'deadline']);
+assert.equal(story.booking.code, samCode);
+assert.equal(story.booking.status, 'cancelled');
+assert.equal(JSON.parse(context.doGet({ parameter: { log: '000000' } }).text).booking, null, 'an unknown code finds nothing');
+assert.equal(JSON.parse(context.doGet({ parameter: { log: '' } }).text).booking, undefined);
+const movedStep = grids.Log.slice(1).find(line => /^moved from [0-9A-F]{6}$/.test(String(line[5]).split(', ').pop()));
+assert.ok(movedStep && movedStep[2] === 'step:pending', 'a move logs the new booking with the code it came from');
+assert.ok(grids.Log.slice(1).some(line => line[2] === 'step:expired'), 'the sweep logs an expiry as a step');
+assert.match(story.runs.checkTexts.mail, /^q=\d+ late=\d+/, 'the last minute check shows the same mail counts as the status read-out');
+for (let read = 3; read < context.MAX_LOG_READS_PER_MINUTE; read += 1) context.doGet({ parameter: { log: '' } });
 assert.deepEqual(JSON.parse(context.doGet({ parameter: { log: '' } }).text), { ok: false, message: 'Too many reads. Try again in a minute.' }, 'reads are limited');
 assert.notEqual(context.doGet({}).getContent, undefined, 'without ?log the page is served as before');
 // The sweep keeps only the latest LOG_KEEP rows.

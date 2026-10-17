@@ -108,7 +108,7 @@ var PUBLIC_TABS = {
 };
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.log !== undefined) return logView_();
+  if (e && e.parameter && e.parameter.log !== undefined) return logView_(String(e.parameter.log).trim().toUpperCase());
   var output = HtmlService.createTemplateFromFile('Index').evaluate();
   var initial = initialData_();
   if (initial) output.setContent(output.getContent().replace('var INITIAL = null;', 'var INITIAL = ' + scriptJson_(initial) + ';'));
@@ -639,6 +639,7 @@ function requestSlot(form) {
       expires_at: Math.min(now + VERIFY_MS, expiryFor_(slot.date, start)), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table
     };
     save_('Requests', created);
+    logStep_(created);
     student = rows_('Students').filter(function (entry) { return entry.email === email; })[0];
     texted = !!student && student.texts === 'yes' && !!phoneDigits_(student.phone);
   } finally {
@@ -1046,7 +1047,7 @@ function askStudentChange_(question) {
         { rows: move ? [['Now', when + ', ' + coachLabel + ', Table ' + (Number(request.table) || 1)], ['New time', move]] :
           lessonRows_(request).concat([['Coach', coachLabel]]) }].concat(
         scheduleBlocks_('On the schedule', move ? [current, { date: target.date, coachId: target.coachId, start: target.start, minutes: target.minutes, kind: 'to' }] : [current]), [
-        'If you did not ask for this, ignore this email.']), null, ['student-change-confirm', request.request_id]);
+        'If you did not ask for this, ignore this email.', bookingLine_(request)]), null, ['student-change-confirm', request.request_id]);
     }
   } catch (error) {
     logError_('email a student about a change', error, request.request_id);
@@ -1094,6 +1095,8 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
     var requests = rows_('Requests');
     request = requests.filter(function (entry) { return entry.request_id === requestId; })[0];
     if (!request) return;
+    var before = request.status;
+    var moved = null;
     student = rows_('Students').filter(function (entry) { return entry.email === request.student_email; })[0];
     if (student && student.ask_ref === kind + ':' + requestId) {
       student.ask_ref = '';
@@ -1136,7 +1139,7 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
         } else {
           request.status = 'cancelled';
           request.cancelled_by = 'move';
-          save_('Requests', {
+          save_('Requests', moved = {
             request_id: id_(), coach_id: slot.coachId, date: slot.date, start: slot.start, minutes: slot.minutes, student_label: request.student_label,
             student_name: request.student_name, student_email: request.student_email, guardian_name: request.guardian_name, note: request.note, status: 'pending',
             created_at: nowIso_(), expires_at: expiryFor_(slot.date, slot.start), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(),
@@ -1147,6 +1150,8 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
     }
     request.updated_at = nowIso_();
     save_('Requests', request);
+    if (request.status !== before) logStep_(request);
+    if (moved) logStep_(moved, 'moved from ' + bookingCode_(request));
   } finally {
     lock.releaseLock();
   }
@@ -1154,7 +1159,7 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
   if (reply) {
     try {
       if (channel === 'text') sendText_({ name: student.name, phone: student.phone }, 'CTTC: ' + reply, ['student-answer-reply', requestId]);
-      else if (mailAvailable_()) sendMail_(request.student_email, 'Your coaching lesson', [reply], null, ['student-answer-reply', requestId]);
+      else if (mailAvailable_()) sendMail_(request.student_email, 'Your coaching lesson', [reply, bookingLine_(request)], null, ['student-answer-reply', requestId]);
     } catch (error) {
       logError_('answer a student', error, requestId);
     }
@@ -1204,6 +1209,7 @@ function sweep_() {
         request.status = status;
         request.updated_at = nowIso_();
         save_('Requests', request);
+        logStep_(request);
       }
       if (now - Date.parse(request.updated_at) > RETRY_MAIL_DAYS * 86400000) return;
       var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
@@ -1246,7 +1252,7 @@ function deliver_(request, coach, field, compose) {
     try {
       var log = [field + ':' + request.status, request.request_id];
       if (message.text) sendText_(message.person, message.text, log);
-      else sendMail_(message.to, message.subject, message.lines, message.cc, log);
+      else sendMail_(message.to, message.subject, message.lines.concat(bookingLine_(request)), message.cc, log);
     } catch (error) {
       logError_('send ' + field + ':' + request.status, error, request.request_id);
       return;
@@ -1289,7 +1295,7 @@ function remindWaiting_(coaches, students, requests, now) {
           { callout: '**Still waiting for you:** ' + lesson + ' has **not** been sent to the coach yet. Reply **YES** to this email by **' + deadline +
             '** to send it. If you do not reply, the request expires and the time is released.', tone: 'action' },
           'Reply from this same email address. Replying to the earlier "Confirm your coaching request" email works too.'
-        ].concat(ask.lines.slice(2)), null, ['student-reminder', request.request_id]);
+        ].concat(ask.lines.slice(2), bookingLine_(request)), null, ['student-reminder', request.request_id]);
       });
       attempt(function () {
         textStudentQuestion_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
@@ -1302,7 +1308,7 @@ function remindWaiting_(coaches, students, requests, now) {
         if (question) sendMail_(question.to, 'Reminder: ' + question.subject, [
           { callout: '**Still waiting for you:** ' + request.student_name + ' confirmed this request and it is **waiting for your YES**. Reply **YES** (or NO) to this email by **' + deadline +
             '**, or the request expires and the club is told.', tone: 'action' },
-          'Reply from this same email address.'].concat(question.lines), null, ['coach-reminder', request.request_id]);
+          'Reply from this same email address.'].concat(question.lines, bookingLine_(request)), null, ['coach-reminder', request.request_id]);
     });
     attempt(function () {
         if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true), ['coach-reminder', request.request_id]);
@@ -1310,7 +1316,7 @@ function remindWaiting_(coaches, students, requests, now) {
     attempt(function () {
         sendMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
           { callout: lesson + ' is **waiting for ' + coachName_(coach) + ' to accept it.** You confirmed it, so **nothing more is needed from you**. It is not booked until the coach accepts.', tone: 'action' },
-          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.'], null, ['student-waiting-on-coach', request.request_id]);
+          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.', bookingLine_(request)], null, ['student-waiting-on-coach', request.request_id]);
     });
   });
 }
@@ -1800,6 +1806,7 @@ function answer_(coachId, ref, answer, channel) {
         request.status = status = answer === 'yes' ? 'confirmed' : 'declined';
         request.updated_at = nowIso_();
         save_('Requests', request);
+        logStep_(request);
       } else {
         reply = 'CTTC: That lesson request is no longer waiting' + (status ? ' (it is ' + status + ')' : '') + ', so nothing changed.';
         applied = false;
@@ -1855,7 +1862,7 @@ function checkTexts_() {
   step_('read email answers', checkMail_);
   step_('verify coaches', verifyCoaches_);
   reportStatus_();
-  recordRun_('checkTexts', STATUS_.failed);
+  recordRun_('checkTexts', STATUS_.failed, STATUS_.mail);
 }
 
 // What the last minute check did, as counts only. reportStatus_ shows it in the NAME of a separate, empty spreadsheet
@@ -2302,6 +2309,23 @@ function logRow_(channel, kind, ref, to, detail) {
   }
 }
 
+// The code a booking goes by in the log and in every email about it: the same six characters in both, so a student, a coach or the
+// club can quote it and a maintainer can find the booking's whole story at ?log=<code>. Made with the app's secret from the
+// request id, so it says nothing about the person. A move starts a new request, with a new code.
+function refCode_(ref) { return code_('ref:' + ref).slice(0, 6); }
+
+function bookingCode_(request) { return refCode_(request.request_id); }
+
+function bookingLine_(request) { return 'Booking code: ' + bookingCode_(request) + '. Quote it if you contact the club about this lesson.'; }
+
+// A request moved to a new step (channel 'step'): the status, who must act next and by when, or who cancelled it.
+function logStep_(request, extra) {
+  var waiting = waitingOn_(request, Date.now());
+  var detail = waiting ? 'waiting on ' + waiting + ' until ' + momentLabel_(Number(request.expires_at)) :
+    request.status === 'cancelled' && request.cancelled_by ? 'by ' + request.cancelled_by : '';
+  logRow_('step', 'step:' + request.status, request.request_id, '-', [detail, extra].filter(Boolean).join(', '));
+}
+
 // Something went wrong: the console gets the full error, the Log tab a row (channel 'error') with what failed, what it was about,
 // and the error with every address, number, quoted text and long id taken out. The same failure is logged at most every 10
 // minutes, so one that repeats every minute does not push everything else out of the log.
@@ -2330,11 +2354,14 @@ function logReply_(channel, who, ref, answer, applied, status) {
   logRow_(channel, 'reply:' + who + ':' + answer, ref, '-', (applied ? 'applied' : 'not applied') + (status ? ', now ' + status : ''));
 }
 
-// The last run of the minute check and of the sweep, shown at ?log: when, and which steps failed. Kept in script properties,
+// The last run of the minute check and of the sweep, shown at ?log: when, which steps failed and, for the minute check, the same
+// mail counts as the status read-out (reportStatus_). Kept in script properties,
 // not the Log tab, so a check every minute does not fill the log.
-function recordRun_(name, failed) {
+function recordRun_(name, failed, mail) {
   try {
-    PropertiesService.getScriptProperties().setProperty('RUN_' + name, JSON.stringify({ at: nowIso_(), ok: !failed.length, failed: failed }));
+    var run = { at: nowIso_(), ok: !failed.length, failed: failed };
+    if (mail) run.mail = mail;
+    PropertiesService.getScriptProperties().setProperty('RUN_' + name, JSON.stringify(run));
   } catch (error) {
     console.error('Could not record a run: ' + error);
   }
@@ -2348,6 +2375,20 @@ function lastRun_(name) {
   }
 }
 
+// What ?log=<code> says about one booking: its lesson time, step and deadline, as the public schedule shows them. null when no
+// booking from the last 60 days has that code.
+function bookingSummary_(code) {
+  var now = Date.now();
+  var request = rows_('Requests').filter(function (entry) {
+    return now - (Date.parse(entry.created_at) || 0) < 60 * 86400000 && bookingCode_(entry) === code;
+  })[0];
+  if (!request) return null;
+  var status = effectiveStatus_(request, now);
+  var waiting = waitingOn_(request, now);
+  return { code: code, date: request.date, start: request.start, status: status, waitingOn: waiting,
+    deadline: waiting ? new Date(Number(request.expires_at)).toISOString() : '' };
+}
+
 // Call while holding the lock. Keeps the Log tab to its latest LOG_KEEP rows.
 function trimLog_() {
   var sheet = tab_('Log');
@@ -2359,7 +2400,7 @@ function trimLog_() {
 // twice. Anyone can open it, so it holds only the time, the channel, the kind of message, and codes made with the app's secret
 // for what it was about and who got it: never a name, address, number or id from the private Sheet. Read at most
 // MAX_LOG_READS_PER_MINUTE times a minute.
-function logView_() {
+function logView_(code) {
   var cache = CacheService.getScriptCache();
   var key = 'log-reads:' + Math.floor(Date.now() / 60000);
   var reads = Number(cache.get(key) || 0) + 1;
@@ -2367,10 +2408,10 @@ function logView_() {
   var body = reads > MAX_LOG_READS_PER_MINUTE ? { ok: false, message: 'Too many reads. Try again in a minute.' } : {
     ok: true,
     runs: { checkTexts: lastRun_('checkTexts'), sweep: lastRun_('sweep') },
-    lines: rows_('Log').slice(-LOG_SHOWN).map(function (entry) {
-      return { at: entry.at, channel: entry.channel, kind: entry.kind, ref: entry.ref === '-' ? '-' : code_('ref:' + entry.ref).slice(0, 6), to: entry.to,
-        detail: entry.detail };
-    })
+    booking: /^[0-9A-F]{6}$/.test(code) ? bookingSummary_(code) : undefined,
+    lines: rows_('Log').map(function (entry) {
+      return { at: entry.at, channel: entry.channel, kind: entry.kind, ref: entry.ref === '-' ? '-' : refCode_(entry.ref), to: entry.to, detail: entry.detail };
+    }).filter(function (line) { return !/^[0-9A-F]{6}$/.test(code) || line.ref === code; }).slice(-LOG_SHOWN)
   };
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);
 }
