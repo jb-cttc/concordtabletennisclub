@@ -97,9 +97,10 @@ var TABS = {
     'verified_at', 'change', 'change_at',
     // reminded is the waiting status ('unverified' or 'pending') a reminder was sent for, so each step is reminded once.
     'reminded'],
-  // One row per message sent (see logSent_), newest last; the sweep keeps the latest LOG_KEEP. to is already a code, never an
-  // address or number. Shown, with ref coded too, at the web app's address with ?log (see logView_).
-  Log: ['at', 'channel', 'kind', 'ref', 'to']
+  // One row per message sent (logSent_), reply read (logReply_) or failure (logError_), newest last; the sweep keeps the latest
+  // LOG_KEEP. to is already a code, never an address or number; detail never holds one either. Shown, with ref coded too, at the
+  // web app's address with ?log (see logView_).
+  Log: ['at', 'channel', 'kind', 'ref', 'to', 'detail']
 };
 // Public Sheet. Nothing private ever goes in here.
 var PUBLIC_TABS = {
@@ -122,7 +123,7 @@ function initialData_() {
   try {
     return { openSlots: openSlots(), coachList: coachList() };
   } catch (error) {
-    console.error('Could not prepare the first screen: ' + error);
+    logError_('prepare the first screen', error);
     return null;
   }
 }
@@ -540,7 +541,7 @@ function publish_(now) {
     sheet.clearContents();
     sheet.getRange(1, 1, values.length, values[0].length).setNumberFormat('@').setValues(values);
   } catch (error) {
-    console.error('Could not update the public schedule: ' + error);
+    logError_('update the public schedule', error);
   }
 }
 
@@ -652,7 +653,7 @@ function requestSlot(form) {
     }
     sweep_();
   } catch (error) {
-    console.error('Request ' + created.request_id + ' was saved, but the follow-up failed: ' + error);
+    logError_('finish a saved request', error, created.request_id);
   }
   return {
     ok: true, label: studentName_(created), texts: !!phone, textNumber: TEXT_NUMBER,
@@ -727,7 +728,7 @@ function notifyWaitlist_(coaches, now) {
         scheduleBlocks_('On the schedule', [{ date: slot.date, coachId: slot.coachId, start: slot.start, minutes: slot.minutes, kind: 'opened' }]), [
         'You were on the waitlist for this time and have now been taken off it.']), null, ['waitlist-open', wait.avail_id]);
     } catch (error) {
-      console.error('Could not email the waitlist: ' + error);
+      logError_('email the waitlist', error, wait.avail_id);
       return;
     }
     drop.push(wait._row);
@@ -868,7 +869,7 @@ function coachPropose(coachId, slots) {
         ], null, ['coach-times-confirm', coach.coach_id]);
         sent.email = true;
       } catch (error) {
-        console.error('Could not email a coach to confirm times: ' + error);
+        logError_('email a coach to confirm times', error, coach.coach_id);
       }
     }
     if (phoneDigits_(coach.phone)) {
@@ -876,7 +877,7 @@ function coachPropose(coachId, slots) {
         sendText_(coach, proposalText_(coach, plan), ['coach-times-confirm', coach.coach_id]);
         sent.text = true;
       } catch (error) {
-        console.error('Could not text a coach to confirm times: ' + error);
+        logError_('text a coach to confirm times', error, coach.coach_id);
       }
     }
     if (!sent.email && !sent.text) {
@@ -1048,7 +1049,7 @@ function askStudentChange_(question) {
         'If you did not ask for this, ignore this email.']), null, ['student-change-confirm', request.request_id]);
     }
   } catch (error) {
-    console.error('Could not email a student about a change: ' + error);
+    logError_('email a student about a change', error, request.request_id);
   }
   askStudentText_(question.student, 'c:' + request.request_id, 'CTTC: Reply YES to ' + (move ? 'move' : 'cancel') + ' ' + studentName_(request) + '\'s lesson on ' +
     shortWhen_(request.date, request.start) + (move ? ' to ' + shortWhen_(question.target.date, question.target.start) + ' (' + question.target.coach + ')' : '') + ', or NO to keep it.');
@@ -1072,7 +1073,7 @@ function textStudentQuestion_(student, ref, body) {
   try {
     sendText_({ name: student.name, phone: student.phone }, body, ['student-question', ref]);
   } catch (error) {
-    console.error('Could not text a student a question: ' + error);
+    logError_('text a student a question', error, ref);
     return;
   }
   student.ask_ref = ref;
@@ -1083,6 +1084,7 @@ function textStudentQuestion_(student, ref, body) {
 // Applies a student's YES or NO. kind 'v' confirms a new request; 'c' a cancellation or move.
 function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
   var reply = '';
+  var applied = true;
   var request = null;
   var student = null;
   var lock = LockService.getScriptLock();
@@ -1104,6 +1106,7 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
       var late = status === 'expired' && answeredAt && answeredAt < Number(request.expires_at) && lateVerify_(request, requests, rows_('Availability'), now);
       if (status !== 'unverified' && !late) {
         reply = 'That request is no longer waiting for you (it is ' + status + '), so nothing changed.';
+        applied = false;
       } else if (answer === 'yes') {
         request.status = 'pending';
         request.verified_at = nowIso_();
@@ -1119,6 +1122,7 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
       request.change_at = '';
       if (!change || !holds_(request, now)) {
         reply = 'That change is no longer waiting, so nothing changed.';
+        applied = false;
       } else if (answer === 'no') {
         reply = 'OK, nothing changed. ' + studentName_(request) + '\'s lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ' stays as it is.';
       } else if (change === 'cancel') {
@@ -1128,6 +1132,7 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
         var slot = openSlots_(rows_('Coaches'), rows_('Availability'), requests, now).filter(function (candidate) { return candidate.key === change.slice(5); })[0];
         if (!slot) {
           reply = 'That new time was taken before you replied, so nothing changed. Your lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ' stays as it is.';
+          applied = false;
         } else {
           request.status = 'cancelled';
           request.cancelled_by = 'move';
@@ -1145,12 +1150,13 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
   } finally {
     lock.releaseLock();
   }
+  logReply_(channel, 'student-' + kind, requestId, answer, applied, request.status);
   if (reply) {
     try {
       if (channel === 'text') sendText_({ name: student.name, phone: student.phone }, 'CTTC: ' + reply, ['student-answer-reply', requestId]);
       else if (mailAvailable_()) sendMail_(request.student_email, 'Your coaching lesson', [reply], null, ['student-answer-reply', requestId]);
     } catch (error) {
-      console.error('Could not answer a student: ' + error);
+      logError_('answer a student', error, requestId);
     }
   }
   sweep_();
@@ -1220,6 +1226,11 @@ function sweep_() {
     });
     publish_(now);
     trimLog_();
+    recordRun_('sweep', []);
+  } catch (error) {
+    logError_('finish the sweep', error);
+    recordRun_('sweep', ['finish the sweep: ' + cleanDetail_(error).slice(0, 80)]);
+    throw error;
   } finally {
     lock.releaseLock();
   }
@@ -1237,7 +1248,7 @@ function deliver_(request, coach, field, compose) {
       if (message.text) sendText_(message.person, message.text, log);
       else sendMail_(message.to, message.subject, message.lines, message.cc, log);
     } catch (error) {
-      console.error('Could not send a coaching ' + (message.text ? 'text' : 'email') + ': ' + error);
+      logError_('send ' + field + ':' + request.status, error, request.request_id);
       return;
     }
   }
@@ -1268,7 +1279,7 @@ function remindWaiting_(coaches, students, requests, now) {
       try {
         send();
       } catch (error) {
-        console.error('Could not send part of a coaching reminder: ' + error);
+        logError_('send part of a coaching reminder', error, request.request_id);
       }
     };
     if (status === 'unverified') {
@@ -1378,7 +1389,7 @@ function dayGrid_(date, marks) {
     }
     return { html: html + '</table>' };
   } catch (error) {
-    console.error('Could not draw the schedule for an email: ' + error);
+    logError_('draw the schedule for an email', error);
     return null;
   }
 }
@@ -1740,7 +1751,7 @@ function askCoaches_(coaches, requests, now) {
           save_('Requests', request);
         }
       } catch (error) {
-        console.error('Could not text a coach a question: ' + error);
+        logError_('text a coach a question', error, coach.coach_id);
       }
     }
     if (coach.ask_ref && refs.indexOf(coach.ask_ref) < 0) {
@@ -1755,6 +1766,8 @@ function askCoaches_(coaches, requests, now) {
 // Applies a coach's YES or NO. A text answers the question texted last (ask_ref); an email answers the one its reference code names.
 function answer_(coachId, ref, answer, channel) {
   var reply = '';
+  var applied = true;
+  var status = '';
   var coach = null;
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -1774,6 +1787,7 @@ function answer_(coachId, ref, answer, channel) {
           (done.skipped ? ' ' + done.skipped + ' could not be added because another coach took the table or it overlapped a lesson request.' : '') +
           ' Students can request them at ' + PAGE_URL.replace('https://', '') + '.';
       } else {
+        applied = answer !== 'yes';
         reply = answer === 'yes' ? 'CTTC: That list expired, so nothing changed. Please submit your times again.' :
           'CTTC: OK, nothing was changed. Your coaching times stay as they were.';
         coach.ask_slots = '';
@@ -1781,13 +1795,14 @@ function answer_(coachId, ref, answer, channel) {
       }
     } else {
       var request = rows_('Requests').filter(function (entry) { return entry.request_id === ref; })[0];
-      var status = request ? effectiveStatus_(request, now) : '';
+      status = request ? effectiveStatus_(request, now) : '';
       if (status === 'pending') {
-        request.status = answer === 'yes' ? 'confirmed' : 'declined';
+        request.status = status = answer === 'yes' ? 'confirmed' : 'declined';
         request.updated_at = nowIso_();
         save_('Requests', request);
       } else {
         reply = 'CTTC: That lesson request is no longer waiting' + (status ? ' (it is ' + status + ')' : '') + ', so nothing changed.';
+        applied = false;
       }
     }
     if (coach.ask_ref === ref) {
@@ -1798,12 +1813,13 @@ function answer_(coachId, ref, answer, channel) {
   } finally {
     lock.releaseLock();
   }
+  logReply_(channel, ref === 'slots' ? 'coach-slots' : 'coach-request', ref === 'slots' ? coachId : ref, answer, applied, status);
   if (reply) {
     try {
       if (channel === 'text') sendText_(coach, reply, ['coach-answer-reply', ref]);
       else if (mailAvailable_()) sendMail_(cleanEmail_(coach.email), ref === 'slots' ? 'Your coaching times' : 'Lesson request', [reply.replace(/^CTTC: /, '')], null, ['coach-answer-reply', ref]);
     } catch (error) {
-      console.error('Could not answer a coach: ' + error);
+      logError_('answer a coach', error, ref);
     }
   }
   sweep_();
@@ -1832,12 +1848,14 @@ function checkTexts() {
 }
 
 function checkTexts_() {
+  STATUS_ = { failed: [], mail: 'not run' };
   step_('read coach texts', function () { checkCoachTexts_(); });
   step_('read student texts', function () { checkStudentAnswers_(); });
   step_('read STUDENT and STOP texts', checkStudentTexts_);
   step_('read email answers', checkMail_);
   step_('verify coaches', verifyCoaches_);
   reportStatus_();
+  recordRun_('checkTexts', STATUS_.failed);
 }
 
 // What the last minute check did, as counts only. reportStatus_ shows it in the NAME of a separate, empty spreadsheet
@@ -1864,7 +1882,7 @@ function reportStatus_() {
       ' | failed: ' + (STATUS_.failed.join('; ') || 'none');
     if (book.getName() !== name) book.rename(name.slice(0, 250));
   } catch (error) {
-    console.error('Could not update the status read-out: ' + error);
+    logError_('update the status read-out', error);
   }
 }
 
@@ -1892,9 +1910,8 @@ function step_(name, run) {
   try {
     run();
   } catch (error) {
-    console.error('Could not ' + name + ': ' + error);
-    STATUS_.failed.push(name + ': ' + String(error).replace(/\S+@\S+/g, '<address>').replace(/\+?\d[\d\s().-]{5,}\d/g, '<number>')
-      .replace(/"[^"]*"/g, '"…"').slice(0, 80));
+    logError_(name, error);
+    STATUS_.failed.push(name + ': ' + cleanDetail_(error).slice(0, 80));
     alertAdmin_('step:' + name, 'Coaching app: could not ' + name, ['The coaching app could not ' + name + '. It tries again every minute. The error was: ' + error]);
   }
 }
@@ -1907,7 +1924,7 @@ function alertAdmin_(key, subject, lines) {
     cache.put('alert:' + key, '1', 21600);
     sendMail_(adminEmail_(), subject, lines, null, ['club-alert', key]);
   } catch (error) {
-    console.error('Could not alert the club: ' + error);
+    logError_('alert the club', error);
   }
 }
 
@@ -1943,7 +1960,7 @@ function verifyCoaches_() {
         ', tap I am a coach and pick ' + entry.label + '. We will text you here to confirm your times and lesson requests.');
       logSent_('text', 'coach-verified', entry.coach.coach_id, phoneDigits_(entry.coach.phone) || entry.coach.name);
     } catch (error) {
-      console.error('Could not tell a coach they are verified: ' + error);
+      logError_('tell a coach they are verified', error, entry.coach.coach_id);
     }
   });
 }
@@ -2106,12 +2123,12 @@ function wrongSender_(messageId, address, expected, subject) {
         '", but it came from a different email address than the one the question was sent to, so nothing changed.',
         { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }], null, ['wrong-sender', messageId]);
     } catch (error) {
-      console.error('Could not tell a sender to use the right address: ' + error);
+      logError_('tell a sender to use the right address', error, messageId);
     }
     alertAdmin_('sender:' + messageId, 'Coaching: a reply came from the wrong address', ['A reply to "' + subject + '" came from ' + address + ', but the question went to ' +
       expected + ', so it was not counted. The sender was asked to reply from ' + expected + '.']);
   } catch (error) {
-    console.error('Could not send a reply notice: ' + error);
+    logError_('send a reply notice', error);
   }
 }
 
@@ -2125,12 +2142,12 @@ function unreadableReply_(messageId, address, subject, line) {
       sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
         { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }], null, ['unreadable-reply', messageId]);
     } catch (error) {
-      console.error('Could not tell a sender their reply was unreadable: ' + error);
+      logError_('tell a sender their reply was unreadable', error, messageId);
     }
     alertAdmin_('unread:' + messageId, 'Coaching: a reply could not be read', ['A reply to "' + subject + '" from ' + address + ' started with "' +
       String(line || '').slice(0, 80) + '", which is not YES or NO. They were asked to reply again.']);
   } catch (error) {
-    console.error('Could not send a reply notice: ' + error);
+    logError_('send a reply notice', error);
   }
 }
 
@@ -2199,7 +2216,7 @@ function checkStudentTexts_() {
       answer.message.reply(answer.body);
       logSent_('text', 'student-texts-' + answer.word, answer.message.getId(), answer.digits);
     } catch (error) {
-      console.error('Could not answer a student text: ' + error);
+      logError_('answer a student text', error);
     }
   });
 }
@@ -2277,11 +2294,57 @@ function logSent_(channel, kind, ref, to) {
   }
 }
 
-function logRow_(channel, kind, ref, to) {
+function logRow_(channel, kind, ref, to, detail) {
   try {
-    tab_('Log').appendRow([nowIso_(), channel, kind, ref, to].map(function (value) { return "'" + value; }));
+    tab_('Log').appendRow([nowIso_(), channel, kind, ref, to, detail || ''].map(function (value) { return "'" + value; }));
   } catch (error) {
     console.error('Could not write to the Log tab: ' + error);
+  }
+}
+
+// Something went wrong: the console gets the full error, the Log tab a row (channel 'error') with what failed, what it was about,
+// and the error with every address, number, quoted text and long id taken out. The same failure is logged at most every 10
+// minutes, so one that repeats every minute does not push everything else out of the log.
+function logError_(what, error, ref) {
+  console.error('Could not ' + what + ': ' + error);
+  try {
+    var kind = String(what).toLowerCase().replace(/[^a-z0-9_:]+/g, '-');
+    var cache = CacheService.getScriptCache();
+    var key = 'logged:' + kind + ':' + (ref || '-');
+    if (cache.get(key)) return;
+    cache.put(key, '1', 600);
+    logRow_('error', kind, ref || '-', '-', cleanDetail_(error));
+  } catch (failure) {
+    console.error('Could not log a failure: ' + failure);
+  }
+}
+
+// An error message with nothing personal left in it: addresses, numbers, quoted text and long ids are replaced.
+function cleanDetail_(error) {
+  return String(error).replace(/\S+@\S+/g, '<address>').replace(/\+?\d[\d\s().-]{5,}\d/g, '<number>').replace(/"[^"]*"/g, '"…"')
+    .replace(/'[^']*'/g, "'…'").replace(/[A-Za-z0-9_-]{20,}/g, '<id>').slice(0, 120);
+}
+
+// A YES or NO that was read and acted on (channel 'email' or 'text'), and whether it changed anything.
+function logReply_(channel, who, ref, answer, applied, status) {
+  logRow_(channel, 'reply:' + who + ':' + answer, ref, '-', (applied ? 'applied' : 'not applied') + (status ? ', now ' + status : ''));
+}
+
+// The last run of the minute check and of the sweep, shown at ?log: when, and which steps failed. Kept in script properties,
+// not the Log tab, so a check every minute does not fill the log.
+function recordRun_(name, failed) {
+  try {
+    PropertiesService.getScriptProperties().setProperty('RUN_' + name, JSON.stringify({ at: nowIso_(), ok: !failed.length, failed: failed }));
+  } catch (error) {
+    console.error('Could not record a run: ' + error);
+  }
+}
+
+function lastRun_(name) {
+  try {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty('RUN_' + name) || 'null');
+  } catch (error) {
+    return null;
   }
 }
 
@@ -2303,8 +2366,10 @@ function logView_() {
   cache.put(key, String(reads), 120);
   var body = reads > MAX_LOG_READS_PER_MINUTE ? { ok: false, message: 'Too many reads. Try again in a minute.' } : {
     ok: true,
+    runs: { checkTexts: lastRun_('checkTexts'), sweep: lastRun_('sweep') },
     lines: rows_('Log').slice(-LOG_SHOWN).map(function (entry) {
-      return { at: entry.at, channel: entry.channel, kind: entry.kind, ref: entry.ref === '-' ? '-' : code_('ref:' + entry.ref).slice(0, 6), to: entry.to };
+      return { at: entry.at, channel: entry.channel, kind: entry.kind, ref: entry.ref === '-' ? '-' : code_('ref:' + entry.ref).slice(0, 6), to: entry.to,
+        detail: entry.detail };
     })
   };
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(ContentService.MimeType.JSON);

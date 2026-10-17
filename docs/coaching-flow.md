@@ -87,8 +87,22 @@ kept), and the web app shows the latest 300 to anyone at its `/exec` address
 with `?log` added, as JSON:
 `{"at":"2026-10-17T19:02:11.000Z","channel":"email","kind":"student_emailed:pending","ref":"3F09A1","to":"D811B0"}`.
 There `ref` is a code too, so nothing from the private Sheet is shown; lines
-with the same `kind`, `ref` and `to` are the same message sent twice. A skipped
-minute check shows as kind `check-skipped`. It answers 20 reads a minute.
+with the same `kind`, `ref` and `to` are the same message sent twice. It
+answers 20 reads a minute. Besides messages sent (`channel` `email` or `text`),
+the log holds:
+
+- **Replies read**: kind `reply:<who>:<yes|no>` (`student-v` confirms a
+  request, `student-c` a cancel or move, `coach-request`, `coach-slots`), with
+  `detail` `applied, now confirmed` or `not applied, now expired`.
+- **Failures**: `channel` `error`, kind naming what failed (for example
+  `send-coach_emailed:pending`, `read-coach-texts`), and `detail` the error
+  with addresses, numbers, quoted text and long ids replaced. The same failure
+  is logged at most every 10 minutes.
+- **Skipped minute checks**: kind `check-skipped`.
+
+Above the lines, `runs` shows the last minute check and the last sweep: when
+they finished, `ok`, and which steps failed. A `checkTexts` time more than a
+few minutes old means the minute trigger has stopped.
 
 ## 3. The request lifecycle
 
