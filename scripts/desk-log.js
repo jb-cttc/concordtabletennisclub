@@ -109,11 +109,22 @@ async function main() {
   try {
     values = await fetchSheetRows(id, "'" + TAB + "'!A:F", email, key);
   } catch (error) {
-    // The API's own message is not printed: it can name the Sheet.
-    const status = /HTTP (\d+)/.exec(error.message);
-    throw new Error('Could not read the ' + TAB + ' tab' + (status ? ' (HTTP ' + status[1] + ')' : '') + '. It is made the first time the desk logs something.');
+    // No tab yet means nothing has been logged yet: that is not a failure, and must not email anyone.
+    if (/Unable to parse range/i.test(error.message)) values = [['at', 'level', 'what', 'session', 'ref', 'detail']];
+    else {
+      // The API's own message is not printed: it can name the Sheet.
+      const status = /HTTP (\d+)/.exec(error.message);
+      throw new Error('Could not read the ' + TAB + ' tab' + (status ? ' (HTTP ' + status[1] + ')' : '') + '. Check that the service account can still view the round-robin Sheet.');
+    }
   }
-  const report = buildReport(parseRows(values), Date.now(), options);
+  const rows = parseRows(values);
+  if (!rows.length) {
+    const empty = 'CTTC Desk Logs: nothing logged yet. The desk makes the tab, and starts logging, with its first save, finalize or problem.';
+    console.log(empty);
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, empty + '\n');
+    return;
+  }
+  const report = buildReport(rows, Date.now(), options);
   console.log(report);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '```\n' + report + '\n```\n');
 }

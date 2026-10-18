@@ -36,7 +36,10 @@ var TABLES = 3;
 var MAX_WAITERS_PER_SLOT = 10;
 var MAX_WAITS_PER_EMAIL = 5;
 var MAX_WAITLIST = 2000;
-var ASK_TTL_MS = 24 * 60 * 60 * 1000;
+// A coach has 48 hours to answer a list of times. A reply up to 14 days after that is still answered (lateProposal_): the times
+// are offered again if they are all still free, or the coach is told which were taken.
+var ASK_TTL_MS = 48 * 60 * 60 * 1000;
+var LATE_ASK_MS = 14 * 24 * 60 * 60 * 1000;
 var PROPOSE_WAIT_MS = 10 * 60 * 1000;
 var MAX_PROPOSALS_PER_DAY = 10;
 var THREAD_DAYS = 90;
@@ -783,13 +786,32 @@ function coachById_(coachId) {
 }
 
 // The times a coach submitted and has not answered yet, or null.
+// The coach's list of times while it can still be answered with a plain YES (ASK_TTL_MS), or null.
 function proposalOf_(coach, now) {
-  if (!coach.ask_slots || !(now - Number(coach.ask_made) < ASK_TTL_MS)) return null;
+  return now - Number(coach.ask_made) < ASK_TTL_MS ? proposalSlots_(coach) : null;
+}
+
+// A list whose 48 hours have passed but which is kept, for LATE_ASK_MS, so a late reply can still be answered.
+function expiredProposal_(coach, now) {
+  var age = now - Number(coach.ask_made);
+  return age >= ASK_TTL_MS && age < ASK_TTL_MS + LATE_ASK_MS ? proposalSlots_(coach) : null;
+}
+
+function proposalSlots_(coach) {
+  if (!coach.ask_slots || !(Number(coach.ask_made) > 0)) return null;
   try {
     return JSON.parse(coach.ask_slots);
   } catch (error) {
     return null;
   }
+}
+
+// When a list must be answered by, for the email ('Saturday, October 24, 2026, 6:21 PM Pacific Time') and a text ('Sat Oct 24, 6:21 PM').
+function replyBy_(made) { return momentLabel_(Number(made) + ASK_TTL_MS); }
+
+function shortMoment_(ms) {
+  var parts = Utilities.formatDate(new Date(ms), TZ, 'yyyy-MM-dd HH:mm').split(' ');
+  return shortWhen_(parts[0], parts[1]);
 }
 
 // Everything on this page is public anyway (labels and times), so it needs no sign-in.
@@ -860,7 +882,7 @@ function coachPropose(coachId, slots) {
     if (email && mailAvailable_()) {
       try {
         sendMail_(email, 'Confirm your coaching times ' + refTag_(proposalCode_(coach.coach_id, now)), [
-          { callout: '**Action needed:** reply to this email. **Nothing changes until you reply.**', tone: 'action' },
+          { callout: '**Action needed:** reply to this email by **' + replyBy_(now) + '**. **Nothing changes until you reply.**', tone: 'action' },
           { choices: [['YES', 'Publish these changes to ' + coachName_(coach) + '\'s coaching times.'], ['NO', 'Cancel. Your coaching times stay as they are.']] },
           plan.add.length ? 'Add: ' + slotList_(plan.add) : '',
           plan.remove.length ? 'Remove: ' + slotList_(plan.remove) : '',
@@ -875,7 +897,7 @@ function coachPropose(coachId, slots) {
     }
     if (phoneDigits_(coach.phone)) {
       try {
-        sendText_(coach, proposalText_(coach, plan), ['coach-times-confirm', coach.coach_id]);
+        sendText_(coach, proposalText_(coach, plan, now), ['coach-times-confirm', coach.coach_id]);
         sent.text = true;
       } catch (error) {
         logError_('text a coach to confirm times', error, coach.coach_id);
@@ -945,13 +967,135 @@ function slotList_(slots) {
   }).join('; ');
 }
 
-function proposalText_(coach, plan) {
-  return 'CTTC: Reply YES to update ' + coachName_(coach) + '\'s coaching times, or NO to cancel.' +
+function proposalText_(coach, plan, made) {
+  return 'CTTC: Reply YES by ' + shortMoment_(Number(made) + ASK_TTL_MS) + ' to update ' + coachName_(coach) + '\'s coaching times, or NO to cancel.' +
     (plan.add.length ? ' Add: ' + slotList_(plan.add) + '.' : '') + (plan.remove.length ? ' Remove: ' + slotList_(plan.remove) + '.' : '') +
     ' Nothing changes until you reply.';
 }
 
 // Call while holding the lock, after the coach replied YES. Times another coach took in the meantime are skipped.
+// Call while holding the lock. A YES or NO that came after a list's 48 hours. NO: nothing changes. YES, every time still free:
+// the same list is offered again with a new 48 hours (a new reference code), so one more YES publishes it. YES, some taken by
+// another coach since: the coach is told which, and to pick times again on the page. Returns what happened, for the log.
+function lateProposal_(coach, answer, channel, now) {
+  var wanted = expiredProposal_(coach, now) || [];
+  var sent = momentLabel_(Number(coach.ask_made));
+  var email = cleanEmail_(coach.email);
+  var texts = !!phoneDigits_(coach.phone);
+  var lateLine = 'Your reply came after the 48-hour window for the coaching times you sent on ' + sent + ', so nothing was published.';
+  var send = function (subject, lines, text, kind) {
+    try {
+      if (email && mailAvailable_()) sendMail_(email, subject, lines, null, [kind, coach.coach_id]);
+    } catch (error) {
+      logError_('email a coach about a late reply', error, coach.coach_id);
+    }
+    try {
+      if (texts && (channel === 'text' || !email)) sendText_(coach, text, [kind, coach.coach_id]);
+    } catch (error) {
+      logError_('text a coach about a late reply', error, coach.coach_id);
+    }
+  };
+  coach.ask_slots = '';
+  coach.ask_made = '';
+  if (coach.ask_ref === 'slots') {
+    coach.ask_ref = '';
+    coach.ask_at = '';
+  }
+  if (answer !== 'yes') {
+    send('Your coaching times', ['OK, nothing was changed. Your coaching times stay as they were.'],
+      'CTTC: OK, nothing was changed. Your coaching times stay as they were.', 'coach-times-late');
+    return 'late, no';
+  }
+  var availability = rows_('Availability');
+  var plan = planChanges_(coach, wanted, availability, rows_('Coaches'), rows_('Requests'), now);
+  var current = nowMinutes_();
+  var mine = availability.filter(function (entry) { return entry.coach_id === coach.coach_id; });
+  var coaches = rows_('Coaches');
+  var gone = [];
+  var open = [];
+  wanted.forEach(function (slot) {
+    if (wallMinutes_(slot.date, slot.start) <= current || mine.some(function (entry) { return sameSlot_(entry, slot); })) return;
+    (freeTable_(availability, coaches, coach.coach_id, slot.date, slot.start, slot.minutes, Number(slot.table)) ? open : gone).push(slot);
+  });
+  if (typeof plan !== 'string' && !gone.length && (plan.add.length || plan.remove.length)) {
+    coach.ask_slots = JSON.stringify(plan.wanted);
+    coach.ask_made = String(now);
+    send('Confirm your coaching times ' + refTag_(proposalCode_(coach.coach_id, now)), [
+      { callout: lateLine, tone: 'action' },
+      { callout: '**Good news: these times are all still open.** To publish them, reply **YES** to this email by **' + replyBy_(now) + '**.', tone: 'good' },
+      { choices: [['YES', 'Publish these changes to ' + coachName_(coach) + '\'s coaching times.'], ['NO', 'Cancel. Your coaching times stay as they are.']] },
+      plan.add.length ? 'Add: ' + slotList_(plan.add) : '',
+      plan.remove.length ? 'Remove: ' + slotList_(plan.remove) : '',
+      texts ? 'We also texted your mobile. You can answer either one.' : ''
+    ], 'CTTC: Your reply came after the 48-hour window, so nothing was published yet. Good news: those times are all still open. ' +
+      'Reply YES by ' + shortMoment_(now + ASK_TTL_MS) + ' to publish them, or NO to cancel.', 'coach-times-late');
+    if (texts && channel === 'text') {
+      coach.ask_ref = 'slots';
+      coach.ask_at = String(now);
+    }
+    return 'late, offered again';
+  }
+  send('Your coaching times were not published', [
+    { callout: lateLine, tone: 'action' },
+    gone.length ? 'Since then, another coach has taken: ' + slotList_(gone) + '.' : 'Since then, the schedule has changed, so that list can no longer be published as it was.',
+    { callout: '**Please pick your times again:** open ' + PAGE_URL.replace('https://', '') + ', tap **I am a coach**, choose your name and select your times. ' +
+      'Then reply YES to the new email or text within 48 hours.', tone: 'action' },
+    open.length ? 'Still open when we checked: ' + slotList_(open) + '.' : ''
+  ], 'CTTC: Your reply came after the 48-hour window, so nothing was published, and another coach has since taken ' +
+    (gone.length ? slotList_(gone) : 'some of those times') + '. Please pick your times again at ' + PAGE_URL.replace('https://', '') + '.', 'coach-times-taken');
+  return 'late, taken';
+}
+
+// One-off, asked for by the club on 2026-10-18. Coach Dominic replied YES on 2026-10-17 to the times he sent on 2026-10-16, after the
+// 24-hour window then in force, so his list had lapsed and was cleared, and his YES was ignored. This puts the same list back and
+// takes his YES as on time: his times are published and he gets the usual "Done" email, exactly as if he had replied in time.
+// He is found by his name on the club list (CLUB_COACHES). It runs once (script property HONOURED_LATE_REPLY), and not at all
+// from the day of the first of those lessons.
+var HONOURED_LATE_REPLY = {
+  name: 'Dominic Chan',
+  slots: [
+    { date: '2026-10-23', start: '19:00', minutes: 60, table: 1 }, { date: '2026-10-23', start: '20:00', minutes: 60, table: 1 },
+    { date: '2026-10-23', start: '21:00', minutes: 60, table: 1 }, { date: '2026-10-24', start: '15:00', minutes: 60, table: 1 },
+    { date: '2026-10-24', start: '16:00', minutes: 60, table: 1 }, { date: '2026-10-24', start: '17:00', minutes: 60, table: 1 }
+  ],
+  until: '2026-10-23'
+};
+
+function honourLateReply_() {
+  var properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty('HONOURED_LATE_REPLY') || pacificNow_().date >= HONOURED_LATE_REPLY.until) return;
+  var coachId = '';
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (properties.getProperty('HONOURED_LATE_REPLY')) return;
+    properties.setProperty('HONOURED_LATE_REPLY', nowIso_());
+    var now = Date.now();
+    var coach = rows_('Coaches').filter(function (entry) {
+      return entry.coach_id && active_(entry) && entry.name.trim().toLowerCase() === HONOURED_LATE_REPLY.name.toLowerCase();
+    })[0];
+    if (!coach) {
+      logRow_('error', 'honour-a-late-reply', '-', '-', 'the coach was not found, so nothing was done');
+      return;
+    }
+    // His list added these times and kept the ones he already had, so the list is his current times plus these.
+    var availability = rows_('Availability');
+    var current = nowMinutes_();
+    var mine = availability.filter(function (entry) { return entry.coach_id === coach.coach_id && wallMinutes_(entry.date, entry.start) > current; })
+      .map(function (entry) { return { date: entry.date, start: entry.start, minutes: Number(entry.minutes), table: Number(entry.table) || 1 }; });
+    var wanted = mine.concat(HONOURED_LATE_REPLY.slots.filter(function (slot) { return !mine.some(function (entry) { return sameSlot_(entry, slot); }); }));
+    var plan = planChanges_(coach, wanted, availability, rows_('Coaches'), rows_('Requests'), now);
+    coach.ask_slots = JSON.stringify(typeof plan === 'string' ? wanted : plan.wanted);
+    coach.ask_made = String(now);
+    save_('Coaches', coach);
+    coachId = coach.coach_id;
+    logRow_('step', 'honour-a-late-reply', coachId, '-', 'his YES to the list of 2026-10-16 is taken as on time');
+  } finally {
+    lock.releaseLock();
+  }
+  if (coachId) answer_(coachId, 'slots', 'yes', 'email');
+}
+
 function applyProposal_(coach, now) {
   var wanted = proposalOf_(coach, now) || [];
   var availability = rows_('Availability');
@@ -1727,7 +1871,7 @@ function askCoaches_(coaches, requests, now) {
   coaches.forEach(function (coach) {
     if (!coach.coach_id || !active_(coach)) return;
     var changed = false;
-    if (coach.ask_slots && !proposalOf_(coach, now)) {
+    if (coach.ask_slots && !proposalOf_(coach, now) && !expiredProposal_(coach, now)) {
       coach.ask_slots = '';
       coach.ask_made = '';
       changed = true;
@@ -1738,7 +1882,7 @@ function askCoaches_(coaches, requests, now) {
     }
     var waiting = requests.filter(function (request) { return request.coach_id === coach.coach_id && request.status === 'pending'; })
       .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
-    var refs = (coach.ask_slots ? ['slots'] : []).concat(waiting.map(function (request) { return request.request_id; }));
+    var refs = (proposalOf_(coach, now) ? ['slots'] : []).concat(waiting.map(function (request) { return request.request_id; }));
     var fresh = waiting.filter(function (request) { return request.coach_texted !== 'pending'; })[0];
     var current = refs.indexOf(coach.ask_ref) >= 0 ? coach.ask_ref : '';
     var next = current;
@@ -1780,7 +1924,9 @@ function answer_(coachId, ref, answer, channel) {
   try {
     var now = Date.now();
     coach = coachById_(coachId);
-    if (!coach || (channel === 'text' && coach.ask_ref !== ref)) return;
+    // A text answers the question texted last; a text with no question open can only be a late answer to an expired list.
+    var lateText = !!coach && channel === 'text' && ref === 'slots' && !coach.ask_ref && !!expiredProposal_(coach, now);
+    if (!coach || (channel === 'text' && coach.ask_ref !== ref && !lateText)) return;
     // A text reply from the number on the list proves the coach's thread works.
     if (channel === 'text' && !coach.registered_at) coach.registered_at = nowIso_();
     if (ref === 'slots') {
@@ -1792,6 +1938,9 @@ function answer_(coachId, ref, answer, channel) {
           ' (' + done.added + ' added, ' + done.removed + ' removed).' +
           (done.skipped ? ' ' + done.skipped + ' could not be added because another coach took the table or it overlapped a lesson request.' : '') +
           ' Students can request them at ' + PAGE_URL.replace('https://', '') + '.';
+      } else if (expiredProposal_(coach, now)) {
+        applied = false;
+        status = lateProposal_(coach, answer, channel, now);
       } else {
         applied = answer !== 'yes';
         reply = answer === 'yes' ? 'CTTC: That list expired, so nothing changed. Please submit your times again.' :
@@ -1812,7 +1961,8 @@ function answer_(coachId, ref, answer, channel) {
         applied = false;
       }
     }
-    if (coach.ask_ref === ref) {
+    // The question is answered, unless a late YES just asked it again (lateProposal_ set ask_ref to the new list).
+    if (coach.ask_ref === ref && status !== 'late, offered again') {
       coach.ask_ref = '';
       coach.ask_at = '';
     }
@@ -1861,6 +2011,7 @@ function checkTexts_() {
   step_('read STUDENT and STOP texts', checkStudentTexts_);
   step_('read email answers', checkMail_);
   step_('verify coaches', verifyCoaches_);
+  step_('honour a late reply', honourLateReply_);
   reportStatus_();
   recordRun_('checkTexts', STATUS_.failed, STATUS_.mail);
 }
@@ -1894,11 +2045,16 @@ function reportStatus_() {
 }
 
 function checkCoachTexts_() {
-  rows_('Coaches').filter(function (coach) { return coach.coach_id && active_(coach) && coach.ask_ref && Number(coach.ask_at) > 0; }).forEach(function (coach) {
-    var asked = Number(coach.ask_at);
+  var now = Date.now();
+  rows_('Coaches').filter(function (coach) {
+    return coach.coach_id && active_(coach) && phoneDigits_(coach.phone) && (coach.ask_ref && Number(coach.ask_at) > 0 || !coach.ask_ref && expiredProposal_(coach, now));
+  }).forEach(function (coach) {
+    // With no question open, a YES or NO after the expired list was sent answers that list (late).
+    var ref = coach.ask_ref || 'slots';
+    var asked = coach.ask_ref ? Number(coach.ask_at) : Number(coach.ask_made);
     var reply = voiceTextsFrom_(coach, 2).filter(function (text) { return text.at > asked && answerOf_(text.text); })
       .sort(function (a, b) { return a.at - b.at; })[0];
-    if (reply) answer_(coach.coach_id, coach.ask_ref, answerOf_(reply.text), 'text');
+    if (reply) answer_(coach.coach_id, ref, answerOf_(reply.text), 'text');
   });
 }
 
@@ -1999,7 +2155,8 @@ function emailQuestions_(now) {
   var byId = {};
   coaches.forEach(function (coach) {
     byId[coach.coach_id] = coach;
-    if (proposalOf_(coach, now)) {
+    // An expired list is still a question, so a late reply is answered (lateProposal_) rather than ignored.
+    if (proposalOf_(coach, now) || expiredProposal_(coach, now)) {
       questions.push({ code: proposalCode_(coach.coach_id, coach.ask_made), email: cleanEmail_(coach.email), after: Number(coach.ask_made), kind: 'slots', id: coach.coach_id });
     }
   });
