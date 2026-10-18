@@ -1535,32 +1535,6 @@ assert.equal(site['coaching-dialog'].opened, false, 'the page opens nothing by i
 site['coaching-launch'].listeners.click();
 assert.equal(site['coaching-frame'].attributes.src, appUrl, 'and nothing from the address reaches the frame');
 
-// The one-off for a reply the club asked to count as on time: once, the coach's lapsed list is put back and their YES taken, so the
-// times are published and the coach gets the usual "Done" email. Run here with a synthetic coach and times.
-{
-  cache = {};
-  const kimId = addCoach('Kim Late', 'kim@example.com');
-  const kimTimes = [slot('2026-10-09', '21:00', 60, 3), slot('2026-10-10', '17:00', 60, 3)];
-  assert.ok(properties.HONOURED_LATE_REPLY, 'with nobody of that name on the list it already ran once and did nothing');
-  delete properties.HONOURED_LATE_REPLY;
-  const real = { name: context.HONOURED_LATE_REPLY.name, slots: context.HONOURED_LATE_REPLY.slots };
-  context.HONOURED_LATE_REPLY.name = 'Kim Late';
-  context.HONOURED_LATE_REPLY.slots = kimTimes;
-  const kimLive = () => run('openSlots').slots.filter(entry => entry.coach === 'Coach Kim').length;
-  assert.equal(kimLive(), 0);
-  check();
-  assert.equal(kimLive(), 2, 'the times are published');
-  assert.match(mailTo('kim@example.com').pop().body, /^Done\. Coach Kim now has 2 upcoming coaching times \(2 added, 0 removed\)\./, 'and the coach is told, as for any YES');
-  assert.deepEqual(grids.Log.slice(1).filter(line => line[3] === kimId).map(line => line[2]).filter(kind => /honour|reply:/.test(kind)),
-    ['honour-a-late-reply', 'reply:coach-slots:yes']);
-  const sent = mailTo('kim@example.com').length;
-  check();
-  check();
-  assert.equal(mailTo('kim@example.com').length, sent, 'it runs once');
-  assert.equal(kimLive(), 2);
-  Object.assign(context.HONOURED_LATE_REPLY, real);
-}
-
 // A failure's detail keeps the error but never an address, a number, quoted text or a long id.
 cache = {};
 context.logError_('check the cleaner', new Error('Invalid email: sam@example.com, "Sam Student", \'Pat\', +1 (925) 555-1234, sheet 1d1vTRF839PRzLy4cEt70sA3yX1A'), 'r1');

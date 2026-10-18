@@ -1046,56 +1046,6 @@ function lateProposal_(coach, answer, channel, now) {
   return 'late, taken';
 }
 
-// One-off, asked for by the club on 2026-10-18. Coach Dominic replied YES on 2026-10-17 to the times he sent on 2026-10-16, after the
-// 24-hour window then in force, so his list had lapsed and was cleared, and his YES was ignored. This puts the same list back and
-// takes his YES as on time: his times are published and he gets the usual "Done" email, exactly as if he had replied in time.
-// He is found by his name on the club list (CLUB_COACHES). It runs once (script property HONOURED_LATE_REPLY), and not at all
-// from the day of the first of those lessons.
-var HONOURED_LATE_REPLY = {
-  name: 'Dominic Chan',
-  slots: [
-    { date: '2026-10-23', start: '19:00', minutes: 60, table: 1 }, { date: '2026-10-23', start: '20:00', minutes: 60, table: 1 },
-    { date: '2026-10-23', start: '21:00', minutes: 60, table: 1 }, { date: '2026-10-24', start: '15:00', minutes: 60, table: 1 },
-    { date: '2026-10-24', start: '16:00', minutes: 60, table: 1 }, { date: '2026-10-24', start: '17:00', minutes: 60, table: 1 }
-  ],
-  until: '2026-10-23'
-};
-
-function honourLateReply_() {
-  var properties = PropertiesService.getScriptProperties();
-  if (properties.getProperty('HONOURED_LATE_REPLY') || pacificNow_().date >= HONOURED_LATE_REPLY.until) return;
-  var coachId = '';
-  var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    if (properties.getProperty('HONOURED_LATE_REPLY')) return;
-    properties.setProperty('HONOURED_LATE_REPLY', nowIso_());
-    var now = Date.now();
-    var coach = rows_('Coaches').filter(function (entry) {
-      return entry.coach_id && active_(entry) && entry.name.trim().toLowerCase() === HONOURED_LATE_REPLY.name.toLowerCase();
-    })[0];
-    if (!coach) {
-      logRow_('error', 'honour-a-late-reply', '-', '-', 'the coach was not found, so nothing was done');
-      return;
-    }
-    // His list added these times and kept the ones he already had, so the list is his current times plus these.
-    var availability = rows_('Availability');
-    var current = nowMinutes_();
-    var mine = availability.filter(function (entry) { return entry.coach_id === coach.coach_id && wallMinutes_(entry.date, entry.start) > current; })
-      .map(function (entry) { return { date: entry.date, start: entry.start, minutes: Number(entry.minutes), table: Number(entry.table) || 1 }; });
-    var wanted = mine.concat(HONOURED_LATE_REPLY.slots.filter(function (slot) { return !mine.some(function (entry) { return sameSlot_(entry, slot); }); }));
-    var plan = planChanges_(coach, wanted, availability, rows_('Coaches'), rows_('Requests'), now);
-    coach.ask_slots = JSON.stringify(typeof plan === 'string' ? wanted : plan.wanted);
-    coach.ask_made = String(now);
-    save_('Coaches', coach);
-    coachId = coach.coach_id;
-    logRow_('step', 'honour-a-late-reply', coachId, '-', 'his YES to the list of 2026-10-16 is taken as on time');
-  } finally {
-    lock.releaseLock();
-  }
-  if (coachId) answer_(coachId, 'slots', 'yes', 'email');
-}
-
 function applyProposal_(coach, now) {
   var wanted = proposalOf_(coach, now) || [];
   var availability = rows_('Availability');
@@ -2011,7 +1961,6 @@ function checkTexts_() {
   step_('read STUDENT and STOP texts', checkStudentTexts_);
   step_('read email answers', checkMail_);
   step_('verify coaches', verifyCoaches_);
-  step_('honour a late reply', honourLateReply_);
   reportStatus_();
   recordRun_('checkTexts', STATUS_.failed, STATUS_.mail);
 }
