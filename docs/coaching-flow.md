@@ -220,11 +220,26 @@ it is not updating, the minute check is not running.
 
 | Where | What it tells you |
 | --- | --- |
-| **Coaches** `ask_slots` (JSON) and `ask_made` (ms) | The coach submitted times on the page and we are waiting for their YES (email *Confirm your coaching times [CTTC ref …]* and/or a text). Nothing is published until then. The list lapses after 24 hours (`ASK_TTL_MS`). |
+| **Coaches** `ask_slots` (JSON) and `ask_made` (ms) | The coach submitted times on the page and we are waiting for their YES (email *Confirm your coaching times [CTTC ref …]* and/or a text). Nothing is published until then. The email and text say when the coach must reply by: 48 hours after sending (`ASK_TTL_MS`). A lapsed list is kept another 14 days (`LATE_ASK_MS`) so a late reply is answered, never ignored (below). |
 | **Coaches** `registered_at` | The coach's texts work (they texted the club number). Empty means texting them fails. |
 | **Coaches** `status = disabled` | The coach and all their times are hidden. The hourly sweep sets this for anyone not in `CLUB_COACHES` in `coaching-app/Code.js` and clears it for anyone who is, so add or remove a coach there (and in the table on `coaching.html`), not in the Sheet. |
 | **Availability** rows with `confirmed = yes` | Published times. A row is one slot: `minutes` 30 or 60, `table` 1 to 3. A 25-minute booking on a 60-minute slot splits it into two 30-minute rows. Past rows are deleted by the sweep. |
 | **Waitlist** | People emailed (*A coaching time you wanted is open*) when a held time frees up; each is removed once told. |
+
+**A late reply to a list** (after its 48 hours, within 14 more days), by email or text:
+
+- **YES, and every time is still free:** the coach is told the reply came after
+  the 48-hour window and that the times are all still open, and the same list
+  is sent again with a new 48 hours (*Confirm your coaching times [CTTC ref …]*,
+  with a new reference). One more YES publishes it.
+- **YES, but another coach has since taken one of the times:** the coach is
+  told which times were taken (and which were still open), that nothing was
+  published, and to pick their times again on the coaching page (*Your
+  coaching times were not published*).
+- **NO:** the coach is told nothing changed.
+
+Each is logged as `reply:coach-slots:yes` or `:no` with `not applied, now late,
+offered again`, `late, taken` or `late, no`.
 
 Students can only request times that are confirmed, **at least 24 hours away**
 (`LEAD_HOURS`) and **at most 28 days ahead** (`HORIZON_DAYS`), on Fridays 7 to

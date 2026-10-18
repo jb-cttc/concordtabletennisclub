@@ -185,6 +185,9 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(source, context);
+// Keep every log line until the trimming check, so earlier checks can read a booking's whole story.
+const LOG_KEEP = context.LOG_KEEP;
+context.LOG_KEEP = 1e6;
 const run = (name, ...args) => JSON.parse(JSON.stringify(context[name](...args) ?? null));
 const hours = count => count * 3600 * 1000;
 const mailTo = (address, from = 0) => sent.slice(from).filter(message => message.to.toLowerCase() === address);
@@ -421,7 +424,8 @@ assert.match(annMail.subject, /^Confirm your coaching times \[CTTC ref [0-9A-F]{
 assert.match(annMail.body, /Reply YES: Publish these changes to Coach Ann's coaching times\.\nReply NO: Cancel/);
 assert.match(annMail.body, /Add: Fri Oct 2 8:00-8:30 PM; Fri Oct 9 7:00-8:00 PM/);
 assert.match(annMail.body, /We also texted your mobile\. You can answer either one\./);
-assert.deepEqual(ann(), ['CTTC: Reply YES to update Coach Ann\'s coaching times, or NO to cancel. Add: Fri Oct 2 8:00-8:30 PM; Fri Oct 9 7:00-8:00 PM, 8:00-8:30 PM, ' +
+assert.match(annMail.body, /^Action needed: reply to this email by Sunday, October 4, 2026, 10:00 AM Pacific Time\. Nothing changes until you reply\./, 'the email says when the 48 hours end');
+assert.deepEqual(ann(), ['CTTC: Reply YES by Sun Oct 4, 10:00 AM to update Coach Ann\'s coaching times, or NO to cancel. Add: Fri Oct 2 8:00-8:30 PM; Fri Oct 9 7:00-8:00 PM, 8:00-8:30 PM, ' +
   '8:30-9:30 PM; Sat Oct 10 3:00-4:00 PM, 4:00-4:30 PM; Fri Oct 23 7:00-8:00 PM; Fri Oct 30 7:00-7:30 PM. Nothing changes until you reply.']);
 assert.equal(grids.Availability.length, 1, 'nothing is saved before the YES');
 assert.equal(run('coachBoard', annId).pending.length, 8, 'the page shows what is waiting for the YES');
@@ -1040,6 +1044,33 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach Cy').length, 1, 'her emailed YES publishes it');
   assert.equal(mailTo('cy@example.com').pop().body.split('\n')[0], 'Done. Coach Cy now has 1 upcoming coaching time (1 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
   assert.equal(run('coachList').coaches.find(coach => coach.id === cyId).registered, false, 'an email-only coach can publish but gets no green check without a mobile and a text');
+  // An emailed YES after 48 hours gets an email offering the same times again, with a new reference; YES to that publishes them.
+  const beforeLate = clock;
+  assert.equal(propose(cyId, [slot('2026-10-30', '20:00', 60), slot('2026-10-10', '17:00', 60)]).ok, true);
+  const cyLate = askedBy('cy@example.com', /^Confirm your coaching times/);
+  clock += hours(50);
+  context.sweep();
+  answerMail('cy@example.com', 'Yes', cyLate);
+  const offeredAgain = mailTo('cy@example.com').pop();
+  assert.match(offeredAgain.subject, /^Confirm your coaching times \[CTTC ref [0-9A-F]{10}\]$/);
+  assert.notEqual(offeredAgain.subject, cyLate, 'with a new reference code');
+  assert.match(offeredAgain.body, /^Your reply came after the 48-hour window for the coaching times you sent on \w+day, \w+ \d+, 2026, [\d:]+ [AP]M Pacific Time, so nothing was published\.\n\nGood news: these times are all still open\. To publish them, reply YES to this email by \w+day, /);
+  assert.match(offeredAgain.body, /Add: Sat Oct 10 5:00-6:00 PM/);
+  assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach Cy').length, 1, 'nothing published yet');
+  answerMail('cy@example.com', 'YES', cyLate);
+  assert.equal(mailTo('cy@example.com').pop(), offeredAgain, 'another YES to the old email is not answered twice');
+  replyTo('cy@example.com', 'YES', /^Confirm your coaching times/);
+  assert.match(mailTo('cy@example.com').pop().body, /^Done\. Coach Cy now has 2 upcoming coaching times/);
+  // A late NO is acknowledged.
+  assert.equal(propose(cyId, [slot('2026-10-30', '20:00', 60)]).ok, true);
+  const cyRemove = askedBy('cy@example.com', /^Confirm your coaching times/);
+  clock += hours(49);
+  answerMail('cy@example.com', 'no', cyRemove);
+  assert.equal(mailTo('cy@example.com').pop().body.split('\n')[0], 'OK, nothing was changed. Your coaching times stay as they were.');
+  assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach Cy').length, 2);
+  // Back to where the checks below expect the clock (Cy's lists are all answered, so nothing is left waiting).
+  clock = beforeLate;
+  cache = {};
   const dee = () => textsTo('Dee Coach', '(925) 555-0142');
   const deeLive = () => run('openSlots').slots.filter(entry => entry.coach === 'Coach Dee');
   const deeSet = [slot('2026-10-16', '19:00', 60), slot('2026-10-16', '20:00', 30)];
@@ -1053,7 +1084,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   inbound('Dee Coach', 'COACH', clock - 60000);
   inbound('Dee Coach', 'YES', clock - 30000);
   assert.equal(propose(deeId, deeSet).ok, true);
-  assert.deepEqual(dee(), ['CTTC: Reply YES to update Coach Dee\'s coaching times, or NO to cancel. Add: Fri Oct 16 7:00-8:00 PM, 8:00-8:30 PM. Nothing changes until you reply.'],
+  assert.deepEqual(dee(), ['CTTC: Reply YES by Sun Oct 4, 3:25 PM to update Coach Dee\'s coaching times, or NO to cancel. Add: Fri Oct 16 7:00-8:00 PM, 8:00-8:30 PM. Nothing changes until you reply.'],
     'one text, sent as a reply to the coach\'s own text');
   assert.equal(run('coachBoard', deeId).pending.length, 2);
   assert.ok(run('coachBoard', deeId).pendingSince);
@@ -1092,20 +1123,45 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.equal(dee()[3], 'CTTC: OK, nothing was changed. Your coaching times stay as they were.');
   assert.equal(deeLive().length, 2);
   assert.equal(propose(deeId, deeSet.slice(0, 1)).ok, true);
-  assert.equal(dee()[4], 'CTTC: Reply YES to update Coach Dee\'s coaching times, or NO to cancel. Remove: Fri Oct 16 8:00-8:30 PM. Nothing changes until you reply.');
+  assert.equal(dee()[4], 'CTTC: Reply YES by Sun Oct 4, 3:27 PM to update Coach Dee\'s coaching times, or NO to cancel. Remove: Fri Oct 16 8:00-8:30 PM. Nothing changes until you reply.');
   say('Dee Coach', 'YES');
   assert.equal(dee()[5], 'CTTC: Done. Coach Dee now has 1 upcoming coaching time (0 added, 1 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
   assert.equal(deeLive().length, 1);
 
-  // A list nobody answers within a day lapses.
+  // A list is open for 48 hours. A YES after that is answered, never ignored: with every time still free, the same list is offered
+  // again for another 48 hours, and one more YES publishes it.
   assert.equal(propose(deeId, deeSet).ok, true);
-  clock += hours(25);
-  assert.equal(run('coachBoard', deeId).pending, null);
+  clock += hours(47);
+  assert.equal(run('coachBoard', deeId).pending.length, 2, 'still open after 47 hours');
+  clock += hours(2);
+  assert.equal(run('coachBoard', deeId).pending, null, 'lapsed after 48');
+  context.sweep();
+  context.sweep();
   say('Dee Coach', 'YES');
-  assert.equal(dee()[dee().length - 1], 'CTTC: That list expired, so nothing changed. Please submit your times again.');
-  assert.equal(deeLive().length, 1, 'a late YES does nothing');
-  publish(deeId, 'Dee Coach', deeSet);
+  assert.match(dee()[dee().length - 1], /^CTTC: Your reply came after the 48-hour window, so nothing was published yet\. Good news: those times are all still open\. Reply YES by \w{3} \w{3} \d+, \d+:\d\d [AP]M to publish them, or NO to cancel\.$/);
+  assert.equal(deeLive().length, 1, 'a late YES publishes nothing by itself');
+  assert.equal(run('coachBoard', deeId).pending.length, 2, 'the list is open again');
+  say('Dee Coach', 'YES');
+  assert.match(dee()[dee().length - 1], /^CTTC: Done\. Coach Dee now has 2 upcoming coaching times/, 'one more YES publishes it');
   assert.equal(deeLive().length, 2);
+  assert.deepEqual(grids.Log.slice(1).filter(line => line[2] === 'reply:coach-slots:yes').slice(-2).map(line => [line[1], line[5]]),
+    [['text', 'not applied, now late, offered again'], ['text', 'applied']], 'both replies are logged');
+
+  // A late YES when another coach has since taken the time: told which, and to pick again.
+  const saturday = slot('2026-10-17', '15:00', 60);
+  assert.equal(propose(deeId, deeSet.concat(saturday)).ok, true);
+  clock += hours(49);
+  context.sweep();
+  const others = grids.Coaches.slice(1).map(line => cell('Coaches', line, 'coach_id')).filter(id => id && id !== deeId).slice(0, 3);
+  others.forEach((id, index) => grids.Availability.push(['taken-' + index, id, '2026-10-17', '15:00', '60', 'yes', String(index + 1)]));
+  say('Dee Coach', 'YES');
+  assert.equal(dee()[dee().length - 1], 'CTTC: Your reply came after the 48-hour window, so nothing was published, and another coach has since taken Sat Oct 17 3:00-4:00 PM. ' +
+    'Please pick your times again at concordtabletennisclub.com/coaching.html.');
+  assert.equal(run('coachBoard', deeId).pending, null, 'nothing is offered again');
+  say('Dee Coach', 'YES');
+  assert.match(dee()[dee().length - 1], /^CTTC: Your reply came after/, 'and a second YES changes nothing');
+  assert.equal(dee().filter(text => /another coach has since taken/.test(text)).length, 1, 'the coach is told once');
+  for (let row = grids.Availability.length - 1; row >= 1; row -= 1) if (String(grids.Availability[row][0]).startsWith('taken-')) grids.Availability.splice(row, 1);
 
   // At most ten lists a day per coach.
   cache = {};
@@ -1545,6 +1601,7 @@ assert.deepEqual(JSON.parse(context.doGet({ parameter: { log: '' } }).text), { o
 assert.notEqual(context.doGet({}).getContent, undefined, 'without ?log the page is served as before');
 // The sweep keeps only the latest LOG_KEEP rows.
 cache = {};
+context.LOG_KEEP = LOG_KEEP;
 for (let extra = grids.Log.length - 1; extra <= context.LOG_KEEP + 5; extra += 1) grids.Log.push(['2026-10-01T00:00:00.000Z', 'email', 'old', '-', '-']);
 const newest = grids.Log[grids.Log.length - 1];
 context.sweep();
