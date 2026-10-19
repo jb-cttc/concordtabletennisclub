@@ -25,9 +25,10 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 | `*.html`, `style.css`, `standings.js`, `rating-engine.js` | Public static site (GitHub Pages). No build step. |
 | `data/` | Published JSON: sessions, players, ratings. Updated by automation. |
 | `scripts/` | Data import, publishing, email, and check scripts. |
-| `apps-script/` | Owner desk (Google Apps Script): roster, groups, promotions, scoring, printing, payments, Voice signups. |
+| `apps-script/` | Owner desk (Google Apps Script): roster, groups, promotions, scoring, printing, payments, Voice signups, and the daily cash flow page (`?view=cash`, framed by `cash.html`). |
 | `docs/round-robin-operations.md` | How the desk and site fit together, rating rules, and the go-live checklist. |
 | `coaching-app/`, `docs/coaching-flow.md` | Public coaching booking app (its own Apps Script project), and the guide to which step a booking is at and where it can get stuck. |
+| `staffing-app/`, `docs/staffing-flow.md` | Public volunteer sign-ups to open and close the club (its own Apps Script project, shown on the home page in place of the closures calendar), and the guide to setting it up, importing the existing open/close list, and where a sign-up can get stuck. |
 | `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
 
 ## Request an app or website change
@@ -306,6 +307,16 @@ file with private permissions, so the session can push to `/dev` without signing
 the environment's settings only, never in this public repository. It stays valid until it is removed under the
 club account's Google Account → Security → third-party access; after that, sign in again with
 `clasp login --no-localhost` and update the variable.
+
+**Daily cash flow:** `cash.html` (served at `/cash`, linked from the Membership page) frames the same released desk
+`/exec` address with `?view=cash`, so like the desk it opens only for the club's Google account. It totals each club day
+from the round robin roster, Open Play, `SessionPayments`, Zeffy passes and member status (Junior $5, Member $10,
+Visitor $15, Zeffy $0) and keeps the money collector's count in the private `CashCounts` tab. It goes live with the
+next desk release; until then the button opens a page `/exec` does not know.
+
+**Volunteer signups:** `staffing-app/` is a separate Apps Script project, like `coaching-app/`. To set it up, follow
+[the staffing guide](docs/staffing-flow.md): create the project with clasp, set its script properties, run `setup()`,
+deploy it, then set `APP_URL` in `index.html` so the home page's **Volunteer signups** button appears.
 
 **Mode pill:** the desk header shows `/dev` or `/exec` beside the session date as a plain label.
 

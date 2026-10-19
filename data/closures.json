@@ -1,0 +1,23 @@
+{
+  "about": "Gym closures and special hours, shown on the home page (list and calendar) and read by the volunteer sign-up app (staffing-app/), which asks for no volunteers on a closed night. Edit this file only; days: full = closed, partial = open with a reduced play area, holiday = open on a holiday.",
+  "months": ["2026-11", "2026-12", "2027-01"],
+  "notices": [
+    { "when": "Fri, Nov 13", "text": "Closed" },
+    { "when": "Fri, Dec 4 and Sat, Dec 5", "text": "Open with a reduced play area (10 tables max)" },
+    { "when": "Dec 7–12", "text": "Closed Mon, Dec 7; Wed, Dec 9; Fri, Dec 11; and Sat, Dec 12" },
+    { "when": "Fri, Dec 25 and Fri, Jan 1", "text": "Open on holiday (Christmas and New Year’s Day), regular hours" },
+    { "when": "Fri, Jan 22", "text": "Closed" }
+  ],
+  "days": {
+    "2026-11-13": "full",
+    "2026-12-04": "partial",
+    "2026-12-05": "partial",
+    "2026-12-07": "full",
+    "2026-12-09": "full",
+    "2026-12-11": "full",
+    "2026-12-12": "full",
+    "2026-12-25": "holiday",
+    "2027-01-01": "holiday",
+    "2027-01-22": "full"
+  }
+}

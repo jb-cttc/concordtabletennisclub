@@ -1,0 +1,795 @@
+<!-- App source and change requests: https://github.com/jb-cttc/concordtabletennisclub. Review in GitHub; deploy to Google separately. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<style>
+:root{--ink:#17211b;--muted:#657069;--line:#d8ddd9;--paper:#f5f7f4;--panel:#fff;--green:#176b45;--green2:#0f5235;--gold:#c99934;--red:#a43831}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(135deg,#eef2ed,#f8f7f1 48%,#edf2f3);color:var(--ink);font-family:Georgia,"Times New Roman",serif;letter-spacing:0}
+button,input{font:inherit}button{cursor:pointer}
+h1,h2,h3,p{margin-top:0}
+.top{background:#123f2b;color:#fff;border-bottom:5px solid var(--gold)}
+.top-inner{max-width:1180px;margin:auto;padding:18px 28px;display:flex;align-items:center;gap:18px}
+.top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}
+.brand{font-size:24px;font-weight:700;min-width:0}.brand small{display:block;margin-top:3px;color:#dce9e1;font:12px Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.top-links{margin-left:auto;display:flex;align-items:center;gap:14px;font:13px Arial,sans-serif}
+.top-links a{color:#dce9e1;white-space:nowrap}.top-links a:hover{color:#fff}
+.mode-pill{font:600 11px Arial,sans-serif;letter-spacing:.04em;padding:3px 9px;border:1px solid currentColor;border-radius:999px;color:#c9d3cd}
+.mode-pill[data-mode=dev]{color:#e8c06a}.mode-pill[data-mode=live]{color:#9fd6b0}
+body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
+body.reloading #summary,body.reloading #trend,body.reloading #insights,body.reloading #days{opacity:.55}
+.shell{max-width:1180px;margin:auto;padding:22px 28px 48px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px;margin-bottom:18px}
+.range{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+.range label{font:12px Arial,sans-serif;color:var(--muted)}
+.range input{display:block;margin-top:4px;border:1px solid #aeb7b1;background:#fff;color:var(--ink);padding:8px 10px;border-radius:4px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.preset{border:1px solid #aeb7b1;background:#fff;border-radius:999px;padding:5px 12px;font:13px Arial,sans-serif;color:var(--ink)}
+.preset:hover{border-color:var(--green);color:var(--green)}
+.preset[aria-pressed=true]{background:#e4f3e9;border-color:var(--green);color:var(--green2);font-weight:700}
+.primary{border:0;background:var(--green);color:#fff;border-radius:4px;padding:9px 15px;font-weight:700}.primary:hover{background:var(--green2)}
+.secondary{border:1px solid var(--green);background:#fff;color:var(--green);border-radius:4px;padding:8px 13px;font-weight:700}
+.secondary:disabled,.primary:disabled{opacity:.55;cursor:default}
+.statusbar{min-height:42px;padding:11px 14px;background:#e7eee9;border-left:4px solid var(--green);font:14px Arial,sans-serif;margin-bottom:18px}
+.statusbar.error{background:#f6e8e6;border-color:var(--red);color:#6f241f}.statusbar.busy{border-color:var(--gold)}
+.summary-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.summary-head h2{margin:0;font-size:20px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:#f7f9f7;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;padding:10px 12px;min-width:0}
+.tile .label{display:block;font:12px Arial,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile strong{display:block;font-size:22px;margin:4px 0 2px;font-variant-numeric:tabular-nums}
+.tile .sub{font:12px Arial,sans-serif;color:var(--muted)}
+.tile.total{border-top-color:var(--gold)}
+.tile.alert{border-top-color:var(--red);background:#fbf1ef}
+.days{display:grid;gap:16px}
+.day{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:hidden}
+.day-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 16px;background:#f7f9f7;border-bottom:1px solid var(--line)}
+.day-head h3{margin:0;font-size:18px}
+.day-head span{font:13px Arial,sans-serif;color:var(--muted)}
+.day-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px 22px;padding:14px 16px}
+.day-body h4{margin:0 0 6px;font:700 12px Arial,sans-serif;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.scroll{overflow-x:auto;max-width:100%}
+table{width:100%;border-collapse:collapse;font:14px Arial,sans-serif}
+th,td{padding:5px 6px;border-bottom:1px solid #edf0ed;text-align:left;vertical-align:top}
+th{font-weight:700;background:#f4f6f4}
+.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+tfoot td,tr.total td{font-weight:700;border-top:2px solid var(--line)}
+.unpaid-row td{color:#7a2f22}
+.count-box{display:grid;gap:8px;font:14px Arial,sans-serif}
+.count-box .expected{display:flex;justify-content:space-between}
+.count-fields{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:8px;align-items:end}
+.count-fields label{font:12px Arial,sans-serif;color:var(--muted)}
+.count-fields input{display:block;width:100%;margin-top:3px;border:1px solid #aeb7b1;border-radius:4px;padding:7px 8px;color:var(--ink);background:#fff}
+.diff{margin:0;padding:7px 10px;border-radius:4px;border:1px solid var(--line);background:#f7f9f7}
+.diff.over,.diff.short{border:2px solid var(--red);background:#fbf1ef;color:#6f241f;font-weight:700}
+.diff.even{border-color:#82be99;background:#e4f3e9;color:#125436}
+.save-note{min-height:16px;font:12px Arial,sans-serif;color:var(--muted)}.save-note.error{color:var(--red);font-weight:700}
+details.players{border-top:1px solid var(--line)}
+details.players summary{padding:10px 16px;cursor:pointer;font:700 14px Arial,sans-serif;color:var(--green2)}
+details.players .scroll{padding:0 16px 14px}
+.tag{display:inline-block;padding:1px 7px;border:1px solid #c8d1cb;border-radius:999px;font-size:12px;white-space:nowrap}
+.tag.unpaid{border-color:#c98f84;background:#fbf1ef;color:#7a2f22;font-weight:700}
+.tag.zeffy{border-color:#9ec1d6;background:#eef5fa}
+.empty{padding:40px 20px;text-align:center;border:1px dashed #aab5ae;background:rgba(255,255,255,.6);color:var(--muted);font:15px Arial,sans-serif}
+.footnote{font:12px/1.5 Arial,sans-serif;color:var(--muted);margin-top:22px}
+.footnote p{margin:0 0 6px}
+[hidden]{display:none!important}
+.groupby{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font:12px Arial,sans-serif;color:var(--muted)}
+.groupby .preset{font-size:13px}
+.target-form{display:flex;align-items:end;gap:8px;flex-wrap:wrap;font:13px Arial,sans-serif}
+.target-form label{font:12px Arial,sans-serif;color:var(--muted)}
+.target-form .money{display:flex;align-items:center;gap:4px;margin-top:3px;color:var(--ink);font-size:14px}
+.target-form input{width:110px;border:1px solid #aeb7b1;border-radius:4px;padding:7px 8px;color:var(--ink);background:#fff}
+.prompt{margin:0 0 10px;padding:8px 12px;border-left:4px solid var(--gold);background:#fff7e3;font:13px Arial,sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0 8px;font:12px Arial,sans-serif;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px}
+.legend i.line{height:2px;width:16px;border-radius:0;background:var(--ink)}
+.chart{position:relative;overflow-x:auto;max-width:100%}
+.chart svg{display:block}
+.chart .hit{fill:transparent;cursor:default;outline:none}
+.chart .hit:hover+.bar-mark,.chart .hit:focus+.bar-mark{opacity:.75}
+.chart .hit:focus{stroke:var(--ink);stroke-width:1}
+.tooltip{position:absolute;z-index:2;pointer-events:none;min-width:160px;max-width:240px;padding:8px 10px;background:#fff;border:1px solid #b8c7bc;border-radius:4px;box-shadow:0 6px 14px #17211b2b;font:12px/1.45 Arial,sans-serif;color:var(--muted)}
+.tooltip strong{display:block;font-size:16px;color:var(--ink)}
+.tile.good{border-top-color:var(--green);background:#eef7f1}
+.delta-up{color:var(--green2);font-weight:700}.delta-down{color:var(--red);font-weight:700}
+.period-rule{font:12px/1.5 Arial,sans-serif;color:var(--muted);margin:10px 0 0}
+details.table-view{margin-top:10px;font:14px Arial,sans-serif}
+details.table-view summary{cursor:pointer;color:var(--green2);font-weight:700}
+.insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
+.insight.wide{grid-column:1/-1}.share-cell{display:flex;align-items:center;gap:8px}.share-cell .share{flex:none;max-width:70%}
+.insight{border:1px solid var(--line);border-radius:6px;background:#fbfcfb;min-width:0}
+.insight summary{padding:10px 12px;cursor:pointer;font:700 15px Georgia,"Times New Roman",serif}
+.insight .insight-body{padding:0 12px 12px;font:14px/1.45 Arial,sans-serif}
+.insight .headline{margin:0 0 8px}
+.share{display:block;height:8px;min-width:2px;border-radius:0 4px 4px 0;background:var(--green)}
+.share-cell{width:30%;min-width:60px}
+.muted{color:var(--muted)}
+@media(max-width:760px){.groupby{width:100%}.target-form input{width:96px}.top-inner{flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.brand{font-size:20px;flex:1}.top-links{width:100%;margin-left:0;justify-content:space-between}.shell{padding:16px}.range label{flex:1 1 130px}.range input{width:100%}.tile strong{font-size:19px}.count-fields{grid-template-columns:1fr 1fr}.count-fields .note{grid-column:1/-1;order:3}.count-fields button{order:2}}
+</style>
+</head>
+<body>
+<script>
+// ALLOWALL framing lets any site embed this signed-in app, so only the club site (or localhost for testing) may; anyone else gets an opaque cover.
+(function () {
+  var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : null;
+  var sandbox = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+  var trusted = /^(https:\/\/concordtabletennisclub\.com|http:\/\/(localhost|127\.0\.0\.1):\d+)$/;
+  var direct = !!ancestors && ancestors.length === 2 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com';
+  var embedded = !!ancestors && ancestors.length === 3 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com' && trusted.test(ancestors[2]);
+  if (!ancestors || direct || embedded) return;
+  var cover = document.createElement('div');
+  cover.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483647;background:#fff;color:#17211b;font:16px Arial,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px';
+  cover.textContent = 'The CTTC desk can only be opened directly or from the club website.';
+  document.body.appendChild(cover);
+})();
+</script>
+<header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">Daily cash flow<small>Concord Table Tennis Club</small></div><div class="top-links"><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><a id="desk-link" href="<?= deskUrl ?>">&larr; Back to the desk</a><a href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
+<main class="shell">
+<form id="range" class="panel range" novalidate>
+  <div class="presets" role="group" aria-label="Quick ranges">
+    <button type="button" class="preset" data-preset="last7">Last 7 days</button>
+    <button type="button" class="preset" data-preset="last8w">Last 8 weeks</button>
+    <button type="button" class="preset" data-preset="today">Today</button>
+    <button type="button" class="preset" data-preset="week">This week</button>
+    <button type="button" class="preset" data-preset="month">This month</button>
+    <button type="button" class="preset" data-preset="lastMonth">Last month</button>
+    <button type="button" class="preset" data-preset="last3m">Last 3 months</button>
+    <button type="button" class="preset" data-preset="year">This year</button>
+  </div>
+  <label>From<input id="from" type="date" required></label>
+  <label>To<input id="to" type="date" required></label>
+  <button id="show" class="primary" type="submit">Show</button>
+  <div class="groupby" role="group" aria-label="Group by">Group by
+    <button type="button" class="preset" data-group="day">Day</button>
+    <button type="button" class="preset" data-group="week">Week</button>
+    <button type="button" class="preset" data-group="month">Month</button>
+  </div>
+</form>
+<div id="status" class="statusbar busy" role="status" aria-live="polite">Loading the cash flow...</div>
+<section id="summary" class="panel" hidden aria-labelledby="summary-title">
+  <div class="summary-head"><h2 id="summary-title">Range totals</h2><button id="csv" class="secondary" type="button">Download CSV</button></div>
+  <div id="tiles" class="tiles"></div>
+</section>
+<section id="trend" class="panel" hidden aria-labelledby="chart-title">
+  <div class="summary-head">
+    <h2 id="chart-title">Collected by week</h2>
+    <form id="target-form" class="target-form" novalidate>
+      <label><span id="target-label">Weekly target</span><span class="money">$<input id="target" type="text" inputmode="decimal" autocomplete="off" placeholder="none"></span></label>
+      <button class="secondary" type="submit">Save target</button>
+      <span id="target-note" class="save-note" aria-live="polite"></span>
+    </form>
+  </div>
+  <p id="chart-prompt" class="prompt" hidden></p>
+  <div id="legend" class="legend"></div>
+  <div id="chart" class="chart"></div>
+  <div id="chart-stats" class="tiles" style="margin-top:12px"></div>
+  <p id="period-rule" class="period-rule"></p>
+  <details class="table-view"><summary>Show the chart as a table</summary><div class="scroll"><table id="period-table"></table></div></details>
+</section>
+<section id="insights" class="panel" hidden aria-labelledby="insights-title">
+  <div class="summary-head"><h2 id="insights-title">Insights</h2></div>
+  <div id="insight-grid" class="insights"></div>
+</section>
+<div id="days" class="days"></div>
+<div class="footnote">
+  <p>Targets are club-wide and saved for everyone. Only finished weeks or months wholly inside the chosen range count towards a target: the current week or month is "in progress", one cut off by the start or end of the range is "partial", and a week or month with no club nights is left empty. Those are drawn but never counted as met or missed. With Group by Day, each club night with players is a bar, and tonight counts once it is over.</p>
+  <p>Fees per night: Junior $5, Member $10, Visitor $15. A Zeffy monthly play pass covers the night, so pass holders are counted but owe $0. Expected is what was recorded as paid by Cash, Venmo, Zelle or Credit; outstanding is what unpaid players still owe.</p>
+  <p>Status is each player's status today: the desk keeps no status history, so someone who became a member later shows at the member fee on earlier nights too. Archived players count as visitors.</p>
+  <p>Round robin players come from the saved roster and Open Play from the desk's Open Play list (Friday and Saturday nights are Open Play only). "Paid, not on the sheet" is a payment recorded for someone on neither list, kept so no payment is lost.</p>
+</div>
+</main>
+<script>
+(function () {
+  var pill = document.getElementById('mode-pill');
+  var names = { dev: '/dev', live: '/exec' };
+  var mode = pill.getAttribute('data-mode');
+  document.body.setAttribute('data-mode', mode);
+  pill.textContent = names[mode] || 'unknown';
+  pill.title = names[mode] ? 'Running ' + names[mode] + '.' : 'Could not tell which deployment this is.';
+  // Inside the club site's frame, go back to the site's desk page rather than the bare Google address.
+  var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : [];
+  var site = ancestors.length === 3 ? ancestors[2] : '';
+  if (/^(https:\/\/concordtabletennisclub\.com|http:\/\/(localhost|127\.0\.0\.1):\d+)$/.test(site)) document.getElementById('desk-link').href = site + '/desk.html';
+})();
+</script>
+<script>
+(function () {
+  var READ_TIMEOUT_MS = 45000;
+  var METHODS = [['cash', 'Cash'], ['venmo', 'Venmo'], ['zelle', 'Zelle'], ['credit', 'Credit']];
+  var STATUS = { junior: 'Junior', member: 'Member', visitor: 'Visitor' };
+  var KINDS = { rr: 'Round robin', open: 'Open Play', other: 'Paid, not on the sheet' };
+  var METHOD_NAMES = { cash: 'Cash', venmo: 'Venmo', zelle: 'Zelle', credit: 'Credit', zeffy: 'Zeffy pass', '': 'Unpaid' };
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var fromField = document.getElementById('from');
+  var toField = document.getElementById('to');
+  var statusBar = document.getElementById('status');
+  var summary = document.getElementById('summary');
+  var tiles = document.getElementById('tiles');
+  var dayList = document.getElementById('days');
+  var showButton = document.getElementById('show');
+  var data = null;
+  var requestNumber = 0;
+
+  function request(name) {
+    var args = [].slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { reject(new Error('Google did not respond in ' + READ_TIMEOUT_MS / 1000 + ' seconds. Check the connection.')); }, READ_TIMEOUT_MS);
+      var runner = google.script.run.withSuccessHandler(function (result) { clearTimeout(timer); resolve(result); }).withFailureHandler(function (error) { clearTimeout(timer); reject(error); });
+      runner[name].apply(runner, args);
+    });
+  }
+  function message(error) { return error && error.message || String(error || 'Unknown error'); }
+  function setStatus(text, kind) {
+    statusBar.textContent = text;
+    statusBar.className = 'statusbar' + (kind ? ' ' + kind : '');
+    statusBar.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  }
+  function money(value) {
+    var amount = Math.abs(Number(value) || 0);
+    var text = '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (Number(value) < 0 ? '-' : '') + text;
+  }
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      if (key === 'text') node.textContent = attrs[key];
+      else if (key === 'className') node.className = attrs[key];
+      else node.setAttribute(key, attrs[key]);
+    });
+    (children || []).forEach(function (child) { if (child) node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child); });
+    return node;
+  }
+
+  // Dates are the browser's own calendar days (the club and its Sheet are both on Pacific time).
+  function iso(date) {
+    return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
+  }
+  function longDate(value, weekday) {
+    var parts = value.split('-').map(Number);
+    return (weekday ? weekday + ', ' : '') + MONTHS[parts[1] - 1] + ' ' + parts[2] + ', ' + parts[0];
+  }
+  function presetRange(name) {
+    var today = new Date();
+    var y = today.getFullYear();
+    var m = today.getMonth();
+    var d = today.getDate();
+    if (name === 'today') return [iso(today), iso(today)];
+    if (name === 'week') return [iso(new Date(y, m, d - (today.getDay() + 6) % 7)), iso(today)];
+    if (name === 'month') return [iso(new Date(y, m, 1)), iso(today)];
+    if (name === 'lastMonth') return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
+    // Eight Monday-to-Sunday weeks, this one included.
+    if (name === 'last8w') return [iso(new Date(y, m, d - (today.getDay() + 6) % 7 - 49)), iso(today)];
+    if (name === 'last3m') return [iso(new Date(y, m - 2, 1)), iso(today)];
+    if (name === 'year') return [iso(new Date(y, 0, 1)), iso(today)];
+    return [iso(new Date(y, m, d - 6)), iso(today)];
+  }
+  function markPreset() {
+    document.querySelectorAll('[data-preset]').forEach(function (button) {
+      var range = presetRange(button.getAttribute('data-preset'));
+      button.setAttribute('aria-pressed', String(range[0] === fromField.value && range[1] === toField.value));
+    });
+  }
+
+  function load() {
+    var from = fromField.value;
+    var to = toField.value;
+    markPreset();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) { setStatus('Choose both a start and an end date.', 'error'); return; }
+    if (from > to) { setStatus('The start date must be on or before the end date.', 'error'); return; }
+    var mine = ++requestNumber;
+    showButton.disabled = true;
+    document.body.classList.add('reloading');
+    setStatus('Loading ' + longDate(from) + ' to ' + longDate(to) + '...', 'busy');
+    request('getCashFlow', from, to).then(function (result) {
+      if (mine !== requestNumber) return;
+      data = result;
+      render();
+      setStatus(result.days.length ? 'Showing ' + result.days.length + ' club day' + (result.days.length === 1 ? '' : 's') + ' from ' + longDate(from) + ' to ' + longDate(to) + '.' : 'No players or payments were recorded from ' + longDate(from) + ' to ' + longDate(to) + '.');
+    }).catch(function (error) {
+      if (mine !== requestNumber) return;
+      setStatus('Could not load the cash flow: ' + message(error), 'error');
+    }).then(function () { if (mine === requestNumber) { showButton.disabled = false; document.body.classList.remove('reloading'); } });
+  }
+
+  function cashSummary() {
+    var cash = { expected: 0, counted: 0, difference: 0, countedDays: 0 };
+    data.days.forEach(function (day) {
+      cash.expected += day.cash.expected;
+      if (day.cash.counted === null) return;
+      cash.counted += day.cash.counted;
+      cash.difference += day.cash.difference;
+      cash.countedDays += 1;
+    });
+    cash.difference = Math.round(cash.difference * 100) / 100;
+    return cash;
+  }
+  function differenceText(difference) {
+    if (difference === null) return 'Not counted yet';
+    if (difference > 0) return 'Over by ' + money(difference);
+    if (difference < 0) return 'Short by ' + money(-difference);
+    return 'Matches the expected cash';
+  }
+  function tile(label, value, sub, kind) {
+    return el('div', { className: 'tile' + (kind ? ' ' + kind : '') }, [el('span', { className: 'label', text: label }), el('strong', { text: value }), el('span', { className: 'sub', text: sub })]);
+  }
+  function renderTiles() {
+    var totals = data.totals;
+    var cash = cashSummary();
+    var plural = function (count, word) { return count + ' ' + word + (count === 1 ? '' : 's'); };
+    tiles.textContent = '';
+    tiles.appendChild(tile('Total collected', money(totals.expected), plural(totals.days, 'day') + ', ' + plural(totals.players, 'player'), 'total'));
+    METHODS.forEach(function (method) {
+      var item = totals.methods[method[0]];
+      tiles.appendChild(tile(method[1], money(item.amount), plural(item.count, 'payment')));
+    });
+    tiles.appendChild(tile('Zeffy pass', String(totals.zeffy.count), 'covered, owe $0'));
+    tiles.appendChild(tile('Unpaid', money(totals.unpaid.amount), plural(totals.unpaid.count, 'player') + ' still owe', totals.unpaid.count ? 'alert' : ''));
+    tiles.appendChild(tile('Cash over / short', cash.countedDays ? differenceText(cash.difference) : 'Not counted', cash.countedDays + ' of ' + plural(data.days.length, 'day') + ' counted', cash.countedDays && cash.difference ? 'alert' : ''));
+  }
+
+  function methodTable(day) {
+    var body = METHODS.map(function (method) {
+      var item = day.methods[method[0]];
+      return el('tr', {}, [el('td', { text: method[1] }), el('td', { className: 'num', text: String(item.count) }), el('td', { className: 'num', text: money(item.amount) })]);
+    });
+    body.push(el('tr', {}, [el('td', { text: 'Zeffy pass' }), el('td', { className: 'num', text: String(day.zeffy.count) }), el('td', { className: 'num', text: money(0) })]));
+    body.push(el('tr', { className: day.unpaid.count ? 'unpaid-row' : '' }, [el('td', { text: 'Unpaid (still owed)' }), el('td', { className: 'num', text: String(day.unpaid.count) }), el('td', { className: 'num', text: money(day.unpaid.amount) })]));
+    return el('div', {}, [el('h4', { text: 'By method' }), el('div', { className: 'scroll' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, [el('th', { text: 'Method' }), el('th', { className: 'num', text: 'Players' }), el('th', { className: 'num', text: 'Dollars' })])]),
+      el('tbody', {}, body),
+      el('tfoot', {}, [el('tr', {}, [el('td', { text: 'Collected' }), el('td', { className: 'num', text: String(day.players - day.unpaid.count - day.zeffy.count) }), el('td', { className: 'num', text: money(day.expected) })])])
+    ])])]);
+  }
+  function kindTable(day) {
+    var rows = ['rr', 'open', 'other'].filter(function (kind) { return kind !== 'other' || day.kinds.other.players; }).map(function (kind) {
+      var item = day.kinds[kind];
+      return el('tr', {}, [el('td', { text: KINDS[kind] }), el('td', { className: 'num', text: String(item.players) }), el('td', { className: 'num', text: money(item.expected) }), el('td', { className: 'num', text: money(item.outstanding) })]);
+    });
+    rows.push(el('tr', { className: 'total' }, [el('td', { text: 'Day total' }), el('td', { className: 'num', text: String(day.players) }), el('td', { className: 'num', text: money(day.expected) }), el('td', { className: 'num', text: money(day.outstanding) })]));
+    return el('div', {}, [el('h4', { text: 'Round robin and Open Play' }), el('div', { className: 'scroll' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, [el('th', { text: 'Where' }), el('th', { className: 'num', text: 'Players' }), el('th', { className: 'num', text: 'Collected' }), el('th', { className: 'num', text: 'Outstanding' })])]),
+      el('tbody', {}, rows)
+    ])])]);
+  }
+  function countBox(day) {
+    var counted = el('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', 'aria-label': 'Counted cash for ' + longDate(day.date) });
+    counted.value = day.cash.counted === null ? '' : day.cash.counted.toFixed(2);
+    var note = el('input', { type: 'text', maxlength: '200', autocomplete: 'off', placeholder: 'Optional', 'aria-label': 'Cash count note for ' + longDate(day.date) });
+    note.value = day.cash.note || '';
+    var save = el('button', { type: 'button', className: 'secondary', text: 'Save' });
+    var diff = el('p', { className: 'diff', 'aria-live': 'polite' });
+    var saved = el('div', { className: 'save-note', 'aria-live': 'polite' });
+    function showDifference() {
+      var difference = day.cash.difference;
+      diff.textContent = differenceText(difference);
+      diff.className = 'diff ' + (difference === null ? 'none' : difference > 0 ? 'over' : difference < 0 ? 'short' : 'even');
+      saved.textContent = day.cash.updatedAt ? 'Saved ' + new Date(day.cash.updatedAt).toLocaleString() : '';
+      saved.className = 'save-note';
+    }
+    save.addEventListener('click', function () {
+      var text = counted.value.trim();
+      if (text && !/^\$?\d[\d,]*(\.\d{1,2})?$/.test(text)) {
+        saved.textContent = 'Enter an amount like 45 or 45.50, or leave it blank to clear.';
+        saved.className = 'save-note error';
+        counted.focus();
+        return;
+      }
+      save.disabled = true;
+      saved.textContent = 'Saving...';
+      saved.className = 'save-note';
+      request('saveCashCount', day.date, text, note.value).then(function (result) {
+        day.cash.counted = result.counted;
+        day.cash.note = result.note;
+        day.cash.updatedAt = result.updatedAt;
+        day.cash.difference = result.counted === null ? null : Math.round((result.counted - day.cash.expected) * 100) / 100;
+        counted.value = result.counted === null ? '' : result.counted.toFixed(2);
+        note.value = result.note;
+        showDifference();
+        renderTiles();
+      }).catch(function (error) {
+        saved.textContent = 'Not saved: ' + message(error);
+        saved.className = 'save-note error';
+      }).then(function () { save.disabled = false; });
+    });
+    showDifference();
+    return el('div', { className: 'count-box' }, [
+      el('h4', { text: 'Cash count at close' }),
+      el('div', { className: 'expected' }, [el('span', { text: 'Cash expected' }), el('strong', { text: money(day.cash.expected) })]),
+      el('div', { className: 'count-fields' }, [el('label', {}, ['Counted ($)', counted]), el('label', { className: 'note' }, ['Note', note]), save]),
+      diff,
+      saved
+    ]);
+  }
+  function playerList(day) {
+    var rows = day.playerList.map(function (player) {
+      var methodTag = el('span', { className: 'tag' + (player.method === '' ? ' unpaid' : player.method === 'zeffy' ? ' zeffy' : ''), text: METHOD_NAMES[player.method] || player.method });
+      return el('tr', {}, [el('td', { text: player.name }), el('td', { text: STATUS[player.status] || player.status }), el('td', { text: KINDS[player.kind] }), el('td', {}, [methodTag]), el('td', { className: 'num', text: money(player.owed) })]);
+    });
+    return el('details', { className: 'players' }, [
+      el('summary', { text: 'Players (' + day.players + ')' }),
+      el('div', { className: 'scroll' }, [el('table', {}, [
+        el('thead', {}, [el('tr', {}, [el('th', { text: 'Name' }), el('th', { text: 'Status' }), el('th', { text: 'Where' }), el('th', { text: 'Method' }), el('th', { className: 'num', text: 'Owed' })])]),
+        el('tbody', {}, rows)
+      ])])
+    ]);
+  }
+  function render() {
+    summary.hidden = false;
+    renderTiles();
+    renderTrend();
+    renderInsights();
+    dayList.textContent = '';
+    if (!data.days.length) {
+      dayList.appendChild(el('div', { className: 'empty', text: 'No players or payments in this range.' }));
+      return;
+    }
+    data.days.forEach(function (day) {
+      var sub = day.players + ' player' + (day.players === 1 ? '' : 's') + ' · ' + money(day.expected) + ' collected' + (day.unpaid.count ? ' · ' + day.unpaid.count + ' unpaid (' + money(day.unpaid.amount) + ')' : '');
+      dayList.appendChild(el('article', { className: 'day', 'data-date': day.date, 'aria-label': longDate(day.date, day.weekday) }, [
+        el('div', { className: 'day-head' }, [el('h3', { text: longDate(day.date, day.weekday) }), el('span', { text: sub })]),
+        el('div', { className: 'day-body' }, [methodTable(day), kindTable(day), countBox(day)]),
+        playerList(day)
+      ]));
+    });
+  }
+
+  // ---- Collected per period against the club target (inline SVG, no libraries) ----
+  var grouping = 'week';
+  var UNIT = { day: ['night', 'nights', 'Daily target', 'Collected by club night'], week: ['week', 'weeks', 'Weekly target', 'Collected by week'], month: ['month', 'months', 'Monthly target', 'Collected by month'] };
+  // Met and missed are status colors, checked for color-blind separation; each also has a symbol, and missed bars a hatch.
+  var COLORS = { met: '#176b45', missed: '#e06a5a', none: '#5f7f8f', pending: '#b9c4bd', grid: '#e3e8e4', axis: '#c3ccc6', ink: '#17211b', muted: '#657069' };
+  var STATE_TEXT = { met: 'Met target', missed: 'Below target', none: 'Collected', partial: 'Partial: cut by the range edge, not counted', in_progress: 'In progress, not counted', empty: 'No club nights' };
+  var SYMBOL = { met: '✓', missed: '✗', partial: '…', in_progress: '…' };
+  var SVG = 'http://www.w3.org/2000/svg';
+  var chartBox = document.getElementById('chart');
+  var tooltip = null;
+  function svg(tag, attrs, parent) {
+    var node = document.createElementNS(SVG, tag);
+    Object.keys(attrs || {}).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+  function niceMax(value) {
+    if (value <= 0) return 100;
+    var step = Math.pow(10, Math.floor(Math.log(value) / Math.LN10));
+    var options = [1, 2, 2.5, 5, 10];
+    for (var i = 0; i < options.length; i += 1) if (options[i] * step >= value) return options[i] * step;
+    return 10 * step;
+  }
+  function compact(value) { return value >= 1000 ? '$' + (Math.round(value / 100) / 10) + 'K' : '$' + Math.round(value); }
+  function axisLabel(period, index) {
+    var parts = period.start.split('-').map(Number);
+    if (grouping === 'month') return MONTHS[parts[1] - 1] + (parts[1] === 1 || index === 0 ? ' ' + String(parts[0]).slice(2) : '');
+    return parts[1] + '/' + parts[2];
+  }
+  function overUnder(difference) {
+    if (difference === null || difference === undefined) return '';
+    return difference >= 0 ? 'Over by ' + money(difference) : 'Under by ' + money(-difference);
+  }
+  function tipLines(period, target) {
+    var lines = [period.label, (SYMBOL[period.state] ? SYMBOL[period.state] + ' ' : '') + STATE_TEXT[period.state]];
+    if (period.nights) lines.push(period.nights + ' club night' + (period.nights === 1 ? '' : 's') + ', ' + period.players + ' player nights');
+    if (target !== null) lines.push('Target ' + money(target) + (period.nights ? ' · ' + overUnder(period.difference) : ''));
+    return lines;
+  }
+  function showTip(period, target, x, y) {
+    if (!tooltip) return;
+    tooltip.textContent = '';
+    tooltip.appendChild(el('strong', { text: period.nights ? money(period.collected) : '—' }));
+    tipLines(period, target).forEach(function (line) { tooltip.appendChild(el('div', { text: line })); });
+    tooltip.hidden = false;
+    var width = chartBox.clientWidth || 720;
+    tooltip.style.left = Math.max(chartBox.scrollLeft, Math.min(x + 12, chartBox.scrollLeft + width - 250)) + 'px';
+    tooltip.style.top = Math.max(0, y - 20) + 'px';
+  }
+  function hideTip() { if (tooltip) tooltip.hidden = true; }
+  function legendItem(color, text, kind) {
+    var swatch = kind === 'line' ? el('i', { className: 'line' }) : el('i', { style: 'background:' + color + (kind === 'hatch' ? ';background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.55) 0 2px,transparent 2px 5px)' : '') });
+    return el('span', {}, [swatch, text]);
+  }
+  function renderTrend() {
+    var group = data.groups[grouping];
+    var unit = UNIT[grouping];
+    var target = group.target;
+    var periods = group.periods;
+    document.getElementById('trend').hidden = false;
+    document.getElementById('chart-title').textContent = unit[3];
+    document.getElementById('target-label').textContent = unit[2];
+    var targetField = document.getElementById('target');
+    if (document.activeElement !== targetField) targetField.value = target === null ? '' : target.toFixed(2);
+    targetField.setAttribute('aria-label', unit[2] + ' in dollars, saved for everyone');
+    var prompt = document.getElementById('chart-prompt');
+    prompt.hidden = target !== null;
+    prompt.textContent = 'No ' + unit[2].toLowerCase() + ' yet. Enter one next to the chart to see which ' + unit[1] + ' met it; it is saved for everyone.';
+    var legend = document.getElementById('legend');
+    legend.textContent = '';
+    if (target === null) legend.appendChild(legendItem(COLORS.none, 'Collected'));
+    else {
+      legend.appendChild(legendItem(COLORS.met, '✓ Met target'));
+      legend.appendChild(legendItem(COLORS.missed, '✗ Below target', 'hatch'));
+      legend.appendChild(legendItem(COLORS.ink, 'Target ' + money(target), 'line'));
+    }
+    if (periods.some(function (period) { return period.nights && !period.counted; })) legend.appendChild(legendItem(COLORS.pending, '… In progress or partial, not counted'));
+    renderGroupStats(group);
+    renderPeriodTable(group);
+
+    chartBox.textContent = '';
+    tooltip = null;
+    if (!periods.length) {
+      chartBox.appendChild(el('div', { className: 'empty', text: 'No club nights in this range.' }));
+      return;
+    }
+    var width = chartBox.clientWidth || 720;
+    var left = 48;
+    var right = 12;
+    var top = 22;
+    var bottom = 26;
+    var height = 250;
+    var plotWidth = Math.max(width - left - right, periods.length * (grouping === 'day' ? 8 : 16));
+    width = plotWidth + left + right;
+    var plotHeight = height - top - bottom;
+    var base = top + plotHeight;
+    var maxValue = niceMax(Math.max(target || 0, Math.max.apply(null, periods.map(function (period) { return period.collected; }))) * 1.08);
+    var y = function (value) { return base - value / maxValue * plotHeight; };
+    var chartSvg = svg('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'group', 'aria-label': unit[3] + (target === null ? '' : ', target ' + money(target)) + '. Every value is also in the table below the chart.' });
+    var pattern = svg('pattern', { id: 'missed-hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, svg('defs', {}, chartSvg));
+    svg('rect', { width: 6, height: 6, fill: COLORS.missed }, pattern);
+    svg('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: '#fff', 'stroke-opacity': 0.5, 'stroke-width': 2 }, pattern);
+    for (var tick = 0; tick <= 4; tick += 1) {
+      var value = maxValue / 4 * tick;
+      svg('line', { x1: left, x2: left + plotWidth, y1: y(value), y2: y(value), stroke: tick ? COLORS.grid : COLORS.axis, 'stroke-width': 1 }, chartSvg);
+      svg('text', { x: left - 6, y: y(value) + 4, 'text-anchor': 'end', fill: COLORS.muted, 'font-size': 11, 'font-family': 'Arial, sans-serif' }, chartSvg).textContent = compact(value);
+    }
+    var slot = plotWidth / periods.length;
+    var barWidth = Math.max(2, Math.min(24, slot - 2, slot * 0.7));
+    var every = Math.max(1, Math.ceil(44 / slot));
+    periods.forEach(function (period, index) {
+      var center = left + slot * index + slot / 2;
+      var fill = !period.counted ? COLORS.pending : period.state === 'met' ? COLORS.met : period.state === 'missed' ? 'url(#missed-hatch)' : COLORS.none;
+      var hit = svg('rect', { class: 'hit', x: left + slot * index, y: top, width: slot, height: plotHeight, tabindex: 0, role: 'img', 'data-key': period.key, 'aria-label': (period.nights ? money(period.collected) : 'Nothing collected') + ', ' + tipLines(period, target).join(', ') }, chartSvg);
+      if (period.nights) {
+        var barTop = y(period.collected);
+        var radius = Math.min(4, barWidth / 2, Math.max(0, base - barTop));
+        var x0 = center - barWidth / 2;
+        var x1 = center + barWidth / 2;
+        svg('path', { class: 'bar-mark', 'data-state': period.state, fill: fill, 'pointer-events': 'none', d: 'M' + x0 + ',' + base + 'V' + (barTop + radius) + 'Q' + x0 + ',' + barTop + ' ' + (x0 + radius) + ',' + barTop + 'H' + (x1 - radius) + 'Q' + x1 + ',' + barTop + ' ' + x1 + ',' + (barTop + radius) + 'V' + base + 'Z' }, chartSvg);
+        if (SYMBOL[period.state] && slot >= 12) {
+          svg('text', { class: 'bar-symbol', x: center, y: barTop - 5, 'text-anchor': 'middle', fill: period.counted ? COLORS.ink : COLORS.muted, 'font-size': 12, 'font-family': 'Arial, sans-serif', 'pointer-events': 'none' }, chartSvg).textContent = SYMBOL[period.state];
+        }
+      } else {
+        // A week or month with no club nights is a gap with a short tick on the baseline.
+        svg('rect', { class: 'gap-mark', x: center - Math.min(8, barWidth) / 2, y: base - 2, width: Math.min(8, barWidth), height: 2, fill: COLORS.axis, 'pointer-events': 'none' }, chartSvg);
+      }
+      if (index % every === 0) {
+        svg('text', { x: center, y: height - 8, 'text-anchor': 'middle', fill: COLORS.muted, 'font-size': 11, 'font-family': 'Arial, sans-serif' }, chartSvg).textContent = axisLabel(period, index);
+      }
+      var show = function (event) {
+        var pointer = event && event.type !== 'focus' && event.clientX !== undefined;
+        var box = chartBox.getBoundingClientRect();
+        showTip(period, target, pointer ? event.clientX - box.left + chartBox.scrollLeft : center, pointer ? event.clientY - box.top : (period.nights ? y(period.collected) : base));
+      };
+      hit.addEventListener('pointermove', show);
+      hit.addEventListener('focus', show);
+      hit.addEventListener('pointerleave', hideTip);
+      hit.addEventListener('blur', hideTip);
+    });
+    if (target !== null) {
+      svg('line', { class: 'target-line', x1: left, x2: left + plotWidth, y1: y(target), y2: y(target), stroke: COLORS.ink, 'stroke-width': 2, 'pointer-events': 'none' }, chartSvg);
+      svg('text', { x: left + plotWidth, y: y(target) - 5, 'text-anchor': 'end', fill: COLORS.ink, 'font-size': 11, 'font-weight': 700, 'font-family': 'Arial, sans-serif', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 3, 'pointer-events': 'none' }, chartSvg).textContent = 'Target ' + compact(target);
+    }
+    chartBox.appendChild(chartSvg);
+    tooltip = el('div', { className: 'tooltip', 'aria-hidden': 'true' });
+    tooltip.hidden = true;
+    chartBox.appendChild(tooltip);
+  }
+  function renderGroupStats(group) {
+    var stats = group.stats;
+    var unit = UNIT[grouping];
+    var box = document.getElementById('chart-stats');
+    box.textContent = '';
+    var counted = stats.counted + ' counted ' + (stats.counted === 1 ? unit[0] : unit[1]);
+    box.appendChild(tile('Total collected', money(data.totals.expected), money(stats.collected) + ' in ' + counted, 'total'));
+    if (group.target === null) {
+      box.appendChild(tile('Target total', 'No target', 'Set a ' + unit[2].toLowerCase() + ' above'));
+    } else {
+      box.appendChild(tile('Target total', money(stats.targetTotal), money(group.target) + ' × ' + counted));
+      box.appendChild(tile('Over / under', stats.counted ? (stats.overUnder >= 0 ? '▲ ' : '▼ ') + overUnder(stats.overUnder) : '—', 'counted ' + unit[1] + ' only', stats.counted ? (stats.overUnder >= 0 ? 'good' : 'alert') : ''));
+      box.appendChild(tile(unit[1].charAt(0).toUpperCase() + unit[1].slice(1) + ' meeting target', stats.met + ' of ' + stats.counted, stats.metPercent === null ? 'none counted yet' : stats.metPercent + '%'));
+    }
+    box.appendChild(tile('Average per ' + unit[0], stats.average === null ? '—' : money(stats.average), counted));
+    box.appendChild(tile('Best ' + unit[0], stats.best ? money(stats.best.collected) : '—', stats.best ? stats.best.label : 'none counted yet'));
+    box.appendChild(tile('Worst ' + unit[0], stats.worst ? money(stats.worst.collected) : '—', stats.worst ? stats.worst.label : 'needs two counted ' + unit[1]));
+    var notes = [];
+    if (stats.partial) notes.push(stats.partial + ' ' + (stats.partial === 1 ? unit[0] : unit[1]) + ' in progress or cut by the range edge (light bars marked …) not counted');
+    if (stats.empty) notes.push(stats.empty + ' with no club nights left empty');
+    document.getElementById('period-rule').textContent = (grouping === 'day' ? 'Each bar is a club night with players; tonight counts once it is over.'
+      : 'Counted ' + unit[1] + ' are finished ' + unit[1] + ' wholly inside the range' + (grouping === 'week' ? ' (Monday to Sunday)' : '') + '.') + (notes.length ? ' ' + notes.join('; ') + '.' : '');
+  }
+  function renderPeriodTable(group) {
+    var periodTable = document.getElementById('period-table');
+    periodTable.textContent = '';
+    periodTable.appendChild(el('thead', {}, [el('tr', {}, [el('th', { text: 'Period' }), el('th', { className: 'num', text: 'Nights' }), el('th', { className: 'num', text: 'Collected' }), el('th', { className: 'num', text: 'Target' }), el('th', { className: 'num', text: 'Over / under' }), el('th', { text: 'Status' })])]));
+    periodTable.appendChild(el('tbody', {}, group.periods.map(function (period) {
+      return el('tr', {}, [el('td', { text: period.label }), el('td', { className: 'num', text: String(period.nights) }), el('td', { className: 'num', text: money(period.collected) }),
+        el('td', { className: 'num', text: group.target === null ? '—' : money(group.target) }), el('td', { className: 'num', text: period.counted && group.target !== null ? overUnder(period.difference) : '—' }),
+        el('td', { text: (SYMBOL[period.state] ? SYMBOL[period.state] + ' ' : '') + STATE_TEXT[period.state] })]);
+    })));
+  }
+
+  // ---- Insights ----
+  var WEEKDAY_NAMES = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+  var MIX_NAMES = { cash: 'Cash', venmo: 'Venmo', zelle: 'Zelle', credit: 'Credit', zeffy: 'Zeffy pass', unpaid: 'Unpaid' };
+  function smallTable(headers, rows) {
+    return el('div', { className: 'scroll' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, headers.map(function (header) { return el('th', { className: header.num ? 'num' : '', text: header.text }); }))]),
+      el('tbody', {}, rows.map(function (cells) {
+        return el('tr', {}, cells.map(function (item) { return item.nodeType ? el('td', {}, [item]) : el('td', { className: item.num ? 'num' : '', text: item.text }); }));
+      }))
+    ])]);
+  }
+  function num(text) { return { text: String(text), num: true }; }
+  function cell(text) { return { text: String(text) }; }
+  function insight(title, children, wide) {
+    var node = el('details', { className: 'insight' + (wide ? ' wide' : '') }, [el('summary', { text: title }), el('div', { className: 'insight-body' }, children)]);
+    // Open side by side on a wide screen; folded into a list of titles on a phone.
+    node.open = !window.matchMedia || window.matchMedia('(min-width: 761px)').matches;
+    return node;
+  }
+  function change(value) {
+    if (value === null) return el('span', { className: 'muted', text: 'nothing before to compare' });
+    return el('span', { className: value >= 0 ? 'delta-up' : 'delta-down', text: (value >= 0 ? '↑ up ' : '↓ down ') + Math.abs(value) + '%' });
+  }
+  function renderInsights() {
+    var info = data.insights;
+    var grid = document.getElementById('insight-grid');
+    document.getElementById('insights').hidden = false;
+    grid.textContent = '';
+    if (!info.attendance) {
+      grid.appendChild(el('p', { className: 'muted', text: 'No club nights in this range.' }));
+      return;
+    }
+    var maxShare = Math.max.apply(null, info.methods.map(function (item) { return item.countShare; })) || 1;
+    grid.appendChild(insight('Payment mix', [
+      el('p', { className: 'headline' }, ['Most common: ', el('strong', { text: info.topByCount ? MIX_NAMES[info.topByCount] : '—' }), ' by players, ', el('strong', { text: info.topByDollars ? MIX_NAMES[info.topByDollars] : '—' }), ' by dollars.']),
+      smallTable([{ text: 'Method' }, { text: 'Players', num: true }, { text: 'Share of players' }, { text: 'Dollars', num: true }, { text: '% of $', num: true }], info.methods.map(function (item) {
+        var share = el('span', { className: 'share-cell' }, [el('span', { className: 'share', style: 'width:' + Math.max(2, item.countShare / maxShare * 100) + '%' }), el('span', { className: 'muted', text: item.countShare + '%' })]);
+        return [cell(MIX_NAMES[item.method]), num(item.count), share, num(item.method === 'unpaid' ? money(item.amount) + ' owed' : money(item.amount)), num(item.amountShare === null ? '—' : item.amountShare + '%')];
+      }))
+    ], true));
+    grid.appendChild(insight('Most active players', [
+      smallTable([{ text: '#' }, { text: 'Name' }, { text: 'Status' }, { text: 'Nights', num: true }, { text: 'Paid', num: true }], info.topPlayers.map(function (player, index) {
+        return [cell(index + 1), cell(player.name), cell(STATUS[player.status] || player.status), num(player.nights), num(money(player.paid))];
+      })),
+      el('p', { className: 'muted', text: 'Nights on the round robin or Open Play list.' })
+    ]));
+    grid.appendChild(insight('Busiest weekday', [
+      el('p', { className: 'headline' }, [el('strong', { text: WEEKDAY_NAMES[info.busiestWeekday] || '—' }), ' has the most players on average.']),
+      smallTable([{ text: 'Weekday' }, { text: 'Nights', num: true }, { text: 'Avg players', num: true }, { text: 'Avg collected', num: true }], info.weekdays.map(function (item) {
+        return [cell(WEEKDAY_NAMES[item.weekday] + (item.weekday === info.busiestWeekday ? ' ★ busiest' : '')), num(item.nights), num(item.averagePlayers), num(money(item.averageCollected))];
+      }))
+    ]));
+    var zeffy = info.methods.filter(function (item) { return item.method === 'zeffy'; })[0];
+    grid.appendChild(insight('Who plays', [
+      el('p', { className: 'headline' }, [el('strong', { text: String(info.averagePlayersPerNight) }), ' players a night on average, ', el('strong', { text: money(info.averagePerPlayer) }), ' collected per player.']),
+      smallTable([{ text: 'Status' }, { text: 'Player nights', num: true }, { text: 'Share', num: true }], ['junior', 'member', 'visitor'].map(function (status) {
+        return [cell(STATUS[status]), num(info.statusMix[status] || 0), num(Math.round((info.statusMix[status] || 0) / info.attendance * 1000) / 10 + '%')];
+      }).concat([[cell('Zeffy pass holders'), num(zeffy.count), num(info.zeffyShare + '%')]]))
+    ]));
+    grid.appendChild(insight('Unpaid', [
+      el('p', { className: 'headline' }, [el('strong', { text: String(info.unpaid.count) }), ' unpaid player nights, ', el('strong', { text: money(info.unpaid.amount) }), ' still owed.']),
+      info.unpaid.repeat.length ? smallTable([{ text: 'Unpaid on 2+ nights' }, { text: 'Nights', num: true }, { text: 'Owed', num: true }], info.unpaid.repeat.map(function (person) {
+        return [cell(person.name), num(person.nights), num(money(person.owed))];
+      })) : el('p', { className: 'muted', text: 'Nobody has two or more unpaid nights in this range.' })
+    ]));
+    var trend = info.trend;
+    grid.appendChild(insight('Against the previous period', [
+      el('p', { className: 'muted', text: longDate(data.from) + ' – ' + longDate(data.to) + ' against the same number of days before: ' + longDate(trend.previousFrom) + ' – ' + longDate(trend.previousTo) + '.' }),
+      smallTable([{ text: 'Measure' }, { text: 'This range', num: true }, { text: 'Before', num: true }, { text: 'Change' }], [
+        [cell('Collected'), num(money(trend.collected)), num(money(trend.previousCollected)), change(trend.collectedChange)],
+        [cell('Player nights'), num(trend.attendance), num(trend.previousAttendance), change(trend.attendanceChange)],
+        [cell('Club nights'), num(trend.nights), num(trend.previousNights), cell('')]
+      ])
+    ]));
+    grid.appendChild(insight('New faces', info.newFaces.length ? [
+      el('p', { className: 'headline', text: info.newFaces.length + ' player' + (info.newFaces.length === 1 ? '' : 's') + ' came for the first time in the desk’s records.' }),
+      smallTable([{ text: 'Name' }, { text: 'First night' }], info.newFaces.map(function (face) { return [cell(face.name), cell(longDate(face.firstDate))]; }))
+    ] : [el('p', { className: 'muted', text: 'No first-time players in this range.' })]));
+  }
+
+  function markGrouping() {
+    document.querySelectorAll('[data-group]').forEach(function (button) { button.setAttribute('aria-pressed', String(button.getAttribute('data-group') === grouping)); });
+  }
+  document.querySelectorAll('[data-group]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      grouping = button.getAttribute('data-group');
+      markGrouping();
+      document.getElementById('target-note').textContent = '';
+      if (data) renderTrend();
+    });
+  });
+  markGrouping();
+  document.getElementById('target-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var field = document.getElementById('target');
+    var note = document.getElementById('target-note');
+    var text = field.value.trim();
+    if (text && !/^\$?\d[\d,]*(\.\d{1,2})?$/.test(text)) {
+      note.textContent = 'Enter an amount like 450 or 450.50, or leave it blank to clear.';
+      note.className = 'save-note error';
+      return;
+    }
+    var button = event.target.querySelector('button');
+    button.disabled = true;
+    note.textContent = 'Saving...';
+    note.className = 'save-note';
+    request('saveCashTarget', grouping, text).then(function () {
+      note.textContent = text ? 'Saved for everyone.' : 'Target cleared.';
+      field.blur();
+      load();
+    }).catch(function (error) {
+      note.textContent = 'Not saved: ' + message(error);
+      note.className = 'save-note error';
+    }).then(function () { button.disabled = false; });
+  });
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { if (data) renderTrend(); }, 150);
+  });
+
+  // One row per day, oldest first, then a total row. Text cells that a spreadsheet could read as a formula get a leading '.
+  var CSV_COLUMNS = ['date', 'weekday', 'players', 'rr_players', 'open_play_players', 'paid_not_listed', 'cash_payments', 'cash_dollars', 'venmo_payments', 'venmo_dollars',
+    'zelle_payments', 'zelle_dollars', 'credit_payments', 'credit_dollars', 'zeffy_players', 'unpaid_players', 'unpaid_dollars', 'rr_collected', 'open_play_collected',
+    'total_collected', 'outstanding', 'cash_counted', 'cash_difference', 'note'];
+  function csvRow(label, weekday, item, cash) {
+    return [label, weekday, item.players, item.kinds.rr.players, item.kinds.open.players, item.kinds.other.players]
+    .concat([].concat.apply([], METHODS.map(function (method) { return [item.methods[method[0]].count, item.methods[method[0]].amount.toFixed(2)]; })))
+    .concat([item.zeffy.count, item.unpaid.count, item.unpaid.amount.toFixed(2), item.kinds.rr.expected.toFixed(2), item.kinds.open.expected.toFixed(2), item.expected.toFixed(2), item.outstanding.toFixed(2),
+      cash.counted === null ? '' : cash.counted.toFixed(2), cash.difference === null ? '' : cash.difference.toFixed(2), cash.note || '']);
+  }
+  function csvCell(value) {
+    var text = String(value);
+    if (/^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text)) text = "'" + text;
+    return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }
+  function csvText() {
+    var rows = [CSV_COLUMNS];
+    data.days.slice().reverse().forEach(function (day) { rows.push(csvRow(day.date, day.weekday, day, day.cash)); });
+    var cash = cashSummary();
+    rows.push(csvRow('total', '', data.totals, { counted: cash.countedDays ? cash.counted : null, difference: cash.countedDays ? cash.difference : null, note: '' }));
+    return rows.map(function (row) { return row.map(csvCell).join(','); }).join('\r\n') + '\r\n';
+  }
+  document.getElementById('csv').addEventListener('click', function () {
+    if (!data) return;
+    var url = URL.createObjectURL(new Blob([csvText()], { type: 'text/csv;charset=utf-8' }));
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'cttc-cash-flow-' + data.from + '-to-' + data.to + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  document.querySelectorAll('[data-preset]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var range = presetRange(button.getAttribute('data-preset'));
+      fromField.value = range[0];
+      toField.value = range[1];
+      load();
+    });
+  });
+  document.getElementById('range').addEventListener('submit', function (event) { event.preventDefault(); load(); });
+  window.cttcCashCsv = function () { return data ? csvText() : ''; };
+  var start = presetRange('last8w');
+  fromField.value = start[0];
+  toField.value = start[1];
+  load();
+})();
+</script>
+</body>
+</html>

@@ -134,22 +134,30 @@ function appendAudit_(action, entityType, entityId, details) {
   return eventId;
 }
 
+// ?view=cash opens the daily cash flow page (CashFlow.js); every other request opens the desk.
 function doGet(event) {
-  return guardDesk_('page_load', function () { return deskPage_(event); });
+  return guardDesk_('page_load', function () {
+    var view = event && event.parameter && event.parameter.view;
+    return view === 'cash' ? cashPage_(event) : deskPage_(event);
+  });
 }
 
 function deskPage_(event) {
   var template = HtmlService.createTemplateFromFile('Index');
   var requestedDate = event && event.parameter && event.parameter.date;
   template.initialDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') ? requestedDate : '';
-  // Only the /dev and /exec URLs are recognised; anything else shows as unknown rather than guessing.
-  var deployedUrl = '';
-  try { deployedUrl = String(ScriptApp.getService().getUrl() || ''); } catch (error) { deployedUrl = ''; }
-  template.deskMode = /\/dev$/.test(deployedUrl) ? 'dev' : /\/exec$/.test(deployedUrl) ? 'live' : 'unknown';
+  template.deskMode = deskMode_();
   return template.evaluate()
   .setTitle(template.deskMode === 'dev' ? 'DEV - CTTC Desk' : template.deskMode === 'live' ? 'LIVE - CTTC Desk' : 'CTTC Round Robin Manager')
   .addMetaTag('viewport', 'width=device-width, initial-scale=1')
   .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Only the /dev and /exec URLs are recognised; anything else shows as unknown rather than guessing.
+function deskMode_() {
+  var deployedUrl = '';
+  try { deployedUrl = String(ScriptApp.getService().getUrl() || ''); } catch (error) { deployedUrl = ''; }
+  return /\/dev$/.test(deployedUrl) ? 'dev' : /\/exec$/.test(deployedUrl) ? 'live' : 'unknown';
 }
 
 function include(name) {

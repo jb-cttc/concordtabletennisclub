@@ -1,4 +1,5 @@
 // Run: npm run preview:desk   then open http://localhost:3100/?date=2026-09-28
+// The daily cash flow page: http://localhost:3100/?view=cash (synthetic players and payments, see cashPreview below).
 // Dev only. Serves the real desk page (apps-script/Index.html and its includes) with a small in-memory
 // stand-in for the Google Sheet back end, so the screen can be seen and clicked without Google.
 // Nothing here talks to Google or to the club Sheet. The back end is deliberately simple (it does not
@@ -146,12 +147,134 @@ const rpc = {
   }
 };
 
+// Daily cash flow stand-in for ?view=cash. Unlike the desk stand-in above, it runs the real CashFlow.js (and the
+// payment, Zeffy, status and name-link code it uses) on a small in-memory Sheet of made-up players: members, visitors,
+// juniors, Zeffy pass holders, ten weeks of round robin and Open Play nights, every payment method, unpaid players,
+// saved cash counts and club targets (day $120, week $450, month $1,900).
+const cashPreview = (function () {
+  const vm = require('vm');
+  const tables = {};
+  const sheets = {};
+  const zone = 'America/Los_Angeles';
+  const day = date => new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  function sheet(name) {
+    if (!sheets[name]) {
+      tables[name] = tables[name] || [];
+      sheets[name] = {
+        getName: () => name,
+        getLastRow: () => tables[name].length + 1,
+        getMaxColumns: () => 26,
+        deleteRow: row => { tables[name].splice(row - 2, 1); }
+      };
+    }
+    return sheets[name];
+  }
+  const context = {
+    console,
+    TABLES: {},
+    SpreadsheetApp: { getActive: () => ({ getSheetByName: name => (tables[name] ? sheet(name) : null), insertSheet: name => { tables[name] = []; return sheet(name); } }) },
+    LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, hasLock: () => false, releaseLock() {} }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: () => null, setProperty() {} }) },
+    GmailApp: { search: () => [] },
+    Session: { getScriptTimeZone: () => zone, getActiveUser: () => ({ getEmail: () => 'preview@example.test' }) },
+    Utilities: { formatDate: date => day(date), getUuid: () => String(Math.random()).slice(2) },
+    HtmlService: {}, ScriptApp: {}
+  };
+  vm.createContext(context);
+  ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js'].forEach(function (file) {
+    vm.runInContext(fs.readFileSync(path.join(DESK, file), 'utf8'), context, { filename: file });
+  });
+  // A plain table stand-in: rows are objects, written and read as they are.
+  context.rows_ = name => {
+    if (!tables[name]) throw new Error('Missing database table: ' + name);
+    return tables[name].map((row, index) => Object.assign({ __row: index + 2 }, row));
+  };
+  context.appendObjects_ = (name, objects) => { objects.forEach(object => tables[name].push(Object.assign({}, object))); };
+  context.updateRow_ = (name, row, changes) => { Object.assign(tables[name][row - 2], changes); };
+  context.ensureHeader_ = () => {};
+  context.formatTable_ = () => {};
+  context.appendAudit_ = (action, type, id, details) => { console.log('Audit (preview only):', action, id, JSON.stringify(details)); return ''; };
+
+  const people = ['Avery Sample', 'Blake Sample', 'Casey Sample', 'Drew Sample', 'Emery Sample', 'Finley Sample', 'Gray Sample', 'Harper Sample',
+    'Indy Sample', 'Jules Sample', 'Kendall Sample', 'Logan Sample', 'Morgan Sample', 'Noel Sample', 'Oakley Sample', 'Parker Sample', 'Quinn Sample',
+    'Reese Sample', 'Sage Sample', 'Tatum Sample', 'Umber Sample', 'Vale Sample', 'Wren Sample', 'Xen Sample', 'Yael Sample', 'Zuri Sample'];
+  const pid = name => 'player-preview-' + (people.indexOf(name) + 1);
+  tables.Players = people.map(name => ({ player_id: pid(name), display_name: name, current_rating: 1500, active: true }));
+  tables.Aliases = [];
+  tables.SessionPlayers = [];
+  tables.NameLinks = [
+    { kind: 'junior', name: 'Casey Sample', linked_name: 'Drew Sample' },
+    { kind: 'junior', name: 'Indy Sample', linked_name: '' },
+    { kind: 'junior', name: 'Tatum Sample', linked_name: '' }
+  ];
+  tables.MemberStatus = ['Avery Sample', 'Drew Sample', 'Finley Sample', 'Gray Sample', 'Kendall Sample', 'Morgan Sample', 'Noel Sample', 'Sage Sample', 'Wren Sample']
+    .map(name => ({ player_id: pid(name), status: 'member', updated_at: '' }));
+  tables.ZeffyPasses = [{ player_id: pid('Gray Sample'), player_name: 'Gray Sample', active: true, updated_at: '' }];
+  tables.SessionPayments = [];
+  tables.OpenPlay = [];
+  tables.CashCounts = [];
+  // Club-wide targets, as the owner might set them, so some periods meet them and some fall short.
+  tables.CashTargets = [{ period: 'day', amount: 120, updated_at: '' }, { period: 'week', amount: 450, updated_at: '' }, { period: 'month', amount: 1900, updated_at: '' }];
+  const iso = offset => { const date = new Date(); date.setDate(date.getDate() - offset); return day(date); };
+  // Morgan's Zeffy pass was bought nine days ago: she paid by card before that.
+  tables.ZeffyPayments = [{ message_id: 'preview-1', paid_on: iso(9), kind: 'purchase', payer_name: 'Morgan Sample', payer_email: 'morgan@example.test', participant_name: 'Morgan Sample', created_at: '' }];
+  // A fixed seed, so every preview shows the same made-up club.
+  let seed = 20261019;
+  const random = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+  const methods = ['cash', 'cash', 'cash', 'venmo', 'venmo', 'venmo', 'zelle', 'zelle', 'credit', ''];
+  const regulars = people.slice(0, 12);
+  // Ten weeks of club nights: Monday and Wednesday round robins, Friday and Saturday Open Play. The club was closed one
+  // week (a gap in the chart), Wednesdays draw the biggest crowds, and a few new players turn up in the last weeks.
+  for (let offset = 72; offset >= 0; offset -= 1) {
+    const date = iso(offset);
+    const weekday = new Date(date + 'T12:00:00Z').getUTCDay();
+    if ([1, 3, 5, 6].indexOf(weekday) < 0 || (offset >= 58 && offset <= 64)) continue;
+    const roundRobin = weekday === 1 || weekday === 3;
+    const base = { 1: 12, 3: 15, 5: 9, 6: 10 }[weekday];
+    const count = Math.max(4, Math.round(base + (random() - 0.5) * 8));
+    const pool = regulars.concat(people.slice(12, 12 + Math.max(2, Math.floor((72 - offset) / 6))));
+    const playing = pool.slice().sort(() => random() - 0.5).slice(0, count);
+    playing.forEach(function (name, index) {
+      if (roundRobin && index < count - 1) tables.SessionPlayers.push({ session_id: 'session-' + date, player_id: pid(name), group_number: 1 + Math.floor(index / 4) });
+      else tables.OpenPlay.push({ session_date: date, player_id: pid(name), updated_at: '' });
+      const method = methods[Math.floor(random() * methods.length)];
+      if (method) tables.SessionPayments.push({ session_id: 'session-' + date, player_id: pid(name), method: method, updated_at: '' });
+    });
+    // Someone who paid at the door but was never put on the sheet.
+    if (offset % 9 === 2 && playing.indexOf('Reese Sample') < 0) tables.SessionPayments.push({ session_id: 'session-' + date, player_id: pid('Reese Sample'), method: 'cash', updated_at: '' });
+  }
+  // Gray's pass covers every night, so a recorded payment would never be made for him.
+  tables.SessionPayments = tables.SessionPayments.filter(row => row.player_id !== pid('Gray Sample'));
+  tables.SessionPayments = tables.SessionPayments.filter(row => !(row.player_id === pid('Morgan Sample') && row.session_id.slice(8) >= iso(9)));
+  const counted = context.getCashFlow(iso(34), iso(0)).days.filter(item => item.cash.expected).slice(1, 4);
+  counted.forEach(function (item, index) {
+    context.saveCashCount(item.date, String(item.cash.expected + [0, -5, 2.5][index]), ['', 'Two fives missing from the box', 'Extra quarter coins'][index]);
+  });
+  return {
+    getCashFlow: (from, to) => JSON.parse(JSON.stringify(context.getCashFlow(from, to))),
+    saveCashCount: (date, amount, note) => JSON.parse(JSON.stringify(context.saveCashCount(date, amount, note))),
+    saveCashTarget: (period, amount) => JSON.parse(JSON.stringify(context.saveCashTarget(period, amount))),
+    getCashTargets: () => JSON.parse(JSON.stringify(context.getCashTargets()))
+  };
+})();
+rpc.getCashFlow = cashPreview.getCashFlow;
+rpc.saveCashCount = cashPreview.saveCashCount;
+rpc.saveCashTarget = cashPreview.saveCashTarget;
+rpc.getCashTargets = cashPreview.getCashTargets;
+
 const stub = '<script>(function(){function build(ok,bad){return new Proxy({},{get:function(_,name){' +
   'if(name==="withSuccessHandler")return function(f){return build(f,bad)};' +
   'if(name==="withFailureHandler")return function(f){return build(ok,f)};' +
   'return function(){var args=[].slice.call(arguments);fetch("/rpc/"+name,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(args)})' +
   '.then(function(r){return r.json()}).then(function(r){if(r.error){if(bad)bad({message:r.error})}else if(ok)ok(r.result)}).catch(function(e){if(bad)bad(e)})}}})}' +
   'window.google={script:{run:build(null,null),host:{close:function(){},setHeight:function(){}}}}})()</script>';
+
+function cashPage() {
+  return stub + fs.readFileSync(path.join(DESK, 'Cash.html'), 'utf8')
+    .replace('var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : null;', 'var ancestors = null; // preview only: skip the framing guard')
+    .replace('<?= deskMode ?>', 'dev')
+    .replace('<?= deskUrl ?>', '/');
+}
 
 function page(date) {
   const read = function (name) { return fs.readFileSync(path.join(DESK, name + '.html'), 'utf8'); };
@@ -181,5 +304,5 @@ http.createServer(function (request, response) {
   }
   const date = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : '';
   response.setHeader('content-type', 'text/html; charset=utf-8');
-  response.end(page(date));
-}).listen(PORT, function () { console.log('Desk preview (in-memory, not Google): http://localhost:' + PORT + '/?date=2026-09-28'); });
+  response.end(url.searchParams.get('view') === 'cash' ? cashPage() : page(date));
+}).listen(PORT, function () { console.log('Desk preview (in-memory, not Google): http://localhost:' + PORT + '/?date=2026-09-28 and the cash flow page at http://localhost:' + PORT + '/?view=cash'); });
