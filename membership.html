@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Membership - Concord Table Tennis Club</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://script.google.com">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
 </head>
@@ -32,7 +33,25 @@
 
 <main>
 
-  <h1>Membership</h1>
+  <div class="page-title-row">
+    <h1>Membership</h1>
+    <div class="title-actions">
+      <button id="staffing-launch" class="subscribe-launch" type="button" aria-haspopup="dialog" hidden>
+        <span aria-hidden="true">&#128197;</span>
+        Staff sign-up
+      </button>
+      <a id="cash-launch" class="organizer-launch" href="cash.html" target="_blank" rel="noopener" title="Club Google account sign-in required">
+        <span aria-hidden="true">&#128274;</span>
+        Cash flow
+      </a>
+    </div>
+  </div>
+
+  <dialog id="staffing-dialog" class="subscribe-dialog coaching-dialog" aria-label="Sign up to open or close the club">
+    <button id="staffing-close" class="subscribe-close" type="button" aria-label="Close">&times;</button>
+    <p id="staffing-loading" class="coaching-loading" role="status">Loading the staff schedule&hellip;</p>
+    <iframe id="staffing-frame" title="Sign up to open or close the club"></iframe>
+  </dialog>
 
   <p>The club is open to everyone, members and non-members alike. Membership is $60 per year and covers all family members living at the same address. Membership is prorated by quarter.</p>
 
@@ -92,6 +111,12 @@
 
   <p><a href="https://sites.google.com/site/concordtabletennis/cttc-memberships" target="_blank" rel="noopener">Download the 2026 membership form</a></p>
 
+  <h2>Help open and close the club</h2>
+
+  <p>Every club night needs volunteers: a desk organizer, a money collector and table setup to open, and at least two people to put the tables away at close. Select <strong>Staff sign-up</strong> to see which nights need help, pick as many nights and positions as you like, and reply YES to the confirmation email. The schedule shows first names only.</p>
+
+  <p>Club organizers: <strong>Cash flow</strong> shows each night's takings from the check-in desk. It needs the club's Google account.</p>
+
   <p>Questions? Contact us at the front desk during the posted play times on the <a href="index.html">Home</a> tab, or use the <a href="https://docs.google.com/forms/d/e/1FAIpQLSdbpyuHfnAEMRjwcA4fM1cgb75ieaa8xzXpKImt8ljRoC1WZA/viewform">contact form</a>.</p>
 
 </main>
@@ -101,6 +126,34 @@
 </footer>
 
 <script src="navtoggle.js"></script>
+
+<script>
+  (function () {
+    // The staff sign-up app (staffing-app/) is a separate Apps Script project. The button stays hidden until it is deployed.
+    var APP_URL = 'PENDING_DEPLOYMENT';
+    if (APP_URL.indexOf('PENDING_DEPLOYMENT') >= 0) return;
+    var launch = document.getElementById('staffing-launch');
+    var dialog = document.getElementById('staffing-dialog');
+    var frame = document.getElementById('staffing-frame');
+    var loading = document.getElementById('staffing-loading');
+    function ready() { loading.hidden = true; }
+    // The app says when it is drawn. Google's outer page can finish loading before the app inside it does.
+    window.addEventListener('message', function (event) {
+      if (event.data === 'cttc-staffing-ready' && /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin)) ready();
+    });
+    frame.addEventListener('load', function () { setTimeout(ready, 10000); });
+    function warm() {
+      if (!frame.getAttribute('src')) frame.setAttribute('src', APP_URL);
+    }
+    launch.hidden = false;
+    launch.addEventListener('click', function () {
+      warm();
+      dialog.showModal();
+    });
+    document.getElementById('staffing-close').addEventListener('click', function () { dialog.close(); });
+    dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
+  })();
+</script>
 
 </body>
 </html>

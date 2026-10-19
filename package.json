@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs && npm run -s check:desk-log",
+    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs && npm run -s check:desk-log && npm run -s check:membership",
     "build:sessions": "NODE_USE_SYSTEM_CA=1 node scripts/build-sessions.js",
     "build:data": "NODE_USE_SYSTEM_CA=1 node scripts/fetch-and-parse.js",
     "build:data:full": "NODE_USE_SYSTEM_CA=1 CTTC_FULL_REFRESH=true node scripts/fetch-and-parse.js",
@@ -28,6 +28,7 @@
     "check:publication": "node scripts/check-finalized-publication.js",
     "check:disposable": "node scripts/check-disposable-session.js",
     "check:desk": "node scripts/check-desk-page.js",
+    "check:membership": "node scripts/check-membership-page.js",
     "publish:finalized": "node scripts/publish-finalized-sessions.js",
     "preflight:live": "node scripts/preflight-live-publication.js",
     "sync:nav": "node scripts/sync-nav.js",
