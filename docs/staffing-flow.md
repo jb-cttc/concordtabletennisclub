@@ -208,6 +208,17 @@ Reply YES to approve or NO to decline." Only a reply from `ADMIN_EMAIL` counts.
 
 ## 6. Importing the volunteer's open/close list (`importSeedSheet`)
 
+**This is a one-time import.** The club's earlier open/close list is read once,
+when Send is tapped on the preview (or `importSeedSheet` is run), and never
+again: the script property `SEED_IMPORTED_AT` records when, and afterwards the
+preview, Send, test copy and Prepare SeedLinks all say so instead (re-sending
+to people still waiting keeps working, since it uses only this app's data).
+From then on the club maintains only this app's private Sheet: training in
+`Training`, emails in `Emails`, and volunteers sign up on the calendar
+themselves (Repeat weekly helps); there is no standing weekly schedule. The
+`SeedLinks`, `SeedReport` and `SeedPlayers` tabs are not used after the
+import. A maintainer can delete `SEED_IMPORTED_AT` to allow one more import.
+
 The volunteer's Sheet has a tab `Open/Close` with a roster block (header row
 with **Open** and **Front Desk**, one row per weekday holding first names; two
 names in a cell may be split by a line break, `/`, `,`, `&` or "and") and a
@@ -247,9 +258,10 @@ Run **`importSeedSheet`** from the editor (after `setup`). It:
    candidate players by full name) and adds a blank `SeedLinks` row for each
    such name, with a dropdown of active players in `player_name`.
 
-**Fix-up loop:** open `SeedReport`, fill the matching `SeedLinks` rows (pick
-the player in `player_name`, a `player_id` also works, and/or type an
-`email`), run `importSeedSheet` again. Re-runs never hold or email the same
+**Fix-up loop (before sending):** use Prepare SeedLinks, fill the matching
+`SeedLinks` rows (pick the player in `player_name`, a `player_id` also works,
+and/or type an `email`), and check the preview again until it is right, then
+Send. (If a maintainer reopens the import, a re-run works the same way.) Re-runs never hold or email the same
 pick twice (`seed_key`), so only newly resolved people are emailed. The
 return value and execution log hold counts and the sheet's own first names
 (plus last initial) only.
