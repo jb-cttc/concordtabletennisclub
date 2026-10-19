@@ -160,6 +160,7 @@ const context = {
   },
   Session: { getActiveUser: () => ({ getEmail: () => activeEmail }), getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
   ScriptApp: {
+    getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/staffing-test/dev' }),
     getProjectTriggers: () => triggers.map(handler => ({ getHandlerFunction: () => handler })),
     newTrigger: handler => ({ timeBased: () => ({ everyHours: () => ({ create: () => { triggers.push(handler); } }), everyMinutes: () => ({ create: () => { triggers.push(handler); } }) }) })
   },
@@ -210,6 +211,7 @@ const context = {
   },
   HtmlService: {
     XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
+    createHtmlOutput: html => { const output = { getContent: () => html, setTitle: () => output, addMetaTag: () => output }; return output; },
     createTemplateFromFile: name => ({ evaluate: () => {
       let content = fs.readFileSync(__dirname + '/' + name + '.html', 'utf8');
       const output = { getContent: () => content, setContent: value => { content = value; return output; }, setTitle: () => output, addMetaTag: () => output, setXFrameOptionsMode: () => output };
@@ -1043,6 +1045,46 @@ new vm.Script(script);
 const called = new Set([...script.matchAll(/call\('([A-Za-z]+)'/g)].map(match => match[1]));
 assert.deepEqual([...called].sort(), ['findPlayers', 'playerAccess', 'requestDrop', 'signUp', 'staffBoard']);
 for (const name of called) assert.ok(globals.includes(name), name + ' exists and is callable from the page');
+
+// ---- The owner's setup page (/dev?setup), so the club never needs the Apps Script editor ----
+{
+  // The imports below change the fake Sheet; it is put back afterwards so the page checks see the calendar as before.
+  const saved = structuredClone({ grids, properties, cache, sent: sent.length });
+  const deskBefore = properties.DESK_SHEET_ID;
+  const memberBefore = properties.MEMBER_LIST_ID;
+  delete properties.MEMBER_LIST_ID;
+  const longId = 'M'.repeat(44);
+  activeEmail = '';
+  let html = context.doGet({ parameter: { setup: '', members: longId, desk: 'D'.repeat(44) } }).getContent();
+  assert.match(html, /Not available/);
+  assert.doesNotMatch(html, /Sheet|import|player/i, 'a visitor learns nothing about the club');
+  assert.equal(properties.MEMBER_LIST_ID, undefined, 'a visitor sets nothing');
+  activeEmail = 'someone@example.com';
+  assert.match(context.doGet({ parameter: { setup: '' } }).getContent(), /Not available/, 'only the owner, not another signed-in account');
+  activeEmail = 'owner@example.com';
+  html = context.doGet({ parameter: { setup: '', members: longId, desk: 'D'.repeat(44), seed: 'bad id!' } }).getContent();
+  assert.match(html, /Set up\. Player list: \d+ active players/);
+  assert.equal(properties.MEMBER_LIST_ID, longId, 'a missing property is set from the link');
+  assert.equal(properties.DESK_SHEET_ID, deskBefore, 'a property already set is never overwritten from a link');
+  assert.match(html, /href="https:\/\/script\.google\.com\/macros\/s\/staffing-test\/dev\?setup&amp;import=seed"/, 'one tap to import the open/close list');
+  assert.doesNotMatch(html, /@example\.com/, 'no address on the page');
+  properties.MEMBER_LIST_ID = memberBefore;
+  const before = sent.length;
+  html = context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent();
+  assert.match(html, /Open\/close list imported: \d+ people emailed to confirm \d+ shifts/);
+  const keys = signupRows().map(line => cell('Signups', line, 'seed_key')).filter(Boolean);
+  assert.equal(new Set(keys).size, keys.length, 'a repeat import never holds the same night twice (it only adds nights newly in the calendar)');
+  html = context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent();
+  const again = sent.length;
+  context.doGet({ parameter: { setup: '', import: 'seed' } });
+  assert.equal(sent.slice(again).filter(message => /^Confirm/.test(message.subject)).length, 0, 'running it again at once emails nobody');
+  activeEmail = '';
+  Object.keys(grids).forEach(name => { grids[name].length = 0; if (saved.grids[name]) grids[name].push(...saved.grids[name]); });
+  Object.keys(properties).forEach(key => delete properties[key]);
+  Object.assign(properties, saved.properties);
+  cache = saved.cache;
+  sent.length = saved.sent;
+}
 
 // ---- The page in a browser (jsdom): calendar, picks, repeat weekly, the form, and hybrid mode ----
 (async () => {

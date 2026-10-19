@@ -136,7 +136,8 @@ var TABS = {
   Log: ['at', 'channel', 'kind', 'ref', 'to', 'detail']
 };
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.setup !== undefined) return ownerSetup_(e.parameter);
   var output = HtmlService.createTemplateFromFile('Index').evaluate();
   var initial = initialData_();
   if (initial) output.setContent(output.getContent().replace('var INITIAL = null;', 'var INITIAL = ' + scriptJson_(initial) + ';'));
@@ -164,6 +165,54 @@ function scriptJson_(value) {
 // Run once from the Apps Script editor by the owner. Creates the private Sheet and its tabs, the hourly sweep and the minute
 // reply check, and asks Google for the permissions. Does nothing when called from the web page. Set DESK_SHEET_ID first (the
 // id in the desk Sheet's address) so the player list can be checked; the result says how many active players it found.
+// The owner's setup page, opened from a phone as the club account: /dev?setup&desk=<desk Sheet id>&seed=<volunteer Sheet id>
+// sets those script properties if they are not set yet, runs setup(), and offers the seed import (&import=seed) and the
+// membership email import (&import=members) as one tap each. Opening it is also how Google asks the owner, once, to allow
+// the app's permissions, so the Apps Script editor is never needed. Anyone else gets a plain "not available": the page
+// says nothing about the club, and /dev only opens for the project's editors anyway.
+function ownerSetup_(params) {
+  var page = function (title, lines) {
+    var html = '<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font:16px/1.5 Arial,sans-serif;margin:16px;color:#1c1c1c">' +
+      '<h1 style="font-size:1.25rem;color:#1f6b3a">' + esc_(title) + '</h1>' + lines.join('') + '</body>';
+    return HtmlService.createHtmlOutput(html).setTitle('CTTC volunteer sign-ups: setup').addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  };
+  var active = String(Session.getActiveUser().getEmail() || '');
+  if (!active || active !== Session.getEffectiveUser().getEmail()) return page('Not available', ['<p>This page is for the club\'s account only.</p>']);
+  var properties = PropertiesService.getScriptProperties();
+  var sheetId = function (value) { return /^[A-Za-z0-9_-]{30,80}$/.test(String(value || '')) ? String(value) : ''; };
+  ['desk', 'seed', 'members'].forEach(function (name) {
+    var key = { desk: 'DESK_SHEET_ID', seed: 'SEED_SHEET_ID', members: 'MEMBER_LIST_ID' }[name];
+    if (sheetId(params[name]) && !properties.getProperty(key)) properties.setProperty(key, sheetId(params[name]));
+  });
+  var lines = [];
+  var base = ScriptApp.getService().getUrl() + '?setup';
+  try {
+    var result = setup();
+    lines.push('<p>&#10003; Set up. Player list: ' + esc_(result.players) + '. Reminders and replies are checked automatically from now on.</p>');
+    if (params['import'] === 'seed') {
+      var seeded = importSeedSheet();
+      lines.push('<p>&#10003; Open/close list imported: ' + esc_(seeded.people) + ' people emailed to confirm ' + esc_(seeded.signups) + ' shifts; ' +
+        esc_(seeded.training) + ' training rows. Names to fix: ' + esc_([].concat(seeded.unmatched, seeded.ambiguous, seeded.noEmail).length) +
+        ' (see the SeedReport tab in the private Sheet).</p>');
+    } else if (params['import'] === 'members') {
+      var members = importMemberEmails();
+      lines.push('<p>&#10003; Membership emails imported: ' + esc_(JSON.stringify(members)) + '</p>');
+    }
+    lines.push('<p><a href="' + esc_(result.privateSheet) + '">Open the private staffing Sheet</a> (never share it).</p>');
+    if (properties.getProperty('SEED_SHEET_ID') && params['import'] !== 'seed') {
+      lines.push('<p><a style="display:inline-block;padding:10px 16px;background:#1f6b3a;color:#fff;border-radius:4px;text-decoration:none" href="' + esc_(base + '&import=seed') +
+        '">Import the open/close list and email the regulars</a></p><p>Run it again after fixing names in SeedLinks; nobody is emailed twice.</p>');
+    }
+    if (properties.getProperty('MEMBER_LIST_ID') && params['import'] !== 'members') {
+      lines.push('<p><a href="' + esc_(base + '&import=members') + '">Import emails from the membership list</a></p>');
+    }
+  } catch (error) {
+    logError_('run the setup page', error);
+    lines.push('<p style="color:#8b1a1a">Setup stopped: ' + esc_(cleanDetail_(error)) + '</p><p>Fix that and open this page again; it is safe to repeat.</p>');
+  }
+  return page('Volunteer sign-ups setup', lines);
+}
+
 function setup() {
   if (Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) throw new Error('Only the owner can run setup.');
   var properties = PropertiesService.getScriptProperties();
