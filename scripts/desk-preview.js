@@ -149,7 +149,8 @@ const rpc = {
 
 // Daily cash flow stand-in for ?view=cash. Unlike the desk stand-in above, it runs the real CashFlow.js (and the
 // payment, Zeffy, status and name-link code it uses) on a small in-memory Sheet of made-up players: members, visitors,
-// juniors, Zeffy pass holders, round robin and Open Play nights, every payment method, unpaid players and a saved cash count.
+// juniors, Zeffy pass holders, ten weeks of round robin and Open Play nights, every payment method, unpaid players,
+// saved cash counts and club targets (day $120, week $450, month $1,900).
 const cashPreview = (function () {
   const vm = require('vm');
   const tables = {};
@@ -195,41 +196,52 @@ const cashPreview = (function () {
   context.appendAudit_ = (action, type, id, details) => { console.log('Audit (preview only):', action, id, JSON.stringify(details)); return ''; };
 
   const people = ['Avery Sample', 'Blake Sample', 'Casey Sample', 'Drew Sample', 'Emery Sample', 'Finley Sample', 'Gray Sample', 'Harper Sample',
-    'Indy Sample', 'Jules Sample', 'Kendall Sample', 'Logan Sample', 'Morgan Sample', 'Noel Sample', 'Oakley Sample', 'Parker Sample', 'Quinn Sample', 'Reese Sample'];
+    'Indy Sample', 'Jules Sample', 'Kendall Sample', 'Logan Sample', 'Morgan Sample', 'Noel Sample', 'Oakley Sample', 'Parker Sample', 'Quinn Sample',
+    'Reese Sample', 'Sage Sample', 'Tatum Sample', 'Umber Sample', 'Vale Sample', 'Wren Sample', 'Xen Sample', 'Yael Sample', 'Zuri Sample'];
   const pid = name => 'player-preview-' + (people.indexOf(name) + 1);
   tables.Players = people.map(name => ({ player_id: pid(name), display_name: name, current_rating: 1500, active: true }));
   tables.Aliases = [];
   tables.SessionPlayers = [];
   tables.NameLinks = [
     { kind: 'junior', name: 'Casey Sample', linked_name: 'Drew Sample' },
-    { kind: 'junior', name: 'Indy Sample', linked_name: '' }
+    { kind: 'junior', name: 'Indy Sample', linked_name: '' },
+    { kind: 'junior', name: 'Tatum Sample', linked_name: '' }
   ];
-  tables.MemberStatus = ['Avery Sample', 'Drew Sample', 'Finley Sample', 'Gray Sample', 'Kendall Sample', 'Morgan Sample']
+  tables.MemberStatus = ['Avery Sample', 'Drew Sample', 'Finley Sample', 'Gray Sample', 'Kendall Sample', 'Morgan Sample', 'Noel Sample', 'Sage Sample', 'Wren Sample']
     .map(name => ({ player_id: pid(name), status: 'member', updated_at: '' }));
   tables.ZeffyPasses = [{ player_id: pid('Gray Sample'), player_name: 'Gray Sample', active: true, updated_at: '' }];
   tables.SessionPayments = [];
   tables.OpenPlay = [];
   tables.CashCounts = [];
+  // Club-wide targets, as the owner might set them, so some periods meet them and some fall short.
+  tables.CashTargets = [{ period: 'day', amount: 120, updated_at: '' }, { period: 'week', amount: 450, updated_at: '' }, { period: 'month', amount: 1900, updated_at: '' }];
   const iso = offset => { const date = new Date(); date.setDate(date.getDate() - offset); return day(date); };
   // Morgan's Zeffy pass was bought nine days ago: she paid by card before that.
   tables.ZeffyPayments = [{ message_id: 'preview-1', paid_on: iso(9), kind: 'purchase', payer_name: 'Morgan Sample', payer_email: 'morgan@example.test', participant_name: 'Morgan Sample', created_at: '' }];
-  const methods = ['cash', 'venmo', 'zelle', 'credit', 'cash', 'venmo', ''];
-  // Club nights over the last five weeks: Monday and Wednesday round robins, Friday and Saturday Open Play.
-  for (let offset = 34; offset >= 0; offset -= 1) {
+  // A fixed seed, so every preview shows the same made-up club.
+  let seed = 20261019;
+  const random = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+  const methods = ['cash', 'cash', 'cash', 'venmo', 'venmo', 'venmo', 'zelle', 'zelle', 'credit', ''];
+  const regulars = people.slice(0, 12);
+  // Ten weeks of club nights: Monday and Wednesday round robins, Friday and Saturday Open Play. The club was closed one
+  // week (a gap in the chart), Wednesdays draw the biggest crowds, and a few new players turn up in the last weeks.
+  for (let offset = 72; offset >= 0; offset -= 1) {
     const date = iso(offset);
     const weekday = new Date(date + 'T12:00:00Z').getUTCDay();
-    if ([1, 3, 5, 6].indexOf(weekday) < 0) continue;
+    if ([1, 3, 5, 6].indexOf(weekday) < 0 || (offset >= 58 && offset <= 64)) continue;
     const roundRobin = weekday === 1 || weekday === 3;
-    const count = 7 + (offset * 5) % 8;
-    const playing = people.slice((offset * 3) % 6, (offset * 3) % 6 + count);
+    const base = { 1: 12, 3: 15, 5: 9, 6: 10 }[weekday];
+    const count = Math.max(4, Math.round(base + (random() - 0.5) * 8));
+    const pool = regulars.concat(people.slice(12, 12 + Math.max(2, Math.floor((72 - offset) / 6))));
+    const playing = pool.slice().sort(() => random() - 0.5).slice(0, count);
     playing.forEach(function (name, index) {
-      if (roundRobin && index < count - 2) tables.SessionPlayers.push({ session_id: 'session-' + date, player_id: pid(name), group_number: 1 + Math.floor(index / 4) });
+      if (roundRobin && index < count - 1) tables.SessionPlayers.push({ session_id: 'session-' + date, player_id: pid(name), group_number: 1 + Math.floor(index / 4) });
       else tables.OpenPlay.push({ session_date: date, player_id: pid(name), updated_at: '' });
-      const method = methods[(index + offset) % methods.length];
+      const method = methods[Math.floor(random() * methods.length)];
       if (method) tables.SessionPayments.push({ session_id: 'session-' + date, player_id: pid(name), method: method, updated_at: '' });
     });
     // Someone who paid at the door but was never put on the sheet.
-    if (offset % 7 === 2) tables.SessionPayments.push({ session_id: 'session-' + date, player_id: pid('Reese Sample'), method: 'cash', updated_at: '' });
+    if (offset % 9 === 2 && playing.indexOf('Reese Sample') < 0) tables.SessionPayments.push({ session_id: 'session-' + date, player_id: pid('Reese Sample'), method: 'cash', updated_at: '' });
   }
   // Gray's pass covers every night, so a recorded payment would never be made for him.
   tables.SessionPayments = tables.SessionPayments.filter(row => row.player_id !== pid('Gray Sample'));
@@ -240,11 +252,15 @@ const cashPreview = (function () {
   });
   return {
     getCashFlow: (from, to) => JSON.parse(JSON.stringify(context.getCashFlow(from, to))),
-    saveCashCount: (date, amount, note) => JSON.parse(JSON.stringify(context.saveCashCount(date, amount, note)))
+    saveCashCount: (date, amount, note) => JSON.parse(JSON.stringify(context.saveCashCount(date, amount, note))),
+    saveCashTarget: (period, amount) => JSON.parse(JSON.stringify(context.saveCashTarget(period, amount))),
+    getCashTargets: () => JSON.parse(JSON.stringify(context.getCashTargets()))
   };
 })();
 rpc.getCashFlow = cashPreview.getCashFlow;
 rpc.saveCashCount = cashPreview.saveCashCount;
+rpc.saveCashTarget = cashPreview.saveCashTarget;
+rpc.getCashTargets = cashPreview.getCashTargets;
 
 const stub = '<script>(function(){function build(ok,bad){return new Proxy({},{get:function(_,name){' +
   'if(name==="withSuccessHandler")return function(f){return build(f,bad)};' +
