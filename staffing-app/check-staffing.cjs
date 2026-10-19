@@ -930,6 +930,22 @@ const seedCheck = () => {
   assert.equal(seeded('eve.stone@example.com').length, 13, 'Eve: her email from the coaching Sheet');
   assert.ok(seeded('eve.stone@example.com').every(line => cell('Signups', line, 'status') === 'pending' && cell('Signups', line, 'position') === 'money'));
   assert.equal(signupsOf('susan.lake@example.com').length, 0, 'Susan has no opening training: nothing is held');
+  // Already emailed and still waiting: listed on the preview, and one tap re-sends the current email with a fresh deadline.
+  let page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
+  assert.match(page, /Already emailed, still waiting for a YES[\s\S]*<strong>Ada<\/strong>: 25 nights held, emailed a\u2022\u2022\u2022@example\.com/);
+  assert.match(page, /import=resend/);
+  const adaBatch = () => grids.Batches.slice(1).find(line => cell('Batches', line, 'email') === 'ada.park@example.com' && cell('Batches', line, 'source') === 'seed');
+  const oldExpiry = Number(cell('Batches', adaBatch(), 'expires_at'));
+  clock += 3 * 3600000;
+  const resendAt = sent.length;
+  const batchCount = grids.Batches.length;
+  assert.match(context.doGet({ parameter: { setup: '', import: 'resend' } }).getContent(), /Re-sent the confirmation email to 3 people/);
+  const resent = sent.slice(resendAt).filter(message => /^Please confirm/.test(message.subject));
+  assert.deepEqual(resent.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com'], 'each person still waiting, once');
+  assert.equal(grids.Batches.length, batchCount, 'the same submissions: no new holds');
+  assert.ok(Number(cell('Batches', adaBatch(), 'expires_at')) > oldExpiry, 'a fresh deadline');
+  assert.ok(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key')).every(line => cell('Signups', line, 'expires_at') === cell('Batches', adaBatch(), 'expires_at')), 'the held nights move with it');
+  clock -= 3 * 3600000;
   // The fix-up loop: SeedReport and a blank SeedLinks row per name, with a player dropdown.
   const report = grids.SeedReport.slice(1);
   assert.deepEqual(report.filter(line => line[1] !== 'summary' && line[1] !== 'skipped').map(line => line.slice(1)), [
@@ -970,6 +986,14 @@ const seedCheck = () => {
   assert.equal(trainingOf('p27').length, 1, 'training is updated in place');
   reply('ada.park@example.com', 'YES');
   assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'status') === 'confirmed').length, 25, 'a seeded sign-up is confirmed like any other');
+  // Ben never answered: once his hold expires, the next import may offer him those nights again. Ada (confirmed) is not offered twice.
+  const benExpiry = Number(cell('Batches', grids.Batches.slice(1).find(line => cell('Batches', line, 'email') === 'ben.ortiz@example.com' && cell('Batches', line, 'source') === 'seed'), 'expires_at'));
+  const beforeExpiry = clock;
+  clock = benExpiry + 60000;
+  const again = JSON.parse(JSON.stringify(context.importSeed_(true)));
+  assert.ok(again.preview.some(person => person.name === 'Bobby'), 'an unanswered, expired hold is offered again');
+  assert.ok(!again.preview.some(person => person.name === 'Ada'), 'a confirmed one is not');
+  clock = beforeExpiry;
   activeEmail = '';
   context.console.log = () => {};
   clock = keep;
