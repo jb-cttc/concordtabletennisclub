@@ -53,8 +53,11 @@ keeps the test out). A maintainer pushes and deploys it like the desk.
 properties if they are not set yet (a property already set is never changed
 from a link). The page runs `setup()`; the first time, Google asks the club
 account to allow the app's permissions, which is the one step nobody else can
-do. It then offers one tap each for the open/close import and the membership
-email import, and shows counts only. Anyone else sees "not available", and
+do. It then offers a **preview** of the open/close import (`&import=preview`:
+who would be emailed, masked, how many nights and which positions, and which
+names need fixing; it writes and sends nothing) with a **Send** button that
+runs the real import (`&import=seed`), and one tap for the membership email
+import. Anyone else sees "not available", and
 `/dev` only opens for the project's editors anyway.
 
 Or, from a computer:

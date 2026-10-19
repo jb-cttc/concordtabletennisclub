@@ -857,7 +857,18 @@ const seedCheck = () => {
   activeEmail = 'owner@example.com';
   const trainingOf = id => grids.Training.filter(line => line[0] === id);
   let before = sent.length;
+  // The preview works everything out but writes nothing and sends nothing.
+  const sheetBefore = JSON.stringify(grids);
+  const plan = JSON.parse(JSON.stringify(context.importSeed_(true)));
+  assert.equal(JSON.stringify(grids), sheetBefore, 'a preview changes no Sheet');
+  assert.equal(sent.length, before, 'a preview sends nothing');
+  assert.deepEqual(plan.preview.map(person => person.name).sort(), ['Ada', 'Bobby', 'Eve S.']);
+  assert.ok(plan.preview.every(person => /^.\u2022\u2022\u2022@example\.com$/.test(person.email)), 'emails masked');
+  assert.deepEqual(plan.preview.find(person => person.name === 'Ada').positions.sort(), ['Desk organizer', 'Desk organizer backup']);
+  assert.equal(plan.preview.reduce((total, person) => total + person.nights, 0), plan.signups);
   let result = JSON.parse(JSON.stringify(context.importSeedSheet()));
+  assert.deepEqual([plan.people, plan.signups, plan.training, plan.unmatched, plan.ambiguous, plan.noEmail],
+    [result.people, result.signups, result.training, result.unmatched, result.ambiguous, result.noEmail], 'the preview shows exactly what the import then does');
   assert.deepEqual(result, {
     training: 5, people: 3, signups: 50,
     skipped: {
@@ -1066,9 +1077,16 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.match(html, /Set up\. Player list: \d+ active players/);
   assert.equal(properties.MEMBER_LIST_ID, longId, 'a missing property is set from the link');
   assert.equal(properties.DESK_SHEET_ID, deskBefore, 'a property already set is never overwritten from a link');
-  assert.match(html, /href="https:\/\/script\.google\.com\/macros\/s\/staffing-test\/dev\?setup&amp;import=seed"/, 'one tap to import the open/close list');
+  assert.match(html, /href="https:\/\/script\.google\.com\/macros\/s\/staffing-test\/dev\?setup&amp;import=preview"/, 'the setup page offers the preview first');
+  assert.doesNotMatch(html, /import=seed/, 'and no send button until the preview');
   assert.doesNotMatch(html, /@example\.com/, 'no address on the page');
   properties.MEMBER_LIST_ID = memberBefore;
+  const previewSent = sent.length;
+  html = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
+  assert.match(html, /Preview: nothing has been sent or saved/);
+  assert.equal(sent.length, previewSent, 'the preview page sends nothing');
+  assert.match(html, /\u2022\u2022\u2022@example\.com/);
+  assert.doesNotMatch(html, /[a-z0-9._-]{2,}@example\.com/, 'only masked addresses on the preview page');
   const before = sent.length;
   html = context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent();
   assert.match(html, /Open\/close list imported: \d+ people emailed to confirm \d+ shifts/);
