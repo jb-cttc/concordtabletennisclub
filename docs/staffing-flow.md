@@ -65,7 +65,7 @@ import. The preview's list also includes anyone **already emailed and still wait
 for a YES** (marked "Re-send"), and the one **Send** button emails them again
 too: the current email, to their email on file after the import (a SeedLinks
 address replaces one found in Zeffy or coaching records; one the club typed
-in the Emails tab stays), with a fresh 24 hours. A YES to the earlier email
+in the Emails tab stays), with a fresh 72 hours. A YES to the earlier email
 still counts. Someone emailed less than an hour ago is not re-sent, so a
 second tap on Send emails nobody twice (`&import=resend` re-sends without
 importing). A hold that
@@ -141,7 +141,7 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | `pending` | Submitted; holds its slot. One email, subject *Please confirm your CTTC volunteer nights [CTTC shift …]*, lists every pick. | **Volunteer** replies YES (all), NO (all) or YES except some dates, or unticks nights on **My nights**. | Name, "waiting to confirm" |
 | `confirmed` | YES received. *You are on the CTTC staff schedule*. Reminder the day before (from 9 AM). | Nobody | Name |
 | `released` | NO received, or the night was left out of a YES (typed "YES except", or unticked on My nights). | Nobody | Open again |
-| `expired` | No YES by the deadline: 24 hours after submitting, but never later than **1 hour before the earliest picked night**. *…expired*. | Nobody | Open again (at once, even before the sweep writes it) |
+| `expired` | No YES by the deadline: 24 hours after submitting, but never later than **1 hour before the earliest picked night**. The open/close list's first wave (section 6) is held a flat **72 hours** instead. *…expired*. | Nobody | Open again (at once, even before the sweep writes it) |
 | `dropped` | The volunteer unticked a confirmed night on **My nights** and tapped Save, or pressed "This is me: drop this shift" on a confirmed slot and replied YES to *Drop your CTTC shift? [CTTC shift …]* (open 48 hours, sent at most once per 10 minutes). The volunteer and the club are emailed (one email listing every drop of one Save), and if a primary desk organizer or money collector dropped, that night's confirmed backup gets a heads-up. | Nobody | Open again |
 
 **Some nights but not all.** Someone signed up for many nights (every
@@ -244,7 +244,12 @@ preview, Send, test copy and Prepare SeedLinks all say so instead (re-sending
 to people still waiting keeps working, since it uses only this app's data).
 From then on the club maintains only this app's private Sheet: training in
 `Training`, emails in `Emails`, and volunteers sign up on the calendar
-themselves (Repeat weekly helps); there is no standing weekly schedule. The
+themselves (Repeat weekly helps); there is no standing weekly schedule.
+**The first wave is held 72 hours** (`SEED_HOLD_MS`), not the usual 24 hours
+capped an hour before the earliest night, so the club can remind people in
+person on the next club nights: their nights show as "waiting to confirm"
+(even a night that comes and goes meanwhile) until they answer. A re-send
+gives a fresh 72 hours. The
 `SeedLinks`, `SeedReport` and `SeedPlayers` tabs are not used after the
 import. A maintainer can delete `SEED_IMPORTED_AT` to allow one more import.
 

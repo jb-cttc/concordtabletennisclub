@@ -24,6 +24,9 @@ var MONTHS_SHOWN = 3;
 // Tonight can be picked until an hour before the club opens, and a hold never lasts past that point either.
 var CUTOFF_MINUTES = 60;
 var HOLD_MS = 24 * 60 * 60 * 1000;
+// The open/close list's first wave (importSeedSheet, and its re-sends) is held a flat 72 hours, so the club can remind people
+// in person on the next club nights. Nights inside those hours stay "waiting to confirm" until the person answers.
+var SEED_HOLD_MS = 72 * 60 * 60 * 1000;
 // Someone still waiting is re-sent their email only if the last one went out longer ago than this.
 var RESEND_AFTER_MS = 60 * 60 * 1000;
 // A YES that comes after the hold expired is still read for this long (lateConfirm_), and confirms whatever is still free.
@@ -264,7 +267,7 @@ function ownerSetup_(params) {
       } else {
         // The exact email the first person would get, to the club inbox only. Its code belongs to no sign-up, so a YES or NO
         // sent from its buttons is ignored: nothing is held, confirmed or released.
-        var test = batchMail_({ batch_id: 'sample-' + id_(), name: sample.name, source: 'seed', status: 'pending', emailed: '', expires_at: String(Date.now() + HOLD_MS) }, sample.picks, Date.now());
+        var test = batchMail_({ batch_id: 'sample-' + id_(), name: sample.name, source: 'seed', status: 'pending', emailed: '', expires_at: String(Date.now() + SEED_HOLD_MS) }, sample.picks, Date.now());
         sendMail_(adminEmail_(), '[TEST] ' + test.subject, test.lines, ['sample', 'seed']);
         lines.push('<p>&#10003; Sent a test copy of ' + esc_(firstName_(sample.name)) + '\'s email to the club inbox, subject starting "[TEST]". Nothing was held or sent to ' +
           esc_(firstName_(sample.name)) + '. Try its Yes and No buttons: the reply goes back to the club inbox and changes nothing.</p>');
@@ -279,7 +282,7 @@ function ownerSetup_(params) {
         lines.push('<p>Sending would email ' + total + ' ' + (total === 1 ? 'person' : 'people') + ', one email each, to confirm their nights with YES:</p><ul>' +
           plan.preview.map(function (person) { return personLine(person, ''); }).join('') +
           again.map(function (person) {
-            return personLine(person, 'Re-send: ' + (person.sent ? 'emailed ' + person.earlier + ' earlier' : 'held earlier') + ', no YES yet. Gets the new email with a fresh 24 hours; a YES to the earlier one still counts.');
+            return personLine(person, 'Re-send: ' + (person.sent ? 'emailed ' + person.earlier + ' earlier' : 'held earlier') + ', no YES yet. Gets the new email with a fresh 72 hours; a YES to the earlier one still counts.');
           }).join('') + '</ul>');
       } else {
         lines.push('<p>Sending now would email nobody.</p>');
@@ -1216,7 +1219,7 @@ function resendSeed_(only) {
     waitingSeed_(now).forEach(function (waiting) {
       var batch = waiting.batch;
       if (only && only.indexOf(batch.batch_id) < 0) return;
-      var expires = expiryFor_(waiting.picks, now);
+      var expires = now + SEED_HOLD_MS;
       batch.email = waiting.onFile || batch.email;
       batch.expires_at = String(expires);
       batch.emailed = '';
@@ -1394,7 +1397,7 @@ function importSeed_(preview, links) {
           first: accepted[0].date, last: accepted[accepted.length - 1].date });
         return;
       }
-      var expires = expiryFor_(accepted, now);
+      var expires = now + SEED_HOLD_MS;
       var batch = { batch_id: id_(), email: group.email, name: person.name, player_id: playerId, phone: phoneDigits_(onFile.phone), status: 'pending', created_at: nowIso_(),
         expires_at: String(expires), emailed: '', texted: '', updated_at: nowIso_(), source: 'seed' };
       save_('Batches', batch);
