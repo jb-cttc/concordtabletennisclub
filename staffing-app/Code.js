@@ -1994,6 +1994,17 @@ function batchAnswer_(batchId, answer, channel, skip) {
         if (keep || answer !== 'yes') count += 1;
       });
       batch.status = answer === 'yes' && count ? 'confirmed' : 'released';
+    } else if (answer === 'yes' && changeOfMind_(batch, now)) {
+      late = lateConfirm_(batch, mine.filter(function (entry) { return entry.status === 'released' && skip.indexOf(entry.date) < 0; }), signups, now);
+      count = late.confirmed;
+      applied = late.confirmed > 0;
+      if (applied) {
+        batch.status = 'confirmed';
+        batch.late = 'yes';
+        batch.emailed = '';
+        batch.answered_at = nowIso_();
+        batch.answer = skip.length ? 'yes except' : 'yes again';
+      }
     } else if (before === 'expired' && !batch.answered_at && answer === 'yes' && now - Number(batch.expires_at) < LATE_MS) {
       late = lateConfirm_(batch, mine.filter(function (entry) { return skip.indexOf(entry.date) < 0; }), signups, now);
       count = late.confirmed;
@@ -2037,8 +2048,13 @@ function batchAnswer_(batchId, answer, channel, skip) {
   }
 }
 
-// Call while holding the lock. A late YES: each expired pick of this submission is checked again against everything held now,
-// exactly as a new sign-up would be, and confirmed if it still fits.
+// A sign-up released by a NO in the last LATE_MS: a YES (or YES except) after it confirms whichever nights are still free.
+function changeOfMind_(batch, now) {
+  return batch.status === 'released' && batch.answer === 'no' && now - (Date.parse(batch.answered_at) || 0) < LATE_MS;
+}
+
+// Call while holding the lock. A late YES, or a YES after a NO: each expired (or released) pick of this submission is checked
+// again against everything held now, exactly as a new sign-up would be, and confirmed if it still fits.
 function lateConfirm_(batch, mine, signups, now) {
   var horizon = horizon_();
   var closures = closures_();
@@ -2047,7 +2063,7 @@ function lateConfirm_(batch, mine, signups, now) {
   var holding = signups.filter(function (entry) { return entry.batch_id !== batch.batch_id && holds_(entry, now); });
   var accepted = [];
   var result = { confirmed: 0, missed: 0 };
-  mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired'; }).forEach(function (entry) {
+  mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired' || entry.status === 'released'; }).forEach(function (entry) {
     var others = holding.concat(accepted).filter(function (other) { return other.date === entry.date; });
     var reason = pickProblem_({ date: entry.date, position: entry.position, finalize: entry.finalize === 'yes' }, person, nightOf_(entry.date, horizon, closures), others);
     if (reason) {
@@ -2458,6 +2474,8 @@ function emailQuestions_(now) {
     var status = batchStatus_(batch, now);
     var question = { code: batchCode_(batch), email: batch.email, after: Date.parse(batch.created_at) || 0, kind: 'batch', id: batch.batch_id };
     if (status === 'pending' || (status === 'expired' && !batch.answered_at && now - Number(batch.expires_at) < LATE_MS)) questions.push(question);
+    // A change of mind after a NO ("Peg is a yes for all those Mondays except ..."): only replies after the NO count.
+    else if (changeOfMind_(batch, now)) questions.push({ code: question.code, email: batch.email, after: Date.parse(batch.answered_at), kind: 'batch', id: batch.batch_id, yesOnly: true });
   });
   rows_('Batches').forEach(function (batch) {
     if (batch.status === 'awaiting_club' && now < Number(batch.expires_at)) {
@@ -2525,6 +2543,8 @@ function checkMail_() {
         if (recent) unreadableReply_(message.getId(), address, String(message.getSubject() || ''));
         return;
       }
+      // After a NO, only a YES changes anything (another NO, or "thanks", is not read again every minute).
+      if (question.yesOnly && answer !== 'yes') return;
       if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, skip: skip, at: at };
     });
   });
@@ -2628,9 +2648,11 @@ function unclearExcept_(messageId, address, subject, batchId, missing) {
   }
 }
 
-// The sign-up's nights a "YES except" can name: those still pending, or expired but not yet answered.
+// The sign-up's nights a "YES except" can name: those still pending, expired but not yet answered, or released by a NO.
 function nightsOf_(batchId) {
-  return rows_('Signups').filter(function (entry) { return entry.batch_id === batchId && (entry.status === 'pending' || entry.status === 'expired'); }).sort(function (a, b) {
+  return rows_('Signups').filter(function (entry) {
+    return entry.batch_id === batchId && (entry.status === 'pending' || entry.status === 'expired' || entry.status === 'released');
+  }).sort(function (a, b) {
     return a.date.localeCompare(b.date);
   });
 }
@@ -2700,15 +2722,22 @@ function answerLines_(text) {
 
 // ---------- YES except some nights ----------
 
-// A YES (or a CONFIRM text) that leaves some nights out: "YES except Nov 4 and 18", "Yes to all but not 11/4, 12/2", with
-// the dates on that line or the lines after it. null for anything else. Otherwise { days, unclear }: days are { month, day,
+// A YES (or a CONFIRM text) that leaves some nights out: "YES except Nov 4 and 18", "Yes to all but not 11/4, 12/2", "Peg is
+// a YES for all those Monday nights except (Oct 19 and Nov 2). Please correct the schedule", with the dates in brackets, up
+// to the end of that sentence, or on the lines after it. null for anything else. Otherwise { days, unclear }: days are { month, day,
 // year } as typed (year 0 when not typed). unclear is true when a word is neither part of a date nor a joining word ("yes
 // except when it rains", "yes except Wednesdays") or a month has no day: then nothing is guessed and nothing changes.
 function exceptOf_(text) {
   var lines = answerLines_(text);
-  var found = /^(y|yes|yeah|yep|yup|yess+|confirm)\b[\s,.!:;-]*(?:(?:to|for)\s+)?(?:(?:all of them|them all|all nights|all|everything|the rest)\b[\s,.!:;-]*)?(?:except(?:\s+for)?|but\s+not|apart\s+from|other\s+than|excluding|besides|minus|without)\b(.*)$/.exec(lines[0] || '');
-  if (!found) return null;
-  var words = [found[2]].concat(lines.slice(1)).join(' ').replace(/(\d)(st|nd|rd|th)\b/g, '$1')
+  // Someone answering for another ("Peg is a yes", "she says yes"), then up to 6 words before the except ("for all those Monday
+  // nights"), none of them a no.
+  var found = /^(?:(?:[a-z'\u2019]+\s+){1,3}(?:is|are|says?)\s+(?:a\s+)?)?(y|yes|yeah|yep|yup|yess+|confirm)\b[\s,.!:;-]*((?:[a-z'\u2019]+[\s,.!:;-]+){0,6}?)(?:except(?:\s+for)?|but\s+not|apart\s+from|other\s+than|excluding|besides|minus|without)\b(.*)$/.exec(lines[0] || '');
+  if (!found || /\b(no|not|nope|can't|cannot|cant|won't|unable)\b/.test(found[2])) return null;
+  var region = found[3];
+  var bracket = /^\s*[:,-]?\s*\(([^)]*)\)/.exec(region);
+  var sentence = /[!?]|(?:^|[^a-z])(?![a-z]{3,4}\.\s)[a-z]*\.(?:\s|$)/.exec(region);
+  var cut = bracket ? bracket[1] : sentence && region.slice(0, sentence.index + sentence[0].length).replace(/[.!?\s]+$/, '').trim() ? region.slice(0, sentence.index + sentence[0].length) : '';
+  var words = (cut ? [cut] : [region].concat(lines.slice(1))).join(' ').replace(/(\d)(st|nd|rd|th)\b/g, '$1')
     .match(/\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d+|[a-z']+\.?|[^\s\w]/g) || [];
   var days = [];
   var month = 0;
@@ -3170,23 +3199,28 @@ function batchMail_(batch, mine, now) {
     var confirmed = mine.filter(function (entry) { return entry.status === 'confirmed' || entry.status === 'dropped'; });
     var missed = batch.late === 'yes' ? mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired'; }) : [];
     var left = mine.filter(function (entry) { return entry.status === 'released'; });
-    return { subject: 'You are on the CTTC staff schedule', lines: [hello,
-      { callout: 'Thank you! **' + confirmed.length + ' night' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
-      { calendar: confirmed, closed: closedAround_(confirmed) }, { schedule: confirmed },
-      missed.length ? { heading: 'Not confirmed: your YES came after the deadline and these were no longer free' } : null, missed.length ? shiftRows_(missed) : null,
+    // Answered with exceptions, or after a NO, or put right by the club: the email says plainly what is on the schedule now.
+    var updated = ['yes except', 'yes again', 'club fix', 'my nights'].indexOf(batch.answer) >= 0;
+    return { subject: updated ? 'Understood: your CTTC volunteer nights are updated' : 'You are on the CTTC staff schedule', lines: [hello,
+      updated ? { callout: 'Understood - we have updated the system with the following confirmed nights:', tone: 'good' } :
+        { callout: 'Thank you! **' + confirmed.length + ' night' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
+      updated ? shiftRows_(confirmed) : null, updated ? 'That is ' + confirmed.length + ' night' + (confirmed.length === 1 ? '' : 's') + '. We email you a reminder the day before each one.' : null,
+      { calendar: confirmed, closed: closedAround_(confirmed) }, updated ? null : { schedule: confirmed },
+      missed.length ? { heading: 'Not confirmed: these were no longer free' } : null, missed.length ? shiftRows_(missed) : null,
       left.length ? { heading: 'Left out, as you asked' } : null, left.length ? shiftRows_(left) : null,
       { heading: 'Where' }, LOCATION,
       { heading: 'Can\'t make a night after all?' },
       'Untick it on your nights page and tap Save. The rest stay as they are, and the club (and any backup) is told: ' + mineLink_(batch.email)] };
   }
   if (batch.status === 'released') {
-    return { subject: 'Your CTTC staff sign-up is cancelled', lines: [hello, 'OK, we released these picks as you asked. Nothing is on the schedule for you from this sign-up:',
+    // Tagged, so a change of mind replied to this email ("yes except Oct 19") is read too (changeOfMind_).
+    return { subject: 'Your CTTC staff sign-up is cancelled ' + refTag_(batchCode_(batch)), lines: [hello, 'OK, we released these picks as you asked. Nothing is on the schedule for you from this sign-up:',
       shiftRows_(mine.filter(function (entry) { return entry.status !== 'unavailable'; })),
-      'You can pick other nights any time at ' + PAGE_URL + '.'] };
+      'Changed your mind? Reply to this email within 3 days with **YES**, or **YES except** and the dates you can\'t do, and we confirm whatever is still free. Or pick other nights any time at ' + PAGE_URL]};
   }
-  return { subject: 'Your CTTC staff sign-up expired', lines: [hello,
+  return { subject: 'Your CTTC staff sign-up expired ' + refTag_(batchCode_(batch)), lines: [hello,
     'We did not get your YES by ' + deadline + ', so these picks were released and others can take them:', shiftRows_(mine),
-    'Still want to help? Pick again at ' + PAGE_URL + ' and reply YES to the email we send. If you replied YES just now, we will still confirm whatever is free.'] };
+    'Still want to help? Reply to this email within 3 days with **YES**, or **YES except** and the dates you can\'t do, and we confirm whatever is still free. Or pick again at ' + PAGE_URL] };
 }
 
 // Call while holding the lock. One email per person per night, the day before (from REMIND_FROM, Pacific), listing their

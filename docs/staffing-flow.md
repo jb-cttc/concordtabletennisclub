@@ -195,6 +195,19 @@ never read as a plain YES, nor "No for Oct 19 and Nov 2" as a NO to every
 night: a NO that names dates changes nothing and the sender is told how to
 leave out only some nights).
 
+**A change of mind after a NO.** The "cancelled" (and "expired") email carries
+the sign-up's `[CTTC shift …]` tag, so a reply to it is read for 3 days: a
+YES, or a YES except some dates (also in someone else's words: "Peg is a YES
+for all those Monday nights except (Oct 19 and Nov 2). Please correct the
+schedule"), confirms whichever of those nights are still free. Only replies
+after the NO count, and only a YES changes anything.
+
+**"Understood" emails.** When a sign-up is confirmed with some nights left out
+(YES except, My nights, a change of mind, or the club's correction below), the
+email is *Understood: your CTTC volunteer nights are updated* and opens
+"Understood - we have updated the system with the following confirmed
+nights:" with the list, then the nights left out.
+
 **The club corrects an answer.** When someone answers in words the app cannot
 apply (say, a NO and then "yes to all those Mondays except Oct 19 and Nov 2"),
 the setup page's **Correct a volunteer's answer** lists the sign-ups answered
