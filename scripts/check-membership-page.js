@@ -18,6 +18,8 @@ assert.match(html, /href="index\.html">Home<\/a> page to see which nights need h
 
 const offer = /<section class="notice offer"[\s\S]*?<\/section>/.exec(html);
 assert.ok(offer && html.indexOf(offer[0]) < html.indexOf('2026 Pricing'), 'the board\'s 2027 offer sits above the pricing');
+assert.match(offer[0], /<h2 id="offer-heading">Special Offer: 2027 Membership<\/h2>/);
 assert.equal((offer[0].match(/<li>/g) || []).length, 2, 'two bullets: member rates for the rest of 2026, and the t-shirt');
+assert.match(offer[0], /2027 membership form is available in person/, 'where to get the 2027 form');
 
 console.log('Membership page checks passed');
