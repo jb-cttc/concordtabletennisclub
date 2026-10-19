@@ -71,8 +71,18 @@
       <li><strong>Fri, Dec 25 and Fri, Jan 1</strong> Open on holiday (Christmas and New Year&rsquo;s Day), regular hours</li>
       <li><strong>Fri, Jan 22</strong> Closed</li>
     </ul>
+    <div class="volunteer-bar">
+      <button id="volunteer-launch" class="subscribe-launch" type="button" aria-controls="volunteer-app" aria-expanded="false" hidden>
+        <span aria-hidden="true">&#128197;</span>
+        <span id="volunteer-label">Volunteer signups</span>
+      </button>
+    </div>
+    <div id="volunteer-app" class="volunteer-app" hidden>
+      <p id="volunteer-loading" class="coaching-loading" role="status">Loading volunteer signups&hellip;</p>
+      <iframe id="volunteer-frame" title="Volunteer signups: open and close the club"></iframe>
+    </div>
     <div id="closure-calendar" class="closure-calendar" aria-hidden="true"></div>
-    <p class="closure-legend" aria-hidden="true">
+    <p id="closure-legend" class="closure-legend" aria-hidden="true">
       <span><i class="cal-key cal-open"></i>Open</span>
       <span><i class="cal-key cal-partial"></i>Open, 10 tables max</span>
       <span><i class="cal-key cal-full"></i>Closed</span>
@@ -268,6 +278,39 @@
       }
       box.appendChild(grid);
       root.appendChild(box);
+    });
+  })();
+
+  // Volunteer signups: the staffing app (staffing-app/, its own Apps Script project) takes the calendar's place, showing which
+  // nights need help and who has signed up. The button stays hidden until the app is deployed.
+  (function () {
+    var APP_URL = "PENDING_DEPLOYMENT";
+    if (APP_URL.indexOf("PENDING_DEPLOYMENT") >= 0) return;
+    var launch = document.getElementById("volunteer-launch");
+    var label = document.getElementById("volunteer-label");
+    var app = document.getElementById("volunteer-app");
+    var frame = document.getElementById("volunteer-frame");
+    var loading = document.getElementById("volunteer-loading");
+    var calendar = [document.getElementById("closure-calendar"), document.getElementById("closure-legend")];
+    function ready() { loading.hidden = true; }
+    // The app says when it is drawn and how tall it is, so the page grows with it instead of scrolling inside a frame.
+    window.addEventListener("message", function (event) {
+      if (!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin)) return;
+      if (event.data === "cttc-staffing-ready") ready();
+      if (event.data && event.data.type === "cttc-staffing-height" && isFinite(event.data.height)) {
+        ready();
+        frame.style.height = Math.max(320, Math.min(6000, Math.round(event.data.height))) + "px";
+      }
+    });
+    frame.addEventListener("load", function () { setTimeout(ready, 10000); });
+    launch.hidden = false;
+    launch.addEventListener("click", function () {
+      var open = app.hidden;
+      if (open && !frame.getAttribute("src")) frame.setAttribute("src", APP_URL);
+      app.hidden = !open;
+      calendar.forEach(function (el) { el.hidden = open; });
+      launch.setAttribute("aria-expanded", String(open));
+      label.textContent = open ? "Back to closures calendar" : "Volunteer signups";
     });
   })();
 
