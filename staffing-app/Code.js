@@ -232,7 +232,11 @@ function ownerSetup_(params) {
       return '<li><strong>' + esc_(person.name) + '</strong> (' + esc_(person.email) + '): ' + esc_(person.nights) + ' nights as ' + esc_(person.positions.join(' and ')) +
         ', ' + esc_(shortDay_(person.first)) + ' to ' + esc_(shortDay_(person.last)) + (note ? '. <em>' + esc_(note) + '</em>' : '') + '</li>';
     };
-    if (params['import'] === 'links') {
+    var seedActions = ['preview', 'seed', 'sample', 'links'];
+    if (seedImportedAt_() && seedActions.indexOf(params['import']) >= 0) {
+      lines.push('<p>' + esc_(seedClosedText_()) + '</p>');
+      if (waitingSeed_(Date.now()).length) lines.push(button(base + '&import=resend', 'Re-send the confirmation email to people still waiting for a YES'));
+    } else if (params['import'] === 'links') {
       var prepared = importSeed_(true, true);
       var toFill = [].concat(prepared.unmatched, prepared.ambiguous, prepared.noEmail);
       lines.push('<p>&#10003; SeedLinks is ready: ' + (toFill.length ? esc_(toFill.length) + ' ' + (toFill.length === 1 ? 'name needs' : 'names need') + ' a player and/or an email (' +
@@ -285,7 +289,10 @@ function ownerSetup_(params) {
       if (plan.preview.length) {
         lines.push('<p><a href="' + esc_(base + '&import=sample') + '">Send me a test copy of ' + esc_(plan.preview[0].name) + '\'s email first</a> (to the club inbox; holds nothing).</p>');
       }
-      if (total) lines.push(button(base + '&import=seed', total === 1 ? 'Send this email' : 'Send these ' + total + ' emails'));
+      if (total) {
+        lines.push(button(base + '&import=seed', total === 1 ? 'Send this email' : 'Send these ' + total + ' emails'));
+        lines.push('<p>Sending imports the open/close list once. After that it is not read again: training and emails live in the private staffing Sheet.</p>');
+      }
     } else if (params['import'] === 'seed') {
       // Those already waiting before this run get the current email again, at the address on file after the import (SeedLinks).
       var waitingBefore = waitingSeed_(Date.now()).map(function (each) { return each.batch.batch_id; });
@@ -300,7 +307,8 @@ function ownerSetup_(params) {
     }
     lines.push('<p><a href="' + esc_(result.privateSheet) + '">Open the private staffing Sheet</a> (never share it).</p>');
     if (properties.getProperty('SEED_SHEET_ID') && !params['import']) {
-      lines.push(button(base + '&import=preview', 'Preview who the open/close list would email') + '<p>The preview sends nothing; you choose to send from there.</p>');
+      if (seedImportedAt_()) lines.push('<p>' + esc_(seedClosedText_()) + '</p>');
+      else lines.push(button(base + '&import=preview', 'Preview who the open/close list would email') + '<p>The preview sends nothing; you choose to send from there. The list is imported only once, when you send.</p>');
     }
     if (properties.getProperty('MEMBER_LIST_ID') && params['import'] !== 'members') {
       lines.push('<p><a href="' + esc_(base + '&import=members') + '">Import emails from the membership list</a></p>');
@@ -1148,7 +1156,21 @@ var SEED_CANDIDATES = 5;
 // Returns, and logs, counts and the seed Sheet's own names (first name and last initial) only: no emails or desk names.
 function importSeedSheet() {
   if (Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) throw new Error('Only the owner can import the seed Sheet.');
-  return importSeed_(false);
+  if (seedImportedAt_()) throw new Error(seedClosedText_());
+  var report = importSeed_(false);
+  // The volunteer's list is a one-time import: from now on the club keeps everything in this app's own Sheet.
+  PropertiesService.getScriptProperties().setProperty('SEED_IMPORTED_AT', nowIso_());
+  return report;
+}
+
+// When the volunteer's open/close list was imported (it is read only once), or ''. A maintainer can delete the script
+// property SEED_IMPORTED_AT to allow one more import.
+function seedImportedAt_() { return property_('SEED_IMPORTED_AT', ''); }
+
+function seedClosedText_() {
+  var at = Date.parse(seedImportedAt_());
+  return 'The open/close list was imported once' + (at ? ', on ' + momentLabel_(at) : '') + ', and is no longer read. Training and emails are kept in the ' +
+    'private staffing Sheet (Training and Emails tabs), and volunteers sign up on the calendar.';
 }
 
 // links (with preview): also rewrite SeedReport and add SeedLinks rows for every name to fix, so the owner can fill in emails

@@ -906,6 +906,21 @@ const seedCheck = () => {
   const ron = plan.held.find(person => person.name === 'Ron');
   assert.ok(ron && ron.reasons['roster: no email found'] > 0, 'no email is explained per person too');
   let result = JSON.parse(JSON.stringify(context.importSeedSheet()));
+  // The volunteer's list is a one-time import: once sent, it is not read again (nothing re-imports it on its own either).
+  assert.ok(properties.SEED_IMPORTED_AT, 'the import records that it ran');
+  assert.throws(() => context.importSeedSheet(), /imported once[\s\S]*no longer read/, 'the editor function refuses a second import');
+  for (const action of ['preview', 'seed', 'sample', 'links']) {
+    const closedPage = context.doGet({ parameter: { setup: '', import: action } }).getContent();
+    assert.match(closedPage, /imported once[\s\S]*no longer read/, action + ' is closed');
+    assert.doesNotMatch(closedPage, /Sending would email|Sent \d+ emails|Sent a test copy|SeedLinks is ready/);
+  }
+  assert.match(context.doGet({ parameter: { setup: '' } }).getContent(), /imported once/, 'the setup page says so instead of offering the preview');
+  clock += 2 * 3600000;
+  assert.match(context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent(), /import=resend/, 'people still waiting (over an hour later) can still be re-sent their email');
+  clock -= 2 * 3600000;
+  // The checks below re-run the import on purpose (fix-ups, idempotency), as a maintainer can by deleting SEED_IMPORTED_AT.
+  const seedImportedAt = context.seedImportedAt_;
+  context.seedImportedAt_ = () => '';
   assert.deepEqual([plan.people, plan.signups, plan.training, plan.unmatched, plan.ambiguous, plan.noEmail],
     [result.people, result.signups, result.training, result.unmatched, result.ambiguous, result.noEmail], 'the preview shows exactly what the import then does');
   assert.deepEqual(result, {
@@ -1040,6 +1055,7 @@ const seedCheck = () => {
   assert.ok(again.preview.some(person => person.name === 'Bobby'), 'an unanswered, expired hold is offered again');
   assert.ok(!again.preview.some(person => person.name === 'Ada'), 'a confirmed one is not');
   clock = beforeExpiry;
+  context.seedImportedAt_ = seedImportedAt;
   activeEmail = '';
   context.console.log = () => {};
   clock = keep;
@@ -1188,6 +1204,9 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
 {
   // The imports below change the fake Sheet; it is put back afterwards so the page checks see the calendar as before.
   const saved = structuredClone({ grids, properties, cache, sent: sent.length });
+  // These checks open the setup page as before the one-time import (and import more than once), as a maintainer could.
+  const importedAt = context.seedImportedAt_;
+  context.seedImportedAt_ = () => '';
   const deskBefore = properties.DESK_SHEET_ID;
   const memberBefore = properties.MEMBER_LIST_ID;
   delete properties.MEMBER_LIST_ID;
@@ -1232,6 +1251,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   Object.assign(properties, saved.properties);
   cache = saved.cache;
   sent.length = saved.sent;
+  context.seedImportedAt_ = importedAt;
 }
 
 // ---- The page in a browser (jsdom): calendar, picks, repeat weekly, the form, and hybrid mode ----
