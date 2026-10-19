@@ -133,6 +133,22 @@ main {
   line-height: 1.5;
 }
 
+.offer h2 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.offer ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.offer p {
+  margin: 8px 0 0;
+}
+
 .closures h2 {
   margin: 0 0 8px;
   font-size: 1.1rem;
