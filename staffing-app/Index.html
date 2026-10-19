@@ -50,6 +50,12 @@
   .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 0 0 10px; padding: 8px 10px; border-radius: 6px; background: #eef4ff; border: 1px solid #c6d6f2; }
   .bar b { color: #1f4f8f; }
   .panel { margin: 10px 0 4px; padding: 12px; border: 1px solid #ddd8cc; border-radius: 8px; background: #fff; }
+  /* With the months side by side, the chosen night opens full width under them (see slotArea), opening and closing side by side. */
+  .slot-wide { grid-column: 1 / -1; }
+  .slot-wide .panel { padding: 16px 20px; }
+  .night-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 24px; }
+  .night-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 32px; }
+  .slot-wide .night-cols { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
   .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; }
   .pos { padding: 8px 0; border-top: 1px solid #eee; }
   .pos-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: 0.95rem; }
@@ -144,6 +150,14 @@
     try { if (window.parent !== window.top) window.parent.postMessage(message, '*'); } catch (error) {}
   }
   if (window.ResizeObserver) new ResizeObserver(postHeight).observe(document.body);
+  // Turning a tablet or resizing the window can switch between one column and side by side: move the open night with it.
+  var wide = null;
+  window.addEventListener('resize', function () {
+    if (!board || !selected) return;
+    var now = sideBySide();
+    if (wide !== null && now !== wide) redraw();
+    wide = now;
+  });
 
   function positionOf(id) { return board.positions.filter(function (spec) { return spec.id === id; })[0]; }
   function nightOf(date) { return board.nights.filter(function (night) { return night.date === date; })[0]; }
@@ -197,10 +211,11 @@
         grid.appendChild(dayCell(date, day));
       }
       box.appendChild(grid);
-      // The chosen night's slots open right under its month, so on a phone they appear next to the tap.
+      // On a phone the chosen night's slots open right under its month, next to the tap; on a wide screen, under all months.
       box.appendChild(el('div', { 'class': 'slot-area', 'data-month': String(month.month) }));
       calendar.appendChild(box);
     });
+    calendar.appendChild(el('div', { 'class': 'slot-wide' }));
     if (selected) drawNight();
   }
   function dayCell(date, day) {
@@ -222,13 +237,28 @@
   }
 
   // ----- One night's positions -----
+  // Months side by side (a wide screen): the night opens full width under them. One column (a phone): right under its month,
+  // next to the tap.
+  function sideBySide() {
+    var boxes = calendar.querySelectorAll('.month');
+    if (boxes.length < 2) return false;
+    var a = boxes[0].getBoundingClientRect();
+    var b = boxes[1].getBoundingClientRect();
+    return a.width > 0 && Math.abs(a.top - b.top) < 2;
+  }
+  // The opener's time for this night: 20 minutes before opening (6:40 PM, or 2:40 PM on a Saturday).
+  function doesText(spec, night) {
+    var start = Number(night.start.slice(0, 2)) * 60 + Number(night.start.slice(3, 5)) - 20;
+    var arrive = time12(('0' + Math.floor(start / 60)).slice(-2) + ':' + ('0' + (start % 60)).slice(-2));
+    return spec.does.replace(/6:40 PM \(2:40 PM on Saturdays\)/, arrive);
+  }
   function drawNight() {
     var night = nightOf(selected);
-    var area = calendar.querySelector('.slot-area[data-month="' + Number(selected.slice(5, 7)) + '"]');
+    var area = sideBySide() ? calendar.querySelector('.slot-wide') : calendar.querySelector('.slot-area[data-month="' + Number(selected.slice(5, 7)) + '"]');
     if (!night || !area) return;
     var panel = el('section', { id: 'night', 'class': 'panel', tabindex: '-1', 'aria-label': night.day });
-    panel.appendChild(el('h2', { text: night.day }));
-    panel.appendChild(el('p', {}, [night.time + ' ', el('span', { 'class': 'badge ' + night.status, text: (MARKS[night.status] ? MARKS[night.status] + ' ' : '') + WORDS[night.status] })]));
+    panel.appendChild(el('div', { 'class': 'night-head' }, [el('h2', { text: night.day }),
+      el('p', {}, [night.time + ' ', el('span', { 'class': 'badge ' + night.status, text: (MARKS[night.status] ? MARKS[night.status] + ' ' : '') + WORDS[night.status] })])]));
     if (night.status === 'closed') {
       panel.appendChild(el('p', { text: 'The gym is closed this night' + (night.note && night.note !== 'Gym closed' ? ': ' + night.note : '.') + ' No volunteers needed.' }));
       area.appendChild(panel);
@@ -239,18 +269,17 @@
     if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
     else if (night.status === 'covered') panel.appendChild(el('p', { 'class': 'muted', text: 'The minimum crew is confirmed. A backup or extra spot is still open.' }));
     if (!night.bookable) panel.appendChild(el('p', { 'class': 'why', text: 'Sign-ups for this night have closed (they close an hour before the club opens).' }));
-    panel.appendChild(el('h3', { text: 'Opening, ' + time12(night.start) }));
-    board.positions.forEach(function (spec) {
-      if (spec.part === 'close') panel.appendChild(el('h3', { text: 'Closing, ' + time12(night.end) }));
-      panel.appendChild(positionRow(night, spec));
-    });
+    var opening = el('div', {}, [el('h3', { text: 'Opening, ' + time12(night.start) })]);
+    var closing = el('div', {}, [el('h3', { text: 'Closing, ' + time12(night.end) })]);
+    board.positions.forEach(function (spec) { (spec.part === 'close' ? closing : opening).appendChild(positionRow(night, spec)); });
+    panel.appendChild(el('div', { 'class': 'night-cols' }, [opening, closing]));
     panel.appendChild(el('p', { 'class': 'muted', text: 'One opening position per person per night (backups count). You may also close the same night.' }));
     area.appendChild(panel);
   }
   function positionRow(night, spec) {
     var size = spec.max === 1 ? '1 person' : spec.min + ' to ' + spec.max + ' people';
     var row = el('div', { 'class': 'pos' }, [el('div', { 'class': 'pos-head' }, [el('b', { text: spec.label }), el('span', { text: size + (spec.min ? '' : ', optional') })]),
-      el('p', { 'class': 'does', text: spec.does })]);
+      el('p', { 'class': 'does', text: doesText(spec, night) })]);
     var chips = el('ul', { 'class': 'chips', 'aria-label': spec.label });
     var dropBox = el('div');
     night.slots[spec.id].forEach(function (slot) {
