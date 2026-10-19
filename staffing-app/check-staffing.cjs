@@ -873,6 +873,22 @@ const seedCheck = () => {
   assert.ok(plan.preview.every(person => /^.\u2022\u2022\u2022@example\.com$/.test(person.email)), 'emails masked');
   assert.deepEqual(plan.preview.find(person => person.name === 'Ada').positions.sort(), ['Desk organizer', 'Desk organizer backup']);
   assert.equal(plan.preview.reduce((total, person) => total + person.nights, 0), plan.signups);
+  // A test copy of the first person's email goes to the club inbox only, holds nothing, and its YES changes nothing.
+  // (Opening the setup page runs setup(), whose sweep tidies earlier checks' sign-ups; compare from after that.)
+  const pageWithLink = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
+  const sheetsBeforeSample = JSON.stringify([grids.Signups, grids.Batches, grids.Emails, grids.Training]);
+  assert.match(pageWithLink, /import=sample/, 'the preview offers a test copy');
+  const sampleAt = sent.length;
+  assert.match(context.doGet({ parameter: { setup: '', import: 'sample' } }).getContent(), /Sent a test copy/);
+  const copies = sent.slice(sampleAt).filter(message => /^\[TEST\]/.test(message.subject));
+  assert.equal(copies.length, 1, 'one test copy');
+  assert.equal(copies[0].to, 'owner@example.com', 'to the club inbox only');
+  assert.match(copies[0].subject, /^\[TEST\] Please confirm your CTTC volunteer nights \[CTTC shift [0-9A-F]{10}\]$/);
+  assert.match(copies[0].htmlBody, /Yes, confirm all \d+ nights/);
+  answerMail('owner@example.com', 'YES', copies[0].subject);
+  context.checkReplies();
+  assert.equal(JSON.stringify([grids.Signups, grids.Batches, grids.Emails, grids.Training]), sheetsBeforeSample, 'the test copy and its YES change nothing');
+  before = sent.length;
   // Everyone on the roster the import leaves out (or holds only partly) is listed with the reason, in nights.
   const susan = plan.held.find(person => person.name === 'Susan');
   assert.deepEqual(susan, { name: 'Susan', nights: 0, reasons: { 'needs training': 12 } }, 'the untrained backup is explained');
@@ -1101,6 +1117,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.equal(sent.length, previewSent, 'the preview page sends nothing');
   assert.match(html, /\u2022\u2022\u2022@example\.com/);
   assert.doesNotMatch(html, /[a-z0-9._-]{2,}@example\.com/, 'only masked addresses on the preview page');
+  assert.match(context.doGet({ parameter: { setup: '', import: 'sample' } }).getContent(), /Sent a test copy|no test copy to send/);
   const before = sent.length;
   html = context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent();
   assert.match(html, /Open\/close list imported: \d+ people emailed to confirm \d+ shifts/);

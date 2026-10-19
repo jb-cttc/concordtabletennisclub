@@ -198,7 +198,20 @@ function ownerSetup_(params) {
         report.noEmail.map(function (name) { return name + ' (no email on file)'; }));
       return names.length ? '<p>Not emailed, to fix in the private Sheet\'s SeedLinks tab first: ' + esc_(names.join(', ')) + '.</p>' : '';
     };
-    if (params['import'] === 'preview') {
+    if (params['import'] === 'sample') {
+      var sample = importSeed_(true).sample;
+      if (!sample) {
+        lines.push('<p>Nobody would be emailed right now, so there is no test copy to send.</p>');
+      } else {
+        // The exact email the first person would get, to the club inbox only. Its code belongs to no sign-up, so a YES or NO
+        // sent from its buttons is ignored: nothing is held, confirmed or released.
+        var test = batchMail_({ batch_id: 'sample-' + id_(), name: sample.name, source: 'seed', status: 'pending', emailed: '', expires_at: String(Date.now() + HOLD_MS) }, sample.picks, Date.now());
+        sendMail_(adminEmail_(), '[TEST] ' + test.subject, test.lines, ['sample', 'seed']);
+        lines.push('<p>&#10003; Sent a test copy of ' + esc_(firstName_(sample.name)) + '\'s email to the club inbox, subject starting "[TEST]". Nothing was held or sent to ' +
+          esc_(firstName_(sample.name)) + '. Try its Yes and No buttons: the reply goes back to the club inbox and changes nothing.</p>');
+      }
+      lines.push(button(base + '&import=preview', 'Back to the preview'));
+    } else if (params['import'] === 'preview') {
       var plan = importSeed_(true);
       lines.push('<h2 style="font-size:1.05rem">Preview: nothing has been sent or saved</h2>');
       if (plan.preview.length) {
@@ -219,7 +232,10 @@ function ownerSetup_(params) {
       }
       if (Object.keys(plan.skipped).length) lines.push('<p>All skips: ' + esc_(Object.keys(plan.skipped).map(function (reason) { return plan.skipped[reason] + ' ' + reason; }).join('; ')) + '.</p>');
       lines.push('<p>' + esc_(plan.training) + ' training rows would be recorded (no email for those).</p>');
-      if (plan.preview.length) lines.push(button(base + '&import=seed', 'Send these ' + plan.preview.length + ' emails'));
+      if (plan.preview.length) {
+        lines.push('<p><a href="' + esc_(base + '&import=sample') + '">Send me a test copy of ' + esc_(plan.preview[0].name) + '\'s email first</a> (to the club inbox; holds nothing).</p>');
+        lines.push(button(base + '&import=seed', 'Send these ' + plan.preview.length + ' emails'));
+      }
     } else if (params['import'] === 'seed') {
       var seeded = importSeedSheet();
       lines.push('<p>&#10003; Open/close list imported: ' + esc_(seeded.people) + ' people emailed to confirm ' + esc_(seeded.signups) + ' shifts; ' +
@@ -1212,6 +1228,8 @@ function importSeed_(preview) {
       if (preview) {
         var labels = {};
         accepted.forEach(function (pick) { labels[position_(pick.position).label] = true; });
+        // The first person's picks, kept so the owner can be sent a test copy of their email (never shown on the page).
+        if (!report.sample) report.sample = { name: group.player.name, picks: accepted.map(function (pick) { return { date: pick.date, position: pick.position, finalize: '', status: 'pending' }; }) };
         report.preview.push({ name: seedLabel_(group.sheetName), email: maskEmail_(group.email), nights: accepted.length, positions: Object.keys(labels),
           first: accepted[0].date, last: accepted[accepted.length - 1].date });
         return;
