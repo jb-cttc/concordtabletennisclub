@@ -43,11 +43,23 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
 
 ## 2. Setup (owner, once)
 
-1. Create a new Apps Script project (script.google.com, signed in as the club
-   account) named *CTTC staffing*, and copy in `Code.js`, `Index.html` and
-   `appsscript.json` (or `clasp create` in `staffing-app/` and `clasp push`;
-   `.claspignore` keeps the test out). The project needs its own
-   `.clasp.json`, which is not in the repo yet.
+The project exists: *CTTC Volunteer Signups* in the club account, linked by
+`staffing-app/.clasp.json` (`clasp push` from `staffing-app/`; `.claspignore`
+keeps the test out). A maintainer pushes and deploys it like the desk.
+
+**From a phone, no editor needed:** open the project's `/dev` address with
+`?setup`, signed in as the club account. Adding `&desk=<desk Sheet id>`,
+`&seed=<open/close Sheet id>` or `&members=<membership list id>` sets those
+properties if they are not set yet (a property already set is never changed
+from a link). The page runs `setup()`; the first time, Google asks the club
+account to allow the app's permissions, which is the one step nobody else can
+do. It then offers one tap each for the open/close import and the membership
+email import, and shows counts only. Anyone else sees "not available", and
+`/dev` only opens for the project's editors anyway.
+
+Or, from a computer:
+
+1. Open the project in the Apps Script editor.
 2. **Project Settings > Script properties**:
 
    | Property | Required | What |
