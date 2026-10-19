@@ -171,7 +171,7 @@
     if (untrained(positionId)) return 'Needs training: ask the club.';
     var taken = night.slots[positionId].length + picksOn(night.date).filter(function (pick) { return pick.position === positionId; }).length;
     if (taken >= spec.max) return 'Full.';
-    if (picksOn(night.date).some(function (pick) { return positionOf(pick.position).part === spec.part; })) {
+    if (picksOn(night.date).some(function (pick) { var other = positionOf(pick.position); return other.part === spec.part && (spec.alsoWith || []).indexOf(other.id) < 0; })) {
       return spec.part === 'open' ? 'You picked another opening position this night (one per person).' : 'You are already closing this night.';
     }
     return '';
@@ -246,11 +246,10 @@
     var b = boxes[1].getBoundingClientRect();
     return a.width > 0 && Math.abs(a.top - b.top) < 2;
   }
-  // The opener's time for this night: 20 minutes before opening (6:40 PM, or 2:40 PM on a Saturday).
+  // "6:40 PM (2:40 PM on Saturdays)" becomes the one that applies to this night.
   function doesText(spec, night) {
-    var start = Number(night.start.slice(0, 2)) * 60 + Number(night.start.slice(3, 5)) - 20;
-    var arrive = time12(('0' + Math.floor(start / 60)).slice(-2) + ':' + ('0' + (start % 60)).slice(-2));
-    return spec.does.replace(/6:40 PM \(2:40 PM on Saturdays\)/, arrive);
+    var saturday = new Date(night.date + 'T12:00:00Z').getUTCDay() === 6;
+    return spec.does.replace(/(\d{1,2}:\d{2} [AP]M) \((\d{1,2}:\d{2} [AP]M) on Saturdays\)/g, function (all, weekday, sat) { return saturday ? sat : weekday; });
   }
   function drawNight() {
     var night = nightOf(selected);
@@ -273,7 +272,7 @@
     var closing = el('div', {}, [el('h3', { text: 'Closing, ' + time12(night.end) })]);
     board.positions.forEach(function (spec) { (spec.part === 'close' ? closing : opening).appendChild(positionRow(night, spec)); });
     panel.appendChild(el('div', { 'class': 'night-cols' }, [opening, closing]));
-    panel.appendChild(el('p', { 'class': 'muted', text: 'One opening position per person per night (backups count). You may also close the same night.' }));
+    panel.appendChild(el('p', { 'class': 'muted', text: 'One opening position per person per night (backups count; the desk organizer may also help set up). You may also close the same night.' }));
     area.appendChild(panel);
   }
   function positionRow(night, spec) {
@@ -369,10 +368,10 @@
       var night = nightOf(pick.date);
       var spec = positionOf(pick.position);
       var item = el('li', {}, [el('b', { text: (night ? night.short : pick.date) + ': ' }), spec.label]);
-      if (spec.id === 'close') {
+      if (spec.part === 'close') {
         var finalize = el('input', { type: 'checkbox', id: 'fin' + pick.date });
         finalize.checked = pick.finalize;
-        var taken = night && night.slots.close.some(function (slot) { return slot.finalize; });
+        var taken = night && board.positions.some(function (other) { return other.part === 'close' && night.slots[other.id].some(function (slot) { return slot.finalize; }); });
         if (taken && !pick.finalize) finalize.disabled = true;
         finalize.addEventListener('change', function () { pick.finalize = finalize.checked; });
         item.appendChild(el('label', { 'class': 'check', 'for': 'fin' + pick.date }, [finalize, el('span', { text: taken ? 'Someone is already finalizing the desk this night' : 'I\'ll also do the desk\'s Finalize step' })]));

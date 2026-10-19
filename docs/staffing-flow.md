@@ -15,17 +15,21 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   6 PM, Pacific. The calendar shows the current month and the next two (on
   November 1st, January opens). Past nights can't be picked; tonight can be
   picked until an hour before opening.
-- Each night has: **Desk organizer** (the opener: first in at 6:40 PM, key
-  lockbox, doors, side door, storage room, lights and AC) plus a backup;
-  **Money collector (Front Desk)** (Revenue Sheet, Clover device, Zelle QR
-  codes, records everyone entering) plus a backup; **Table setup** (1 to 4);
-  **Closing** (2 to 6, putting tables away; one closer may tick "I'll also do
-  the desk's Finalize step").
-- One person takes only **one opening position per night** (a backup counts).
-  The same person may open and close.
+- Each night has, opening: **Desk organizer** (the opener and round robin
+  organizer: first in at 6:40 PM, key lockbox, doors, side door, storage room,
+  lights and AC, runs the round robin desk) plus a backup; **Money collector
+  (Front Desk)** (Revenue Sheet, Clover device, Zelle/Venmo QR codes, records
+  everyone entering, manages payments) plus a backup; **Table/barrier setup**
+  (1 to 4: barriers, tables and nets, arrive by 6:45 PM). Closing: **Lock-up**
+  (1, needs key access: last out, checks everyone is out and every door is
+  locked, lights and AC off) and **Put tables and barriers away** (1 to 5).
+  One closer may tick "I'll also do the desk's Finalize step".
+- One person takes only **one opening position per night** (a backup counts),
+  except that the **desk organizer may also help with table/barrier setup**.
+  One closing position per person. The same person may open and close.
 - **Night status**, from *confirmed* sign-ups only:
-  - **Needs people** (`!`): no confirmed desk organizer, money collector or
-    table setup, or fewer than 2 closers.
+  - **Needs people** (`!`): no confirmed desk organizer, money collector,
+    table/barrier setup, lock-up or anyone putting tables away.
   - **Covered** (`✓`): every minimum met, but a backup is still open.
   - **Fully staffed** (`★`): every minimum and **both backups** confirmed.
     Extra table setup and closing spots stay optional and are still shown as
@@ -210,7 +214,10 @@ names in a cell may be split by a line break, `/`, `,`, `&` or "and") and a
 **Training list** block (**Keys Access**, **Open**, **Front Desk** columns:
 Yes, or No / N/A = not trained). `parseSeed_` finds both by these labels, not
 by row numbers, and ignores everything else (the duty checklists). Unknown
-roster columns are only counted.
+roster columns are only counted. **Prepare SeedLinks** on the preview
+(`&import=links`) adds a SeedLinks row for every name to fix (no player, more
+than one, or no email) and refreshes the player dropdown, holding and sending
+nothing, so emails can be filled in before Send.
 
 Run **`importSeedSheet`** from the editor (after `setup`). It:
 
@@ -226,8 +233,13 @@ Run **`importSeedSheet`** from the editor (after `setup`). It:
    approved (`source` seedlinks, zeffy or coaching), never over a row the owner
    typed. Holds use the email on file. With none, their training still imports
    but their nights are skipped.
-4. Makes the normal **pending** holds: Open becomes Desk organizer, Front
-   Desk becomes Money collector, on every matching weekday in the calendar
+4. Makes the normal **pending** holds from the roster columns: **Open** is
+   Desk organizer, **Front Desk** Money collector, **Barriers** and **Setup**
+   Table/barrier setup, **Close** Lock-up, **Takedown** Put tables and barriers
+   away; **RR Admin** is read but adds nothing (it is the desk organizer). In a
+   one-person position a second name is the backup; in Setup or Takedown every
+   name takes a spot ("Ryan/Peggy" is two people). Each is held on every
+   matching weekday in the calendar
    (not closures, not past), checked by the normal rules (an untrained person
    or a taken slot is skipped). Each person gets the normal single
    confirmation email; nothing is confirmed until they reply YES.
