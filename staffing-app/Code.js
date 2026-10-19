@@ -2451,6 +2451,30 @@ function shiftLabel_(entry) {
 
 function shiftRows_(entries) { return { rows: entries.map(function (entry) { return [shortDay_(entry.date), shiftLabel_(entry)]; }) }; }
 
+// Calendar letters: a filled square is the position itself, an outlined one its backup.
+var CAL_CODES = { desk: 'D', 'desk-backup': 'D', money: 'M', 'money-backup': 'M', tables: 'T', close: 'C' };
+
+// Closed nights (data/closures.json and the Closures tab) on the same weekdays, between the first and last of these shifts:
+// shown on the email's calendar so a gap is never a surprise.
+function closedAround_(entries) {
+  if (!entries.length) return [];
+  var dates = entries.map(function (entry) { return entry.date; }).sort();
+  var weekdays = {};
+  entries.forEach(function (entry) { weekdays[weekday_(entry.date)] = true; });
+  var closed = {};
+  try {
+    closed = closures_();
+  } catch (error) {
+    closed = {};
+  }
+  return Object.keys(closed).filter(function (date) { return date >= dates[0] && date <= dates[dates.length - 1] && weekdays[weekday_(date)]; }).sort();
+}
+
+// A reply the person's mail app fills in: To the club, the same subject (so the reply is read), and YES or NO.
+function replyLink_(subject, answer) {
+  return 'mailto:' + Session.getEffectiveUser().getEmail() + '?subject=' + encodeURIComponent('Re: ' + subject) + '&body=' + encodeURIComponent(answer);
+}
+
 function batchMail_(batch, mine, now) {
   var hello = 'Hello ' + (firstName_(batch.name) || 'there') + ',';
   var deadline = momentLabel_(Number(batch.expires_at));
@@ -2475,23 +2499,33 @@ function batchMail_(batch, mine, now) {
       'Please pick again at ' + PAGE_URL + '. This time we email you straight away.'] };
   }
   if (batch.status === 'pending') {
-    return { subject: 'Confirm your CTTC staff sign-up ' + refTag_(batchCode_(batch)), lines: [hello,
-      batch.source === 'seed' ? 'The club\'s open/close list has you down for the shifts below, and we have moved that list to the new sign-up calendar. Please confirm them.' : null,
-      { callout: 'Reply **YES** to this email by **' + deadline + '** to confirm ' + (mine.length === 1 ? 'this shift' : 'all ' + mine.length + ' shifts') +
-        '. Until then they are held for you and show as "waiting to confirm".', tone: 'action' },
+    var held = mine.filter(function (entry) { return entry.status !== 'unavailable'; });
+    var nights = {};
+    held.forEach(function (entry) { nights[entry.date] = true; });
+    var many = Object.keys(nights).length;
+    var count = many === 1 ? 'this night' : 'all ' + many + ' nights';
+    var subject = 'Please confirm your CTTC volunteer ' + (many === 1 ? 'night ' : 'nights ') + refTag_(batchCode_(batch));
+    return { subject: subject, lines: [hello,
+      batch.source === 'seed' ? 'You\'re on the club\'s open/close list, which has moved to the new volunteer calendar. Please confirm your nights so they show as yours.' : null,
       approved ? 'The club approved your email address: from now on we use it for your sign-ups.' : null,
-      { heading: 'Your picks' }, shiftRows_(mine.filter(function (entry) { return entry.status !== 'unavailable'; })),
+      { callout: 'Please confirm ' + count + ' by **' + deadline + '**.', tone: 'action' },
+      { buttons: [['Yes, confirm ' + count, replyLink_(subject, 'YES'), 'good'], ['No, release ' + (many === 1 ? 'it' : 'them'), replyLink_(subject, 'NO'), 'bad']] },
+      'Each button opens a reply with YES or NO already filled in: just press send. Or reply to this email with **YES** or **NO**.',
+      { heading: 'Your nights' }, { calendar: held, closed: closedAround_(held) }, { schedule: held },
       unavailable.length ? { heading: 'No longer free by the time the club approved your email' } : null, unavailable.length ? shiftRows_(unavailable) : null,
-      { choices: [['YES', 'Confirm ' + (mine.length === 1 ? 'it' : 'all of them') + '.'], ['NO', 'Cancel ' + (mine.length === 1 ? 'it' : 'all of them') + ': the spots open for others.']] },
-      'If you do not reply in time, the picks are released so someone else can take them. Please reply from this same email address.',
-      'Didn\'t sign up? Just ignore this email: nothing is confirmed without your YES.'] };
+      { heading: 'What each position does' }, { roles: held },
+      { heading: 'Good to know' },
+      { bullets: ['Until you reply, these nights are held for you and show on the calendar as "waiting to confirm".',
+        'No reply by ' + deadline + '? They are released so someone else can take them.',
+        'Can\'t make a night later on? Tap it on the calendar at ' + PAGE_URL + ', tap your name and choose "This is me".',
+        'Didn\'t sign up? Ignore this email: nothing is confirmed without your YES.'] }] };
   }
   if (batch.status === 'confirmed') {
     var confirmed = mine.filter(function (entry) { return entry.status === 'confirmed' || entry.status === 'dropped'; });
     var missed = batch.late === 'yes' ? mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired'; }) : [];
     return { subject: 'You are on the CTTC staff schedule', lines: [hello,
-      { callout: 'Thank you! **' + confirmed.length + ' shift' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
-      shiftRows_(confirmed),
+      { callout: 'Thank you! **' + confirmed.length + ' night' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
+      { calendar: confirmed, closed: closedAround_(confirmed) }, { schedule: confirmed },
       missed.length ? { heading: 'Not confirmed: your YES came after the deadline and these were no longer free' } : null, missed.length ? shiftRows_(missed) : null,
       { heading: 'Where' }, LOCATION,
       'Can\'t make it after all? Open the calendar at ' + PAGE_URL + ', tap the night, tap your name and choose "This is me". We email you to confirm the drop.'] };
@@ -2558,7 +2592,106 @@ function blockText_(block) {
   if (block.heading) return block.heading.toUpperCase();
   if (block.callout) return mailText_(block.callout);
   if (block.rows) return block.rows.map(function (row) { return row[0] + ': ' + mailText_(row[1]); }).join('\n');
+  if (block.buttons) return block.buttons.map(function (button) { return button[0] + ': reply ' + (button[2] === 'good' ? 'YES' : 'NO'); }).join('\n');
+  if (block.schedule) return scheduleGroups_(block.schedule).map(function (group) { return group.title + ': ' + group.dates; }).join('\n');
+  if (block.roles) return rolesOf_(block.roles).map(function (spec) { return spec.label + ': ' + spec.does; }).join('\n');
+  if (block.bullets) return block.bullets.map(function (line) { return '- ' + mailText_(line); }).join('\n');
+  if (block.calendar && block.closed.length) return 'Gym closed (not included): ' + block.closed.map(shortDay_).join(', ');
   return '';
+}
+
+// "Money collector (Front Desk), Mondays 7:00 PM": "Oct 19, 26 · Nov 2, 9" for each position and weekday.
+function scheduleGroups_(entries) {
+  var groups = {};
+  var order = [];
+  entries.slice().sort(function (a, b) { return a.date.localeCompare(b.date); }).forEach(function (entry) {
+    var spec = position_(entry.position);
+    var night = NIGHTS[weekday_(entry.date)];
+    var key = entry.position + ':' + weekday_(entry.date);
+    if (!groups[key]) {
+      order.push(key);
+      groups[key] = { title: spec.label + ', ' + DAYS[weekday_(entry.date)] + 's ' + time12_(spec.part === 'open' ? night.start : night.end), months: [], byMonth: {} };
+    }
+    var month = MONTHS[Number(entry.date.slice(5, 7)) - 1].slice(0, 3);
+    if (!groups[key].byMonth[month]) {
+      groups[key].byMonth[month] = [];
+      groups[key].months.push(month);
+    }
+    groups[key].byMonth[month].push(String(Number(entry.date.slice(8, 10))) + (entry.finalize === 'yes' ? ' (finalize)' : ''));
+  });
+  var rank = function (key) {
+    var parts = key.split(':');
+    var spot = POSITIONS.map(function (spec) { return spec.id; }).indexOf(parts[0]);
+    return spot * 10 + ((Number(parts[1]) + 6) % 7);
+  };
+  order.sort(function (a, b) { return rank(a) - rank(b); });
+  return order.map(function (key) {
+    var group = groups[key];
+    return { title: group.title, dates: group.months.map(function (month) { return month + ' ' + group.byMonth[month].join(', '); }).join(' \u00b7 ') };
+  });
+}
+
+function rolesOf_(entries) {
+  var seen = {};
+  return POSITIONS.filter(function (spec) { return entries.some(function (entry) { return entry.position === spec.id; }) && !seen[spec.id] && (seen[spec.id] = true); });
+}
+
+// One small table per month (email clients ignore most layout CSS): club nights filled in with the position letter.
+function calendarHtml_(entries, closed) {
+  var byDate = {};
+  entries.forEach(function (entry) { (byDate[entry.date] = byDate[entry.date] || []).push(entry.position); });
+  var shut = {};
+  closed.forEach(function (date) { shut[date] = true; });
+  var months = {};
+  Object.keys(byDate).concat(closed).forEach(function (date) { months[date.slice(0, 7)] = true; });
+  var cell = 'width:36px;height:34px;text-align:center;vertical-align:middle;font-size:13px;';
+  return '<div style="margin:4px 0 10px;">' + Object.keys(months).sort().map(function (month) {
+    var year = Number(month.slice(0, 4));
+    var index = Number(month.slice(5, 7)) - 1;
+    var first = new Date(Date.UTC(year, index, 1)).getUTCDay();
+    var days = new Date(Date.UTC(year, index + 1, 0)).getUTCDate();
+    var cells = [];
+    for (var blank = 0; blank < first; blank += 1) cells.push('<td style="' + cell + '"></td>');
+    for (var day = 1; day <= days; day += 1) {
+      var date = month + '-' + ('0' + day).slice(-2);
+      var mine = byDate[date];
+      if (mine) {
+        var backup = mine.every(function (id) { return /-backup$/.test(id); });
+        var letters = mine.map(function (id) { return CAL_CODES[id]; }).join('');
+        cells.push('<td style="' + cell + 'padding:2px;"><div style="border-radius:6px;line-height:1.1;padding:3px 0;' +
+          (backup ? 'border:2px solid #1f6b3a;color:#1f6b3a;background:#fff;' : 'background:#1f6b3a;color:#fff;border:2px solid #1f6b3a;') +
+          '"><strong>' + day + '</strong><br><span style="font-size:10px;">' + letters + '</span></div></td>');
+      } else if (shut[date]) {
+        cells.push('<td style="' + cell + 'color:#a3332a;"><span style="text-decoration:line-through;">' + day + '</span><br><span style="font-size:10px;">closed</span></td>');
+      } else {
+        cells.push('<td style="' + cell + 'color:#aaa;">' + day + '</td>');
+      }
+    }
+    while (cells.length % 7) cells.push('<td style="' + cell + '"></td>');
+    var rows = [];
+    for (var at = 0; at < cells.length; at += 7) {
+      var week = cells.slice(at, at + 7);
+      // Weeks before the first marked night of the month are left out, so the calendar starts where the nights do.
+      if (!rows.length && !week.some(function (td) { return /background:#1f6b3a|border:2px solid|closed/.test(td); })) continue;
+      rows.push('<tr>' + week.join('') + '</tr>');
+    }
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="display:inline-table;border-collapse:collapse;margin:0 18px 14px 0;vertical-align:top;">' +
+      '<tr><td colspan="7" style="padding:0 0 4px;font-weight:700;font-size:14px;">' + MONTHS[index] + ' ' + year + '</td></tr><tr>' +
+      ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (name) { return '<td style="' + cell + 'height:20px;color:#888;font-size:11px;">' + name + '</td>'; }).join('') +
+      '</tr>' + rows.join('') + '</table>';
+  }).join('') + '</div>' +
+    '<p style="margin:0 0 10px;font-size:12px;color:#666;">' + legend_(entries) + '</p>';
+}
+
+function legend_(entries) {
+  var used = {};
+  entries.forEach(function (entry) { used[entry.position] = true; });
+  var parts = [];
+  [['D', 'desk', 'Desk organizer'], ['M', 'money', 'Money collector'], ['T', 'tables', 'Table setup'], ['C', 'close', 'Closing']].forEach(function (item) {
+    if (used[item[1]] || used[item[1] + '-backup']) parts.push('<strong>' + item[0] + '</strong> ' + item[2]);
+  });
+  if (entries.some(function (entry) { return /-backup$/.test(entry.position); })) parts.push('outlined = backup');
+  return parts.join(' \u00b7 ');
 }
 
 function blockHtml_(block) {
@@ -2573,6 +2706,24 @@ function blockHtml_(block) {
       return '<tr><td style="padding:3px 16px 3px 0;vertical-align:top;font-weight:700;white-space:nowrap;">' + esc_(row[0]) + '</td><td style="padding:3px 0;vertical-align:top;">' +
         (row[2] ? '<a href="' + esc_(row[2]) + '">' + esc_(row[1]) + '</a>' : mailHtml_(row[1])) + '</td></tr>';
     }).join('') + '</table>';
+  }
+  if (block.calendar) return calendarHtml_(block.calendar, block.closed || []);
+  if (block.schedule) {
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 12px;font-size:14px;">' + scheduleGroups_(block.schedule).map(function (group) {
+      return '<tr><td style="padding:4px 0;"><strong>' + esc_(group.title) + '</strong><br><span style="color:#444;">' + esc_(group.dates) + '</span></td></tr>';
+    }).join('') + '</table>';
+  }
+  if (block.roles) {
+    return rolesOf_(block.roles).map(function (spec) { return '<p style="margin:0 0 8px;"><strong>' + esc_(spec.label) + ':</strong> ' + esc_(spec.does) + '</p>'; }).join('');
+  }
+  if (block.bullets) {
+    return '<ul style="margin:0 0 12px;padding-left:20px;">' + block.bullets.map(function (line) { return '<li style="margin:0 0 4px;">' + mailHtml_(line) + '</li>'; }).join('') + '</ul>';
+  }
+  if (block.buttons) {
+    return '<p style="margin:0 0 8px;">' + block.buttons.map(function (button) {
+      return '<a href="' + esc_(button[1]) + '" style="display:inline-block;margin:0 8px 8px 0;padding:12px 18px;border-radius:6px;font-weight:700;font-size:16px;text-decoration:none;color:#fff;background:' +
+        (button[2] === 'good' ? '#1f6b3a' : '#a3332a') + ';">' + esc_(button[0]) + '</a>';
+    }).join('') + '</p>';
   }
   if (block.choices) {
     return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 14px;font-size:15px;">' + block.choices.map(function (choice) {

@@ -246,7 +246,7 @@ const answerMail = (from, word, subject) => {
   check();
 };
 const askedBy = (address, pattern = /./) => sent.filter(message => message.to === address && /\[CTTC shift [0-9A-F]{10}\]$/.test(message.subject) && pattern.test(message.subject)).pop().subject;
-const reply = (address, word, pattern = /^Confirm your CTTC staff sign-up/) => answerMail(address, word, askedBy(address, pattern));
+const reply = (address, word, pattern = /^Please confirm your CTTC volunteer night/) => answerMail(address, word, askedBy(address, pattern));
 const signAndConfirm = (name, picks, extra) => {
   const result = signUp(name, picks, extra);
   assert.equal(result.ok, true, result.message);
@@ -376,9 +376,16 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.match(result.message, /Reply YES to that email by Tuesday, October 20, 2026, 10:00 AM Pacific Time/, '24 hours to confirm');
   const asks = mailTo('hal.reed@example.com');
   assert.equal(asks.length, 1, 'one email for every pick');
-  assert.match(asks[0].subject, /^Confirm your CTTC staff sign-up \[CTTC shift [0-9A-F]{10}\]$/);
-  assert.match(asks[0].body, /Mon, Oct 26: Desk organizer \(opening, 7:00 PM\)\nWed, Oct 28: Table setup \(opening, 7:00 PM\)\nFri, Oct 30: Closing \(put tables away\) \(closing, 10:00 PM\), also finalizing the desk/);
-  assert.match(asks[0].body, /Reply YES: Confirm all of them\.\nReply NO: Cancel all of them/);
+  assert.match(asks[0].subject, /^Please confirm your CTTC volunteer nights? \[CTTC shift [0-9A-F]{10}\]$/);
+  assert.match(asks[0].body, /Desk organizer, Mondays 7:00 PM: Oct 26\nTable setup, Wednesdays 7:00 PM: Oct 28\nClosing \(put tables away\), Fridays 10:00 PM: Oct 30 \(finalize\)/);
+  assert.match(asks[0].body, /Yes, confirm all 3 nights: reply YES\nNo, release them: reply NO/);
+  // The HTML version: a calendar with each night marked by its position letter, and one-tap replies with the same subject.
+  assert.match(asks[0].htmlBody, /October 2026[\s\S]*<strong>26<\/strong><br><span[^>]*>D<\/span>[\s\S]*<strong>28<\/strong><br><span[^>]*>T<\/span>[\s\S]*<strong>30<\/strong><br><span[^>]*>C<\/span>/);
+  const yes = /href="(mailto:[^"]+)"[^>]*>Yes, confirm all 3 nights</.exec(asks[0].htmlBody.replace(/&amp;/g, '&'));
+  assert.ok(yes, 'a Yes button');
+  assert.equal(decodeURIComponent(/subject=([^&]+)/.exec(yes[1])[1]), 'Re: ' + asks[0].subject, 'the reply keeps the subject, so it is read');
+  assert.equal(decodeURIComponent(/body=([^&]+)/.exec(yes[1])[1]), 'YES');
+  assert.match(yes[1], /^mailto:owner@example\.com\?/, 'the reply goes to the club');
   assert.deepEqual(night('2026-10-26').slots.desk, [{ name: 'Hal', pending: true, finalize: false }], 'a pending pick holds its slot and shows as waiting, with no id');
   assert.equal(night('2026-10-26').status, 'needs', 'status counts confirmed sign-ups only');
   assert.equal(signUp('Ivy Wong', [['2026-10-26', 'desk']]).problems[0].reason, 'Desk organizer is already taken that night.', 'nobody else can take a held slot');
@@ -386,7 +393,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.deepEqual(['2026-10-26', '2026-10-28', '2026-10-30'].map((date, index) => statusOf('Hal Reed', date, ['desk', 'tables', 'close'][index])), ['confirmed', 'confirmed', 'confirmed']);
   const done = mailTo('hal.reed@example.com').pop();
   assert.equal(done.subject, 'You are on the CTTC staff schedule');
-  assert.match(done.body, /3 shifts are confirmed/);
+  assert.match(done.body, /3 nights are confirmed/);
   assert.equal(night('2026-10-26').slots.desk[0].pending, false);
   assert.match(night('2026-10-26').slots.desk[0].id, /^[0-9a-f]{16}$/, 'a confirmed slot carries an id for "This is me"');
   const count = sent.length;
@@ -516,7 +523,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(statusOf('Kai Ford', '2026-11-11', 'money'), 'expired', 'and not the one someone else took');
   const late = mailTo('kai.ford@example.com').pop();
   assert.equal(late.subject, 'You are on the CTTC staff schedule');
-  assert.match(late.body, /1 shift is confirmed[\s\S]*Fri, Nov 13: Table setup[\s\S]*NO LONGER FREE\n\nWed, Nov 11: Money collector \(Front Desk\)/);
+  assert.match(late.body, /1 night is confirmed[\s\S]*Table setup, Fridays 7:00 PM: Nov 13[\s\S]*NO LONGER FREE\n\nWed, Nov 11: Money collector \(Front Desk\)/);
   const count = sent.length;
   reply('kai.ford@example.com', 'YES');
   assert.equal(sent.length, count, 'the late YES closed the question');
@@ -672,8 +679,8 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(statusOf('Una Newman', '2026-11-27', 'desk'), 'unavailable', 'a pick taken meanwhile does not');
   const confirm = mailTo('una@example.com', before);
   assert.equal(confirm.length, 1);
-  assert.match(confirm[0].subject, /^Confirm your CTTC staff sign-up/, 'the person still confirms with their own YES');
-  assert.match(confirm[0].body, /club approved your email address[\s\S]*Mon, Nov 30: Table setup[\s\S]*NO LONGER FREE BY THE TIME THE CLUB APPROVED YOUR EMAIL\n\nFri, Nov 27: Desk organizer/);
+  assert.match(confirm[0].subject, /^Please confirm your CTTC volunteer night/, 'the person still confirms with their own YES');
+  assert.match(confirm[0].body, /club approved your email address[\s\S]*Table setup, Mondays 7:00 PM: Nov 30[\s\S]*NO LONGER FREE BY THE TIME THE CLUB APPROVED YOUR EMAIL\n\nFri, Nov 27: Desk organizer/);
   reply('una@example.com', 'YES');
   assert.equal(statusOf('Una Newman', '2026-11-30', 'tables'), 'confirmed');
   resetLimits();
@@ -703,7 +710,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   before = sent.length;
   check();
   assert.equal(statusOf('Wes Hunt', '2026-12-04', 'tables'), 'pending', 'an owner approval proceeds as a YES');
-  assert.match(mailTo('wes@example.com', before)[0].subject, /^Confirm your CTTC staff sign-up/);
+  assert.match(mailTo('wes@example.com', before)[0].subject, /^Please confirm your CTTC volunteer night/);
   reply('wes@example.com', 'YES');
   // A later change of the email on file: drops (and reminders) go to the new address.
   grids.Emails.push(['p32', 'Wes Hunt', 'wes.new@example.com', '', 'owner', 'approved', '', '', '']);
@@ -896,10 +903,10 @@ const seedCheck = () => {
   assert.deepEqual(trainingOf('p27')[0].slice(1, 5), ['Ron Tate', 'yes', 'yes', 'yes'], 'Ron has no email: his training still imports');
   // Holds: one normal email per person, every matching night but closures.
   // (The sweep the import runs also tells earlier checks' people their old holds expired: those are not seed emails.)
-  const asks = sent.slice(before).filter(message => /^Confirm/.test(message.subject));
+  const asks = sent.slice(before).filter(message => /^Please confirm/.test(message.subject));
   assert.deepEqual(asks.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com']);
-  assert.ok(asks.every(message => /^Confirm your CTTC staff sign-up \[CTTC shift [0-9A-F]{10}\]$/.test(message.subject)));
-  assert.match(asks.find(message => message.to === 'ada.park@example.com').body, /open\/close list has you down[\s\S]*Wed, Jan 6: Desk organizer[\s\S]*Sat, Jan 9: Desk organizer/);
+  assert.ok(asks.every(message => /^Please confirm your CTTC volunteer nights? \[CTTC shift [0-9A-F]{10}\]$/.test(message.subject)));
+  assert.match(asks.find(message => message.to === 'ada.park@example.com').body, /open\/close list, which has moved[\s\S]*Desk organizer, Wednesdays 7:00 PM: [^\n]*Jan 6[\s\S]*Desk organizer backup, Saturdays 3:00 PM: Jan 9/);
   assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key')).length, 25, 'Ada: 13 Wednesdays and 12 Saturdays, the latest Zeffy email');
   assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'position') === 'desk-backup').length, 12, 'second of two names in a cell: the backup');
   assert.equal(signupsOf('ben.ortiz@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'position') === 'money').length, 12, 'Bobby: every Monday but the closure');
@@ -1102,7 +1109,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   html = context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent();
   const again = sent.length;
   context.doGet({ parameter: { setup: '', import: 'seed' } });
-  assert.equal(sent.slice(again).filter(message => /^Confirm/.test(message.subject)).length, 0, 'running it again at once emails nobody');
+  assert.equal(sent.slice(again).filter(message => /^Please confirm/.test(message.subject)).length, 0, 'running it again at once emails nobody');
   activeEmail = '';
   Object.keys(grids).forEach(name => { grids[name].length = 0; if (saved.grids[name]) grids[name].push(...saved.grids[name]); });
   Object.keys(properties).forEach(key => delete properties[key]);
