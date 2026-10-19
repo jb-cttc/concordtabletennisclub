@@ -1,0 +1,1985 @@
+// Public staff sign-up app (GitHub issue #51): volunteers sign up for the positions that open and close the club. Like
+// coaching-app/ this is its own Apps Script project: a public web app exposes every function in its project, so the desk's
+// code must never live here, and every function without a trailing _ is callable by anyone on the internet.
+//
+// Nobody needs a Google account. The web app runs as the club owner and does all the work. Its data lives in a PRIVATE Sheet
+// (script property STAFFING_DB_ID) that setup() creates: names, emails, mobile numbers and the sign-ups themselves. The page
+// and every public function show first names only ("Sam", or "Sam K." when two people that night are called Sam); never a
+// last name, an email address or a phone number.
+//
+// Who can sign up: v1 is the desk's player list only (SIGNUP_MODE 'directory'). People find their name with findPlayers,
+// which reads the desk's private Sheet (script property DESK_SHEET_ID, tab Players, active rows only). In 'hybrid' mode a
+// person may also type a name that is not on the list; canTake_ is the one place that decides who may take what.
+//
+// How a sign-up moves: a person picks any number of shifts in the next three months and submits once. The picks are saved as
+// 'pending': they hold their slots, so nobody else can take them, and show as "waiting to confirm". One email lists every pick
+// and asks for YES (confirm all) or NO (release all). No answer by the deadline and the holds expire. A confirmed shift can be
+// dropped later the same way: the page asks, the app emails the address that confirmed it, and only a YES drops it.
+// Steps, columns and where a sign-up can get stuck: docs/staffing-flow.md.
+var TZ = 'America/Los_Angeles';
+// Club nights by weekday (0 is Sunday): Monday, Wednesday and Friday 7 to 10 PM, Saturday 3 to 6 PM, Pacific.
+var NIGHTS = { 1: { start: '19:00', end: '22:00' }, 3: { start: '19:00', end: '22:00' }, 5: { start: '19:00', end: '22:00' }, 6: { start: '15:00', end: '18:00' } };
+// The calendar shows the current month and the next two, in Pacific time: on November 1st, January opens.
+var MONTHS_SHOWN = 3;
+// Tonight can be picked until an hour before the club opens, and a hold never lasts past that point either.
+var CUTOFF_MINUTES = 60;
+var HOLD_MS = 24 * 60 * 60 * 1000;
+// A YES that comes after the hold expired is still read for this long (lateConfirm_), and confirms whatever is still free.
+var LATE_MS = 3 * 24 * 60 * 60 * 1000;
+// A "drop this shift" email can be answered for this long, and is sent at most once per sign-up in DROP_WAIT_MS.
+var DROP_TTL_MS = 48 * 60 * 60 * 1000;
+var DROP_WAIT_MS = 10 * 60 * 1000;
+var MAX_PICKS = 40;
+var MAX_PENDING_PER_EMAIL = 3;
+var MAX_SIGNUPS = 20000;
+var MAX_WRITES_PER_MINUTE = 20;
+var MAX_READS_PER_MINUTE = 120;
+// Name search runs as people type (the page waits for a pause), so it has its own, higher limit.
+var MAX_FINDS_PER_MINUTE = 120;
+var FIND_LIMIT = 8;
+var DIRECTORY_CACHE_SECONDS = 600;
+// The day-before reminder goes out from this time (Pacific) on the day before the shift.
+var REMIND_FROM = '09:00';
+var RETRY_MAIL_DAYS = 3;
+var MIN_QUOTA = 10;
+var THREAD_DAYS = 90;
+var LOG_KEEP = 500;
+// 'directory' (only names on the desk's player list) or 'hybrid' (also "I'm not listed"). The script property SIGNUP_MODE
+// overrides this, so hybrid can be switched on without a code change.
+var SIGNUP_MODE = 'directory';
+
+var SITE_URL = 'https://concordtabletennisclub.com';
+var PAGE_URL = SITE_URL + '/';
+var FROM_NAME = 'Concord Table Tennis Club';
+var TEXT_NUMBER = '(925) 238-3505';
+var LOCATION = 'Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597';
+
+// Every slot a night has. 'open' positions are the opening crew: one person may hold only one of them per night (a backup
+// counts). 'close' is putting the tables away; the same person may open and close. training lists the Training tab columns
+// that must say yes before someone may take the position (canTake_); does is the line the page shows under it.
+var POSITIONS = [
+  { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, max: 1, training: ['keys', 'open'],
+    does: 'The opener: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, and turns on the lights and AC.' },
+  { id: 'desk-backup', label: 'Desk organizer backup', part: 'open', min: 0, max: 1, training: ['keys', 'open'], backupOf: 'desk',
+    does: 'Steps in as desk organizer (the opener) if the desk organizer cannot make it.' },
+  { id: 'money', label: 'Money collector (Front Desk)', part: 'open', min: 1, max: 1, training: ['front_desk'],
+    does: 'Prints the Revenue Sheet, takes out the Clover device and Zelle QR codes, and records everyone entering on the Revenue Sheet.' },
+  { id: 'money-backup', label: 'Money collector backup', part: 'open', min: 0, max: 1, training: ['front_desk'], backupOf: 'money',
+    does: 'Steps in at the Front Desk if the money collector cannot make it.' },
+  { id: 'tables', label: 'Table setup', part: 'open', min: 1, max: 4, training: [], does: 'Sets up the tables.' },
+  { id: 'close', label: 'Closing (put tables away)', part: 'close', min: 2, max: 6, training: [], does: 'Puts the tables away. One closer may also finalize the desk.' }
+];
+// What each Training column means, for messages.
+var SKILLS = { keys: 'key access', open: 'opening', front_desk: 'Front Desk' };
+
+var EMAIL_PATTERN = /^[a-z0-9][a-z0-9._%+'-]{0,63}@(?:[a-z0-9-]+\.)+[a-z]{2,24}$/i;
+var NAME_PATTERN = /^[\p{L}][\p{L}\p{M} .,&/()'\u2019-]{0,59}$/u;
+var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Private Sheet. Dates are Pacific wall-clock text ("2026-10-19"); *_at and expires_at are milliseconds or ISO times.
+var TABS = {
+  // One row per pick. status: pending (held, waiting for the YES), confirmed, released (NO), expired (no YES in time) or
+  // dropped. finalize is 'yes' on the one closer who also does the desk's Finalize step. drop_at is when a drop was last
+  // asked by email; reminded is when the day-before reminder went out.
+  Signups: ['signup_id', 'batch_id', 'date', 'position', 'finalize', 'player_id', 'name', 'email', 'status', 'created_at', 'expires_at',
+    'confirmed_at', 'updated_at', 'drop_at', 'reminded',
+    // seed_key is set on picks made by importSeedSheet, so running it again never adds the same pick twice.
+    'seed_key'],
+  // One row per submission: the one email (and text) that asks YES or NO about all its picks. emailed and texted hold the
+  // status last sent, written only after the send worked, so the sweep retries a failed one. late is 'yes' when a late YES
+  // confirmed only the picks still free.
+  Batches: ['batch_id', 'email', 'name', 'player_id', 'phone', 'status', 'created_at', 'expires_at', 'emailed', 'texted', 'answered_at', 'answer',
+    'late', 'updated_at',
+    // 'seed' for a submission made by importSeedSheet from the volunteer's list, so its email says where the picks came from.
+    'source'],
+  // Everyone who has signed up, by email. texts is 'yes' after they text STAFF from the phone below, '' after STOP. ask_ref
+  // is the sign-up last texted, so CONFIRM or RELEASE answers it.
+  People: ['email', 'name', 'player_id', 'phone', 'texts', 'texts_at', 'ask_ref', 'ask_at', 'created_at', 'updated_at'],
+  // Who is trained for what, yes or no: keys (key lockbox) and open for Desk organizer, front_desk for Money collector.
+  // Filled by importSeedSheet from the volunteer's list, and by the owner by hand. In hybrid mode, someone not on the player
+  // list is matched by their email typed in player_id (the app adds such a row, untrained, when they ask for Desk or Money).
+  Training: ['player_id', 'name', 'keys', 'open', 'front_desk', 'updated_at'],
+  // Fixes for the seed import, filled in by the owner: a name as the seed Sheet (or SeedReport) has it, the desk player it
+  // means (display name from the dropdown, or a player_id) and/or the email to use. importSeedSheet adds a blank row for
+  // each name it could not resolve.
+  SeedLinks: ['sheet_name', 'player_name', 'email'],
+  // Rewritten by each importSeedSheet run: counts per reason, and each name to fix with up to 5 candidate players.
+  SeedReport: ['at', 'kind', 'name', 'count', 'candidates'],
+  // Typed by the owner: one date per row (2026-11-13 or 11/13/2026) and a short public note. Those nights show as closed.
+  Closures: ['date', 'note'],
+  // One row per message sent, reply read, step or failure. to is a code, never an address or number.
+  Log: ['at', 'channel', 'kind', 'ref', 'to', 'detail']
+};
+
+function doGet() {
+  var output = HtmlService.createTemplateFromFile('Index').evaluate();
+  var initial = initialData_();
+  if (initial) output.setContent(output.getContent().replace('var INITIAL = null;', 'var INITIAL = ' + scriptJson_(initial) + ';'));
+  return output
+    .setTitle('CTTC volunteer sign-ups')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// The calendar comes with the page, saving a second trip to Google. On any problem the page fetches it itself.
+function initialData_() {
+  try {
+    return { staffBoard: board_(rows_('Signups'), closures_(), Date.now()) };
+  } catch (error) {
+    logError_('prepare the first screen', error);
+    return null;
+  }
+}
+
+// JSON that is safe inside a <script> element, even when a name contains </script>.
+function scriptJson_(value) {
+  return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
+// Run once from the Apps Script editor by the owner. Creates the private Sheet and its tabs, the hourly sweep and the minute
+// reply check, and asks Google for the permissions. Does nothing when called from the web page. Set DESK_SHEET_ID first (the
+// id in the desk Sheet's address) so the player list can be checked; the result says how many active players it found.
+function setup() {
+  if (Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) throw new Error('Only the owner can run setup.');
+  var properties = PropertiesService.getScriptProperties();
+  if (!properties.getProperty('STAFFING_DB_ID')) {
+    properties.setProperty('STAFFING_DB_ID', SpreadsheetApp.create('CTTC Staffing (private - do not share)').getId());
+  }
+  Object.keys(TABS).forEach(function (name) {
+    tab_(name).getRange(1, 1, 1, TABS[name].length).setNumberFormat('@').setValues([TABS[name]]).setFontWeight('bold');
+  });
+  // Closure dates stay as typed: as text, a date is never turned into a different day by the Sheet's own time zone.
+  tab_('Closures').getRange(2, 1, 500, 2).setNumberFormat('@');
+  var blank = database_().getSheetByName('Sheet1');
+  if (blank && database_().getSheets().length > 1) database_().deleteSheet(blank);
+  var triggers = ScriptApp.getProjectTriggers().map(function (trigger) { return trigger.getHandlerFunction(); });
+  if (triggers.indexOf('sweep') < 0) ScriptApp.newTrigger('sweep').timeBased().everyHours(1).create();
+  if (triggers.indexOf('checkReplies') < 0) ScriptApp.newTrigger('checkReplies').timeBased().everyMinutes(1).create();
+  MailApp.getRemainingDailyQuota();
+  GmailApp.getInboxUnreadCount();
+  var players = '';
+  try {
+    CacheService.getScriptCache().remove('directory');
+    players = directory_().length + ' active players';
+  } catch (error) {
+    players = 'not readable yet: ' + error.message;
+  }
+  sweep_();
+  var result = { privateSheet: database_().getUrl(), players: players, mode: mode_() };
+  console.log('Private Sheet (never share): ' + result.privateSheet);
+  console.log('Player list: ' + players + '. Sign-up mode: ' + result.mode + '.');
+  return result;
+}
+
+// ---------- Sheet access ----------
+
+function database_() { return book_('STAFFING_DB_ID'); }
+
+// Opening a Sheet is the slowest step of a request, so each one is opened once per run.
+var openBooks_ = {};
+var bookIds_ = {};
+function book_(key) {
+  var id = bookIds_[key] || (bookIds_[key] = PropertiesService.getScriptProperties().getProperty(key));
+  if (!id) throw new Error('Run setup once from the Apps Script editor.');
+  if (!openBooks_[id]) openBooks_[id] = SpreadsheetApp.openById(id);
+  return openBooks_[id];
+}
+
+function tab_(name) {
+  var book = database_();
+  var sheet = book.getSheetByName(name);
+  if (!sheet) {
+    var headers = TABS[name];
+    sheet = book.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setNumberFormat('@').setValues([headers]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function rows_(name) {
+  var headers = TABS[name];
+  var values = tab_(name).getDataRange().getValues();
+  return values.slice(1).map(function (row, index) {
+    var entry = { _row: index + 2 };
+    headers.forEach(function (key, column) { entry[key] = row[column] == null ? '' : String(row[column]); });
+    return entry;
+  }).filter(function (entry) { return entry[headers[0]]; });
+}
+
+// Every value is written as plain text, so the Sheet never turns a date, a number or a name into something else.
+function save_(name, entry) {
+  var headers = TABS[name];
+  var sheet = tab_(name);
+  var row = entry._row || sheet.getLastRow() + 1;
+  var range = sheet.getRange(row, 1, 1, headers.length);
+  range.setNumberFormat('@');
+  range.setValues([headers.map(function (key) { return entry[key] == null ? '' : String(entry[key]); })]);
+  entry._row = row;
+}
+
+// Columns added in a later version get their header names on the next sweep, so nobody has to run setup() again.
+function ensureHeaders_() {
+  var properties = PropertiesService.getScriptProperties();
+  var version = Object.keys(TABS).map(function (name) { return name + ':' + TABS[name].join(','); }).join('|');
+  if (properties.getProperty('HEADERS') === version) return;
+  Object.keys(TABS).forEach(function (name) {
+    tab_(name).getRange(1, 1, 1, TABS[name].length).setNumberFormat('@').setValues([TABS[name]]).setFontWeight('bold');
+  });
+  properties.setProperty('HEADERS', version);
+}
+
+// The owner's closure dates: {date: note}. A typed date can arrive as a Date (if the cell was not plain text) or as text.
+function closures_() {
+  var found = {};
+  tab_('Closures').getDataRange().getValues().slice(1).forEach(function (row) {
+    var date = sheetDate_(row[0]);
+    if (date) found[date] = String(row[1] == null ? '' : row[1]).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 80);
+  });
+  return found;
+}
+
+function sheetDate_(value) {
+  if (value && typeof value.getTime === 'function') return isNaN(value.getTime()) ? '' : Utilities.formatDate(value, TZ, 'yyyy-MM-dd');
+  var text = String(value == null ? '' : value).trim();
+  var us = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (us) text = us[3] + '-' + ('0' + us[1]).slice(-2) + '-' + ('0' + us[2]).slice(-2);
+  return validDate_(text) ? text : '';
+}
+
+// ---------- Small helpers ----------
+
+// field names the form input at fault ('name', 'email', 'phone'), so the page can point at it.
+function fail_(message, field) { return field ? { ok: false, message: message, field: field } : { ok: false, message: message }; }
+
+function id_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 16); }
+
+function nowIso_() { return new Date(Date.now()).toISOString(); }
+
+function property_(key, fallback) { return PropertiesService.getScriptProperties().getProperty(key) || fallback; }
+
+function mode_() { return String(property_('SIGNUP_MODE', SIGNUP_MODE)).trim().toLowerCase() === 'hybrid' ? 'hybrid' : 'directory'; }
+
+// Public calls are counted per minute and per kind, so a burst (or a script) cannot run through the club's Google quotas.
+function tooBusy_(kind, limit) {
+  var cache = CacheService.getScriptCache();
+  var key = 'rate:' + kind + ':' + Math.floor(Date.now() / 60000);
+  var count = Number(cache.get(key) || 0) + 1;
+  cache.put(key, String(count), 120);
+  return count > limit;
+}
+
+function cleanEmail_(value) {
+  var address = String(value || '').trim().toLowerCase();
+  return address.length > 254 || address.indexOf('..') >= 0 || !EMAIL_PATTERN.test(address) ? '' : address;
+}
+
+function cleanName_(value) {
+  var name = String(value || '').replace(/\s+/g, ' ').trim();
+  return NAME_PATTERN.test(name) ? name : '';
+}
+
+// The 10 digit US number inside whatever was typed; '' when there is none.
+function phoneDigits_(value) {
+  var digits = String(value == null ? '' : value).replace(/\D/g, '');
+  if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
+  return /^[2-9]\d{2}[2-9]\d{6}$/.test(digits) ? digits : '';
+}
+
+function phoneLabel_(value) {
+  var digits = phoneDigits_(value);
+  return digits ? '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6) : '';
+}
+
+function esc_(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function position_(id) { return POSITIONS.filter(function (spec) { return spec.id === id; })[0] || null; }
+
+// The same human across sign-ups: the desk's player id, or for someone not on the list (hybrid mode) their email.
+function personKey_(entry) {
+  if (entry.key) return entry.key;
+  return entry.player_id ? 'p:' + entry.player_id : 'e:' + String(entry.email || '').toLowerCase();
+}
+
+// ---------- Names ----------
+
+// "Sam" for "Sam Kim", "Kim, Sam" or "Sam (Samuel) Kim".
+function firstName_(name) {
+  var text = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  var comma = text.match(/^[^,]+,\s*(.+)$/);
+  return ((comma ? comma[1] : text).split(/[\s\/&,()]+/).filter(Boolean)[0] || '');
+}
+
+// "K" for "Sam Kim" or "Kim, Sam"; '' for a one-word name.
+function lastInitial_(name) {
+  var text = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  var comma = text.match(/^([^,]+),\s*(.+)$/);
+  var last = comma ? comma[1] : (text.split(/[\s\/&]+/).filter(Boolean).slice(1).pop() || '');
+  return ((last.match(/\p{L}/u) || [''])[0]).toUpperCase();
+}
+
+// What the page calls each person on one night: first names, plus a last initial when two different people that night share
+// a first name ("Sam K." and "Sam L."). Keyed by signup_id.
+function publicNames_(entries) {
+  var people = {};
+  entries.forEach(function (entry) {
+    var first = (firstName_(entry.name) || 'Volunteer').toLowerCase();
+    (people[first] = people[first] || {})[personKey_(entry)] = true;
+  });
+  var labels = {};
+  entries.forEach(function (entry) {
+    var first = firstName_(entry.name) || 'Volunteer';
+    var shared = Object.keys(people[first.toLowerCase()]).length > 1;
+    var initial = lastInitial_(entry.name);
+    labels[entry.signup_id] = shared && initial ? first + ' ' + initial + '.' : first;
+  });
+  return labels;
+}
+
+// "Mary-Jane O'Neil" -> ['mary', 'jane', "o'neil"], accents dropped, so a search for "jose" finds "José".
+function searchWords_(text) {
+  return String(text || '').slice(0, 80).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^\p{L}\p{N}'\u2019]+/u).filter(Boolean);
+}
+
+// ---------- Pacific wall-clock time ----------
+
+function pacificNow_() {
+  var parts = Utilities.formatDate(new Date(Date.now()), TZ, 'yyyy-MM-dd HH:mm').split(' ');
+  return { date: parts[0], time: parts[1] };
+}
+
+function toMinutes_(time) { return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)); }
+
+function dateUtc_(date) { return Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))); }
+
+function validDate_(date) { return DATE_PATTERN.test(date) && new Date(dateUtc_(date)).toISOString().slice(0, 10) === date; }
+
+function weekday_(date) { return new Date(dateUtc_(date)).getUTCDay(); }
+
+function addDays_(date, days) { return new Date(dateUtc_(date) + days * 86400000).toISOString().slice(0, 10); }
+
+function wallMinutes_(date, time) { return dateUtc_(date) / 60000 + toMinutes_(time); }
+
+function nowMinutes_() { var now = pacificNow_(); return wallMinutes_(now.date, now.time); }
+
+function time12_(time) {
+  var hour = Number(time.slice(0, 2));
+  return ((hour + 11) % 12 + 1) + ':' + time.slice(3, 5) + ' ' + (hour < 12 ? 'AM' : 'PM');
+}
+
+function dayLabel_(date) {
+  return DAYS[weekday_(date)] + ', ' + MONTHS[Number(date.slice(5, 7)) - 1] + ' ' + Number(date.slice(8, 10)) + ', ' + date.slice(0, 4);
+}
+
+// "Mon, Oct 20".
+function shortDay_(date) {
+  return DAYS[weekday_(date)].slice(0, 3) + ', ' + MONTHS[Number(date.slice(5, 7)) - 1].slice(0, 3) + ' ' + Number(date.slice(8, 10));
+}
+
+function momentLabel_(ms) {
+  var parts = Utilities.formatDate(new Date(ms), TZ, 'yyyy-MM-dd HH:mm').split(' ');
+  return dayLabel_(parts[0]) + ', ' + time12_(parts[1]) + ' Pacific Time';
+}
+
+function ymd_(year, month, day) { return year + '-' + ('0' + month).slice(-2) + '-' + ('0' + day).slice(-2); }
+
+// The current month and the next two, Pacific time. first and last bound every date the app offers.
+function horizon_() {
+  var today = pacificNow_().date;
+  var year = Number(today.slice(0, 4));
+  var month = Number(today.slice(5, 7)) - 1;
+  var months = [];
+  for (var index = 0; index < MONTHS_SHOWN; index += 1) {
+    var each = month + index;
+    months.push({ year: year + Math.floor(each / 12), month: each % 12 + 1 });
+  }
+  var end = months[months.length - 1];
+  var lastDay = new Date(Date.UTC(end.year, end.month, 0)).getUTCDate();
+  return { today: today, first: ymd_(months[0].year, months[0].month, 1), last: ymd_(end.year, end.month, lastDay), months: months };
+}
+
+// Every club night in the horizon, past ones included (the calendar shows them greyed out).
+function nightsIn_(horizon) {
+  var dates = [];
+  for (var date = horizon.first; date <= horizon.last; date = addDays_(date, 1)) if (NIGHTS[weekday_(date)]) dates.push(date);
+  return dates;
+}
+
+// One club night, or null for any date that is not a Monday, Wednesday, Friday or Saturday in the horizon. bookable: not closed,
+// and opening is at least CUTOFF_MINUTES away.
+function nightOf_(date, horizon, closures) {
+  date = String(date || '');
+  if (!validDate_(date) || !NIGHTS[weekday_(date)] || date < horizon.first || date > horizon.last) return null;
+  var hours = NIGHTS[weekday_(date)];
+  var closed = Object.prototype.hasOwnProperty.call(closures, date);
+  return {
+    date: date, start: hours.start, end: hours.end, closed: closed, note: closed ? closures[date] : '', past: date < horizon.today,
+    bookable: !closed && wallMinutes_(date, hours.start) - nowMinutes_() >= CUTOFF_MINUTES
+  };
+}
+
+// ---------- Sign-up rules ----------
+
+// A pending pick whose deadline has passed is expired everywhere at once, even before the hourly sweep writes it.
+function signupStatus_(entry, now) { return entry.status === 'pending' && Number(entry.expires_at) <= now ? 'expired' : entry.status; }
+
+function batchStatus_(batch, now) { return batch.status === 'pending' && Number(batch.expires_at) <= now ? 'expired' : batch.status; }
+
+// A pending pick holds its slot like a confirmed one: nobody else can take it until it is released or expires.
+function holds_(entry, now) {
+  var status = signupStatus_(entry, now);
+  return status === 'pending' || status === 'confirmed';
+}
+
+// The one place that decides who may take what. person: {playerId, training: {keys, open, front_desk}}. Returns '' when
+// allowed, else the reason. Table setup and Closing are open to anyone on the player list (and, in hybrid mode, to anyone).
+// Desk organizer needs key access and opening training, Money collector Front Desk training (backups too), from the
+// Training tab; in hybrid mode that is also how the club approves someone who is not on the list.
+function canTake_(person, positionId) {
+  var spec = position_(positionId);
+  if (!spec) return 'That position does not exist.';
+  if (!person.playerId && mode_() !== 'hybrid') return 'Please find and pick your name from the club player list.';
+  var missing = spec.training.filter(function (skill) { return !(person.training && person.training[skill]); });
+  if (missing.length) {
+    return spec.label + ' needs ' + missing.map(function (skill) { return SKILLS[skill]; }).join(' and ') + ' training. Please ask the club, or pick Table setup or Closing.';
+  }
+  return '';
+}
+
+function trained_(value) { return /^(yes|y|true)$/i.test(String(value == null ? '' : value).trim()); }
+
+// The Training row for a person: by player id, or (someone not on the list, hybrid mode) by the email typed in player_id.
+function trainingFor_(rows, person) {
+  var row = rows.filter(function (entry) {
+    var id = String(entry.player_id).trim();
+    return person.playerId ? id === person.playerId : !!person.email && sameAddress_(id, person.email);
+  })[0];
+  var training = {};
+  Object.keys(SKILLS).forEach(function (skill) { training[skill] = !!row && trained_(row[skill]); });
+  return training;
+}
+
+// Why this pick cannot be taken, or ''. others: every sign-up holding a slot that night plus the earlier picks in the same
+// submission. The page checks the same rules, but only this one counts.
+function pickProblem_(pick, person, night, others) {
+  if (!night) return 'That is not a club night in the sign-up calendar.';
+  if (night.closed) return 'The club is closed that night.';
+  if (!night.bookable) return 'Sign-ups for that night have closed.';
+  var spec = position_(pick.position);
+  var rule = canTake_(person, pick.position);
+  if (rule) return rule;
+  if (others.filter(function (entry) { return entry.position === pick.position; }).length >= spec.max) return spec.label + ' is already taken that night.';
+  var mine = others.filter(function (entry) { return personKey_(entry) === person.key; });
+  if (mine.some(function (entry) { var other = position_(entry.position); return other && other.part === spec.part; })) {
+    return spec.part === 'open' ? 'You already have an opening position that night. Each person takes one opening position per night (backups count).' :
+      'You are already closing that night.';
+  }
+  if (pick.finalize) {
+    if (spec.id !== 'close') return 'Only a closer can also finalize the desk.';
+    if (others.some(function (entry) { return entry.finalize === 'yes'; })) return 'Someone is already finalizing the desk that night.';
+  }
+  return '';
+}
+
+// Night status from CONFIRMED sign-ups only: 'needs' while any minimum is missing (a desk organizer, a money collector, one
+// table setup, two closers), 'full' once every minimum and both backups are confirmed, else 'covered'. Extra table setup and
+// closing spots stay open and optional even on a full night.
+function statusOf_(entries, now) {
+  var count = {};
+  POSITIONS.forEach(function (spec) { count[spec.id] = 0; });
+  entries.forEach(function (entry) { if (signupStatus_(entry, now) === 'confirmed' && count[entry.position] !== undefined) count[entry.position] += 1; });
+  var minimums = POSITIONS.every(function (spec) { return count[spec.id] >= spec.min; });
+  if (!minimums) return 'needs';
+  return count['desk-backup'] >= 1 && count['money-backup'] >= 1 ? 'full' : 'covered';
+}
+
+// What a night still needs, in words, counting confirmed sign-ups only: "a money collector", "2 closers".
+function missing_(entries, now) {
+  var words = { desk: ['a desk organizer'], money: ['a money collector'], tables: ['someone for table setup'], close: ['a closer', ' closers'] };
+  var list = [];
+  POSITIONS.forEach(function (spec) {
+    if (!spec.min || !words[spec.id]) return;
+    var have = entries.filter(function (entry) { return entry.position === spec.id && signupStatus_(entry, now) === 'confirmed'; }).length;
+    var short = spec.min - have;
+    if (short > 0) list.push(short === 1 ? words[spec.id][0] : short + words[spec.id][1]);
+  });
+  return list;
+}
+
+// ---------- Public: the calendar ----------
+
+// The three-month calendar: each night's status and its slots, first names only. Confirmed slots carry the sign-up's id so
+// "This is me" can ask to drop it; nothing else identifies anyone.
+function staffBoard() {
+  if (tooBusy_('read', MAX_READS_PER_MINUTE)) return fail_('The calendar is busy right now. Please try again in a minute.');
+  return board_(rows_('Signups'), closures_(), Date.now());
+}
+
+function board_(signups, closures, now) {
+  var horizon = horizon_();
+  var holding = signups.filter(function (entry) { return holds_(entry, now) && entry.date >= horizon.first && entry.date <= horizon.last; });
+  var nights = nightsIn_(horizon).map(function (date) {
+    var night = nightOf_(date, horizon, closures);
+    var here = holding.filter(function (entry) { return entry.date === date; });
+    var labels = publicNames_(here);
+    var slots = {};
+    POSITIONS.forEach(function (spec) { slots[spec.id] = []; });
+    if (!night.closed && !night.past) {
+      here.forEach(function (entry) {
+        if (!slots[entry.position]) return;
+        var pending = signupStatus_(entry, now) === 'pending';
+        var slot = { name: labels[entry.signup_id], pending: pending, finalize: entry.finalize === 'yes' };
+        if (!pending) slot.id = entry.signup_id;
+        slots[entry.position].push(slot);
+      });
+    }
+    return {
+      date: date, day: dayLabel_(date), short: shortDay_(date), time: time12_(night.start) + ' to ' + time12_(night.end), start: night.start, end: night.end,
+      status: night.closed ? 'closed' : night.past ? 'past' : statusOf_(here, now), bookable: night.bookable, note: night.note,
+      missing: night.closed || night.past ? [] : missing_(here, now), slots: slots
+    };
+  });
+  return {
+    ok: true, mode: mode_(), maxPicks: MAX_PICKS, textNumber: TEXT_NUMBER, today: horizon.today,
+    months: horizon.months.map(function (month) { return { year: month.year, month: month.month, title: MONTHS[month.month - 1] + ' ' + month.year }; }),
+    positions: POSITIONS.map(function (spec) { return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, max: spec.max, does: spec.does, trained: spec.training.length > 0 }; }),
+    closures: Object.keys(closures).filter(function (date) { return date >= horizon.first && date <= horizon.last; }).sort(),
+    nights: nights
+  };
+}
+
+// ---------- Public: the player list ----------
+
+// The desk's active players, [{playerId, name}], read from its private Sheet (DESK_SHEET_ID, tab Players) by header name, so
+// the desk can add or move columns. Cached for 10 minutes, so typing a name does not open the desk Sheet every time.
+function directory_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('directory');
+  var list = null;
+  if (cached) {
+    try {
+      list = JSON.parse(cached);
+    } catch (error) {
+      list = null;
+    }
+  }
+  if (!list) {
+    var id = property_('DESK_SHEET_ID', '');
+    if (!id) throw new Error('Set the script property DESK_SHEET_ID to the id of the desk Sheet.');
+    var sheet = SpreadsheetApp.openById(id).getSheetByName('Players');
+    if (!sheet) throw new Error('The desk Sheet has no Players tab.');
+    var values = sheet.getDataRange().getValues();
+    var head = (values[0] || []).map(function (name) { return String(name).trim().toLowerCase(); });
+    var idAt = head.indexOf('player_id');
+    var nameAt = head.indexOf('display_name');
+    var activeAt = head.indexOf('active');
+    if (idAt < 0 || nameAt < 0 || activeAt < 0) throw new Error('The Players tab needs player_id, display_name and active columns.');
+    var seen = {};
+    list = [];
+    values.slice(1).forEach(function (row) {
+      var playerId = String(row[idAt] == null ? '' : row[idAt]).trim().slice(0, 64);
+      var name = String(row[nameAt] == null ? '' : row[nameAt]).replace(/\s+/g, ' ').trim().slice(0, 80);
+      var active = row[activeAt] === true || String(row[activeAt]).trim().toLowerCase() === 'true';
+      if (!playerId || !name || !active || seen[playerId]) return;
+      seen[playerId] = true;
+      list.push([playerId, name]);
+    });
+    try {
+      cache.put('directory', JSON.stringify(list), DIRECTORY_CACHE_SECONDS);
+    } catch (error) {
+      // Too big for the cache (100 KB): read the Sheet each time instead.
+    }
+  }
+  return list.map(function (row) { return { playerId: row[0], name: row[1] }; });
+}
+
+function playerById_(playerId) { return directory_().filter(function (player) { return player.playerId === playerId; })[0] || null; }
+
+// Name search for the sign-up form: at most FIND_LIMIT players whose name has a word starting with each word typed ("sam k"
+// finds Sam Kim). Two letters at least, so the whole list is never sent to the page. Names are the ones the desk shows.
+function findPlayers(query) {
+  var words = searchWords_(query);
+  if (words.join('').length < 2) return { ok: true, players: [] };
+  if (tooBusy_('find', MAX_FINDS_PER_MINUTE)) return fail_('Too many searches right now. Please wait a moment and try again.');
+  var players;
+  try {
+    players = directory_();
+  } catch (error) {
+    logError_('read the player list', error);
+    return fail_('The player list is not available right now. Please try again later.');
+  }
+  var found = players.filter(function (player) {
+    var names = searchWords_(player.name);
+    return words.every(function (word) { return names.some(function (name) { return name.indexOf(word) === 0; }); });
+  });
+  var rank = function (player) { return searchWords_(player.name)[0].indexOf(words[0]) === 0 ? 0 : 1; };
+  found.sort(function (a, b) { return rank(a) - rank(b) || a.name.localeCompare(b.name); });
+  return { ok: true, players: found.slice(0, FIND_LIMIT).map(function (player) { return { playerId: player.playerId, name: player.name }; }) };
+}
+
+// Which positions the person who just picked their name may take, so the page can grey out the others ("Needs training").
+// Says nothing else about them: only position ids, for one active player.
+function playerAccess(playerId) {
+  if (tooBusy_('find', MAX_FINDS_PER_MINUTE)) return fail_('Too many requests right now. Please wait a moment and try again.');
+  var player = null;
+  try {
+    player = playerById_(String(playerId || '').slice(0, 64));
+  } catch (error) {
+    logError_('read the player list', error);
+    return fail_('The player list is not available right now. Please try again later.');
+  }
+  if (!player) return fail_('We could not find that name on the club player list.');
+  var person = { playerId: player.playerId, training: trainingFor_(rows_('Training'), { playerId: player.playerId }) };
+  return { ok: true, positions: POSITIONS.filter(function (spec) { return !canTake_(person, spec.id); }).map(function (spec) { return spec.id; }) };
+}
+
+// ---------- Public: signing up ----------
+
+function cleanPicks_(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, MAX_PICKS + 1).map(function (pick) {
+    pick = pick || {};
+    return { date: String(pick.date || '').slice(0, 10), position: String(pick.position || '').slice(0, 20), finalize: pick.finalize === true };
+  });
+}
+
+// Called by the form with every pick at once. All or nothing: if any pick cannot be taken, nothing is saved and the answer
+// lists each one with its reason, so the page can mark them. Otherwise the picks are saved as pending (holding their slots)
+// and one email asks for YES. Nothing is confirmed until that YES, so nobody can sign someone else up for real.
+function signUp(form) {
+  form = form || {};
+  if (form.website) return { ok: true, message: 'Thanks.' };
+  var picks = cleanPicks_(form.picks);
+  var email = cleanEmail_(form.email);
+  var phone = phoneDigits_(form.phone);
+  if (!picks.length) return fail_('Please pick at least one shift.');
+  if (picks.length > MAX_PICKS) return fail_('Please send at most ' + MAX_PICKS + ' shifts at a time.');
+  var person = null;
+  if (form.playerId) {
+    var player = null;
+    try {
+      player = playerById_(String(form.playerId));
+    } catch (error) {
+      logError_('read the player list', error);
+      return fail_('The player list is not available right now. Please try again later.');
+    }
+    if (!player) return fail_('We could not find that name on the club player list. Please search for it again.', 'name');
+    person = { playerId: player.playerId, name: player.name, key: 'p:' + player.playerId };
+  } else if (form.unlisted === true && mode_() === 'hybrid') {
+    var typed = cleanName_(form.name);
+    if (!typed) return fail_('Please enter your first and last name. Use letters; spaces and - \' . are fine.', 'name');
+    person = { playerId: '', name: typed, unlisted: true };
+  } else {
+    return fail_('Please find and pick your name from the club player list.', 'name');
+  }
+  if (!email) return fail_('Please enter a valid email address.', 'email');
+  if (String(form.phone || '').trim() && !phone) return fail_('Please enter a 10 digit US mobile number, or leave it blank.', 'phone');
+  person.email = email;
+  if (!person.key) person.key = 'e:' + email;
+  var batch = null;
+  var count = 0;
+  var askApproval = false;
+  var refused = null;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (tooBusy_('write', MAX_WRITES_PER_MINUTE)) return fail_('Too many sign-ups right now. Please try again in a few minutes.');
+    var now = Date.now();
+    var signups = rows_('Signups');
+    if (signups.length + picks.length > MAX_SIGNUPS) return fail_('Sign-ups are closed for now. Please contact the club.');
+    var waiting = rows_('Batches').filter(function (entry) { return batchStatus_(entry, now) === 'pending' && sameAddress_(entry.email, email); });
+    if (waiting.length >= MAX_PENDING_PER_EMAIL) {
+      return fail_('This email address already has ' + MAX_PENDING_PER_EMAIL + ' sign-ups waiting for a YES. Please answer those emails first.', 'email');
+    }
+    var known = rows_('People').filter(function (entry) { return sameAddress_(entry.email, email); })[0];
+    var trainings = rows_('Training');
+    person.training = trainingFor_(trainings, person);
+    var horizon = horizon_();
+    var closures = closures_();
+    var holding = signups.filter(function (entry) { return holds_(entry, now); });
+    var accepted = [];
+    var problems = [];
+    picks.forEach(function (pick) {
+      var others = holding.filter(function (entry) { return entry.date === pick.date; }).concat(accepted.filter(function (entry) { return entry.date === pick.date; }));
+      var reason = pickProblem_(pick, person, nightOf_(pick.date, horizon, closures), others);
+      if (reason) {
+        problems.push({ date: pick.date, position: pick.position, reason: reason });
+        if (person.unlisted && position_(pick.position) && position_(pick.position).training.length && /training/.test(reason)) askApproval = true;
+      } else {
+        accepted.push({ date: pick.date, position: pick.position, finalize: pick.finalize ? 'yes' : '', key: person.key });
+      }
+    });
+    if (askApproval) markAsked_(person, trainings);
+    if (problems.length) {
+      refused = { ok: false, problems: problems, message: (problems.length === 1 ? 'One pick cannot be taken' : problems.length + ' picks cannot be taken') +
+        ', so nothing was sent. Remove ' + (problems.length === 1 ? 'it' : 'them') + ' (marked below) and send again.' };
+      return refused;
+    }
+    var expires = expiryFor_(accepted, now);
+    batch = {
+      batch_id: id_(), email: email, name: person.name, player_id: person.playerId, phone: phone, status: 'pending', created_at: nowIso_(),
+      expires_at: String(expires), emailed: '', texted: '', updated_at: nowIso_()
+    };
+    save_('Batches', batch);
+    accepted.forEach(function (pick) {
+      save_('Signups', {
+        signup_id: id_(), batch_id: batch.batch_id, date: pick.date, position: pick.position, finalize: pick.finalize, player_id: person.playerId,
+        name: person.name, email: email, status: 'pending', created_at: nowIso_(), expires_at: String(expires), updated_at: nowIso_()
+      });
+    });
+    count = accepted.length;
+    rememberPerson_(person, phone, known);
+    logRow_('step', 'step:pending', batch.batch_id, '-', count + ' picks, waiting until ' + momentLabel_(expires));
+  } finally {
+    lock.releaseLock();
+    // Told even when the submission was refused (that is when it happens), after the lock: mail is slow.
+    if (askApproval) {
+      alertAdmin_('approval', 'Staffing: someone not on the player list asked to run the desk or collect money', [
+        'Someone who is not on the desk\'s player list asked for Desk organizer or Money collector. Their row is in the private staffing Sheet, Training tab (their email is in player_id). To allow it, type yes in keys and open (desk) or front_desk (money) for anyone the club has trained.']);
+    }
+  }
+  // The picks are saved and hold their slots. Nothing after this may turn into an error on the page: the person would send
+  // again and be told their own picks are taken. A failed email is retried by the hourly sweep.
+  try {
+    sweep_();
+  } catch (error) {
+    logError_('finish a saved sign-up', error, batch.batch_id);
+  }
+  return {
+    ok: true, count: count, deadline: momentLabel_(Number(batch.expires_at)), textNumber: TEXT_NUMBER, texts: !!phone,
+    message: 'Almost done: we emailed ' + email + '. Reply YES to that email by ' + momentLabel_(Number(batch.expires_at)) + ' to confirm your ' +
+      count + ' shift' + (count === 1 ? '' : 's') + '. ' + (count === 1 ? 'It is' : 'They are') + ' held for you until then and show as "waiting to confirm".'
+  };
+}
+
+// A hold lasts HOLD_MS, but never past CUTOFF_MINUTES before the earliest picked night opens.
+function expiryFor_(picks, now) {
+  var soonest = Math.min.apply(null, picks.map(function (pick) { return wallMinutes_(pick.date, NIGHTS[weekday_(pick.date)].start); }));
+  return now + Math.max(0, Math.min(HOLD_MS, (soonest - nowMinutes_() - CUTOFF_MINUTES) * 60000));
+}
+
+// Call while holding the lock. Keeps the latest name and mobile number; a new number has to text STAFF again.
+function rememberPerson_(person, phone, known) {
+  var entry = known || { email: person.email, created_at: nowIso_(), texts: '' };
+  if (phone && phone !== phoneDigits_(entry.phone)) {
+    entry.phone = phone;
+    entry.texts = '';
+  }
+  entry.name = person.name;
+  if (person.playerId) entry.player_id = person.playerId;
+  entry.updated_at = nowIso_();
+  save_('People', entry);
+}
+
+// Call while holding the lock. Someone not on the list (hybrid mode) asked for Desk or Money: they get an untrained Training
+// row, keyed by their email, for the owner to fill in.
+function markAsked_(person, trainings) {
+  if (trainings.some(function (entry) { return sameAddress_(String(entry.player_id).trim(), person.email); })) return;
+  save_('Training', { player_id: person.email, name: person.name, keys: '', open: '', front_desk: '', updated_at: nowIso_() });
+}
+
+// ---------- Seeding from the volunteer's list (owner only) ----------
+// The club's existing open/close list is a Sheet kept by a volunteer (script property SEED_SHEET_ID), tab "Open/Close" (or
+// the tab named in SEED_SHEET_TAB). parseSeed_ is the only code that knows its layout: a roster block whose header row says
+// "Open" and "Front Desk", with one row per weekday holding first names, and a "Training list" block with "Keys Access",
+// "Open" and "Front Desk" columns holding Yes, No or N/A. Both are found by those labels, not by row numbers; anything else
+// on the tab (the duty checklists) is ignored, and unknown roster columns are only counted.
+var SEED_TAB = 'Open/Close';
+var SEED_ROSTER = { 'open': 'desk', 'front desk': 'money' };
+var SEED_TRAINING = { 'keys access': 'keys', 'open': 'open', 'front desk': 'front_desk' };
+var SEED_CANDIDATES = 5;
+
+// Run from the Apps Script editor by the owner, after setup(). Does nothing from the web page. Steps:
+//   1. Each name in the volunteer's Sheet is linked to ONE active desk player (seedPlayer_): a filled SeedLinks row first,
+//      then the exact full name or a desk alias, then a first name only one active player has. Anything else is skipped.
+//   2. The training list is written to the Training tab (by player id, so a re-run updates rather than adds).
+//   3. Each roster name with an email (seedEmail_) gets the normal PENDING holds on every matching night in the calendar
+//      (not closures), one submission per person, checked by the same rules as the page, and one normal email asking YES.
+//   4. SeedReport is rewritten with the counts and every name that needs fixing, with candidate players; SeedLinks gets a
+//      blank row for each such name (a dropdown of players in player_name). Fill those in and run it again.
+// Safe to run again: a hold already made from the seed Sheet (seed_key) is never made or emailed twice, whatever became of it.
+// Returns, and logs, counts and the seed Sheet's own names (first name and last initial) only: no emails or desk names.
+function importSeedSheet() {
+  if (Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) throw new Error('Only the owner can import the seed Sheet.');
+  var id = property_('SEED_SHEET_ID', '');
+  if (!id) throw new Error('Set the script property SEED_SHEET_ID to the id of the volunteer\'s Sheet.');
+  var book = SpreadsheetApp.openById(id);
+  var sheet = book.getSheetByName(property_('SEED_SHEET_TAB', SEED_TAB)) || book.getSheets()[0];
+  var parsed = parseSeed_(sheet.getDataRange().getValues());
+  CacheService.getScriptCache().remove('directory');
+  var data = { players: directory_(), links: rows_('SeedLinks'), coaching: [] };
+  var desk = SpreadsheetApp.openById(property_('DESK_SHEET_ID', ''));
+  data.aliases = tableOf_(desk, 'Aliases').map(function (row) { return { alias: String(row.alias || ''), playerId: String(row.player_id || '').trim() }; });
+  data.zeffy = tableOf_(desk, 'ZeffyPayments');
+  if (property_('COACHING_DB_ID', '')) {
+    try {
+      var coaching = SpreadsheetApp.openById(property_('COACHING_DB_ID', ''));
+      data.coaching = tableOf_(coaching, 'Coaches').concat(tableOf_(coaching, 'Students'));
+    } catch (error) {
+      logError_('read the coaching Sheet for emails', error);
+    }
+  }
+  var report = { training: 0, people: 0, signups: 0, skipped: {}, unmatched: [], ambiguous: [], noEmail: [] };
+  var problems = [];
+  var skip = function (reason, count) { if (count !== 0) report.skipped[reason] = (report.skipped[reason] || 0) + (count || 1); };
+  var unresolved = function (kind, sheetName, candidates) {
+    var label = seedLabel_(sheetName);
+    if (report[kind].indexOf(label) >= 0) return;
+    report[kind].push(label);
+    problems.push({ kind: kind, name: label, candidates: candidates || [] });
+  };
+  if (parsed.unknownColumns) skip('unknown roster column', parsed.unknownColumns);
+  if (parsed.otherDays) skip('roster row for a day the club is closed', parsed.otherDays);
+  var linked = {};
+  var linkOf = function (name) { return linked[name] || (linked[name] = seedPlayer_(name, data)); };
+  var horizon = horizon_();
+  var closures = closures_();
+  var groups = {};
+  parsed.roster.forEach(function (entry) {
+    var nights = nightsIn_(horizon).filter(function (date) { return weekday_(date) === entry.weekday && date >= horizon.today; });
+    var found = linkOf(entry.name);
+    if (!found.player) {
+      skip('roster: name ' + found.kind, nights.length);
+      unresolved(found.kind, entry.name, found.candidates);
+      return;
+    }
+    var email = seedEmail_(found.player, entry.name, data);
+    if (!email) {
+      skip('roster: no email found', nights.length);
+      unresolved('noEmail', entry.name, [found.player.name]);
+      return;
+    }
+    var group = groups[found.player.playerId] = groups[found.player.playerId] || { player: found.player, email: email, picks: [] };
+    nights.forEach(function (date) {
+      group.picks.push({ date: date, position: entry.position, finalize: false, seedKey: code_('seed:' + date + ':' + entry.position + ':' + found.player.playerId) });
+    });
+  });
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var trainings = rows_('Training');
+    parsed.training.forEach(function (row) {
+      var found = linkOf(row.name);
+      if (!found.player) {
+        skip('training: name ' + found.kind);
+        unresolved(found.kind, row.name, found.candidates);
+        return;
+      }
+      var entry = trainings.filter(function (each) { return String(each.player_id).trim() === found.player.playerId; })[0];
+      if (!entry) trainings.push(entry = { player_id: found.player.playerId });
+      var before = JSON.stringify([entry.name, entry.keys, entry.open, entry.front_desk]);
+      entry.name = found.player.name;
+      Object.keys(SKILLS).forEach(function (skill) { if (row[skill]) entry[skill] = row[skill]; });
+      if (JSON.stringify([entry.name, entry.keys, entry.open, entry.front_desk]) !== before) {
+        entry.updated_at = nowIso_();
+        save_('Training', entry);
+      }
+      report.training += 1;
+    });
+    var now = Date.now();
+    var signups = rows_('Signups');
+    var imported = {};
+    signups.forEach(function (entry) { if (entry.seed_key) imported[entry.seed_key] = true; });
+    var holding = signups.filter(function (entry) { return holds_(entry, now); });
+    var people = rows_('People');
+    Object.keys(groups).forEach(function (playerId) {
+      var group = groups[playerId];
+      var person = { playerId: playerId, name: group.player.name, email: group.email, key: 'p:' + playerId };
+      person.training = trainingFor_(trainings, person);
+      var accepted = [];
+      group.picks.sort(function (a, b) { return a.date.localeCompare(b.date); }).forEach(function (pick) {
+        if (imported[pick.seedKey]) return skip('already imported');
+        if (accepted.length >= MAX_PICKS) return skip('more than ' + MAX_PICKS + ' nights for one person');
+        var others = holding.concat(accepted).filter(function (entry) { return entry.date === pick.date; });
+        var reason = pickProblem_(pick, person, nightOf_(pick.date, horizon, closures), others);
+        if (reason) return skip(seedReason_(reason));
+        imported[pick.seedKey] = true;
+        accepted.push({ date: pick.date, position: pick.position, finalize: '', key: person.key, seedKey: pick.seedKey });
+      });
+      if (!accepted.length) return;
+      var expires = expiryFor_(accepted, now);
+      var batch = { batch_id: id_(), email: group.email, name: person.name, player_id: playerId, phone: '', status: 'pending', created_at: nowIso_(),
+        expires_at: String(expires), emailed: '', texted: '', updated_at: nowIso_(), source: 'seed' };
+      save_('Batches', batch);
+      accepted.forEach(function (pick) {
+        var entry = {
+          signup_id: id_(), batch_id: batch.batch_id, date: pick.date, position: pick.position, finalize: '', player_id: playerId, name: person.name,
+          email: group.email, status: 'pending', created_at: nowIso_(), expires_at: String(expires), updated_at: nowIso_(), seed_key: pick.seedKey
+        };
+        save_('Signups', entry);
+        holding.push(entry);
+      });
+      var known = people.filter(function (entry) { return sameAddress_(entry.email, group.email); })[0];
+      rememberPerson_(person, '', known);
+      if (!known) people = rows_('People');
+      logRow_('step', 'step:pending', batch.batch_id, '-', accepted.length + ' picks from the seed Sheet');
+      report.people += 1;
+      report.signups += accepted.length;
+    });
+    writeSeedReport_(report, problems, data);
+  } finally {
+    lock.releaseLock();
+  }
+  // Sends each new person their single confirmation email (and retries any that fail, every hour).
+  sweep_();
+  console.log('Seed import: ' + JSON.stringify(report));
+  return report;
+}
+
+function seedText_(value) { return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+// 1 for "Monday", "Mon" or "Mondays"; -1 for anything that is not a day name.
+function weekdayOf_(value) {
+  var text = seedText_(value).replace(/[^a-z]/g, '');
+  if (text.length < 3) return -1;
+  for (var day = 0; day < DAYS.length; day += 1) {
+    var name = DAYS[day].toLowerCase();
+    if (text === name.slice(0, 3) || text.indexOf(name) === 0) return day;
+  }
+  return -1;
+}
+
+// "Ron\nSusan", "Ron / Susan", "Ron, Susan", "Ron & Susan" and "Ron and Susan" are two people. N/A and blanks are nobody.
+function splitNames_(value) {
+  return String(value == null ? '' : value).replace(/\bn\/a\b/gi, ' ').split(/\r?\n|\/|,|&|\+|;|\band\b/i).map(function (name) {
+    return name.replace(/\s+/g, ' ').trim();
+  }).filter(function (name) { return /\p{L}/u.test(name) && !/^(none|tbd|tba|open|no one|nobody)$/i.test(name); });
+}
+
+// {roster: [{weekday, position, name}], training: [{name, keys, open, front_desk}], unknownColumns, otherDays}.
+function parseSeed_(values) {
+  var result = { roster: [], training: [], unknownColumns: 0, otherDays: 0 };
+  var trainingAt = -1;
+  var rosterAt = -1;
+  values.forEach(function (row, index) {
+    var labels = row.map(seedText_);
+    if (trainingAt < 0 && labels.indexOf('training list') >= 0) trainingAt = index;
+    else if (rosterAt < 0 && labels.indexOf('open') >= 0 && labels.indexOf('front desk') >= 0) rosterAt = index;
+  });
+  if (rosterAt >= 0) {
+    var head = values[rosterAt].map(seedText_);
+    var dayAt = -1;
+    for (var r = rosterAt + 1; r < values.length; r += 1) {
+      var row = values[r];
+      var found = -1;
+      for (var c = 0; c < row.length && found < 0; c += 1) if (weekdayOf_(row[c]) >= 0) found = c;
+      if (found < 0) break;
+      dayAt = found;
+      var weekday = weekdayOf_(row[found]);
+      if (!NIGHTS[weekday]) {
+        result.otherDays += 1;
+        continue;
+      }
+      head.forEach(function (label, column) {
+        if (!SEED_ROSTER[label]) return;
+        // Two names in one cell ("Ron" and "Susan" on separate lines) are the primary and the backup; a third has no slot.
+        splitNames_(row[column]).slice(0, 2).forEach(function (name, index) {
+          result.roster.push({ weekday: weekday, position: SEED_ROSTER[label] + (index ? '-backup' : ''), name: name });
+        });
+      });
+    }
+    head.forEach(function (label, column) { if (label && !SEED_ROSTER[label] && column !== dayAt) result.unknownColumns += 1; });
+  }
+  if (trainingAt >= 0) {
+    var labels = values[trainingAt].map(seedText_);
+    var nameAt = labels.indexOf('training list');
+    for (var t = trainingAt + 1; t < values.length; t += 1) {
+      var name = String(values[t][nameAt] == null ? '' : values[t][nameAt]).replace(/\s+/g, ' ').trim();
+      if (!name) break;
+      var entry = { name: name };
+      labels.forEach(function (label, column) { if (SEED_TRAINING[label]) entry[SEED_TRAINING[label]] = trained_(values[t][column]) ? 'yes' : 'no'; });
+      result.training.push(entry);
+    }
+  }
+  return result;
+}
+
+// A tab of another Sheet as objects keyed by lowercased header; [] when the tab does not exist.
+function tableOf_(book, name) {
+  var sheet = book.getSheetByName(name);
+  if (!sheet) return [];
+  var values = sheet.getDataRange().getValues();
+  var head = (values[0] || []).map(function (label) { return String(label == null ? '' : label).trim().toLowerCase(); });
+  return values.slice(1).map(function (row) {
+    var entry = {};
+    head.forEach(function (label, column) { if (label) entry[label] = row[column]; });
+    return entry;
+  });
+}
+
+// The same name whatever the case, spacing, accents or "Last, First" order.
+function seedKeyOf_(name) { return searchWords_(nameKey_(name)).join(' '); }
+
+// How the report shows a seed Sheet name: first name and last initial ("Ron", "Ron S."), never more.
+function seedLabel_(name) {
+  var first = firstName_(name);
+  var initial = lastInitial_(name);
+  return first + (initial ? ' ' + initial + '.' : '');
+}
+
+// The SeedLinks row the owner filled for a seed Sheet name (as written there, or as the report shows it).
+function seedLinkRow_(links, sheetName) {
+  var key = seedKeyOf_(sheetName);
+  var label = seedKeyOf_(seedLabel_(sheetName));
+  return links.filter(function (row) { var each = seedKeyOf_(row.sheet_name); return !!each && (each === key || each === label); })[0] || null;
+}
+
+// Up to SEED_CANDIDATES active players a name could mean, by full display name, for the private SeedReport only.
+function candidates_(name, players) {
+  var stem = (searchWords_(nameKey_(name))[0] || '').slice(0, 3);
+  if (!stem) return [];
+  return players.filter(function (player) { return searchWords_(player.name).some(function (word) { return word.indexOf(stem) === 0; }); })
+    .map(function (player) { return player.name; }).sort().slice(0, SEED_CANDIDATES);
+}
+
+// The one active desk player a seed Sheet name means: {player}, or {kind: 'unmatched' | 'ambiguous', candidates}.
+function seedPlayer_(sheetName, data) {
+  var namesOf = function (list) { return list.map(function (player) { return player.name; }).sort().slice(0, SEED_CANDIDATES); };
+  var link = seedLinkRow_(data.links, sheetName);
+  if (link && String(link.player_name).trim()) {
+    var wanted = String(link.player_name).trim();
+    var chosen = data.players.filter(function (player) { return player.playerId === wanted || seedKeyOf_(player.name) === seedKeyOf_(wanted); });
+    return chosen.length === 1 ? { player: chosen[0] } : { kind: chosen.length ? 'ambiguous' : 'unmatched', candidates: chosen.length ? namesOf(chosen) : candidates_(wanted, data.players) };
+  }
+  var key = seedKeyOf_(sheetName);
+  var exact = data.players.filter(function (player) { return seedKeyOf_(player.name) === key; });
+  if (exact.length === 1) return { player: exact[0] };
+  if (exact.length > 1) return { kind: 'ambiguous', candidates: namesOf(exact) };
+  var ids = {};
+  data.aliases.forEach(function (alias) { if (seedKeyOf_(alias.alias) === key) ids[alias.playerId] = true; });
+  var aliased = data.players.filter(function (player) { return ids[player.playerId]; });
+  if (aliased.length === 1) return { player: aliased[0] };
+  if (aliased.length > 1) return { kind: 'ambiguous', candidates: namesOf(aliased) };
+  if (key && key.indexOf(' ') < 0) {
+    var firsts = data.players.filter(function (player) { return searchWords_(firstName_(player.name))[0] === key; });
+    if (firsts.length === 1) return { player: firsts[0] };
+    if (firsts.length > 1) return { kind: 'ambiguous', candidates: namesOf(firsts) };
+  }
+  return { kind: 'unmatched', candidates: candidates_(sheetName, data.players) };
+}
+
+// The desk has no emails. In order: the owner's SeedLinks row, the latest Zeffy payment under the player's name (or an
+// alias), the coaching app's Coaches and Students tabs by full name. '' when none has one.
+function seedEmail_(player, sheetName, data) {
+  var link = seedLinkRow_(data.links, sheetName);
+  if (link && cleanEmail_(link.email)) return cleanEmail_(link.email);
+  var keys = {};
+  keys[seedKeyOf_(player.name)] = true;
+  data.aliases.forEach(function (alias) { if (alias.playerId === player.playerId) keys[seedKeyOf_(alias.alias)] = true; });
+  var paid = data.zeffy.filter(function (row) { return keys[seedKeyOf_(row.payer_name)] && cleanEmail_(row.payer_email); });
+  if (paid.length) return cleanEmail_(paid[paid.length - 1].payer_email);
+  var known = data.coaching.filter(function (row) { return seedKeyOf_(row.name) === seedKeyOf_(player.name) && cleanEmail_(row.email); });
+  return known.length ? cleanEmail_(known[known.length - 1].email) : '';
+}
+
+// Call while holding the lock. Rewrites SeedReport, adds a blank SeedLinks row for each name to fix (never a second one), and
+// keeps a dropdown of active players on SeedLinks' player_name column (from a hidden helper tab, since the list is long).
+function writeSeedReport_(report, problems, data) {
+  var sheet = tab_('SeedReport');
+  if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+  var at = nowIso_();
+  var lines = [['summary', 'training rows imported', report.training], ['summary', 'people asked to confirm', report.people], ['summary', 'holds made', report.signups]];
+  Object.keys(report.skipped).sort().forEach(function (reason) { lines.push(['skipped', reason, report.skipped[reason]]); });
+  lines.forEach(function (line) { save_('SeedReport', { at: at, kind: line[0], name: line[1], count: line[2], candidates: '' }); });
+  problems.forEach(function (problem) {
+    save_('SeedReport', { at: at, kind: problem.kind === 'noEmail' ? 'no email' : problem.kind, name: problem.name, count: '', candidates: problem.candidates.join(', ') });
+    if (!seedLinkRow_(data.links, problem.name)) {
+      var row = { sheet_name: problem.name, player_name: '', email: '' };
+      save_('SeedLinks', row);
+      data.links.push(row);
+    }
+  });
+  var book = database_();
+  var helper = book.getSheetByName('SeedPlayers') || book.insertSheet('SeedPlayers');
+  var names = data.players.map(function (player) { return [player.name]; }).sort();
+  helper.clearContents();
+  if (names.length) helper.getRange(1, 1, names.length, 1).setNumberFormat('@').setValues(names);
+  helper.hideSheet();
+  var rule = SpreadsheetApp.newDataValidation().requireValueInRange(helper.getRange(1, 1, Math.max(names.length, 1), 1), true).setAllowInvalid(true)
+    .setHelpText('Pick the desk player this name means (a player_id works too). Then run importSeedSheet again.').build();
+  tab_('SeedLinks').getRange(2, 2, 500, 1).setDataValidation(rule);
+}
+
+// pickProblem_'s sentence as a short reason for the import counts.
+function seedReason_(reason) {
+  if (/not a club night/.test(reason)) return 'not a club night in the calendar';
+  if (/closed that night/.test(reason)) return 'club closed that night';
+  if (/have closed/.test(reason)) return 'too late for that night';
+  if (/already taken/.test(reason)) return 'position already full';
+  if (/training/.test(reason)) return 'needs training';
+  if (/opening position|already closing|finalizing|Only a closer/.test(reason)) return 'conflicts with another pick that night';
+  return 'not allowed for this person';
+}
+
+// ---------- Public: dropping a confirmed shift ----------
+
+// "This is me: drop this shift". The page never learns whose shift it is: we email the address that confirmed it, and only a
+// YES to that email drops it. One email per sign-up every DROP_WAIT_MS at most.
+function requestDrop(signupId) {
+  var id = String(signupId || '').replace(/[^0-9a-f]/g, '').slice(0, 32);
+  var done = { ok: true, message: 'We emailed the person who signed up for this shift. If that is you, reply YES to that email to drop it. Nothing changes until then.' };
+  if (!id) return fail_('Please pick a shift.');
+  var entry = null;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (tooBusy_('write', MAX_WRITES_PER_MINUTE)) return fail_('Too many requests right now. Please try again in a few minutes.');
+    var now = Date.now();
+    entry = rows_('Signups').filter(function (each) { return each.signup_id === id; })[0];
+    if (!entry || entry.status !== 'confirmed') return fail_('That shift is not confirmed, so there is nothing to drop. Reload the calendar to see the latest.');
+    if (entry.date < pacificNow_().date) return fail_('That shift has already passed.');
+    if (Number(entry.drop_at) > 0 && now - Number(entry.drop_at) < DROP_WAIT_MS) return done;
+    entry.drop_at = String(now);
+    entry.updated_at = nowIso_();
+    save_('Signups', entry);
+  } finally {
+    lock.releaseLock();
+  }
+  try {
+    if (!mailAvailable_()) throw new Error('the daily email quota is used up');
+    var night = NIGHTS[weekday_(entry.date)];
+    sendMail_(entry.email, 'Drop your CTTC shift? ' + refTag_(dropCode_(entry)), [
+      'Hello ' + firstName_(entry.name) + ',',
+      'Someone (we hope you) asked on the club website to drop this shift:',
+      { rows: [['When', dayLabel_(entry.date) + ', ' + time12_(night.start) + ' to ' + time12_(night.end)], ['Position', shiftLabel_(entry)]] },
+      { choices: [['YES', 'Drop it. The spot opens for someone else and the club is told.'], ['NO', 'Keep it. You can also just ignore this email.']] },
+      'This question is open for 48 hours. Please reply from this same email address.'
+    ], ['drop-question', entry.signup_id]);
+  } catch (error) {
+    logError_('email a drop question', error, entry.signup_id);
+    // Not asked after all, so the next try is not held back by the 10 minute wait.
+    lock.waitLock(30000);
+    try {
+      var again = rows_('Signups').filter(function (each) { return each.signup_id === id; })[0];
+      if (again) {
+        again.drop_at = '';
+        save_('Signups', again);
+      }
+    } finally {
+      lock.releaseLock();
+    }
+    return fail_('We could not send the email just now. Please try again later.');
+  }
+  return done;
+}
+
+// ---------- Answers: YES, NO, CONFIRM, RELEASE ----------
+
+// Applies a YES or NO to one submission. A YES while pending confirms every pick; a NO releases them. A YES after the hold
+// expired (up to LATE_MS later) confirms whichever picks are still free and the confirmation email lists the ones that were
+// not. Anything else changes nothing.
+function batchAnswer_(batchId, answer, channel) {
+  var batch = null;
+  var person = null;
+  var applied = false;
+  var before = '';
+  var late = null;
+  var count = 0;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var now = Date.now();
+    batch = rows_('Batches').filter(function (entry) { return entry.batch_id === batchId; })[0];
+    if (!batch) return;
+    person = rows_('People').filter(function (entry) { return sameAddress_(entry.email, batch.email); })[0] || null;
+    if (person && person.ask_ref === batchId) {
+      person.ask_ref = '';
+      person.ask_at = '';
+      save_('People', person);
+    }
+    var signups = rows_('Signups');
+    var mine = signups.filter(function (entry) { return entry.batch_id === batchId; });
+    before = batchStatus_(batch, now);
+    batch.status = before;
+    if (before === 'pending') {
+      applied = true;
+      mine.forEach(function (entry) {
+        if (signupStatus_(entry, now) !== 'pending') return;
+        entry.status = answer === 'yes' ? 'confirmed' : 'released';
+        if (answer === 'yes') entry.confirmed_at = nowIso_();
+        entry.updated_at = nowIso_();
+        save_('Signups', entry);
+        count += 1;
+      });
+      batch.status = answer === 'yes' ? 'confirmed' : 'released';
+    } else if (before === 'expired' && !batch.answered_at && answer === 'yes' && now - Number(batch.expires_at) < LATE_MS) {
+      late = lateConfirm_(batch, mine, signups, now);
+      count = late.confirmed;
+      applied = late.confirmed > 0;
+      if (applied) {
+        batch.status = 'confirmed';
+        batch.late = 'yes';
+      }
+    }
+    if (!batch.answered_at) {
+      batch.answered_at = nowIso_();
+      batch.answer = answer;
+    }
+    batch.updated_at = nowIso_();
+    save_('Batches', batch);
+    if (applied) logRow_('step', 'step:' + batch.status, batchId, '-', late ? 'late YES: ' + late.confirmed + ' confirmed, ' + late.missed + ' no longer free' : count + ' picks');
+  } finally {
+    lock.releaseLock();
+  }
+  logReply_(channel, 'batch', batchId, answer, applied, batch.status);
+  try {
+    if (late && !applied && mailAvailable_()) {
+      sendMail_(batch.email, 'Your CTTC staff sign-up had expired', ['Hello ' + firstName_(batch.name) + ',',
+        'We got your YES, but it came after the deadline and by then none of those shifts could be held for you any more (someone else took them, the night is too close, or the club is closed).',
+        'Please open the calendar at ' + PAGE_URL + ' and pick again. Thank you for helping!'], ['batch-late-none', batchId]);
+    }
+    if (channel === 'text' && person) {
+      sendText_(person, applied ? (answer === 'yes' ? 'CTTC: Done: you are confirmed for ' + count + ' shift' + (count === 1 ? '' : 's') + '. Details are in your email.' :
+        'CTTC: OK, your picks are released.') : before === 'confirmed' ? 'CTTC: You are already confirmed for those shifts.' :
+        'CTTC: That sign-up is no longer waiting for an answer, so nothing changed.', ['batch-answer-reply', batchId]);
+    }
+  } catch (error) {
+    logError_('answer a sign-up reply', error, batchId);
+  }
+  try {
+    sweep_();
+  } catch (error) {
+    logError_('finish the sweep after an answer', error, batchId);
+  }
+}
+
+// Call while holding the lock. A late YES: each expired pick of this submission is checked again against everything held now,
+// exactly as a new sign-up would be, and confirmed if it still fits.
+function lateConfirm_(batch, mine, signups, now) {
+  var horizon = horizon_();
+  var closures = closures_();
+  var person = { playerId: batch.player_id, name: batch.name, email: batch.email, key: personKey_(batch) };
+  person.training = trainingFor_(rows_('Training'), person);
+  var holding = signups.filter(function (entry) { return entry.batch_id !== batch.batch_id && holds_(entry, now); });
+  var accepted = [];
+  var result = { confirmed: 0, missed: 0 };
+  mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired'; }).forEach(function (entry) {
+    var others = holding.concat(accepted).filter(function (other) { return other.date === entry.date; });
+    var reason = pickProblem_({ date: entry.date, position: entry.position, finalize: entry.finalize === 'yes' }, person, nightOf_(entry.date, horizon, closures), others);
+    if (reason) {
+      result.missed += 1;
+      if (entry.status !== 'expired') {
+        entry.status = 'expired';
+        save_('Signups', entry);
+      }
+      return;
+    }
+    entry.status = 'confirmed';
+    entry.confirmed_at = nowIso_();
+    entry.updated_at = nowIso_();
+    save_('Signups', entry);
+    accepted.push(entry);
+    result.confirmed += 1;
+  });
+  return result;
+}
+
+// Applies a YES or NO to a "drop this shift" email. A YES opens the slot again, tells the person and the club, and if a
+// primary desk organizer or money collector dropped, gives that night's confirmed backup a heads-up.
+function dropAnswer_(signupId, answer) {
+  var entry = null;
+  var backup = null;
+  var applied = false;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var now = Date.now();
+    var signups = rows_('Signups');
+    entry = signups.filter(function (each) { return each.signup_id === signupId; })[0];
+    if (!entry || entry.status !== 'confirmed' || !(now - Number(entry.drop_at) < DROP_TTL_MS) || entry.date < pacificNow_().date) return;
+    applied = true;
+    entry.drop_at = '';
+    entry.updated_at = nowIso_();
+    if (answer === 'yes') {
+      entry.status = 'dropped';
+      backup = signups.filter(function (each) {
+        return each.status === 'confirmed' && each.date === entry.date && each.position === entry.position + '-backup';
+      })[0] || null;
+    }
+    save_('Signups', entry);
+    if (answer === 'yes') logRow_('step', 'step:dropped', entry.batch_id, '-', entry.position + ' on ' + entry.date);
+  } finally {
+    lock.releaseLock();
+  }
+  logReply_('email', 'drop', entry ? entry.batch_id : signupId, answer, applied, entry ? entry.status : '');
+  if (!applied) return;
+  var when = dayLabel_(entry.date);
+  var attempt = function (what, send) {
+    try {
+      if (mailAvailable_()) send();
+    } catch (error) {
+      logError_(what, error, entry.batch_id);
+    }
+  };
+  if (answer !== 'yes') {
+    attempt('confirm a kept shift', function () {
+      sendMail_(entry.email, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + when + '. Thank you!'], ['drop-kept', entry.signup_id]);
+    });
+    return;
+  }
+  attempt('confirm a dropped shift', function () {
+    sendMail_(entry.email, 'Shift dropped: ' + shortDay_(entry.date), ['Hello ' + firstName_(entry.name) + ',',
+      'Done: you are off ' + shiftLabel_(entry) + ' on ' + when + '. The spot is open for someone else and the club has been told.',
+      'Thanks for letting us know early. You can pick another night any time at ' + PAGE_URL + '.'], ['drop-done', entry.signup_id]);
+  });
+  attempt('tell the club about a dropped shift', function () {
+    sendMail_(adminEmail_(), 'Staffing: ' + entry.name + ' dropped ' + position_(entry.position).label + ' on ' + shortDay_(entry.date),
+      [entry.name + ' dropped ' + shiftLabel_(entry) + ' on ' + when + '. The spot is open on the sign-up calendar again.' +
+        (backup ? ' The backup (' + backup.name + ') has been sent a heads-up.' : position_(entry.position).backupOf ? '' :
+          position_(entry.position + '-backup') ? ' There is no confirmed backup for this position that night.' : '')], ['drop-club', entry.signup_id]);
+  });
+  if (backup) {
+    attempt('give a backup a heads-up', function () {
+      sendMail_(backup.email, 'Heads-up: you may be needed as ' + position_(entry.position).label + ' on ' + shortDay_(entry.date), ['Hello ' + firstName_(backup.name) + ',',
+        { callout: 'The ' + position_(entry.position).label.toLowerCase() + ' for **' + when + '** has dropped out. As the backup, **please plan to step in** unless someone else signs up for it.', tone: 'action' },
+        'The calendar at ' + PAGE_URL + ' shows who is on that night. If you cannot make it either, please tell the club.'], ['backup-heads-up', backup.signup_id]);
+    });
+  }
+}
+
+// ---------- The minute check: email and text replies ----------
+
+// Run every minute by a trigger. Reads YES or NO email answers, CONFIRM or RELEASE texts, and STAFF or STOP texts. A run that
+// starts while the last one is still going does nothing, so one reply is never applied twice. Only this function takes the
+// user lock, so it never waits on the script lock the rest of the app uses.
+function checkReplies() {
+  var cache = CacheService.getScriptCache();
+  if (cache.get('check-replies')) return;
+  var running = LockService.getUserLock();
+  if (!running.tryLock(0)) return;
+  try {
+    cache.put('check-replies', '1', 20);
+    step_('read email answers', checkMail_);
+    step_('read CONFIRM and RELEASE texts', checkTextAnswers_);
+    step_('read STAFF and STOP texts', checkOptIns_);
+  } finally {
+    running.releaseLock();
+  }
+}
+
+// One failing step never stops the others. The club is emailed about a failing step at most every 6 hours.
+function step_(name, run) {
+  try {
+    run();
+  } catch (error) {
+    logError_(name, error);
+    alertAdmin_('step:' + name, 'Staffing app: could not ' + name, ['The staff sign-up app could not ' + name + '. It tries again every minute. The error was: ' + error]);
+  }
+}
+
+// Emails the club about something it should know, at most once every 6 hours per key.
+function alertAdmin_(key, subject, lines) {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('alert:' + key) || !mailAvailable_()) return;
+    cache.put('alert:' + key, '1', 21600);
+    sendMail_(adminEmail_(), subject, lines, ['club-alert', key]);
+  } catch (error) {
+    logError_('alert the club', error);
+  }
+}
+
+// Every email that asks a question carries a code in its subject, made with the app's secret from what it asks about. A reply
+// counts only if it quotes that code and comes from the address the question went to. The tag differs from the coaching app's
+// "[CTTC ref ...]", so neither app ever reads the other's replies.
+function code_(text) {
+  return Utilities.computeHmacSha256Signature(text, secret_()).slice(0, 5).map(function (value) { return ('0' + (value & 255).toString(16)).slice(-2); }).join('').toUpperCase();
+}
+
+function refTag_(code) { return '[CTTC shift ' + code + ']'; }
+
+function batchCode_(batch) { return code_('b:' + batch.batch_id); }
+
+function dropCode_(entry) { return code_('d:' + entry.signup_id + ':' + entry.drop_at); }
+
+function mailQuery_(since) { return 'newer_than:3d subject:"CTTC shift" -from:me after:' + since; }
+
+// Every question still waiting for an emailed answer: {code, email, after, kind, id}.
+function emailQuestions_(now) {
+  var questions = [];
+  rows_('Batches').forEach(function (batch) {
+    var status = batchStatus_(batch, now);
+    var question = { code: batchCode_(batch), email: batch.email, after: Date.parse(batch.created_at) || 0, kind: 'batch', id: batch.batch_id };
+    if (status === 'pending' || (status === 'expired' && !batch.answered_at && now - Number(batch.expires_at) < LATE_MS)) questions.push(question);
+  });
+  rows_('Signups').forEach(function (entry) {
+    if (entry.status === 'confirmed' && Number(entry.drop_at) > 0 && now - Number(entry.drop_at) < DROP_TTL_MS) {
+      questions.push({ code: dropCode_(entry), email: entry.email, after: Number(entry.drop_at), kind: 'drop', id: entry.signup_id });
+    }
+  });
+  return questions;
+}
+
+function checkMail_() {
+  var now = Date.now();
+  var questions = emailQuestions_(now);
+  if (!questions.length) return;
+  var byCode = {};
+  questions.forEach(function (question) { byCode[question.code] = question; });
+  var us = [Session.getEffectiveUser().getEmail(), adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
+  // Only threads with a message from someone else since the oldest open question are opened, to spare the Gmail quota.
+  var since = Math.floor(Math.min.apply(null, questions.map(function (question) { return question.after; })) / 1000);
+  var answers = {};
+  GmailApp.search(mailQuery_(since), 0, 50).forEach(function (thread) {
+    thread.getMessages().forEach(function (message) {
+      var code = (String(message.getSubject() || '').match(/\[CTTC shift ([0-9A-F]{10})\]/) || [])[1];
+      var question = code && byCode[code];
+      if (!question) return;
+      var from = String(message.getFrom() || '');
+      var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
+      var at = message.getDate().getTime();
+      if (at <= question.after) return;
+      var recent = Date.now() - at < 5 * 3600000;
+      if (!sameAddress_(address, question.email)) {
+        if (us.indexOf(address) < 0 && recent) wrongSender_(message.getId(), address, String(message.getSubject() || ''));
+        return;
+      }
+      if (autoReply_(message)) return;
+      var answer = answerOf_(replyText_(message));
+      if (!answer) {
+        if (recent) unreadableReply_(message.getId(), address, String(message.getSubject() || ''));
+        return;
+      }
+      if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at };
+    });
+  });
+  Object.keys(answers).forEach(function (code) {
+    var found = answers[code];
+    if (found.question.kind === 'batch') batchAnswer_(found.question.id, found.answer, 'email');
+    else dropAnswer_(found.question.id, found.answer);
+  });
+}
+
+// The reply as the person sees it. Gmail's plain-text version of an HTML-only email can run lines together ("YESSent from my
+// Galaxy"), so when there is HTML its line breaks are used, with the quoted earlier message marked as a quote.
+function replyText_(message) {
+  var plain = String(message.getPlainBody() || '');
+  var html = '';
+  try {
+    html = typeof message.getBody === 'function' ? String(message.getBody() || '') : '';
+  } catch (error) {
+    html = '';
+  }
+  if (!/<(div|p|br|blockquote)\b/i.test(html)) return plain;
+  var text = html.replace(/<(style|script|head)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(blockquote|div[^>]*(gmail_quote|divRplyFwdMsg|appendonsend|yahoo_quoted|moz-cite-prefix))\b[^>]*>/gi, '\n> ')
+    .replace(/<br\s*\/?>|<\/(div|p|li|tr|h[1-6]|table)>|<(div|p|li|tr|h[1-6])\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, function (match, code) { return String.fromCharCode(Number(code)); }).replace(/&amp;/gi, '&');
+  return answerOf_(text) ? text : plain;
+}
+
+// Out-of-office and other automatic replies are never answers.
+function autoReply_(message) {
+  if (/^(automatic reply|auto(-| )?reply|out of (the )?office|autoreply|away)/i.test(String(message.getSubject() || '').replace(/^(re|fwd?):\s*/i, ''))) return true;
+  try {
+    var header = String(message.getHeader ? message.getHeader('Auto-Submitted') || '' : '').toLowerCase();
+    return !!header && header !== 'no';
+  } catch (error) {
+    return false;
+  }
+}
+
+// The same mailbox: case never matters, and for Gmail neither do dots or a +tag in the name.
+function sameAddress_(a, b) {
+  var key = function (address) {
+    var parts = String(address || '').trim().toLowerCase().split('@');
+    if (parts.length !== 2) return parts.join('@');
+    if (parts[1] === 'gmail.com' || parts[1] === 'googlemail.com') return parts[0].split('+')[0].replace(/\./g, '') + '@gmail.com';
+    return parts.join('@');
+  };
+  return key(a) === key(b);
+}
+
+// A reply quoting our code from another address does not count (nobody may answer for someone else), but it is never silent:
+// the sender is told once to reply from the address the question went to.
+function wrongSender_(messageId, address, subject) {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('sender:' + messageId) || !mailAvailable_()) return;
+    cache.put('sender:' + messageId, '1', 21600);
+    logRow_('email', 'reply:wrong-sender', '-', '-');
+    sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
+      '", but it came from a different email address than the one we wrote to, so nothing changed.',
+      { callout: 'Please **reply from the email address our message was sent to**, saying **YES** or **NO**.', tone: 'action' }], ['wrong-sender', messageId]);
+  } catch (error) {
+    logError_('tell a sender to use the right address', error);
+  }
+}
+
+// A reply to one of our questions that is not a clear YES or NO: tell the sender once how to answer.
+function unreadableReply_(messageId, address, subject) {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('unread:' + messageId) || !mailAvailable_()) return;
+    cache.put('unread:' + messageId, '1', 21600);
+    logRow_('email', 'reply:unreadable', '-', '-');
+    sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
+      { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }], ['unreadable-reply', messageId]);
+  } catch (error) {
+    logError_('tell a sender their reply was unreadable', error);
+  }
+}
+
+// Mail and phone apps add invisible characters and unusual spaces. Drop the first and turn the rest into plain spaces.
+function plainText_(text) {
+  return String(text || '').replace(/[\u00AD\u034F\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFE00-\uFE0F\uFEFF]/g, '')
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
+}
+
+// What the person wrote themselves in a reply: everything before the quoted earlier message or a signature. Our own emails
+// say both "Reply YES" and "Reply NO", so the quoted part must never be read as their answer.
+function ownWords_(text) {
+  var lines = plainText_(text).split(/\r?\n/).map(function (line) { return line.trim(); });
+  var mine = [];
+  for (var i = 0; i < lines.length; i += 1) {
+    var line = lines[i];
+    var next = lines[i + 1] || '';
+    // A signature or quote marker inside a line ends their words there too (HTML-only replies can run lines together).
+    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC shift |reply (yes|no):|concord table tennis club|_{5,}/i);
+    if (glued > 0) {
+      mine.push(line.slice(0, glued).trim());
+      break;
+    }
+    if (/^>/.test(line) || /^-{2,}\s*(original message|forwarded message)/i.test(line) || /^_{5,}$/.test(line) ||
+      /^(sent from|get outlook for)\b/i.test(line) || /^--\s*$/.test(line) || /\[CTTC shift |^reply (yes|no)\b|concord table tennis club/i.test(line) ||
+      (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) || /^on\b.{4,}\bwrote:?$/i.test(line) || (/^on\b.{4,}/i.test(line) && /\bwrote:?$/i.test(next))) break;
+    mine.push(line);
+  }
+  return mine.join('\n').trim();
+}
+
+// 'yes', 'no' or '' for an email reply: the first line of the person's own words must start with yes or no, after a greeting
+// or "ok" ("Yes, see you Monday", "ok yes", "no thanks"). A yes or no further in is not an answer, nor is "Yes, but no".
+function answerOf_(text) {
+  var line = (ownWords_(text).split('\n').filter(function (each) {
+    return each && !/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b(?!.*\b(y|yes|yeah|yep|yup|n|no|nope|nah)\b)[^.!?]{0,30}[,.!:]*$/i.test(each);
+  })[0] || '').toLowerCase()
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hey|hello|dear|good (morning|afternoon|evening))\b[\s,.!:-]*([a-z]+[\s,.!:-]+)?(?=(y|yes|yeah|yep|yup|n|no|nope|nah)\b))+/, '')
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries)\b[\s,.!:-]*)+/, '');
+  var rest = line.replace(/\bno (problem|worries|prob|issues?|rush)\b/g, ' ');
+  var yes = /^(y|yes|yeah|yep|yup|yess+)\b/.test(line);
+  var no = /^(n|no|nope|nah)\b/.test(line);
+  if (yes && /\b(no|nope|nah|not|can't|cannot|cant)\b/.test(rest)) return '';
+  if (no && /\b(yes|yeah|yep|yup)\b/.test(rest)) return '';
+  return yes ? 'yes' : no ? 'no' : '';
+}
+
+// ---------- Texts go through the club's Google Voice number ----------
+// Voice forwards each text to the owner's Gmail; replying to that email texts the person back. The coaching app reads the
+// same number and treats a bare YES or NO from its own people as an answer, so staffing texts use words it ignores: CONFIRM
+// and RELEASE. Texts are only sent to someone who gave a mobile number AND texted STAFF to the club number from it.
+
+function staffWord_(text) {
+  var line = plainText_(text).split(/\r?\n/).map(function (each) { return each.trim(); }).filter(Boolean)[0] || '';
+  var word = line.replace(/[.!]+$/, '').toUpperCase();
+  return word === 'CONFIRM' ? 'yes' : word === 'RELEASE' ? 'no' : '';
+}
+
+// "Last, First" and "First Last" are the same person; case and spacing do not matter.
+function nameKey_(value) {
+  var name = String(value || '').replace(/\s+/g, ' ').trim();
+  var comma = name.match(/^([^,]+),\s*(.+)$/);
+  return (comma ? comma[2] + ' ' + comma[1] : name).toLowerCase();
+}
+
+// One forwarded Voice text, or null for anything else (including mail that merely claims to be one).
+function voiceText_(message) {
+  var from = String(message.getFrom() || '');
+  var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
+  if (!/@txt\.voice\.google\.com$/.test(address)) return null;
+  var subject = String(message.getSubject() || '').match(/^New text message from (.+)$/i);
+  if (!subject) return null;
+  var sender = subject[1].trim();
+  var phone = sender.match(/\(?\+?[\d][\d\s().-]{6,}\d\)?$/);
+  var lines = String(message.getPlainBody() || '').split(/\r?\n/).map(function (line) { return line.trim(); });
+  var body = [];
+  for (var i = 0; i < lines.length; i += 1) {
+    if (/^(To respond to this text message|YOUR ACCOUNT|HELP CENTER|HELP FORUM|Google LLC)/i.test(lines[i])) break;
+    if (!lines[i] || /^<https:\/\/voice\.google\.com[^>]*>$/.test(lines[i])) continue;
+    body.push(lines[i]);
+  }
+  return { name: phone ? sender.slice(0, phone.index).trim() : sender, digits: phone ? phoneDigits_(phone[0]) : '', text: body.join('\n').slice(0, 500),
+    at: message.getDate().getTime(), message: message };
+}
+
+function fromPerson_(text, person) {
+  var digits = phoneDigits_(person.phone);
+  return (!!digits && text.digits === digits) || (!text.digits && !!text.name && nameKey_(text.name) === nameKey_(person.name));
+}
+
+// Recent forwarded texts from one person ({name, phone}), newest first.
+function voiceTextsFrom_(person, days) {
+  var name = String(person.name || '').replace(/["\\()]/g, ' ').replace(/\s+/g, ' ').trim();
+  var terms = name ? ['subject:"' + name + '"'] : [];
+  var digits = phoneDigits_(person.phone);
+  if (digits) terms.push('"' + phoneLabel_(digits) + '"');
+  var seen = {};
+  var texts = [];
+  GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:' + days + 'd (' + terms.join(' OR ') + ')', 0, 20).forEach(function (thread) {
+    thread.getMessages().forEach(function (message) {
+      if (seen[message.getId()]) return;
+      seen[message.getId()] = true;
+      var text = voiceText_(message);
+      if (text && fromPerson_(text, person)) texts.push(text);
+    });
+  });
+  return texts.sort(function (a, b) { return b.at - a.at; });
+}
+
+// Replies to the person's latest text to the club number, which Voice turns into a text back to them.
+function sendText_(person, body, log) {
+  var latest = voiceTextsFrom_(person, THREAD_DAYS)[0];
+  if (!latest) throw new Error('this person has not texted the club number yet');
+  latest.message.reply(body);
+  if (log) logSent_('text', log[0], log[1], phoneDigits_(person.phone) || person.name);
+}
+
+// A CONFIRM or RELEASE after we texted someone a sign-up question answers that question (People.ask_ref).
+function checkTextAnswers_() {
+  rows_('People').filter(function (person) { return person.texts === 'yes' && person.ask_ref && Number(person.ask_at) > 0 && phoneDigits_(person.phone); }).forEach(function (person) {
+    var asked = Number(person.ask_at);
+    var reply = voiceTextsFrom_(person, 2).filter(function (text) { return text.at > asked && staffWord_(text.text); }).sort(function (a, b) { return a.at - b.at; })[0];
+    if (reply) batchAnswer_(person.ask_ref, staffWord_(reply.text), 'text');
+  });
+}
+
+// STAFF turns on shift texts for the person whose mobile number matches; STOP turns them off. STOP is recorded silently: the
+// coaching app answers STOP for its own students, and one STOP should not get two replies.
+function checkOptIns_() {
+  var cache = CacheService.getScriptCache();
+  if (cache.get('opt-ins')) return;
+  cache.put('opt-ins', '1', 300);
+  if (!rows_('People').some(function (person) { return phoneDigits_(person.phone); })) return;
+  var seen = {};
+  var texts = [];
+  GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:2d (STAFF OR STOP)', 0, 30).forEach(function (thread) {
+    thread.getMessages().forEach(function (message) {
+      if (seen[message.getId()]) return;
+      seen[message.getId()] = true;
+      var text = voiceText_(message);
+      var word = text ? (text.text.split('\n')[0] || '').trim().replace(/[.!]+$/, '').toUpperCase() : '';
+      if (word === 'STAFF' || word === 'STOP') {
+        text.word = word;
+        texts.push(text);
+      }
+    });
+  });
+  texts.sort(function (a, b) { return a.at - b.at; });
+  var welcome = [];
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var people = rows_('People').filter(function (person) { return phoneDigits_(person.phone); });
+    texts.forEach(function (text) {
+      var matched = people.filter(function (person) { return fromPerson_(text, person) && text.at > Number(person.texts_at || 0); });
+      matched.forEach(function (person) {
+        person.texts = text.word === 'STAFF' ? 'yes' : '';
+        person.texts_at = String(text.at);
+        save_('People', person);
+      });
+      if (matched.length && text.word === 'STAFF') welcome.push({ message: text.message, to: text.digits || text.name });
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  welcome.forEach(function (entry) {
+    try {
+      entry.message.reply('CTTC: You will get texts about your staff shifts. To confirm a sign-up by text, reply CONFIRM (or RELEASE to cancel). Text STOP to stop.');
+      logSent_('text', 'staff-texts-on', entry.message.getId(), entry.to);
+    } catch (error) {
+      logError_('answer a STAFF text', error);
+    }
+  });
+}
+
+// ---------- The hourly sweep ----------
+
+// Run by the hourly trigger, and after every sign-up and answer. Expires holds that ran out, sends any email or text that has
+// not gone out yet, sends day-before reminders, and keeps the log short.
+function sweep() { sweep_(); }
+
+function sweep_() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    ensureHeaders_();
+    var now = Date.now();
+    var signups = rows_('Signups');
+    signups.forEach(function (entry) {
+      var status = signupStatus_(entry, now);
+      if (status === entry.status) return;
+      entry.status = status;
+      entry.updated_at = nowIso_();
+      save_('Signups', entry);
+    });
+    var people = rows_('People');
+    rows_('Batches').forEach(function (batch) {
+      var status = batchStatus_(batch, now);
+      if (status !== batch.status) {
+        batch.status = status;
+        batch.updated_at = nowIso_();
+        save_('Batches', batch);
+        logRow_('step', 'step:' + status, batch.batch_id, '-');
+      }
+      if (now - (Date.parse(batch.updated_at || batch.created_at) || 0) > RETRY_MAIL_DAYS * 86400000) return;
+      deliverBatch_(batch, signups, now);
+      textBatch_(batch, signups, people, now);
+    });
+    remind_(signups, now);
+    trimLog_();
+  } catch (error) {
+    logError_('finish the sweep', error);
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Call while holding the lock. The person is told about each status of a submission once: asked (pending), confirmed,
+// released (their NO) or expired. emailed is written only after the mail was accepted, so a failed send is retried.
+function deliverBatch_(batch, signups, now) {
+  if (batch.emailed === batch.status) return;
+  // A submission that expired before its question ever went out has nothing to tell.
+  if (batch.status === 'expired' && batch.emailed !== 'pending') {
+    batch.emailed = batch.status;
+    save_('Batches', batch);
+    return;
+  }
+  var mine = signups.filter(function (entry) { return entry.batch_id === batch.batch_id; }).sort(function (a, b) {
+    return (a.date + POSITIONS.indexOf(position_(a.position))).localeCompare(b.date + POSITIONS.indexOf(position_(b.position)));
+  });
+  var message = batchMail_(batch, mine, now);
+  if (!mailAvailable_()) return;
+  try {
+    sendMail_(batch.email, message.subject, message.lines, ['batch:' + batch.status, batch.batch_id]);
+  } catch (error) {
+    logError_('email a sign-up (' + batch.status + ')', error, batch.batch_id);
+    return;
+  }
+  batch.emailed = batch.status;
+  save_('Batches', batch);
+}
+
+// Call while holding the lock. A pending submission is also texted to someone who gets our texts: their latest question is
+// the one CONFIRM or RELEASE answers.
+function textBatch_(batch, signups, people, now) {
+  if (batchStatus_(batch, now) !== 'pending' || batch.texted === 'pending') return;
+  var person = people.filter(function (entry) { return sameAddress_(entry.email, batch.email); })[0];
+  if (!person || person.texts !== 'yes' || !phoneDigits_(person.phone)) return;
+  var mine = signups.filter(function (entry) { return entry.batch_id === batch.batch_id && signupStatus_(entry, now) === 'pending'; });
+  if (!mine.length) return;
+  try {
+    sendText_(person, 'CTTC: Reply CONFIRM to lock in your ' + mine.length + ' staff shift' + (mine.length === 1 ? '' : 's') + ' (first: ' + shortDay_(mine[0].date) + ', ' +
+      position_(mine[0].position).label + '), or RELEASE to cancel. Please answer by ' + momentLabel_(Number(batch.expires_at)).replace(' Pacific Time', '') + '.', ['batch-question', batch.batch_id]);
+  } catch (error) {
+    logError_('text a sign-up question', error, batch.batch_id);
+    return;
+  }
+  person.ask_ref = batch.batch_id;
+  person.ask_at = String(now);
+  save_('People', person);
+  batch.texted = 'pending';
+  save_('Batches', batch);
+}
+
+// "Table setup (opening, 7:00 PM)", "Closing (put tables away) (10:00 PM), also finalizing the desk".
+function shiftLabel_(entry) {
+  var spec = position_(entry.position);
+  var night = NIGHTS[weekday_(entry.date)];
+  return spec.label + (spec.part === 'open' ? ' (opening, ' + time12_(night.start) + ')' : ' (closing, ' + time12_(night.end) + ')') +
+    (entry.finalize === 'yes' ? ', also finalizing the desk' : '');
+}
+
+function shiftRows_(entries) { return { rows: entries.map(function (entry) { return [shortDay_(entry.date), shiftLabel_(entry)]; }) }; }
+
+function batchMail_(batch, mine, now) {
+  var hello = 'Hello ' + (firstName_(batch.name) || 'there') + ',';
+  var deadline = momentLabel_(Number(batch.expires_at));
+  if (batch.status === 'pending') {
+    return { subject: 'Confirm your CTTC staff sign-up ' + refTag_(batchCode_(batch)), lines: [hello,
+      batch.source === 'seed' ? 'The club\'s open/close list has you down for the shifts below, and we have moved that list to the new sign-up calendar. Please confirm them.' : null,
+      { callout: 'Reply **YES** to this email by **' + deadline + '** to confirm ' + (mine.length === 1 ? 'this shift' : 'all ' + mine.length + ' shifts') +
+        '. Until then they are held for you and show as "waiting to confirm".', tone: 'action' },
+      { heading: 'Your picks' }, shiftRows_(mine),
+      { choices: [['YES', 'Confirm ' + (mine.length === 1 ? 'it' : 'all of them') + '.'], ['NO', 'Cancel ' + (mine.length === 1 ? 'it' : 'all of them') + ': the spots open for others.']] },
+      'If you do not reply in time, the picks are released so someone else can take them. Please reply from this same email address.',
+      'Didn\'t sign up? Just ignore this email: nothing is confirmed without your YES.'] };
+  }
+  if (batch.status === 'confirmed') {
+    var confirmed = mine.filter(function (entry) { return entry.status === 'confirmed' || entry.status === 'dropped'; });
+    var missed = batch.late === 'yes' ? mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired'; }) : [];
+    return { subject: 'You are on the CTTC staff schedule', lines: [hello,
+      { callout: 'Thank you! **' + confirmed.length + ' shift' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
+      shiftRows_(confirmed),
+      missed.length ? { heading: 'Not confirmed: your YES came after the deadline and these were no longer free' } : null, missed.length ? shiftRows_(missed) : null,
+      { heading: 'Where' }, LOCATION,
+      'Can\'t make it after all? Open the calendar at ' + PAGE_URL + ', tap the night, tap your name and choose "This is me". We email you to confirm the drop.'] };
+  }
+  if (batch.status === 'released') {
+    return { subject: 'Your CTTC staff sign-up is cancelled', lines: [hello, 'OK, we released these picks as you asked. Nothing is on the schedule for you from this sign-up:', shiftRows_(mine),
+      'You can pick other nights any time at ' + PAGE_URL + '.'] };
+  }
+  return { subject: 'Your CTTC staff sign-up expired', lines: [hello,
+    'We did not get your YES by ' + deadline + ', so these picks were released and others can take them:', shiftRows_(mine),
+    'Still want to help? Pick again at ' + PAGE_URL + ' and reply YES to the email we send. If you replied YES just now, we will still confirm whatever is free.'] };
+}
+
+// Call while holding the lock. One email per person per night, the day before (from REMIND_FROM, Pacific), listing their
+// positions. reminded is written after the email was accepted, so a failure is retried by the next sweep.
+function remind_(signups, now) {
+  var today = pacificNow_();
+  if (today.time < REMIND_FROM) return;
+  var tomorrow = addDays_(today.date, 1);
+  var closures = closures_();
+  var groups = {};
+  signups.forEach(function (entry) {
+    if (entry.status !== 'confirmed' || entry.date !== tomorrow || entry.reminded || Object.prototype.hasOwnProperty.call(closures, entry.date)) return;
+    var key = entry.email + ' ' + entry.date;
+    (groups[key] = groups[key] || []).push(entry);
+  });
+  Object.keys(groups).forEach(function (key) {
+    var entries = groups[key];
+    if (!mailAvailable_()) return;
+    try {
+      sendMail_(entries[0].email, 'Reminder: your CTTC shift tomorrow, ' + shortDay_(tomorrow), ['Hello ' + firstName_(entries[0].name) + ',',
+        { callout: 'Thanks for helping run the club **tomorrow, ' + dayLabel_(tomorrow) + '**.', tone: 'good' }, shiftRows_(entries),
+        { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]] },
+        'Can\'t make it? Please drop the shift on the calendar at ' + PAGE_URL + ' (tap the night, tap your name, then "This is me") so someone can step in.'], ['reminder', entries[0].batch_id]);
+    } catch (error) {
+      logError_('send a shift reminder', error, entries[0].batch_id);
+      return;
+    }
+    entries.forEach(function (entry) {
+      entry.reminded = nowIso_();
+      save_('Signups', entry);
+    });
+  });
+}
+
+// ---------- Email ----------
+
+function adminEmail_() { return property_('ADMIN_EMAIL', Session.getEffectiveUser().getEmail()); }
+
+function mailAvailable_() { return MailApp.getRemainingDailyQuota() > MIN_QUOTA; }
+
+// **text** is bold in HTML and plain in text; links become clickable.
+function mailHtml_(text) {
+  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>');
+}
+
+function mailText_(text) { return String(text).replace(/\*\*/g, ''); }
+
+// A block is a paragraph string, or { heading }, { callout, tone }, { rows: [[label, value, link]] } or { choices: [[reply, meaning]] }.
+function blockText_(block) {
+  if (typeof block === 'string') return mailText_(block);
+  if (block.choices) return block.choices.map(function (choice) { return 'Reply ' + choice[0] + ': ' + mailText_(choice[1]); }).join('\n');
+  if (block.heading) return block.heading.toUpperCase();
+  if (block.callout) return mailText_(block.callout);
+  if (block.rows) return block.rows.map(function (row) { return row[0] + ': ' + mailText_(row[1]); }).join('\n');
+  return '';
+}
+
+function blockHtml_(block) {
+  if (typeof block === 'string') return '<p style="margin:0 0 12px;">' + mailHtml_(block) + '</p>';
+  if (block.heading) return '<h3 style="margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd;font-size:16px;color:#1f6b3a;">' + esc_(block.heading) + '</h3>';
+  if (block.callout) {
+    var tone = block.tone === 'good' ? 'background:#e3f1e7;border-left:5px solid #1f6b3a;' : 'background:#fff4d6;border-left:5px solid #c98a00;';
+    return '<div style="' + tone + 'padding:10px 14px;margin:0 0 14px;border-radius:4px;font-size:16px;">' + mailHtml_(block.callout) + '</div>';
+  }
+  if (block.rows) {
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 12px;font-size:15px;">' + block.rows.map(function (row) {
+      return '<tr><td style="padding:3px 16px 3px 0;vertical-align:top;font-weight:700;white-space:nowrap;">' + esc_(row[0]) + '</td><td style="padding:3px 0;vertical-align:top;">' +
+        (row[2] ? '<a href="' + esc_(row[2]) + '">' + esc_(row[1]) + '</a>' : mailHtml_(row[1])) + '</td></tr>';
+    }).join('') + '</table>';
+  }
+  if (block.choices) {
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 14px;font-size:15px;">' + block.choices.map(function (choice) {
+      return '<tr><td style="padding:4px 12px 4px 0;vertical-align:top;white-space:nowrap;"><span style="display:inline-block;min-width:88px;text-align:center;padding:3px 8px;border-radius:4px;font-weight:700;color:#fff;background:' +
+        (choice[0] === 'YES' ? '#1f6b3a' : '#a3332a') + ';">Reply ' + esc_(choice[0]) + '</span></td><td style="padding:6px 0;vertical-align:top;">' + mailHtml_(choice[1]) + '</td></tr>';
+    }).join('') + '</table>';
+  }
+  return '';
+}
+
+function sendMail_(to, subject, lines, log) {
+  var blocks = lines.filter(Boolean);
+  var footer = 'This message is only about your CTTC volunteer sign-up. It does not add you to any mailing list.';
+  var body = blocks.map(blockText_).filter(Boolean).concat(footer).join('\n\n');
+  var html = '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px;">' + blocks.map(blockHtml_).join('') +
+    '<p style="margin:20px 0 0;font-size:12px;color:#777;">' + esc_(footer) + '</p></div>';
+  MailApp.sendEmail({ to: to, subject: subject, body: body, htmlBody: html, name: FROM_NAME });
+  if (log) logSent_('email', log[0], log[1], cleanEmail_(to) || to);
+}
+
+// ---------- The log ----------
+// One row per message sent, reply read, step or failure, in the private Log tab. The recipient appears only as a short code
+// made with the app's secret (the same person always gets the same code); no name, address or number is ever written.
+
+function logSent_(channel, kind, ref, to) {
+  try {
+    var code = code_('to:' + String(to || '').trim().toLowerCase()).slice(0, 6);
+    console.log('staffing sent ' + channel + ' ' + kind + ' ref=' + (ref || '-') + ' to=' + code);
+    logRow_(channel, kind, ref || '-', code);
+  } catch (error) {
+    console.error('Could not log a sent message: ' + error);
+  }
+}
+
+// appendRow adds a whole row in one step, so two writers never overwrite each other's row; the leading ' keeps it plain text.
+function logRow_(channel, kind, ref, to, detail) {
+  try {
+    tab_('Log').appendRow([nowIso_(), channel, kind, ref, to, detail || ''].map(function (value) { return "'" + value; }));
+  } catch (error) {
+    console.error('Could not write to the Log tab: ' + error);
+  }
+}
+
+function logReply_(channel, who, ref, answer, applied, status) {
+  logRow_(channel, 'reply:' + who + ':' + answer, ref, '-', (applied ? 'applied' : 'not applied') + (status ? ', now ' + status : ''));
+}
+
+// The console gets the full error; the Log tab gets what failed with every address, number and long id taken out. The same
+// failure is logged at most every 10 minutes.
+function logError_(what, error, ref) {
+  console.error('Could not ' + what + ': ' + error);
+  try {
+    var kind = String(what).toLowerCase().replace(/[^a-z0-9_:]+/g, '-');
+    var cache = CacheService.getScriptCache();
+    var key = 'logged:' + kind + ':' + (ref || '-');
+    if (cache.get(key)) return;
+    cache.put(key, '1', 600);
+    logRow_('error', kind, ref || '-', '-', cleanDetail_(error));
+  } catch (failure) {
+    console.error('Could not log a failure: ' + failure);
+  }
+}
+
+function cleanDetail_(error) {
+  return String(error).replace(/\S+@\S+/g, '<address>').replace(/\+?\d[\d\s().-]{5,}\d/g, '<number>').replace(/"[^"]*"/g, '"…"')
+    .replace(/'[^']*'/g, "'…'").replace(/[A-Za-z0-9_-]{20,}/g, '<id>').slice(0, 120);
+}
+
+// Call while holding the lock. Keeps the Log tab to its latest LOG_KEEP rows.
+function trimLog_() {
+  var sheet = tab_('Log');
+  var extra = sheet.getLastRow() - 1 - LOG_KEEP;
+  if (extra > 0) sheet.deleteRows(2, extra);
+}
+
+// ---------- The app's secret ----------
+
+function secret_() {
+  var properties = PropertiesService.getScriptProperties();
+  var value = properties.getProperty('TOKEN_SECRET');
+  if (!value) {
+    value = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid();
+    properties.setProperty('TOKEN_SECRET', value);
+  }
+  return value;
+}

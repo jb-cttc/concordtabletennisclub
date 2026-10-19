@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  /* The app sits inline in the club's home page (in place of its closure calendar), so it has no scroll area or full-screen
+     height of its own: the page tells the site its height and the site sizes the frame. */
+  html, body { margin: 0; background: #fff; }
+  body { padding: 10px; font: 16px/1.45 Arial, sans-serif; color: #1c1c1c; }
+  h1 { margin: 0; font-size: 1.15rem; color: #1f6b3a; }
+  h2 { margin: 0 0 4px; font-size: 1.05rem; }
+  h3 { margin: 14px 0 6px; font-size: 0.95rem; color: #1f6b3a; text-transform: uppercase; letter-spacing: 0.03em; }
+  p { margin: 0 0 10px; }
+  .hint { margin: 2px 0 8px; color: #555; font-size: 0.9rem; }
+  button { padding: 8px 14px; border: 1px solid #1f6b3a; border-radius: 4px; background: #1f6b3a; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button.plain { background: #fff; color: #1f6b3a; }
+  button.link { padding: 2px 4px; border: 0; background: none; color: #1f4f8f; text-decoration: underline; font-weight: 400; }
+  button.danger { background: #fff; color: #8b1a1a; border-color: #8b1a1a; }
+  button:disabled { opacity: 0.55; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 3px solid #1f4f8f; outline-offset: 2px; }
+  label { display: block; margin: 10px 0 4px; font-size: 0.9rem; font-weight: 600; }
+  input[type=text], input[type=email], input[type=tel], input[type=search] { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #c9c4b8; border-radius: 4px; font: inherit; }
+  .check { display: flex; gap: 8px; align-items: center; font-weight: 400; margin: 8px 0 0; }
+  .check input { width: auto; margin: 0; }
+  .muted { color: #666; font-size: 0.85rem; }
+  [hidden] { display: none !important; }
+
+  /* Legend and calendar: the home page's three months, with each club night coloured AND marked by its status. */
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 0.8rem; color: #555; }
+  .legend li { display: flex; align-items: center; gap: 5px; }
+  .key { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 3px; font-size: 0.7rem; font-weight: 700; box-sizing: border-box; }
+  .months { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 22px; }
+  .month-title { font-weight: 700; font-size: 0.9rem; margin: 0 0 4px; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center; }
+  .dow { color: #666; font-size: 0.7rem; padding: 2px 0; }
+  .day { box-sizing: border-box; min-height: 44px; padding: 3px 0 2px; border-radius: 5px; font-size: 0.85rem; color: #bbb; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; position: relative; }
+  button.day { width: 100%; border: 1px solid transparent; font-weight: 600; cursor: pointer; }
+  .day .mark { font-size: 0.7rem; font-weight: 700; margin-top: 2px; }
+  .day .mine { position: absolute; top: 2px; right: 3px; width: 8px; height: 8px; border-radius: 50%; background: #1f4f8f; border: 1px solid #fff; }
+  .needs { background: #fff; border: 2px dashed #c25e00 !important; color: #8a3d00; }
+  .covered { background: #e3f1e7; border: 1px solid #7aa886 !important; color: #1f4a2b; }
+  .full { background: #1f6b3a; border: 1px solid #164f2a !important; color: #fff; }
+  .closed { background: #8b1a1a; border: 1px solid #6d1414 !important; color: #fff; }
+  .past { background: #f4f4f4; color: #aaa; font-weight: 400; }
+  button.day.selected { outline: 3px solid #1f4f8f; outline-offset: 1px; }
+  button.day.late { opacity: 0.75; }
+
+  /* My picks bar, the night's slots and the form. */
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 0 0 10px; padding: 8px 10px; border-radius: 6px; background: #eef4ff; border: 1px solid #c6d6f2; }
+  .bar b { color: #1f4f8f; }
+  .panel { margin: 10px 0 4px; padding: 12px; border: 1px solid #ddd8cc; border-radius: 8px; background: #fff; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; }
+  .pos { padding: 8px 0; border-top: 1px solid #eee; }
+  .pos-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: 0.95rem; }
+  .pos-head span { color: #666; font-size: 0.8rem; }
+  .does { margin: 2px 0 0; color: #555; font-size: 0.82rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; align-items: center; }
+  .chip { display: inline-block; padding: 5px 10px; border-radius: 16px; font-size: 0.9rem; border: 1px solid #ccc; background: #fafafa; color: #1c1c1c; font-weight: 600; }
+  button.chip { cursor: pointer; }
+  .chip.ok { background: #e3f1e7; border-color: #7aa886; color: #1f4a2b; }
+  .chip.wait { background: #fff4d6; border-color: #e0b84d; color: #6b4b00; font-weight: 400; font-style: italic; }
+  .chip.me { background: #1f4f8f; border-color: #1f4f8f; color: #fff; }
+  button.add { padding: 5px 12px; border-radius: 16px; font-size: 0.9rem; }
+  .why { font-size: 0.8rem; color: #8a3d00; }
+  .drop { margin: 8px 0 0; padding: 8px 10px; background: #fbeeee; border-left: 4px solid #8b1a1a; border-radius: 4px; font-size: 0.9rem; }
+  .picklist { margin: 6px 0 0; padding: 0; list-style: none; }
+  .picklist li { padding: 8px 0; border-top: 1px solid #eee; }
+  .pick-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .pick-actions button { padding: 4px 10px; font-size: 0.85rem; }
+  .pick-error { margin: 4px 0 0; color: #8b1a1a; font-size: 0.85rem; font-weight: 600; }
+  .results { margin: 4px 0 0; padding: 0; list-style: none; }
+  .results li button { width: 100%; margin: 3px 0 0; text-align: left; background: #fff; color: #1c1c1c; border-color: #c9c4b8; font-weight: 400; }
+  .chosen { margin: 6px 0 0; padding: 8px 10px; background: #e3f1e7; border-radius: 4px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  #message { min-height: 0; font-size: 0.95rem; }
+  #message:not(:empty) { margin: 0 0 10px; padding: 6px 10px; border-radius: 4px; }
+  #message.error, .form-status.error { color: #8b1a1a; background: #fff3f3; border-left: 4px solid #8b1a1a; }
+  #message.ok, .form-status.ok { color: #1f6b3a; background: #eef7f0; border-left: 4px solid #1f6b3a; font-weight: 600; }
+  .form-status { margin: 10px 0 0; padding: 6px 10px; font-size: 0.95rem; }
+  .form-status:empty { display: none; }
+  .field-error { margin: 4px 0 0; color: #8b1a1a; font-size: 0.9rem; font-weight: 600; }
+  input[aria-invalid="true"] { border-color: #8b1a1a; box-shadow: 0 0 0 2px #f3c7c7; }
+  .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+</style>
+</head>
+<body>
+<h1>Volunteer signups</h1>
+<p class="hint">Tap a club night to see its open spots, add as many as you like, then send once and reply YES to our email.</p>
+<ul class="legend" aria-label="What the colors and marks mean">
+  <li><span class="key needs" aria-hidden="true">!</span>Needs people</li>
+  <li><span class="key covered" aria-hidden="true">&#10003;</span>Covered (backups or extra spots open)</li>
+  <li><span class="key full" aria-hidden="true">&#9733;</span>Fully staffed</li>
+  <li><span class="key closed" aria-hidden="true">&#215;</span>Closed</li>
+  <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span>Your picks</li>
+</ul>
+<div id="message" role="status" aria-live="polite"></div>
+<div id="bar" class="bar" hidden></div>
+<div id="calendar" class="months"><p class="muted">Loading the calendar&hellip;</p></div>
+<section id="picks" class="panel" hidden aria-labelledby="picksTitle"></section>
+<script>
+  var INITIAL = null;
+  var MARKS = { needs: '!', covered: '✓', full: '★', closed: '×', past: '' };
+  var WORDS = { needs: 'Needs people', covered: 'Covered', full: 'Fully staffed', closed: 'Closed', past: 'Past' };
+  var board = null;
+  var picks = [];
+  var selected = '';
+  var who = null;
+  var lastProblems = [];
+  var messageBox = document.getElementById('message');
+  var calendar = document.getElementById('calendar');
+  var bar = document.getElementById('bar');
+  var picksBox = document.getElementById('picks');
+
+  // Details a visitor chose to remember on this device. Storage can be blocked in a framed page, so it is optional.
+  function saved(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return null; } }
+  function remember(key, value) { try { if (value) localStorage.setItem(key, JSON.stringify(value)); else localStorage.removeItem(key); } catch (error) {} }
+  function el(tag, attributes, children) {
+    var node = document.createElement(tag);
+    Object.keys(attributes || {}).forEach(function (key) {
+      if (key === 'text') node.textContent = attributes[key];
+      else if (key === 'onclick') node.addEventListener('click', attributes[key]);
+      else node.setAttribute(key, attributes[key]);
+    });
+    (children || []).forEach(function (child) { if (child) node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child); });
+    return node;
+  }
+  function empty(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function show(text, kind) { messageBox.textContent = text || ''; messageBox.className = kind || ''; }
+  function call(name, args, done) {
+    var runner = google.script.run
+      .withSuccessHandler(function (result) { done(result || { ok: false, message: 'Something went wrong. Please try again.' }); })
+      .withFailureHandler(function () { done({ ok: false, message: 'Something went wrong. Please try again.' }); });
+    runner[name].apply(runner, args);
+  }
+
+  // The site sizes its frame to the app: tell it the height after every change. Apps Script serves the page inside a frame of
+  // its own, so the message goes to the top window (the club site), and to the parent when that is a different window.
+  function postHeight() {
+    var height = Math.ceil(document.body.getBoundingClientRect().height);
+    var message = { type: 'cttc-staffing-height', height: height };
+    try { window.top.postMessage(message, '*'); } catch (error) {}
+    try { if (window.parent !== window.top) window.parent.postMessage(message, '*'); } catch (error) {}
+  }
+  if (window.ResizeObserver) new ResizeObserver(postHeight).observe(document.body);
+
+  function positionOf(id) { return board.positions.filter(function (spec) { return spec.id === id; })[0]; }
+  function nightOf(date) { return board.nights.filter(function (night) { return night.date === date; })[0]; }
+  function picksOn(date) { return picks.filter(function (pick) { return pick.date === date; }); }
+
+  // The same rules the server applies (it checks again and has the last word): the slot has room, and one opening position
+  // and one closing spot per person per night. '' when the pick is fine.
+  function blocked(night, positionId) {
+    var spec = positionOf(positionId);
+    if (!night || !night.bookable) return 'Sign-ups for this night are closed.';
+    if (untrained(positionId)) return 'Needs training: ask the club.';
+    var taken = night.slots[positionId].length + picksOn(night.date).filter(function (pick) { return pick.position === positionId; }).length;
+    if (taken >= spec.max) return 'Full.';
+    if (picksOn(night.date).some(function (pick) { return positionOf(pick.position).part === spec.part; })) {
+      return spec.part === 'open' ? 'You picked another opening position this night (one per person).' : 'You are already closing this night.';
+    }
+    return '';
+  }
+  // Once a name is picked, the server says which positions that person may take (Desk and Money need training).
+  function untrained(positionId) { return !!(who && who.positions && who.positions.indexOf(positionId) < 0); }
+  function access(player) {
+    if (!player || !player.playerId) return;
+    call('playerAccess', [player.playerId], function (result) {
+      if (who !== player) return;
+      player.positions = result.ok ? result.positions : null;
+      redraw();
+    });
+  }
+  function addPick(date, positionId) {
+    if (picks.length >= board.maxPicks) { show('You can send up to ' + board.maxPicks + ' shifts at a time. Send these first, then pick more.', 'error'); return false; }
+    picks.push({ date: date, position: positionId, finalize: false });
+    return true;
+  }
+  function removePick(pick) { picks = picks.filter(function (each) { return each !== pick; }); lastProblems = []; }
+
+  // ----- The calendar -----
+  function drawCalendar() {
+    empty(calendar);
+    board.months.forEach(function (month) {
+      var box = el('div', { 'class': 'month' }, [el('div', { 'class': 'month-title', id: 'm' + month.year + month.month, text: month.title })]);
+      var grid = el('div', { 'class': 'grid', role: 'group', 'aria-labelledby': 'm' + month.year + month.month });
+      ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function (letter) { grid.appendChild(el('span', { 'class': 'dow', 'aria-hidden': 'true', text: letter })); });
+      var first = new Date(Date.UTC(month.year, month.month - 1, 1)).getUTCDay();
+      var days = new Date(Date.UTC(month.year, month.month, 0)).getUTCDate();
+      for (var blank = 0; blank < first; blank += 1) grid.appendChild(el('span', { 'aria-hidden': 'true' }));
+      for (var day = 1; day <= days; day += 1) {
+        var date = month.year + '-' + ('0' + month.month).slice(-2) + '-' + ('0' + day).slice(-2);
+        grid.appendChild(dayCell(date, day));
+      }
+      box.appendChild(grid);
+      // The chosen night's slots open right under its month, so on a phone they appear next to the tap.
+      box.appendChild(el('div', { 'class': 'slot-area', 'data-month': String(month.month) }));
+      calendar.appendChild(box);
+    });
+    if (selected) drawNight();
+  }
+  function dayCell(date, day) {
+    var night = nightOf(date);
+    if (!night) return el('span', { 'class': 'day', 'aria-hidden': 'true', text: String(day) });
+    if (night.status === 'past') return el('span', { 'class': 'day past', title: 'Past', text: String(day) });
+    var mine = picksOn(date).length;
+    var label = night.day + ': ' + WORDS[night.status] + (night.bookable ? '' : night.status === 'closed' ? '' : ', sign-ups closed') + (mine ? ', ' + mine + ' of your picks' : '');
+    var cell = el('button', { type: 'button', 'class': 'day ' + night.status + (date === selected ? ' selected' : '') + (night.bookable ? '' : ' late'),
+      'aria-label': label, 'aria-pressed': date === selected ? 'true' : 'false', 'data-date': date }, [
+      el('span', { text: String(day) }), el('span', { 'class': 'mark', 'aria-hidden': 'true', text: MARKS[night.status] || '' }),
+      mine ? el('span', { 'class': 'mine', 'aria-hidden': 'true' }) : null]);
+    cell.addEventListener('click', function () { selected = selected === date ? '' : date; show(''); drawCalendar(); if (selected) focusNight(); });
+    return cell;
+  }
+  function focusNight() {
+    var panel = document.getElementById('night');
+    if (panel) { panel.scrollIntoView({ block: 'nearest' }); panel.focus({ preventScroll: true }); }
+  }
+
+  // ----- One night's positions -----
+  function drawNight() {
+    var night = nightOf(selected);
+    var area = calendar.querySelector('.slot-area[data-month="' + Number(selected.slice(5, 7)) + '"]');
+    if (!night || !area) return;
+    var panel = el('section', { id: 'night', 'class': 'panel', tabindex: '-1', 'aria-label': night.day });
+    panel.appendChild(el('h2', { text: night.day }));
+    panel.appendChild(el('p', {}, [night.time + ' ', el('span', { 'class': 'badge ' + night.status, text: (MARKS[night.status] ? MARKS[night.status] + ' ' : '') + WORDS[night.status] })]));
+    if (night.status === 'closed') {
+      panel.appendChild(el('p', { text: 'The club is closed this night' + (night.note ? ': ' + night.note : '.') }));
+      area.appendChild(panel);
+      return;
+    }
+    if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
+    else if (night.status === 'covered') panel.appendChild(el('p', { 'class': 'muted', text: 'The minimum crew is confirmed. A backup or extra spot is still open.' }));
+    if (!night.bookable) panel.appendChild(el('p', { 'class': 'why', text: 'Sign-ups for this night have closed (they close an hour before the club opens).' }));
+    panel.appendChild(el('h3', { text: 'Opening, ' + time12(night.start) }));
+    board.positions.forEach(function (spec) {
+      if (spec.part === 'close') panel.appendChild(el('h3', { text: 'Closing, ' + time12(night.end) }));
+      panel.appendChild(positionRow(night, spec));
+    });
+    panel.appendChild(el('p', { 'class': 'muted', text: 'One opening position per person per night (backups count). You may also close the same night.' }));
+    area.appendChild(panel);
+  }
+  function positionRow(night, spec) {
+    var size = spec.max === 1 ? '1 person' : spec.min + ' to ' + spec.max + ' people';
+    var row = el('div', { 'class': 'pos' }, [el('div', { 'class': 'pos-head' }, [el('b', { text: spec.label }), el('span', { text: size + (spec.min ? '' : ', optional') })]),
+      el('p', { 'class': 'does', text: spec.does })]);
+    var chips = el('ul', { 'class': 'chips', 'aria-label': spec.label });
+    var dropBox = el('div');
+    night.slots[spec.id].forEach(function (slot) {
+      var text = slot.name + (slot.finalize ? ' (also finalizing)' : '');
+      if (slot.pending) { chips.appendChild(el('li', {}, [el('span', { 'class': 'chip wait', text: text + ' · waiting to confirm' })])); return; }
+      var chip = el('button', { type: 'button', 'class': 'chip ok', 'aria-label': text + ', confirmed. Tap if this is you and you need to drop it.' }, ['✓ ' + text]);
+      chip.addEventListener('click', function () { dropOffer(dropBox, night, spec, slot); });
+      chips.appendChild(el('li', {}, [chip]));
+    });
+    picksOn(night.date).filter(function (pick) { return pick.position === spec.id; }).forEach(function (pick) {
+      var undo = el('button', { type: 'button', 'class': 'link', text: 'Remove', 'aria-label': 'Remove your pick: ' + spec.label });
+      undo.addEventListener('click', function () { removePick(pick); redraw(); });
+      chips.appendChild(el('li', {}, [el('span', { 'class': 'chip me', text: 'You (picked)' }), undo]));
+    });
+    var open = spec.max - night.slots[spec.id].length - picksOn(night.date).filter(function (pick) { return pick.position === spec.id; }).length;
+    if (open > 0 && night.bookable) {
+      var reason = blocked(night, spec.id);
+      var add = el('button', { type: 'button', 'class': 'add', text: '+ Add me', 'aria-label': 'Add me as ' + spec.label + ' on ' + night.day });
+      if (reason) add.disabled = true;
+      add.addEventListener('click', function () { if (addPick(night.date, spec.id)) { show(spec.label + ' on ' + night.short + ' added to your picks.', 'ok'); redraw(); } });
+      chips.appendChild(el('li', {}, [add]));
+      chips.appendChild(el('li', { 'class': reason ? 'why' : 'muted', text: reason || (open === 1 ? '1 spot open' : open + ' spots open') }));
+    } else if (open > 0) {
+      chips.appendChild(el('li', { 'class': 'muted', text: open === 1 ? '1 spot open' : open + ' spots open' }));
+    }
+    row.appendChild(chips);
+    row.appendChild(dropBox);
+    return row;
+  }
+  // "This is me": the page never knows whose shift it is. We email the address that confirmed it; a YES there drops it.
+  function dropOffer(box, night, spec, slot) {
+    empty(box);
+    var status = el('p', { 'class': 'form-status', role: 'status', 'aria-live': 'polite' });
+    var yes = el('button', { type: 'button', 'class': 'danger', text: 'This is me: drop this shift' });
+    var no = el('button', { type: 'button', 'class': 'plain', text: 'Cancel' });
+    no.addEventListener('click', function () { empty(box); });
+    yes.addEventListener('click', function () {
+      yes.disabled = true;
+      call('requestDrop', [slot.id], function (result) {
+        yes.disabled = false;
+        status.textContent = result.message;
+        status.className = 'form-status ' + (result.ok ? 'ok' : 'error');
+        if (result.ok) yes.hidden = true;
+      });
+    });
+    box.appendChild(el('div', { 'class': 'drop' }, [el('p', { text: 'Is ' + slot.name + ' on ' + night.short + ' (' + spec.label + ') you? We will email the address that confirmed it; reply YES there to drop it, so the spot opens for someone else.' }),
+      el('div', { 'class': 'actions' }, [yes, no]), status]));
+  }
+
+  // ----- My picks and the form -----
+  function drawBar() {
+    empty(bar);
+    bar.hidden = !picks.length;
+    if (!picks.length) return;
+    var review = el('button', { type: 'button', text: 'Review and send' });
+    review.addEventListener('click', function () { picksBox.scrollIntoView({ block: 'start' }); var first = picksBox.querySelector('h2'); if (first) first.focus({ preventScroll: true }); });
+    bar.appendChild(el('span', {}, [el('b', { text: 'My picks: ' + picks.length }), ' (kept while you browse the months)']));
+    bar.appendChild(review);
+  }
+  function weekdayName(date) { return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(date + 'T12:00:00Z').getUTCDay()]; }
+  // Adds the same position on every later same weekday in the calendar where it is open and allowed.
+  function repeatWeekly(pick) {
+    var day = new Date(pick.date + 'T12:00:00Z').getUTCDay();
+    var added = 0;
+    var skipped = 0;
+    board.nights.forEach(function (night) {
+      if (night.date <= pick.date || new Date(night.date + 'T12:00:00Z').getUTCDay() !== day || night.status === 'past') return;
+      if (picksOn(night.date).some(function (each) { return each.position === pick.position; })) return;
+      if (blocked(night, pick.position) || picks.length >= board.maxPicks) { skipped += 1; return; }
+      picks.push({ date: night.date, position: pick.position, finalize: false });
+      added += 1;
+    });
+    show(added ? 'Added ' + positionOf(pick.position).label + ' on ' + added + ' more ' + weekdayName(pick.date) + (added === 1 ? '' : 's') + '.' +
+      (skipped ? ' Skipped ' + skipped + ' (full, closed, or you already have an opening position that night).' : '') :
+      'No more ' + weekdayName(pick.date) + 's are open for ' + positionOf(pick.position).label + '.', added ? 'ok' : 'error');
+    redraw();
+  }
+  function drawPicks() {
+    var keep = picksBox.querySelector('form');
+    picksBox.hidden = !picks.length && !picksBox.getAttribute('data-done');
+    if (!picks.length) return;
+    picksBox.removeAttribute('data-done');
+    empty(picksBox);
+    picksBox.appendChild(el('h2', { id: 'picksTitle', tabindex: '-1', text: 'My picks (' + picks.length + ')' }));
+    var list = el('ol', { 'class': 'picklist' });
+    picks.slice().sort(function (a, b) { return (a.date + a.position).localeCompare(b.date + b.position); }).forEach(function (pick) {
+      var night = nightOf(pick.date);
+      var spec = positionOf(pick.position);
+      var item = el('li', {}, [el('b', { text: (night ? night.short : pick.date) + ': ' }), spec.label]);
+      if (spec.id === 'close') {
+        var finalize = el('input', { type: 'checkbox', id: 'fin' + pick.date });
+        finalize.checked = pick.finalize;
+        var taken = night && night.slots.close.some(function (slot) { return slot.finalize; });
+        if (taken && !pick.finalize) finalize.disabled = true;
+        finalize.addEventListener('change', function () { pick.finalize = finalize.checked; });
+        item.appendChild(el('label', { 'class': 'check', 'for': 'fin' + pick.date }, [finalize, el('span', { text: taken ? 'Someone is already finalizing the desk this night' : 'I\'ll also do the desk\'s Finalize step' })]));
+      }
+      var repeat = el('button', { type: 'button', 'class': 'plain', text: 'Repeat every ' + weekdayName(pick.date) });
+      repeat.addEventListener('click', function () { repeatWeekly(pick); });
+      var remove = el('button', { type: 'button', 'class': 'plain', text: 'Remove' });
+      remove.addEventListener('click', function () { removePick(pick); redraw(); });
+      item.appendChild(el('div', { 'class': 'pick-actions' }, [repeat, remove]));
+      if (untrained(pick.position)) item.appendChild(el('p', { 'class': 'pick-error', text: 'Needs training: ask the club. Remove this pick or choose Table setup or Closing.' }));
+      lastProblems.filter(function (problem) { return problem.date === pick.date && problem.position === pick.position; }).forEach(function (problem) {
+        item.appendChild(el('p', { 'class': 'pick-error', role: 'alert', text: problem.reason }));
+      });
+      list.appendChild(item);
+    });
+    picksBox.appendChild(list);
+    picksBox.appendChild(keep || detailsForm());
+    var send = picksBox.querySelector('#send');
+    if (send) send.textContent = 'Email me to confirm (' + picks.length + ' shift' + (picks.length === 1 ? '' : 's') + ')';
+  }
+  function field(labelText, input, note) {
+    return [el('label', { 'for': input.id, text: labelText }), input, note ? el('p', { 'class': 'muted', id: input.id + 'Note', text: note }) : null];
+  }
+  function detailsForm() {
+    var search = el('input', { type: 'search', id: 'who', autocomplete: 'off', maxlength: '40', 'aria-describedby': 'whoNote', placeholder: 'Start typing your name' });
+    var results = el('ul', { 'class': 'results', 'aria-label': 'Matching names' });
+    var chosen = el('p', { 'class': 'chosen', hidden: 'hidden' });
+    var typedBox = el('div', { hidden: 'hidden' }, field('Your first and last name', el('input', { type: 'text', id: 'typedName', maxlength: '60', autocomplete: 'name' }),
+      'Table setup and Closing are open to you now. Desk organizer and Money collector need a one-time OK from the club first.'));
+    var unlisted = el('button', { type: 'button', 'class': 'link', text: 'I\'m not listed' });
+    var email = el('input', { type: 'email', id: 'email', maxlength: '254', autocomplete: 'email', required: 'required' });
+    var phone = el('input', { type: 'tel', id: 'phone', maxlength: '20', autocomplete: 'tel' });
+    var keep = el('input', { type: 'checkbox', id: 'remember' });
+    var trap = el('input', { type: 'text', id: 'website', tabindex: '-1', autocomplete: 'off' });
+    var send = el('button', { type: 'submit', id: 'send', text: 'Email me to confirm' });
+    var status = el('p', { 'class': 'form-status', role: 'status', 'aria-live': 'polite' });
+    var form = el('form', { novalidate: 'novalidate' }, [el('h3', { text: 'Your details' })].concat(
+      field('Your name, as on the club player list', search, 'Type at least 2 letters, then tap your name.'), [results, chosen],
+      board.mode === 'hybrid' ? [el('p', {}, [unlisted]), typedBox] : [],
+      field('Email (required)', email, 'We email you once to confirm. It is never shown on the site.'),
+      field('Mobile (optional)', phone, 'For texts about your shifts, after you text STAFF to ' + board.textNumber + ' from this phone.'),
+      [el('label', { 'class': 'check', 'for': 'remember' }, [keep, el('span', { text: 'Remember my details on this device' })]),
+        el('div', { 'class': 'trap', 'aria-hidden': 'true' }, [el('label', { 'for': 'website', text: 'Leave this empty' }), trap]),
+        el('div', { 'class': 'actions' }, [send]), status,
+        el('p', { 'class': 'muted', text: 'The calendar shows first names only. Nothing is confirmed until you reply YES.' })]));
+    var timer = null;
+    var asked = '';
+    // quiet: restoring a remembered name while the form is built; its access is already being fetched.
+    function choose(player, quiet) {
+      who = player;
+      empty(results);
+      search.value = '';
+      chosen.hidden = false;
+      typedBox.hidden = true;
+      empty(chosen);
+      var change = el('button', { type: 'button', 'class': 'link', text: 'Change' });
+      change.addEventListener('click', function () { who = null; chosen.hidden = true; redraw(); search.focus(); });
+      chosen.appendChild(el('span', {}, ['Signing up as ', el('b', { text: player.unlisted ? player.name + ' (not on the list)' : player.name }), ' ']));
+      chosen.appendChild(change);
+      if (!quiet && !player.unlisted && !player.positions) access(player);
+    }
+    search.addEventListener('input', function () {
+      clearTimeout(timer);
+      var query = search.value.trim();
+      if (query.replace(/\s/g, '').length < 2) { empty(results); return; }
+      timer = setTimeout(function () {
+        asked = query;
+        call('findPlayers', [query], function (result) {
+          if (asked !== query) return;
+          empty(results);
+          if (!result.ok) { results.appendChild(el('li', { 'class': 'why', text: result.message })); return; }
+          if (!result.players.length) results.appendChild(el('li', { 'class': 'muted', text: 'No player found. Check the spelling' + (board.mode === 'hybrid' ? ', or tap "I\'m not listed".' : ', or ask at the desk to be added.') }));
+          result.players.forEach(function (player) {
+            var pick = el('button', { type: 'button', text: player.name });
+            pick.addEventListener('click', function () { choose(player); });
+            results.appendChild(el('li', {}, [pick]));
+          });
+        });
+      }, 300);
+    });
+    unlisted.addEventListener('click', function () { who = null; chosen.hidden = true; empty(results); typedBox.hidden = false; redraw(); form.querySelector('#typedName').focus(); });
+    form.addEventListener('input', function (event) { if (event.target.getAttribute('aria-invalid')) unmark(event.target); });
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var typed = board.mode === 'hybrid' && !typedBox.hidden ? form.querySelector('#typedName').value : '';
+      if (!who && !typed.trim()) { report('Please find and tap your name first.', 'error', search); return; }
+      if (!email.value.trim()) { report('Please enter your email address.', 'error', email); return; }
+      report('Sending…');
+      send.disabled = true;
+      call('signUp', [{
+        picks: picks.map(function (pick) { return { date: pick.date, position: pick.position, finalize: !!pick.finalize }; }),
+        playerId: who && !who.unlisted ? who.playerId : '', unlisted: !who && !!typed, name: typed, email: email.value, phone: phone.value, website: trap.value
+      }], function (result) {
+        send.disabled = false;
+        if (!result.ok) {
+          lastProblems = result.problems || [];
+          var fields = { name: who ? search : form.querySelector('#typedName') || search, email: email, phone: phone };
+          if (lastProblems.length) drawPicks();
+          report(result.message, 'error', fields[result.field]);
+          return;
+        }
+        remember('cttc-staff', keep.checked ? { player: who && { playerId: who.playerId, name: who.name }, email: email.value, phone: phone.value } : null);
+        picks = [];
+        lastProblems = [];
+        empty(picksBox);
+        picksBox.setAttribute('data-done', '1');
+        picksBox.hidden = false;
+        picksBox.appendChild(el('h2', { id: 'picksTitle', tabindex: '-1', text: 'Check your email' }));
+        picksBox.appendChild(el('p', { 'class': 'form-status ok', role: 'status', text: result.message }));
+        if (result.texts) picksBox.appendChild(el('p', { 'class': 'muted', text: 'Want texts instead? Text STAFF to ' + result.textNumber + ' from the mobile you gave; next time we text you too and you can reply CONFIRM.' }));
+        picksBox.querySelector('h2').focus({ preventScroll: true });
+        picksBox.scrollIntoView({ block: 'nearest' });
+        reload();
+      });
+    });
+    function report(text, kind, input) {
+      status.textContent = text || '';
+      status.className = 'form-status' + (kind ? ' ' + kind : '');
+      status.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+      Array.prototype.forEach.call(form.querySelectorAll('[aria-invalid="true"]'), unmark);
+      if (input) {
+        input.setAttribute('aria-invalid', 'true');
+        input.parentNode.insertBefore(el('p', { 'class': 'field-error', id: input.id + 'Error', text: text }), input.nextSibling);
+        input.setAttribute('aria-describedby', input.id + 'Error');
+        input.focus({ preventScroll: true });
+        input.scrollIntoView({ block: 'center' });
+      }
+    }
+    function unmark(input) {
+      input.removeAttribute('aria-invalid');
+      input.setAttribute('aria-describedby', input.id + 'Note');
+      var note = document.getElementById(input.id + 'Error');
+      if (note) note.parentNode.removeChild(note);
+    }
+    var me = saved('cttc-staff');
+    if (me) {
+      keep.checked = true;
+      email.value = me.email || '';
+      phone.value = me.phone || '';
+    }
+    if (who) choose(who, true);
+    return form;
+  }
+
+  function time12(time) { var hour = Number(time.slice(0, 2)); return ((hour + 11) % 12 + 1) + ':' + time.slice(3, 5) + ' ' + (hour < 12 ? 'AM' : 'PM'); }
+  function redraw() { drawBar(); drawCalendar(); drawPicks(); postHeight(); }
+  function start(result) {
+    if (!result.ok) { empty(calendar); calendar.appendChild(el('p', { text: result.message })); postHeight(); return; }
+    board = result;
+    // A pick whose night has since closed or filled stays listed; the server says which, and why, on sending.
+    redraw();
+  }
+  function reload() { call('staffBoard', [], start); }
+
+  // A returning volunteer who ticked "Remember me" is known from the start, so restricted spots are greyed out at once.
+  (function () { var me = saved('cttc-staff'); if (me && me.player && me.player.playerId) who = { playerId: me.player.playerId, name: me.player.name }; })();
+  if (INITIAL && INITIAL.staffBoard) start(INITIAL.staffBoard); else reload();
+  if (who) access(who);
+  // The club page shows its own loading note until this arrives. The message carries no data.
+  try { window.top.postMessage('cttc-staffing-ready', '*'); } catch (error) {}
+  postHeight();
+</script>
+</body>
+</html>
