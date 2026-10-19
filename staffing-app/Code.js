@@ -68,21 +68,33 @@ var CLOSURES_URL = SITE_URL + '/data/closures.json';
 var CLOSURES_CACHE_SECONDS = 3600;
 var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open on holiday' };
 
-// Every slot a night has. 'open' positions are the opening crew: one person may hold only one of them per night (a backup
-// counts). 'close' is putting the tables away; the same person may open and close. training lists the Training tab columns
-// that must say yes before someone may take the position (canTake_); does is the line the page shows under it.
+// Every slot a night has, as the club's open/close list names them. 'open' positions are the opening crew: one person may
+// hold only one of them per night (a backup counts), except the pairs in alsoWith (the desk organizer may also help set up).
+// 'close' positions are the closing crew: the lock-up keyholder and the people putting tables away; one each per person,
+// and the same person may open and close. training lists the Training tab columns that must say yes before someone may
+// take the position (canTake_); does is the line the page shows under it (the page swaps in the night's own time where it
+// says "X PM (Y PM on Saturdays)").
 var POSITIONS = [
-  { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, max: 1, training: ['keys', 'open'],
-    does: 'The opener: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, and turns on the lights and AC.' },
+  { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, max: 1, training: ['keys', 'open'], alsoWith: ['tables'],
+    does: 'The opener and round robin organizer: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, turns on the lights and AC, and runs the round robin desk on round robin nights.' },
   { id: 'desk-backup', label: 'Desk organizer backup', part: 'open', min: 0, max: 1, training: ['keys', 'open'], backupOf: 'desk',
     does: 'Steps in as desk organizer (the opener) if the desk organizer cannot make it.' },
   { id: 'money', label: 'Money collector (Front Desk)', part: 'open', min: 1, max: 1, training: ['front_desk'],
-    does: 'Prints the Revenue Sheet, takes out the Clover device and Zelle QR codes, and records everyone entering on the Revenue Sheet.' },
+    does: 'Prints the Revenue Sheet, takes out the Clover device and the Zelle/Venmo QR codes, records everyone entering on the Revenue Sheet and manages the payments.' },
   { id: 'money-backup', label: 'Money collector backup', part: 'open', min: 0, max: 1, training: ['front_desk'], backupOf: 'money',
     does: 'Steps in at the Front Desk if the money collector cannot make it.' },
-  { id: 'tables', label: 'Table setup', part: 'open', min: 1, max: 4, training: [], does: 'Sets up the tables.' },
-  { id: 'close', label: 'Closing (put tables away)', part: 'close', min: 2, max: 6, training: [], does: 'Puts the tables away. One closer may also finalize the desk.' }
+  { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, max: 4, training: [], alsoWith: ['desk'],
+    does: 'Arrives by 6:45 PM (2:45 PM on Saturdays): brings out the barriers, tables and nets, and knows the gym layout.' },
+  { id: 'lockup', label: 'Lock-up', part: 'close', min: 1, max: 1, training: ['keys'],
+    does: 'Last person out: stays until 10:00 PM (6:00 PM on Saturdays) or later, has the key lockbox, checks everyone is out (restrooms too) and every door is locked, and turns off the lights and AC.' },
+  { id: 'close', label: 'Put tables and barriers away', part: 'close', min: 1, max: 5, training: [],
+    does: 'Stays until 10:00 PM (6:00 PM on Saturdays) or later: folds up the tables, returns the nets to the basket and all equipment to the storage room. One closer may also finalize the desk.' }
 ];
+
+// Two positions the same person may not hold on the same night: the same part (opening or closing), unless alsoWith pairs them.
+function clash_(a, b) {
+  return !!a && !!b && a.part === b.part && (a.alsoWith || []).indexOf(b.id) < 0;
+}
 // What each Training column means, for messages.
 var SKILLS = { keys: 'key access', open: 'opening', front_desk: 'Front Desk' };
 
@@ -219,7 +231,14 @@ function ownerSetup_(params) {
       return '<li><strong>' + esc_(person.name) + '</strong> (' + esc_(person.email) + '): ' + esc_(person.nights) + ' nights as ' + esc_(person.positions.join(' and ')) +
         ', ' + esc_(shortDay_(person.first)) + ' to ' + esc_(shortDay_(person.last)) + (note ? '. <em>' + esc_(note) + '</em>' : '') + '</li>';
     };
-    if (params['import'] === 'resend') {
+    if (params['import'] === 'links') {
+      var prepared = importSeed_(true, true);
+      var toFill = [].concat(prepared.unmatched, prepared.ambiguous, prepared.noEmail);
+      lines.push('<p>&#10003; SeedLinks is ready: ' + (toFill.length ? esc_(toFill.length) + ' ' + (toFill.length === 1 ? 'name needs' : 'names need') + ' a player and/or an email (' +
+        esc_(toFill.join(', ')) + '). The player dropdown is up to date.' : 'every name already has a player and an email.') + ' Nothing was held or sent.</p>');
+      lines.push('<p><a href="' + esc_(result.privateSheet) + '">Open the private staffing Sheet</a>, fill in the SeedLinks tab, then come back to the preview.</p>');
+      lines.push(button(base + '&import=preview', 'Back to the preview'));
+    } else if (params['import'] === 'resend') {
       var resent = resendSeed_();
       lines.push('<p>&#10003; Re-sent the confirmation email to ' + esc_(resent) + ' ' + (resent === 1 ? 'person' : 'people') + ' still waiting, with a fresh deadline.</p>');
       lines.push(button(base + '&import=preview', 'Back to the preview'));
@@ -251,6 +270,9 @@ function ownerSetup_(params) {
         lines.push('<p>Sending now would email nobody.</p>');
       }
       lines.push(toFix(plan));
+      if ([].concat(plan.unmatched, plan.ambiguous, plan.noEmail).length) {
+        lines.push('<p><a href="' + esc_(base + '&import=links') + '">Prepare SeedLinks for these names</a> (adds a row for each to fill in; holds and sends nothing).</p>');
+      }
       if (plan.held.length) {
         lines.push('<p>Nights the import would leave out, and why:</p><ul>' + plan.held.map(function (person) {
           return '<li><strong>' + esc_(person.name) + '</strong>' + (person.nights ? ' (' + esc_(person.nights) + ' nights held)' : ' (nothing held, not emailed)') + ': ' +
@@ -688,12 +710,12 @@ function pickProblem_(pick, person, night, others) {
   if (rule) return rule;
   if (others.filter(function (entry) { return entry.position === pick.position; }).length >= spec.max) return spec.label + ' is already taken that night.';
   var mine = others.filter(function (entry) { return personKey_(entry) === person.key; });
-  if (mine.some(function (entry) { var other = position_(entry.position); return other && other.part === spec.part; })) {
-    return spec.part === 'open' ? 'You already have an opening position that night. Each person takes one opening position per night (backups count).' :
+  if (mine.some(function (entry) { return clash_(spec, position_(entry.position)); })) {
+    return spec.part === 'open' ? 'You already have an opening position that night. Each person takes one opening position per night (backups count; the desk organizer may also help set up).' :
       'You are already closing that night.';
   }
   if (pick.finalize) {
-    if (spec.id !== 'close') return 'Only a closer can also finalize the desk.';
+    if (spec.part !== 'close') return 'Only a closer can also finalize the desk.';
     if (others.some(function (entry) { return entry.finalize === 'yes'; })) return 'Someone is already finalizing the desk that night.';
   }
   return '';
@@ -713,7 +735,8 @@ function statusOf_(entries, now) {
 
 // What a night still needs, in words, counting confirmed sign-ups only: "a money collector", "2 closers".
 function missing_(entries, now) {
-  var words = { desk: ['a desk organizer'], money: ['a money collector'], tables: ['someone for table setup'], close: ['a closer', ' closers'] };
+  var words = { desk: ['a desk organizer'], money: ['a money collector'], tables: ['someone for table/barrier setup'], lockup: ['someone to lock up'],
+    close: ['someone to put tables away', ' people to put tables away'] };
   var list = [];
   POSITIONS.forEach(function (spec) {
     if (!spec.min || !words[spec.id]) return;
@@ -761,7 +784,9 @@ function board_(signups, closures, now) {
   return {
     ok: true, mode: mode_(), maxPicks: MAX_PICKS, textNumber: TEXT_NUMBER, today: horizon.today,
     months: horizon.months.map(function (month) { return { year: month.year, month: month.month, title: MONTHS[month.month - 1] + ' ' + month.year }; }),
-    positions: POSITIONS.map(function (spec) { return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, max: spec.max, does: spec.does, trained: spec.training.length > 0 }; }),
+    positions: POSITIONS.map(function (spec) {
+      return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, max: spec.max, does: spec.does, trained: spec.training.length > 0, alsoWith: spec.alsoWith || [] };
+    }),
     closures: Object.keys(closures).filter(function (date) { return date >= horizon.first && date <= horizon.last; }).sort(),
     nights: nights
   };
@@ -1102,7 +1127,10 @@ function markAsked_(person, trainings) {
 // "Open" and "Front Desk" columns holding Yes, No or N/A. Both are found by those labels, not by row numbers; anything else
 // on the tab (the duty checklists) is ignored, and unknown roster columns are only counted.
 var SEED_TAB = 'Open/Close';
-var SEED_ROSTER = { 'open': 'desk', 'front desk': 'money' };
+// The volunteer's roster columns and the position each fills. Barriers and Setup are both table/barrier setup; Close is the
+// lock-up keyholder and Takedown is putting tables away. RR Admin is the desk organizer on round robin nights (the same person
+// as Open), so it is read but adds nothing.
+var SEED_ROSTER = { 'open': 'desk', 'front desk': 'money', 'barriers': 'tables', 'setup': 'tables', 'close': 'lockup', 'takedown': 'close', 'rr admin': '' };
 var SEED_TRAINING = { 'keys access': 'keys', 'open': 'open', 'front desk': 'front_desk' };
 var SEED_CANDIDATES = 5;
 
@@ -1122,6 +1150,8 @@ function importSeedSheet() {
   return importSeed_(false);
 }
 
+// links (with preview): also rewrite SeedReport and add SeedLinks rows for every name to fix, so the owner can fill in emails
+// before anything is held or sent.
 // preview: work out exactly what importSeedSheet would do and return it, but write nothing to any Sheet and send nothing.
 // report.preview lists each person who would be emailed: the seed Sheet's name for them, their email masked, how many
 // nights and which positions.
@@ -1178,7 +1208,7 @@ function resendSeed_(only) {
   return count;
 }
 
-function importSeed_(preview) {
+function importSeed_(preview, links) {
   var id = property_('SEED_SHEET_ID', '');
   if (!id) throw new Error('Set the script property SEED_SHEET_ID to the id of the volunteer\'s Sheet.');
   var book = SpreadsheetApp.openById(id);
@@ -1346,7 +1376,7 @@ function importSeed_(preview) {
       if (!known) people = rows_('People');
       logRow_('step', 'step:pending', batch.batch_id, '-', accepted.length + ' picks from the seed Sheet');
     });
-    if (!preview) writeSeedReport_(report, problems, data);
+    if (!preview || links) writeSeedReport_(report, problems, data);
   } finally {
     lock.releaseLock();
   }
@@ -1388,6 +1418,7 @@ function parseSeed_(values) {
     else if (rosterAt < 0 && labels.indexOf('open') >= 0 && labels.indexOf('front desk') >= 0) rosterAt = index;
   });
   if (rosterAt >= 0) {
+    var seen = {};
     var head = values[rosterAt].map(seedText_);
     var dayAt = -1;
     for (var r = rosterAt + 1; r < values.length; r += 1) {
@@ -1402,14 +1433,22 @@ function parseSeed_(values) {
         continue;
       }
       head.forEach(function (label, column) {
-        if (!SEED_ROSTER[label]) return;
-        // Two names in one cell ("Ron" and "Susan" on separate lines) are the primary and the backup; a third has no slot.
-        splitNames_(row[column]).slice(0, 2).forEach(function (name, index) {
-          result.roster.push({ weekday: weekday, position: SEED_ROSTER[label] + (index ? '-backup' : ''), name: name });
+        var position = SEED_ROSTER[label];
+        if (!position) return;
+        var names = splitNames_(row[column]);
+        // Two names in a one-person position ("Ron / Susan" at the Front Desk) are the primary and the backup, and a third has
+        // no slot; in a position for several people ("Ryan/Peggy" for takedown) every name takes a spot.
+        if (position_(position + '-backup')) names = names.slice(0, 2);
+        names.forEach(function (name, index) {
+          var id = index && position_(position + '-backup') ? position + '-backup' : position;
+          var key = weekday + ':' + id + ':' + seedKeyOf_(name);
+          if (seen[key]) return; // the same person under Barriers and Setup is one table/barrier setup spot
+          seen[key] = true;
+          result.roster.push({ weekday: weekday, position: id, name: name });
         });
       });
     }
-    head.forEach(function (label, column) { if (label && !SEED_ROSTER[label] && column !== dayAt) result.unknownColumns += 1; });
+    head.forEach(function (label, column) { if (label && !Object.prototype.hasOwnProperty.call(SEED_ROSTER, label) && column !== dayAt) result.unknownColumns += 1; });
   }
   if (trainingAt >= 0) {
     var labels = values[trainingAt].map(seedText_);
@@ -2565,7 +2604,7 @@ function shiftLabel_(entry) {
 function shiftRows_(entries) { return { rows: entries.map(function (entry) { return [shortDay_(entry.date), shiftLabel_(entry)]; }) }; }
 
 // Calendar letters: a filled square is the position itself, an outlined one its backup.
-var CAL_CODES = { desk: 'D', 'desk-backup': 'D', money: 'M', 'money-backup': 'M', tables: 'T', close: 'C' };
+var CAL_CODES = { desk: 'D', 'desk-backup': 'D', money: 'M', 'money-backup': 'M', tables: 'S', lockup: 'L', close: 'T' };
 
 // Closed nights (data/closures.json and the Closures tab) on the same weekdays, between the first and last of these shifts:
 // shown on the email's calendar so a gap is never a surprise.
@@ -2800,7 +2839,7 @@ function legend_(entries) {
   var used = {};
   entries.forEach(function (entry) { used[entry.position] = true; });
   var parts = [];
-  [['D', 'desk', 'Desk organizer'], ['M', 'money', 'Money collector'], ['T', 'tables', 'Table setup'], ['C', 'close', 'Closing']].forEach(function (item) {
+  [['D', 'desk', 'Desk organizer'], ['M', 'money', 'Money collector'], ['S', 'tables', 'Table/barrier setup'], ['L', 'lockup', 'Lock-up'], ['T', 'close', 'Put tables away']].forEach(function (item) {
     if (used[item[1]] || used[item[1] + '-backup']) parts.push('<strong>' + item[0] + '</strong> ' + item[2]);
   });
   if (entries.some(function (entry) { return /-backup$/.test(entry.position); })) parts.push('outlined = backup');
