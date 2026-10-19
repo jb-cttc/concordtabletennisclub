@@ -172,7 +172,8 @@ function scriptJson_(value) {
 // says nothing about the club, and /dev only opens for the project's editors anyway.
 function ownerSetup_(params) {
   var page = function (title, lines) {
-    var html = '<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font:16px/1.5 Arial,sans-serif;margin:16px;color:#1c1c1c">' +
+    // Google shows this page inside a frame: links must open in the whole window, or Google refuses to load inside the frame.
+    var html = '<!doctype html><base target="_top"><meta name="viewport" content="width=device-width, initial-scale=1"><body style="font:16px/1.5 Arial,sans-serif;margin:16px;color:#1c1c1c">' +
       '<h1 style="font-size:1.25rem;color:#1f6b3a">' + esc_(title) + '</h1>' + lines.join('') + '</body>';
     return HtmlService.createHtmlOutput(html).setTitle('CTTC volunteer sign-ups: setup').addMetaTag('viewport', 'width=device-width, initial-scale=1');
   };
