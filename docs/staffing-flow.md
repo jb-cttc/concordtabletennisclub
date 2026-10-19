@@ -38,7 +38,8 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   - **Closed** (`×`): the gym is closed that night (section 8). A closed
     night asks for no volunteers, is not counted and gets no reminders.
 - The page shows **first names only** ("Sam", or "Sam K." when two different
-  people that night share a first name). It never shows emails, phones or
+  people that night share a first name; initials at the start stay together,
+  so "J. B. Birch" is "J.B."). It never shows emails, phones or
   last names. Pending picks show as "waiting to confirm".
 - **Nobody can sign up as someone else.** A sign-up is confirmed only by a YES
   from the player's **email on file**; the page never sees that address except

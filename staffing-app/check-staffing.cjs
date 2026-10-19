@@ -349,6 +349,11 @@ assert.equal(properties.STAFFING_DB_ID, 'private-book-id');
   assert.equal(signUp('Samson Gray', [['2026-10-21', 'tables']]).field, 'name', 'an inactive player is refused');
 }
 
+// ---- First names ----
+[['Sam Kim', 'Sam'], ['Kim, Sam', 'Sam'], ['J. B. Birch', 'J.B.'], ['J.B. Birch', 'J.B.'], ['J B Birch', 'J.B.'], ['J. Birch', 'J.'], ['Ron / Susan', 'Ron'], ['A', 'A'], ['', '']]
+  .forEach(([name, expected]) => assert.equal(context.firstName_(name), expected, name));
+assert.equal(context.lastInitial_('J. B. Birch'), 'B');
+
 // ---- Reading a YES or NO ----
 [
   ['yes', 'yes'], ['Yes, see you Monday', 'yes'], ['ok yes', 'yes'], ['no thanks', 'no'], ['maybe', ''], ['Yes, but no', ''],
