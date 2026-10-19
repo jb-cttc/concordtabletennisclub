@@ -1179,7 +1179,12 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.match(document.getElementById('bar').textContent, /My picks: 1/);
   const again = document.getElementById('night');
   assert.equal([...again.querySelectorAll('button.add')].find(button => /Add me as Money collector \(Front Desk\) on/.test(button.getAttribute('aria-label'))).disabled, true, 'one opening position per night, on the page too');
-  assert.match(again.textContent, /The opener: first in at 6:40 PM/, 'each position says what it does');
+  assert.match(again.textContent, /The opener: first in at 6:40 PM, has the key lockbox/, 'each position says what it does, with this night\'s time');
+  assert.doesNotMatch(again.textContent, /on Saturdays/);
+  assert.deepEqual([...again.querySelectorAll('.night-cols > div > h3')].map(h3 => h3.textContent), ['Opening, 7:00 PM', 'Closing, 10:00 PM'], 'opening and closing are two columns');
+  assert.ok(again.closest('.slot-area'), 'one column (no layout here, as on a phone): the night opens under its month');
+  assert.ok(document.querySelector('#calendar > .slot-wide'), 'a full-width place for wide screens');
+  assert.match(fs.readFileSync(__dirname + '/Code.js', 'utf8'), /first in at 6:40 PM \(2:40 PM on Saturdays\)/, 'the page swaps in each night\'s time for this exact wording');
   [...again.querySelectorAll('button.add')].find(button => /Add me as Closing/.test(button.getAttribute('aria-label'))).click();
   assert.match(document.getElementById('bar').textContent, /My picks: 2/, 'opening and closing the same night');
   assert.doesNotMatch(document.getElementById('picks').textContent, /not listed/, 'directory mode never offers "I\'m not listed"');
