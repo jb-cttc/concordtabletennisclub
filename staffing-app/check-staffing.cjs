@@ -926,6 +926,15 @@ const seedCheck = () => {
   const ron = plan.held.find(person => person.name === 'Ron');
   assert.ok(ron && ron.reasons['roster: no email found'] > 0, 'no email is explained per person too');
   let result = JSON.parse(JSON.stringify(context.importSeedSheet()));
+  // The first wave is held a flat 72 hours, so the club can remind people in person, even when one of their nights is tonight.
+  const wave = grids.Batches.slice(1).filter(line => cell('Batches', line, 'source') === 'seed');
+  assert.ok(wave.length > 1);
+  wave.forEach(line => assert.equal(Number(cell('Batches', line, 'expires_at')), clock + 72 * 3600000, 'held 72 hours'));
+  const tonight = signupRows().filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'date') === pacific(clock).slice(0, 10));
+  assert.ok(tonight.length, 'the roster has people on tonight');
+  clock += 9 * 3600000;
+  assert.ok(tonight.every(line => context.signupStatus_({ status: cell('Signups', line, 'status'), expires_at: cell('Signups', line, 'expires_at') }, clock) === 'pending'), 'still waiting after tonight\'s night has started');
+  clock -= 9 * 3600000;
   // The volunteer's list is a one-time import: once sent, it is not read again (nothing re-imports it on its own either).
   assert.ok(properties.SEED_IMPORTED_AT, 'the import records that it ran');
   assert.throws(() => context.importSeedSheet(), /imported once[\s\S]*no longer read/, 'the editor function refuses a second import');
