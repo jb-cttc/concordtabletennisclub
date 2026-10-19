@@ -1104,6 +1104,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   activeEmail = 'owner@example.com';
   html = context.doGet({ parameter: { setup: '', members: longId, desk: 'D'.repeat(44), seed: 'bad id!' } }).getContent();
   assert.match(html, /Set up\. Player list: \d+ active players/);
+  assert.match(html, /<base target="_top">/, 'links open in the whole window, not inside Google\'s frame');
   assert.equal(properties.MEMBER_LIST_ID, longId, 'a missing property is set from the link');
   assert.equal(properties.DESK_SHEET_ID, deskBefore, 'a property already set is never overwritten from a link');
   assert.match(html, /href="https:\/\/script\.google\.com\/macros\/s\/staffing-test\/dev\?setup&amp;import=preview"/, 'the setup page offers the preview first');
