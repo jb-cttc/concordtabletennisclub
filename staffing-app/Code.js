@@ -156,7 +156,7 @@ var TABS = {
 function doGet(e) {
   if (e && e.parameter && e.parameter.setup !== undefined) return ownerSetup_(e.parameter);
   var output = HtmlService.createTemplateFromFile('Index').evaluate();
-  var initial = initialData_();
+  var initial = initialData_(e && e.parameter ? e.parameter.mine : '');
   if (initial) output.setContent(output.getContent().replace('var INITIAL = null;', 'var INITIAL = ' + scriptJson_(initial) + ';'));
   return output
     .setTitle('CTTC volunteer sign-ups')
@@ -164,14 +164,24 @@ function doGet(e) {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-// The calendar comes with the page, saving a second trip to Google. On any problem the page fetches it itself.
-function initialData_() {
+// The calendar comes with the page, saving a second trip to Google, and so do the person's own nights when the page was opened
+// from the link in their email (mine). On any problem the page fetches them itself.
+function initialData_(mine) {
+  var code = String(mine || '').trim().toUpperCase();
+  var initial = {};
   try {
-    return { staffBoard: board_(rows_('Signups'), closures_(), Date.now()) };
+    var signups = rows_('Signups');
+    initial.staffBoard = board_(signups, closures_(), Date.now());
+    if (mine) {
+      var emails = rows_('Emails');
+      var owner = mineOwner_(code, signups, emails);
+      initial.mine = owner ? mineView_(owner, signups, emails, Date.now()) : fail_(MINE_GONE);
+    }
   } catch (error) {
     logError_('prepare the first screen', error);
-    return null;
   }
+  if (mine && /^[0-9A-F]{20}$/.test(code)) initial.mineCode = code;
+  return initial.staffBoard || initial.mineCode ? initial : null;
 }
 
 // JSON that is safe inside a <script> element, even when a name contains </script>.
@@ -1898,8 +1908,9 @@ function requestDrop(signupId) {
 
 // Applies a YES or NO to one submission. A YES while pending confirms every pick; a NO releases them. A YES after the hold
 // expired (up to LATE_MS later) confirms whichever picks are still free and the confirmation email lists the ones that were
-// not. Anything else changes nothing.
-function batchAnswer_(batchId, answer, channel) {
+// not. Anything else changes nothing. skip: the dates of a "YES except" (exceptDates_), whose picks are released instead.
+function batchAnswer_(batchId, answer, channel, skip) {
+  skip = answer === 'yes' && skip ? skip : [];
   var batch = null;
   var person = null;
   var applied = false;
@@ -1926,15 +1937,16 @@ function batchAnswer_(batchId, answer, channel) {
       applied = true;
       mine.forEach(function (entry) {
         if (signupStatus_(entry, now) !== 'pending') return;
-        entry.status = answer === 'yes' ? 'confirmed' : 'released';
-        if (answer === 'yes') entry.confirmed_at = nowIso_();
+        var keep = answer === 'yes' && skip.indexOf(entry.date) < 0;
+        entry.status = keep ? 'confirmed' : 'released';
+        if (keep) entry.confirmed_at = nowIso_();
         entry.updated_at = nowIso_();
         save_('Signups', entry);
-        count += 1;
+        if (keep || answer !== 'yes') count += 1;
       });
-      batch.status = answer === 'yes' ? 'confirmed' : 'released';
+      batch.status = answer === 'yes' && count ? 'confirmed' : 'released';
     } else if (before === 'expired' && !batch.answered_at && answer === 'yes' && now - Number(batch.expires_at) < LATE_MS) {
-      late = lateConfirm_(batch, mine, signups, now);
+      late = lateConfirm_(batch, mine.filter(function (entry) { return skip.indexOf(entry.date) < 0; }), signups, now);
       count = late.confirmed;
       applied = late.confirmed > 0;
       if (applied) {
@@ -1944,11 +1956,12 @@ function batchAnswer_(batchId, answer, channel) {
     }
     if (!batch.answered_at) {
       batch.answered_at = nowIso_();
-      batch.answer = answer;
+      batch.answer = skip.length ? 'yes except' : answer;
     }
     batch.updated_at = nowIso_();
     save_('Batches', batch);
-    if (applied) logRow_('step', 'step:' + batch.status, batchId, '-', late ? 'late YES: ' + late.confirmed + ' confirmed, ' + late.missed + ' no longer free' : count + ' picks');
+    if (applied) logRow_('step', 'step:' + batch.status, batchId, '-', (late ? 'late YES: ' + late.confirmed + ' confirmed, ' + late.missed + ' no longer free' : count + ' picks') +
+      (skip.length ? ', ' + skip.length + ' night' + (skip.length === 1 ? '' : 's') + ' left out' : ''));
   } finally {
     lock.releaseLock();
   }
@@ -1960,7 +1973,8 @@ function batchAnswer_(batchId, answer, channel) {
         'Please open the calendar at ' + PAGE_URL + ' and pick again. Thank you for helping!'], ['batch-late-none', batchId]);
     }
     if (channel === 'text' && person) {
-      sendText_(person, applied ? (answer === 'yes' ? 'CTTC: Done: you are confirmed for ' + count + ' shift' + (count === 1 ? '' : 's') + '. Details are in your email.' :
+      sendText_(person, applied ? (answer === 'yes' && count ? 'CTTC: Done: you are confirmed for ' + count + ' shift' + (count === 1 ? '' : 's') +
+        (skip.length ? ', and the ' + skip.length + ' night' + (skip.length === 1 ? '' : 's') + ' you listed ' + (skip.length === 1 ? 'is' : 'are') + ' released' : '') + '. Details are in your email.' :
         'CTTC: OK, your picks are released.') : before === 'confirmed' ? 'CTTC: You are already confirmed for those shifts.' :
         'CTTC: That sign-up is no longer waiting for an answer, so nothing changed.', ['batch-answer-reply', batchId]);
     }
@@ -2037,38 +2051,210 @@ function dropAnswer_(signupId, answer) {
   }
   logReply_('email', 'drop', entry ? entry.batch_id : signupId, answer, applied, entry ? entry.status : '');
   if (!applied) return;
-  var when = dayLabel_(entry.date);
+  if (answer === 'yes') return tellDropped_(contact, [{ entry: entry, backup: backup, backupContact: backupContact }]);
+  try {
+    if (mailAvailable_()) {
+      sendMail_(contact, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + dayLabel_(entry.date) + '. Thank you!'], ['drop-kept', entry.signup_id]);
+    }
+  } catch (error) {
+    logError_('confirm a kept shift', error, entry.batch_id);
+  }
+}
+
+// Call without the lock. After confirmed shifts were dropped (by email or on the My nights page): one email to the person and
+// one to the club listing them, and a heads-up to each confirmed backup whose primary dropped. drops: [{ entry, backup,
+// backupContact }], all one person's.
+function tellDropped_(contact, drops) {
+  var first = drops[0].entry;
   var attempt = function (what, send) {
     try {
       if (mailAvailable_()) send();
     } catch (error) {
-      logError_(what, error, entry.batch_id);
+      logError_(what, error, first.batch_id);
     }
   };
-  if (answer !== 'yes') {
-    attempt('confirm a kept shift', function () {
-      sendMail_(contact, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + when + '. Thank you!'], ['drop-kept', entry.signup_id]);
-    });
-    return;
-  }
+  var many = drops.length > 1;
+  var backupNote = function (drop) {
+    var spec = position_(drop.entry.position);
+    return drop.backup ? 'The backup (' + drop.backup.name + ') has been sent a heads-up.' : spec.backupOf ? '' :
+      position_(drop.entry.position + '-backup') ? 'There is no confirmed backup for this position that night.' : '';
+  };
   attempt('confirm a dropped shift', function () {
-    sendMail_(contact, 'Shift dropped: ' + shortDay_(entry.date), ['Hello ' + firstName_(entry.name) + ',',
-      'Done: you are off ' + shiftLabel_(entry) + ' on ' + when + '. The spot is open for someone else and the club has been told.',
-      'Thanks for letting us know early. You can pick another night any time at ' + PAGE_URL + '.'], ['drop-done', entry.signup_id]);
+    sendMail_(contact, many ? 'Shifts dropped: ' + drops.length + ' CTTC shifts' : 'Shift dropped: ' + shortDay_(first.date), ['Hello ' + firstName_(first.name) + ',',
+      many ? 'Done: you are off these shifts. The spots are open for someone else and the club has been told.' :
+        'Done: you are off ' + shiftLabel_(first) + ' on ' + dayLabel_(first.date) + '. The spot is open for someone else and the club has been told.',
+      many ? shiftRows_(drops.map(function (drop) { return drop.entry; })) : null,
+      'Thanks for letting us know early. You can see your other nights at ' + mineLink_(contact) + ', or pick another night any time at ' + PAGE_URL + '.'], ['drop-done', first.signup_id]);
   });
   attempt('tell the club about a dropped shift', function () {
-    sendMail_(adminEmail_(), 'Staffing: ' + entry.name + ' dropped ' + position_(entry.position).label + ' on ' + shortDay_(entry.date),
-      [entry.name + ' dropped ' + shiftLabel_(entry) + ' on ' + when + '. The spot is open on the sign-up calendar again.' +
-        (backup ? ' The backup (' + backup.name + ') has been sent a heads-up.' : position_(entry.position).backupOf ? '' :
-          position_(entry.position + '-backup') ? ' There is no confirmed backup for this position that night.' : '')], ['drop-club', entry.signup_id]);
+    sendMail_(adminEmail_(), many ? 'Staffing: ' + first.name + ' dropped ' + drops.length + ' shifts' : 'Staffing: ' + first.name + ' dropped ' + position_(first.position).label + ' on ' + shortDay_(first.date),
+      many ? [first.name + ' dropped these shifts. The spots are open on the sign-up calendar again.', { rows: drops.map(function (drop) {
+        return [shortDay_(drop.entry.date), shiftLabel_(drop.entry) + (backupNote(drop) ? '. ' + backupNote(drop) : '')];
+      }) }] : [first.name + ' dropped ' + shiftLabel_(first) + ' on ' + dayLabel_(first.date) + '. The spot is open on the sign-up calendar again.' +
+        (backupNote(drops[0]) ? ' ' + backupNote(drops[0]) : '')], ['drop-club', first.signup_id]);
   });
-  if (backup) {
+  drops.forEach(function (drop) {
+    if (!drop.backup) return;
+    var entry = drop.entry;
     attempt('give a backup a heads-up', function () {
-      sendMail_(backupContact, 'Heads-up: you may be needed as ' + position_(entry.position).label + ' on ' + shortDay_(entry.date), ['Hello ' + firstName_(backup.name) + ',',
-        { callout: 'The ' + position_(entry.position).label.toLowerCase() + ' for **' + when + '** has dropped out. As the backup, **please plan to step in** unless someone else signs up for it.', tone: 'action' },
-        'The calendar at ' + PAGE_URL + ' shows who is on that night. If you cannot make it either, please tell the club.'], ['backup-heads-up', backup.signup_id]);
+      sendMail_(drop.backupContact, 'Heads-up: you may be needed as ' + position_(entry.position).label + ' on ' + shortDay_(entry.date), ['Hello ' + firstName_(drop.backup.name) + ',',
+        { callout: 'The ' + position_(entry.position).label.toLowerCase() + ' for **' + dayLabel_(entry.date) + '** has dropped out. As the backup, **please plan to step in** unless someone else signs up for it.', tone: 'action' },
+        'The calendar at ' + PAGE_URL + ' shows who is on that night. If you cannot make it either, please tell the club.'], ['backup-heads-up', drop.backup.signup_id]);
     });
+  });
+}
+
+// ---------- Public: a volunteer's own nights ("My nights") ----------
+// Every email about someone's shifts links to their own page (PAGE_URL?mine=CODE, opened in the app by the home page). There
+// they untick the nights they can't do: one Save confirms the rest of a sign-up still waiting for a YES and drops confirmed
+// nights, so someone signed up for every Wednesday can skip one without losing the others. The link is the key, like a reply
+// from their address: it is only ever sent to the email on file.
+
+var MINE_GONE = 'We found no upcoming nights for this link. If you expected some, use the link in the newest email we sent you.';
+
+// The secret in someone's link, made with the app's secret from their address: the same in every email (an older email's link
+// keeps working while that address is on file), and nobody can make one for another address.
+function mineCode_(email) {
+  var key = addressKey_(email);
+  return code_('m:' + key) + code_('n:' + key);
+}
+
+function mineLink_(email) { return PAGE_URL + '?mine=' + mineCode_(email); }
+
+// The address on file whose link this is, among the people with upcoming pending or confirmed nights; '' when none.
+function mineOwner_(code, signups, emails) {
+  var clean = String(code || '').trim().toUpperCase();
+  if (!/^[0-9A-F]{20}$/.test(clean)) return '';
+  var today = pacificNow_().date;
+  var seen = {};
+  for (var index = 0; index < signups.length; index += 1) {
+    var entry = signups[index];
+    if (entry.date < today || (entry.status !== 'pending' && entry.status !== 'confirmed')) continue;
+    var contact = contactOf_(entry, emails);
+    var key = addressKey_(contact);
+    if (seen[key]) continue;
+    seen[key] = true;
+    if (mineCode_(contact) === clean) return contact;
   }
+  return '';
+}
+
+// Someone's upcoming nights, each with its shifts (confirmed or pending), and until when the first pending one is held.
+function mineView_(owner, signups, emails, now) {
+  var today = pacificNow_().date;
+  var nights = [];
+  var name = '';
+  var until = 0;
+  signups.filter(function (entry) {
+    var status = signupStatus_(entry, now);
+    return entry.date >= today && (status === 'pending' || status === 'confirmed') && sameAddress_(contactOf_(entry, emails), owner);
+  }).sort(function (a, b) {
+    return (a.date + POSITIONS.indexOf(position_(a.position))).localeCompare(b.date + POSITIONS.indexOf(position_(b.position)));
+  }).forEach(function (entry) {
+    var night = nights[nights.length - 1];
+    if (!night || night.date !== entry.date) nights.push(night = { date: entry.date, label: dayLabel_(entry.date), short: shortDay_(entry.date), shifts: [] });
+    night.shifts.push({ id: entry.signup_id, label: shiftLabel_(entry), status: entry.status });
+    if (entry.status === 'pending' && (!until || Number(entry.expires_at) < until)) until = Number(entry.expires_at);
+    name = name || firstName_(entry.name);
+  });
+  return { ok: true, name: name, email: maskEmail_(owner), until: until ? momentLabel_(until).replace(' Pacific Time', '') : '', nights: nights };
+}
+
+function myNights(code) {
+  if (tooBusy_('read', MAX_READS_PER_MINUTE)) return fail_('Too many requests right now. Please try again in a few minutes.');
+  var signups = rows_('Signups');
+  var emails = rows_('Emails');
+  var owner = mineOwner_(code, signups, emails);
+  return owner ? mineView_(owner, signups, emails, Date.now()) : fail_(MINE_GONE);
+}
+
+function cleanIds_(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 1000).map(function (id) { return String(id || ''); }).filter(function (id) { return /^[0-9a-f]{1,32}$/.test(id); });
+}
+
+// Saves the My nights page: keep and release are shift ids. A kept shift waiting for a YES is confirmed and a released one
+// released; a released confirmed shift is dropped, and the person, the club and that night's backup are told, as for an
+// emailed drop. Only the person's own upcoming pending or confirmed shifts change, so a page left open is safe: anything
+// past or changed since is skipped. A sign-up with nothing left waiting is answered, so its email lists what was confirmed
+// and what was released.
+function saveMyNights(code, choice) {
+  var keep = cleanIds_(choice && choice.keep);
+  var release = cleanIds_(choice && choice.release);
+  if (!keep.length && !release.length) return fail_('Nothing to save.');
+  var owner = '';
+  var drops = [];
+  var done = { confirmed: [], released: [], dropped: [], skipped: 0, answered: 0 };
+  var view = null;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (tooBusy_('write', MAX_WRITES_PER_MINUTE)) return fail_('Too many requests right now. Please try again in a few minutes.');
+    var now = Date.now();
+    var signups = rows_('Signups');
+    var emails = rows_('Emails');
+    owner = mineOwner_(code, signups, emails);
+    if (!owner) return fail_(MINE_GONE);
+    var today = pacificNow_().date;
+    var touched = {};
+    signups.forEach(function (entry) {
+      var kept = keep.indexOf(entry.signup_id) >= 0;
+      if (!kept && release.indexOf(entry.signup_id) < 0) return;
+      var status = signupStatus_(entry, now);
+      if (entry.date < today || !sameAddress_(contactOf_(entry, emails), owner) || (status !== 'pending' && status !== 'confirmed')) {
+        done.skipped += 1;
+        return;
+      }
+      if (status === 'confirmed') {
+        if (kept) return;
+        entry.status = 'dropped';
+        entry.drop_at = '';
+        var backup = signups.filter(function (each) { return each.status === 'confirmed' && each.date === entry.date && each.position === entry.position + '-backup'; })[0] || null;
+        drops.push({ entry: entry, backup: backup, backupContact: backup ? contactOf_(backup, emails) : '' });
+        done.dropped.push(entry.date);
+        logRow_('step', 'step:dropped', entry.batch_id, '-', entry.position + ' on ' + entry.date + ', from My nights');
+      } else {
+        entry.status = kept ? 'confirmed' : 'released';
+        if (kept) entry.confirmed_at = nowIso_();
+        done[kept ? 'confirmed' : 'released'].push(entry.date);
+        touched[entry.batch_id] = true;
+      }
+      entry.updated_at = nowIso_();
+      save_('Signups', entry);
+    });
+    rows_('Batches').forEach(function (batch) {
+      if (!touched[batch.batch_id] || batchStatus_(batch, now) !== 'pending') return;
+      var mine = signups.filter(function (entry) { return entry.batch_id === batch.batch_id; });
+      if (mine.some(function (entry) { return signupStatus_(entry, now) === 'pending'; })) return;
+      batch.status = mine.some(function (entry) { return entry.status === 'confirmed'; }) ? 'confirmed' : 'released';
+      batch.answered_at = nowIso_();
+      batch.answer = 'my nights';
+      batch.updated_at = nowIso_();
+      save_('Batches', batch);
+      done.answered += 1;
+      logRow_('step', 'step:' + batch.status, batch.batch_id, '-', 'from My nights');
+    });
+    view = mineView_(owner, signups, emails, now);
+  } finally {
+    lock.releaseLock();
+  }
+  if (drops.length) tellDropped_(owner, drops);
+  try {
+    sweep_();
+  } catch (error) {
+    logError_('finish the sweep after My nights', error);
+  }
+  var nights = function (dates) {
+    var unique = dates.filter(function (date, index) { return dates.indexOf(date) === index; });
+    return unique.length + ' night' + (unique.length === 1 ? '' : 's');
+  };
+  var parts = [];
+  if (done.confirmed.length) parts.push('Confirmed ' + nights(done.confirmed) + '.');
+  if (done.released.length) parts.push('Released ' + nights(done.released) + '.');
+  if (done.dropped.length) parts.push('Dropped ' + nights(done.dropped) + ': the club' + (drops.some(function (drop) { return drop.backup; }) ? ' and the backup were' : ' was') + ' told.');
+  if (done.skipped) parts.push(done.skipped + ' shift' + (done.skipped === 1 ? ' had' : 's had') + ' already changed, so ' + (done.skipped === 1 ? 'it was' : 'they were') + ' left as is.');
+  view.message = parts.length ? 'Saved. ' + parts.join(' ') + (done.answered || drops.length ? ' We emailed you the details.' : '') : 'Nothing changed.';
+  return view;
 }
 
 // ---------- The minute check: email and text replies ----------
@@ -2197,17 +2383,29 @@ function checkMail_() {
         return;
       }
       if (autoReply_(message)) return;
-      var answer = answerOf_(replyText_(message));
+      var text = replyText_(message);
+      var answer = answerOf_(text);
+      var skip = null;
+      var except = question.kind === 'batch' ? exceptOf_(text) : null;
+      if (except) {
+        var picked = except.unclear ? null : exceptDates_(except, nightsOf_(question.id));
+        if (!picked || picked.missing) {
+          if (recent) unclearExcept_(message.getId(), address, String(message.getSubject() || ''), question.id, picked ? picked.missing : null);
+          return;
+        }
+        answer = 'yes';
+        skip = picked.dates;
+      }
       if (!answer) {
         if (recent) unreadableReply_(message.getId(), address, String(message.getSubject() || ''));
         return;
       }
-      if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at };
+      if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, skip: skip, at: at };
     });
   });
   Object.keys(answers).forEach(function (code) {
     var found = answers[code];
-    if (found.question.kind === 'batch') batchAnswer_(found.question.id, found.answer, 'email');
+    if (found.question.kind === 'batch') batchAnswer_(found.question.id, found.answer, 'email', found.skip);
     else if (found.question.kind === 'club') clubAnswer_(found.question.id, found.answer);
     else dropAnswer_(found.question.id, found.answer);
   });
@@ -2230,7 +2428,7 @@ function replyText_(message) {
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/gi, ' ').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
     .replace(/&#(\d+);/g, function (match, code) { return String.fromCharCode(Number(code)); }).replace(/&amp;/gi, '&');
-  return answerOf_(text) ? text : plain;
+  return answerOf_(text) || exceptOf_(text) ? text : plain;
 }
 
 // Out-of-office and other automatic replies are never answers.
@@ -2245,14 +2443,13 @@ function autoReply_(message) {
 }
 
 // The same mailbox: case never matters, and for Gmail neither do dots or a +tag in the name.
-function sameAddress_(a, b) {
-  var key = function (address) {
-    var parts = String(address || '').trim().toLowerCase().split('@');
-    if (parts.length !== 2) return parts.join('@');
-    if (parts[1] === 'gmail.com' || parts[1] === 'googlemail.com') return parts[0].split('+')[0].replace(/\./g, '') + '@gmail.com';
-    return parts.join('@');
-  };
-  return key(a) === key(b);
+function sameAddress_(a, b) { return addressKey_(a) === addressKey_(b); }
+
+function addressKey_(address) {
+  var parts = String(address || '').trim().toLowerCase().split('@');
+  if (parts.length !== 2) return parts.join('@');
+  if (parts[1] === 'gmail.com' || parts[1] === 'googlemail.com') return parts[0].split('+')[0].replace(/\./g, '') + '@gmail.com';
+  return parts.join('@');
 }
 
 // A reply quoting our code from another address does not count (nobody may answer for someone else), but it is never silent:
@@ -2279,10 +2476,46 @@ function unreadableReply_(messageId, address, subject) {
     cache.put('unread:' + messageId, '1', 21600);
     logRow_('email', 'reply:unreadable', '-', '-');
     sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
-      { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }], ['unreadable-reply', messageId]);
+      { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' },
+      'To confirm all but some nights, reply **YES except** and the dates, like **YES except Nov 4, Nov 18**, or use the "Yes, except some nights" button in that email.'], ['unreadable-reply', messageId]);
   } catch (error) {
     logError_('tell a sender their reply was unreadable', error);
   }
+}
+
+// A "YES except" whose dates we could not read, or that are not among the sign-up's nights: nothing changes, and the sender
+// is told once, with their nights and the link that lets them untick them instead.
+function unclearExcept_(messageId, address, subject, batchId, missing) {
+  try {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('unread:' + messageId) || !mailAvailable_()) return;
+    cache.put('unread:' + messageId, '1', 21600);
+    logRow_('email', 'reply:unclear-except', batchId, '-');
+    var nights = nightsOf_(batchId);
+    sendMail_(address, 'We could not read the dates in your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but ' +
+      (missing && missing.length ? missing.join(', ') + (missing.length === 1 ? ' is' : ' are') + ' not one of the nights in that email' : 'could not tell which nights to leave out') +
+      ', so **nothing changed** yet.',
+      { callout: 'The easiest way: **open your nights** and untick the ones you can\'t do: ' + mineLink_(address), tone: 'action' },
+      'Or reply to that email again with **YES except** and the dates, like **YES except ' + exampleDates_(nights) + '**. Your nights in it are:',
+      { schedule: nights }], ['unclear-except', messageId]);
+  } catch (error) {
+    logError_('tell a sender their dates were unclear', error);
+  }
+}
+
+// The sign-up's nights a "YES except" can name: those still pending, or expired but not yet answered.
+function nightsOf_(batchId) {
+  return rows_('Signups').filter(function (entry) { return entry.batch_id === batchId && (entry.status === 'pending' || entry.status === 'expired'); }).sort(function (a, b) {
+    return a.date.localeCompare(b.date);
+  });
+}
+
+// "Nov 4, Nov 18": the example a reply can copy, from the person's own nights.
+function exampleDates_(entries) {
+  var dates = [];
+  entries.forEach(function (entry) { if (dates.indexOf(entry.date) < 0) dates.push(entry.date); });
+  var pick = dates.length > 2 ? [dates[1], dates[dates.length - 1]] : dates.length ? dates.slice(0, 1) : ['2026-11-04'];
+  return pick.map(function (date) { return MONTHS[Number(date.slice(5, 7)) - 1].slice(0, 3) + ' ' + Number(date.slice(8, 10)); }).join(', ');
 }
 
 // Mail and phone apps add invisible characters and unusual spaces. Drop the first and turn the rest into plain spaces.
@@ -2314,19 +2547,94 @@ function ownWords_(text) {
 }
 
 // 'yes', 'no' or '' for an email reply: the first line of the person's own words must start with yes or no, after a greeting
-// or "ok" ("Yes, see you Monday", "ok yes", "no thanks"). A yes or no further in is not an answer, nor is "Yes, but no".
+// or "ok" ("Yes, see you Monday", "ok yes", "no thanks"). A yes or no further in is not an answer, nor is "Yes, but no", nor
+// "Yes except Nov 4" (exceptOf_ reads that one, for a sign-up question only).
 function answerOf_(text) {
-  var line = (ownWords_(text).split('\n').filter(function (each) {
-    return each && !/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b(?!.*\b(y|yes|yeah|yep|yup|n|no|nope|nah)\b)[^.!?]{0,30}[,.!:]*$/i.test(each);
-  })[0] || '').toLowerCase()
-    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hey|hello|dear|good (morning|afternoon|evening))\b[\s,.!:-]*([a-z]+[\s,.!:-]+)?(?=(y|yes|yeah|yep|yup|n|no|nope|nah)\b))+/, '')
-    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries)\b[\s,.!:-]*)+/, '');
+  var line = answerLines_(text)[0] || '';
   var rest = line.replace(/\bno (problem|worries|prob|issues?|rush)\b/g, ' ');
   var yes = /^(y|yes|yeah|yep|yup|yess+)\b/.test(line);
   var no = /^(n|no|nope|nah)\b/.test(line);
-  if (yes && /\b(no|nope|nah|not|can't|cannot|cant)\b/.test(rest)) return '';
+  if (yes && /\b(no|nope|nah|not|can't|cannot|cant|except|excluding|besides|minus|without)\b|\b(apart|other) (from|than)\b/.test(rest)) return '';
   if (no && /\b(yes|yeah|yep|yup)\b/.test(rest)) return '';
   return yes ? 'yes' : no ? 'no' : '';
+}
+
+// The person's own lines in lower case, from the first that is not empty or a bare greeting ("Hi Sam,"); a leading "ok",
+// "hi Sam," or "thanks" is taken off that first one.
+function answerLines_(text) {
+  var lines = ownWords_(text).split('\n').filter(function (each) {
+    return each && !/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b(?!.*\b(y|yes|yeah|yep|yup|n|no|nope|nah)\b)[^.!?]{0,30}[,.!:]*$/i.test(each);
+  }).map(function (each) { return each.toLowerCase(); });
+  if (lines.length) {
+    lines[0] = lines[0]
+      .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hey|hello|dear|good (morning|afternoon|evening))\b[\s,.!:-]*([a-z]+[\s,.!:-]+)?(?=(y|yes|yeah|yep|yup|n|no|nope|nah)\b))+/, '')
+      .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries)\b[\s,.!:-]*)+/, '');
+  }
+  return lines;
+}
+
+// ---------- YES except some nights ----------
+
+// A YES (or a CONFIRM text) that leaves some nights out: "YES except Nov 4 and 18", "Yes to all but not 11/4, 12/2", with
+// the dates on that line or the lines after it. null for anything else. Otherwise { days, unclear }: days are { month, day,
+// year } as typed (year 0 when not typed). unclear is true when a word is neither part of a date nor a joining word ("yes
+// except when it rains", "yes except Wednesdays") or a month has no day: then nothing is guessed and nothing changes.
+function exceptOf_(text) {
+  var lines = answerLines_(text);
+  var found = /^(y|yes|yeah|yep|yup|yess+|confirm)\b[\s,.!:;-]*(?:(?:to|for)\s+)?(?:(?:all of them|them all|all nights|all|everything|the rest)\b[\s,.!:;-]*)?(?:except(?:\s+for)?|but\s+not|apart\s+from|other\s+than|excluding|besides|minus|without)\b(.*)$/.exec(lines[0] || '');
+  if (!found) return null;
+  var words = [found[2]].concat(lines.slice(1)).join(' ').replace(/(\d)(st|nd|rd|th)\b/g, '$1')
+    .match(/\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d+|[a-z']+\.?|[^\s\w]/g) || [];
+  var days = [];
+  var month = 0;
+  var waiting = false;
+  var unclear = false;
+  words.forEach(function (word) {
+    var parts = null;
+    var name = word.replace(/\.$/, '');
+    if (/^20\d\d$/.test(word) && days.length && !days[days.length - 1].year && !waiting) {
+      // "November 4, 2026", as our emails write it.
+      days[days.length - 1].year = Number(word);
+    } else if (/^\d+$/.test(word)) {
+      if (month && Number(word) >= 1 && Number(word) <= 31) days.push({ month: month, day: Number(word), year: 0 });
+      else unclear = true;
+      waiting = false;
+    } else if (monthOf_(name)) {
+      if (waiting) unclear = true;
+      month = monthOf_(name);
+      waiting = true;
+    } else if ((parts = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(word) || /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(word))) {
+      days.push(parts[1].length === 4 ? { month: Number(parts[2]), day: Number(parts[3]), year: Number(parts[1]) } :
+        { month: Number(parts[1]), day: Number(parts[2]), year: parts[3] ? Number(parts[3].length === 2 ? '20' + parts[3] : parts[3]) : 0 });
+      if (waiting) unclear = true;
+      month = 0;
+      waiting = false;
+    } else if (!/^(mon|monday|wed|wednesday|fri|friday|sat|saturday|and|or|the|of|on|night|nights|date|dates|shift|shifts|please|thanks|thank|you|[,.;:&!()+-])$/.test(name || word)) {
+      unclear = true;
+    }
+  });
+  return { days: days, unclear: unclear || waiting || !days.length };
+}
+
+// 1 to 12 for "nov", "Nov.", "november" or "sept"; 0 for anything else.
+function monthOf_(word) {
+  if (word === 'sept') return 9;
+  for (var index = 0; index < MONTHS.length; index += 1) if (word.length >= 3 && MONTHS[index].toLowerCase().indexOf(word) === 0) return index + 1;
+  return 0;
+}
+
+// The nights of a sign-up that the typed days name, as { dates }, or { missing }: the typed days that are not among them.
+function exceptDates_(parsed, entries) {
+  var dates = [];
+  var missing = [];
+  parsed.days.forEach(function (typed) {
+    var hits = entries.filter(function (entry) {
+      return Number(entry.date.slice(5, 7)) === typed.month && Number(entry.date.slice(8, 10)) === typed.day && (!typed.year || Number(entry.date.slice(0, 4)) === typed.year);
+    });
+    if (!hits.length) missing.push(MONTHS[typed.month - 1] ? MONTHS[typed.month - 1].slice(0, 3) + ' ' + typed.day : typed.month + '/' + typed.day);
+    hits.forEach(function (entry) { if (dates.indexOf(entry.date) < 0) dates.push(entry.date); });
+  });
+  return missing.length ? { missing: missing } : { dates: dates.sort() };
 }
 
 // ---------- Texts go through the club's Google Voice number ----------
@@ -2399,13 +2707,38 @@ function sendText_(person, body, log) {
   if (log) logSent_('text', log[0], log[1], phoneDigits_(person.phone) || person.name);
 }
 
-// A CONFIRM or RELEASE after we texted someone a sign-up question answers that question (People.ask_ref).
+// A CONFIRM or RELEASE after we texted someone a sign-up question answers that question (People.ask_ref), and so does
+// "CONFIRM except Nov 4". When those dates cannot be matched nothing changes: the person is texted once, and a later text
+// can still answer.
 function checkTextAnswers_() {
   rows_('People').filter(function (person) { return person.texts === 'yes' && person.ask_ref && Number(person.ask_at) > 0 && phoneDigits_(person.phone); }).forEach(function (person) {
     var asked = Number(person.ask_at);
-    var reply = voiceTextsFrom_(person, 2).filter(function (text) { return text.at > asked && staffWord_(text.text); }).sort(function (a, b) { return a.at - b.at; })[0];
-    if (reply) batchAnswer_(person.ask_ref, staffWord_(reply.text), 'text');
+    var reply = voiceTextsFrom_(person, 2).filter(function (text) { return text.at > asked && (staffWord_(text.text) || textExcept_(text.text)); }).sort(function (a, b) { return a.at - b.at; })[0];
+    if (!reply) return;
+    var except = textExcept_(reply.text);
+    if (!except) return batchAnswer_(person.ask_ref, staffWord_(reply.text), 'text');
+    var picked = except.unclear ? null : exceptDates_(except, nightsOf_(person.ask_ref));
+    if (picked && !picked.missing) return batchAnswer_(person.ask_ref, 'yes', 'text', picked.dates);
+    var lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      person.ask_at = String(reply.at);
+      save_('People', person);
+    } finally {
+      lock.releaseLock();
+    }
+    try {
+      sendText_(person, 'CTTC: We could not match ' + (picked ? picked.missing.join(', ') : 'those dates') + ' to your nights, so nothing changed. Reply CONFIRM, RELEASE, or CONFIRM except ' +
+        exampleDates_(nightsOf_(person.ask_ref)) + '. Or untick nights with the link in your email.', ['batch-except-unclear', person.ask_ref]);
+    } catch (error) {
+      logError_('text about unclear dates', error, person.ask_ref);
+    }
   });
+}
+
+// "CONFIRM except Nov 4" in a text (a YES never answers a text: the coaching app reads those).
+function textExcept_(text) {
+  return /^\s*confirm\b/i.test(plainText_(text)) ? exceptOf_(plainText_(text).split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean).join('\n')) : null;
 }
 
 // STAFF turns on shift texts for the person whose mobile number matches; STOP turns them off. STOP is recorded silently: the
@@ -2686,26 +3019,33 @@ function batchMail_(batch, mine, now) {
       batch.source === 'seed' ? 'You\'re on the club\'s open/close list, which has moved to the new volunteer calendar. Please confirm your nights so they show as yours.' : null,
       approved ? 'The club approved your email address: from now on we use it for your sign-ups.' : null,
       { callout: 'Please confirm ' + count + ' by **' + deadline + '**.', tone: 'action' },
-      { buttons: [['Yes, confirm ' + count, replyLink_(subject, 'YES'), 'good'], ['No, release ' + (many === 1 ? 'it' : 'them'), replyLink_(subject, 'NO'), 'bad']] },
-      'Each button opens a reply with YES or NO already filled in: just press send. Or reply to this email with **YES** or **NO**.',
+      { buttons: [['Yes, confirm ' + count, replyLink_(subject, 'YES'), 'good']].concat(many > 1 ? [['Yes, except some nights', mineLink_(batch.email), 'some']] : [],
+        [['No, release ' + (many === 1 ? 'it' : 'them'), replyLink_(subject, 'NO'), 'bad']]) },
+      many > 1 ? 'The Yes and No buttons open a reply with YES or NO already filled in: just press send. "Yes, except some nights" opens your nights on the club website: untick the ones you can\'t do and tap Save.' :
+        'Each button opens a reply with YES or NO already filled in: just press send.',
+      many > 1 ? 'Or reply to this email with **YES**, **NO**, or **YES except** and the dates you can\'t do, like **YES except ' + exampleDates_(held) + '**.' :
+        'Or reply to this email with **YES** or **NO**.',
       { heading: 'Your nights' }, { calendar: held, closed: closedAround_(held) }, { schedule: held },
       unavailable.length ? { heading: 'No longer free by the time the club approved your email' } : null, unavailable.length ? shiftRows_(unavailable) : null,
       { heading: 'What each position does' }, { roles: held },
       { heading: 'Good to know' },
       { bullets: ['Until you reply, these nights are held for you and show on the calendar as "waiting to confirm".',
         'No reply by ' + deadline + '? They are released so someone else can take them.',
-        'Can\'t make a night later on? Tap it on the calendar at ' + PAGE_URL + ', tap your name and choose "This is me".',
+        'Can\'t make a night later on? Untick it on your nights page: ' + mineLink_(batch.email),
         'Didn\'t sign up? Ignore this email: nothing is confirmed without your YES.'] }] };
   }
   if (batch.status === 'confirmed') {
     var confirmed = mine.filter(function (entry) { return entry.status === 'confirmed' || entry.status === 'dropped'; });
     var missed = batch.late === 'yes' ? mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired'; }) : [];
+    var left = mine.filter(function (entry) { return entry.status === 'released'; });
     return { subject: 'You are on the CTTC staff schedule', lines: [hello,
       { callout: 'Thank you! **' + confirmed.length + ' night' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
       { calendar: confirmed, closed: closedAround_(confirmed) }, { schedule: confirmed },
       missed.length ? { heading: 'Not confirmed: your YES came after the deadline and these were no longer free' } : null, missed.length ? shiftRows_(missed) : null,
+      left.length ? { heading: 'Left out, as you asked' } : null, left.length ? shiftRows_(left) : null,
       { heading: 'Where' }, LOCATION,
-      'Can\'t make it after all? Open the calendar at ' + PAGE_URL + ', tap the night, tap your name and choose "This is me". We email you to confirm the drop.'] };
+      { heading: 'Can\'t make a night after all?' },
+      'Untick it on your nights page and tap Save. The rest stay as they are, and the club (and any backup) is told: ' + mineLink_(batch.email)] };
   }
   if (batch.status === 'released') {
     return { subject: 'Your CTTC staff sign-up is cancelled', lines: [hello, 'OK, we released these picks as you asked. Nothing is on the schedule for you from this sign-up:',
@@ -2737,7 +3077,7 @@ function remind_(signups, emails, now) {
       sendMail_(key.split(' ')[0], 'Reminder: your CTTC shift tomorrow, ' + shortDay_(tomorrow), ['Hello ' + firstName_(entries[0].name) + ',',
         { callout: 'Thanks for helping run the club **tomorrow, ' + dayLabel_(tomorrow) + '**.', tone: 'good' }, shiftRows_(entries),
         { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]] },
-        'Can\'t make it? Please drop the shift on the calendar at ' + PAGE_URL + ' (tap the night, tap your name, then "This is me") so someone can step in.'], ['reminder', entries[0].batch_id]);
+        'Can\'t make it? Please untick it on your nights page so someone can step in: ' + mineLink_(key.split(' ')[0])], ['reminder', entries[0].batch_id]);
     } catch (error) {
       logError_('send a shift reminder', error, entries[0].batch_id);
       return;
@@ -2755,9 +3095,9 @@ function adminEmail_() { return property_('ADMIN_EMAIL', Session.getEffectiveUse
 
 function mailAvailable_() { return MailApp.getRemainingDailyQuota() > MIN_QUOTA; }
 
-// **text** is bold in HTML and plain in text; links become clickable.
+// **text** is bold in HTML and plain in text; links become clickable (a full stop after one is not part of it).
 function mailHtml_(text) {
-  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>');
+  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]*[A-Za-z0-9_\/=%-])/g, '<a href="$1">$1</a>');
 }
 
 function mailText_(text) { return String(text).replace(/\*\*/g, ''); }
@@ -2769,7 +3109,7 @@ function blockText_(block) {
   if (block.heading) return block.heading.toUpperCase();
   if (block.callout) return mailText_(block.callout);
   if (block.rows) return block.rows.map(function (row) { return row[0] + ': ' + mailText_(row[1]); }).join('\n');
-  if (block.buttons) return block.buttons.map(function (button) { return button[0] + ': reply ' + (button[2] === 'good' ? 'YES' : 'NO'); }).join('\n');
+  if (block.buttons) return block.buttons.map(function (button) { return button[0] + ': ' + (button[2] === 'some' ? button[1] : 'reply ' + (button[2] === 'good' ? 'YES' : 'NO')); }).join('\n');
   if (block.schedule) return scheduleGroups_(block.schedule).map(function (group) { return group.title + ': ' + group.dates; }).join('\n');
   if (block.roles) return rolesOf_(block.roles).map(function (spec) { return spec.label + ': ' + spec.does; }).join('\n');
   if (block.bullets) return block.bullets.map(function (line) { return '- ' + mailText_(line); }).join('\n');
@@ -2899,7 +3239,7 @@ function blockHtml_(block) {
   if (block.buttons) {
     return '<p style="margin:0 0 8px;">' + block.buttons.map(function (button) {
       return '<a href="' + esc_(button[1]) + '" style="display:inline-block;margin:0 8px 8px 0;padding:12px 18px;border-radius:6px;font-weight:700;font-size:16px;text-decoration:none;color:#fff;background:' +
-        (button[2] === 'good' ? '#1f6b3a' : '#a3332a') + ';">' + esc_(button[0]) + '</a>';
+        (button[2] === 'good' ? '#1f6b3a' : button[2] === 'some' ? '#1f4f8f' : '#a3332a') + ';">' + esc_(button[0]) + '</a>';
     }).join('') + '</p>';
   }
   if (block.choices) {

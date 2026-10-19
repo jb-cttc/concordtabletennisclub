@@ -88,6 +88,19 @@
   .form-status:empty { display: none; }
   .field-error { margin: 4px 0 0; color: #8b1a1a; font-size: 0.9rem; font-weight: 600; }
   input[aria-invalid="true"] { border-color: #8b1a1a; box-shadow: 0 0 0 2px #f3c7c7; }
+  /* My nights: opened from the link in a volunteer's email. */
+  .mine { border-color: #c6d6f2; background: #f6f9ff; }
+  .mine-list { margin: 8px 0 0; padding: 0; list-style: none; }
+  .mine-list > li { padding: 8px 0; border-top: 1px solid #dde6f5; }
+  .mine-list .check { margin: 0; font-weight: 700; }
+  .mine-list input { width: 22px; height: 22px; flex: none; }
+  .mine-shifts { margin: 4px 0 0 30px; padding: 0; list-style: none; font-size: 0.9rem; }
+  .mine-shifts li { margin: 2px 0; }
+  .mine-shifts .check { font-weight: 400; }
+  .mine-what { display: block; font-weight: 400; font-size: 0.9rem; }
+  .mine-state { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 9px; font-size: 0.75rem; font-weight: 700; background: #e3f1e7; color: #1f4a2b; }
+  .mine-state.wait { background: #fff4d6; color: #6b4b00; }
+  .mine-off > span { text-decoration: line-through; color: #8b1a1a; }
   .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 </style>
 </head>
@@ -101,6 +114,7 @@
   <li><span class="key closed" aria-hidden="true">&#215;</span>Closed</li>
   <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span>Your picks</li>
 </ul>
+<section id="mine" class="panel mine" hidden aria-labelledby="mineTitle"></section>
 <div id="message" role="status" aria-live="polite"></div>
 <div id="bar" class="bar" hidden></div>
 <div id="calendar" class="months"><p class="muted">Loading the calendar&hellip;</p></div>
@@ -118,6 +132,8 @@
   var calendar = document.getElementById('calendar');
   var bar = document.getElementById('bar');
   var picksBox = document.getElementById('picks');
+  var mineBox = document.getElementById('mine');
+  var mineCode = (INITIAL && INITIAL.mineCode) || '';
 
   // Details a visitor chose to remember on this device. Storage can be blocked in a framed page, so it is optional.
   function saved(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return null; } }
@@ -528,6 +544,90 @@
     return form;
   }
 
+  // My nights: every upcoming night of the person whose emailed link opened the page, ticked. Unticking a night (or one shift
+  // of a night with two) and tapping Save confirms the rest of what is waiting for their YES, releases what was waiting and
+  // drops what was confirmed: one Wednesday off without losing the others.
+  function drawMine(view) {
+    empty(mineBox);
+    mineBox.hidden = false;
+    mineBox.appendChild(el('h2', { id: 'mineTitle', text: view.ok && view.name ? 'Your nights, ' + view.name : 'Your nights' }));
+    if (view.message) mineBox.appendChild(el('p', { 'class': 'form-status ' + (view.ok ? 'ok' : 'error'), role: 'status', text: view.message }));
+    if (!view.ok) { postHeight(); return; }
+    if (!view.nights.length) {
+      mineBox.appendChild(el('p', { text: 'You have no upcoming nights. Tap a night on the calendar below to sign up.' }));
+      postHeight();
+      return;
+    }
+    mineBox.appendChild(el('p', { 'class': 'hint', text: 'Untick any night you can\'t do, then tap Save. Ticked nights that are waiting get confirmed; nothing changes until you tap Save.' +
+      (view.until ? ' Waiting nights are held for you until ' + view.until + '.' : '') }));
+    var list = el('ul', { 'class': 'mine-list' });
+    var boxes = [];
+    var save = el('button', { type: 'button' });
+    function sync() {
+      var confirm = 0, release = 0, drop = 0;
+      boxes.forEach(function (box) {
+        if (box.shift.status === 'pending') { if (box.input.checked) confirm += 1; else release += 1; } else if (!box.input.checked) drop += 1;
+        box.row.classList.toggle('mine-off', !box.input.checked);
+      });
+      var parts = [];
+      if (confirm) parts.push('confirm ' + confirm);
+      if (release) parts.push('release ' + release);
+      if (drop) parts.push('drop ' + drop);
+      save.textContent = parts.length ? 'Save: ' + parts.join(', ') : 'Nothing to save';
+      save.disabled = !parts.length;
+    }
+    view.nights.forEach(function (night) {
+      var item = el('li');
+      var nightBox = el('input', { type: 'checkbox', 'aria-label': night.label });
+      nightBox.checked = true;
+      var own = [];
+      function state(shift) { return el('span', { 'class': 'mine-state' + (shift.status === 'pending' ? ' wait' : ''), text: shift.status === 'pending' ? 'waiting' : 'confirmed' }); }
+      if (night.shifts.length === 1) {
+        var only = night.shifts[0];
+        var label = el('label', { 'class': 'check' }, [nightBox, el('span', {}, [night.short, state(only), el('span', { 'class': 'mine-what', text: only.label })])]);
+        item.appendChild(label);
+        own.push({ input: nightBox, shift: only, row: label });
+      } else {
+        item.appendChild(el('label', { 'class': 'check' }, [nightBox, el('span', { text: night.short })]));
+        var shifts = el('ul', { 'class': 'mine-shifts' });
+        night.shifts.forEach(function (shift) {
+          var input = el('input', { type: 'checkbox', 'aria-label': night.label + ': ' + shift.label });
+          input.checked = true;
+          var row = el('label', { 'class': 'check' }, [input, el('span', {}, [shift.label, state(shift)])]);
+          shifts.appendChild(el('li', {}, [row]));
+          own.push({ input: input, shift: shift, row: row });
+          input.addEventListener('change', function () {
+            var ticked = own.filter(function (box) { return box.input.checked; }).length;
+            nightBox.checked = ticked === own.length;
+            nightBox.indeterminate = ticked > 0 && ticked < own.length;
+            sync();
+          });
+        });
+        item.appendChild(shifts);
+        nightBox.addEventListener('change', function () { own.forEach(function (box) { box.input.checked = nightBox.checked; }); nightBox.indeterminate = false; sync(); });
+      }
+      if (night.shifts.length === 1) nightBox.addEventListener('change', sync);
+      boxes = boxes.concat(own);
+      list.appendChild(item);
+    });
+    mineBox.appendChild(list);
+    save.addEventListener('click', function () {
+      save.disabled = true;
+      save.textContent = 'Saving\u2026';
+      call('saveMyNights', [mineCode, {
+        keep: boxes.filter(function (box) { return box.input.checked; }).map(function (box) { return box.shift.id; }),
+        release: boxes.filter(function (box) { return !box.input.checked; }).map(function (box) { return box.shift.id; })
+      }], function (result) {
+        drawMine(result.ok || !result.message ? result : { ok: true, name: view.name, email: view.email, nights: view.nights, message: result.message });
+        if (!result.ok) { var status = mineBox.querySelector('.form-status'); if (status) status.className = 'form-status error'; }
+        reload();
+      });
+    });
+    mineBox.appendChild(el('div', { 'class': 'actions' }, [save]));
+    sync();
+    postHeight();
+  }
+
   function time12(time) { var hour = Number(time.slice(0, 2)); return ((hour + 11) % 12 + 1) + ':' + time.slice(3, 5) + ' ' + (hour < 12 ? 'AM' : 'PM'); }
   function redraw() { drawBar(); drawCalendar(); drawPicks(); postHeight(); }
   function start(result) {
@@ -541,6 +641,7 @@
   // A returning volunteer who ticked "Remember me" is known from the start, so restricted spots are greyed out at once.
   (function () { var me = saved('cttc-staff'); if (me && me.player && me.player.playerId) who = { playerId: me.player.playerId, name: me.player.name }; })();
   if (INITIAL && INITIAL.staffBoard) start(INITIAL.staffBoard); else reload();
+  if (INITIAL && INITIAL.mine) drawMine(INITIAL.mine); else if (mineCode) call('myNights', [mineCode], drawMine);
   if (who) access(who);
   // The club page shows its own loading note until this arrives. The message carries no data.
   try { window.top.postMessage('cttc-staffing-ready', '*'); } catch (error) {}

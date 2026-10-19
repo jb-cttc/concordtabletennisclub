@@ -21,8 +21,8 @@ assert.ok(html.indexOf('id="volunteer-launch"') < html.indexOf('id="closure-cale
 assert.doesNotMatch(html, /<iframe[^>]*id="volunteer-frame"[^>]*\ssrc=/, 'nothing loads until the button is pressed');
 
 const body = /<body>([\s\S]*)<\/body>/.exec(html)[1].replace(/<script[\s\S]*?<\/script>/g, '');
-function page(url) {
-  const dom = new JSDOM('<!doctype html><body>' + body + '</body>', { runScripts: 'outside-only' });
+function page(url, address = 'https://concordtabletennisclub.com/') {
+  const dom = new JSDOM('<!doctype html><body>' + body + '</body>', { runScripts: 'outside-only', url: address });
   dom.window.eval(block[0].replace(/var APP_URL = "[^"]+";/, 'var APP_URL = "' + url + '";'));
   return dom.window;
 }
@@ -60,5 +60,16 @@ launch.click();
 assert.equal(byId(live, 'volunteer-app').hidden, true);
 assert.equal(byId(live, 'closure-calendar').hidden, false, 'the closures calendar comes back');
 assert.equal(byId(live, 'volunteer-label').textContent, 'Volunteer signups');
+
+// The "My nights" link in a volunteer's email opens the app at their nights, and the code leaves the address bar at once.
+const code = '0123456789abcdef0123';
+const mine = page(released, 'https://concordtabletennisclub.com/?mine=' + code + '#volunteer');
+assert.equal(byId(mine, 'volunteer-app').hidden, false, 'opened without a tap');
+assert.equal(byId(mine, 'volunteer-frame').getAttribute('src'), released + '?mine=' + code.toUpperCase());
+assert.equal(byId(mine, 'closure-calendar').hidden, true);
+assert.equal(mine.location.href, 'https://concordtabletennisclub.com/#volunteer', 'the code is taken out of the address bar');
+const odd = page(released, 'https://concordtabletennisclub.com/?mine=<script>');
+assert.equal(byId(odd, 'volunteer-app').hidden, true, 'anything but a code opens nothing');
+assert.equal(odd.location.search, '', 'and is cleared too');
 
 console.log('Volunteer signups checks passed');
