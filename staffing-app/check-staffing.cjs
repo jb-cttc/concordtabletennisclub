@@ -1219,6 +1219,46 @@ seedCheck();
   assert.equal(held, 0);
 }
 
+// ---- A NO that names dates changes nothing; the club corrects an answer from the setup page ----
+{
+  const SANTI = 'santi.ruiz@example.com';
+  const mondays = ['2026-12-14', '2026-12-16', '2026-12-21', '2026-12-28'];
+  const signed = signUp('Santi Ruiz', mondays.map(date => [date, 'close']));
+  assert.equal(signed.ok, true, JSON.stringify(signed));
+  let from = sent.length;
+  reply(SANTI, 'No for Dec 14 and 21, the rest is fine');
+  assert.deepEqual(mondays.map(date => statusOf('Santi Ruiz', date, 'close')), ['pending', 'pending', 'pending', 'pending'], 'a NO naming dates is not a NO to everything');
+  assert.match(mailTo(SANTI, from).pop().body, /could not tell which nights to leave out, so nothing changed yet/);
+  assert.equal(context.namesDate_('No, sorry'), false);
+  assert.equal(context.namesDate_('no on 11/2'), true);
+  reply(SANTI, 'NO');
+  assert.deepEqual(mondays.map(date => statusOf('Santi Ruiz', date, 'close')), ['released', 'released', 'released', 'released']);
+  // Then the volunteer writes that they meant all but Dec 14: the club confirms the rest from the setup page.
+  const page = parameter => context.doGet({ parameter: Object.assign({ setup: '' }, parameter) }).getContent();
+  assert.match(page({ import: 'answers' }), /club's account only/, 'only the club can correct an answer');
+  activeEmail = 'owner@example.com';
+  assert.match(page({}), /Correct a volunteer's answer/);
+  const list = page({ import: 'answers' });
+  const batchId = /import=fix&amp;batch=([0-9a-f]+)">Santi Ruiz<\/a>: answered NO, 4 nights ahead/.exec(list)[1];
+  const form = page({ import: 'fix', batch: batchId });
+  const boxes = [...form.matchAll(/name="k_([0-9a-f]+)"[^>]*> ([^<]+)</g)].map(match => [match[1], match[2]]);
+  assert.deepEqual(boxes.map(box => box[1]), ['Mon, Dec 14: Put tables and barriers away (closing, 10:00 PM)', 'Wed, Dec 16: Put tables and barriers away (closing, 10:00 PM)',
+    'Mon, Dec 21: Put tables and barriers away (closing, 10:00 PM)', 'Mon, Dec 28: Put tables and barriers away (closing, 10:00 PM)']);
+  assert.match(form, /<input type="hidden" name="import" value="fixsave">/);
+  from = sent.length;
+  const keep = Object.fromEntries(boxes.slice(1).map(box => ['k_' + box[0], '1']));
+  const done = page(Object.assign({ import: 'fixsave', batch: batchId }, keep));
+  assert.match(done, /Confirmed 3 nights: Wed, Dec 16, Mon, Dec 21, Mon, Dec 28\. The volunteer has been emailed\./);
+  assert.deepEqual(mondays.map(date => statusOf('Santi Ruiz', date, 'close')), ['released', 'confirmed', 'confirmed', 'confirmed']);
+  const told = mailTo(SANTI, from).pop();
+  assert.equal(told.subject, 'You are on the CTTC staff schedule');
+  assert.match(told.body, /3 nights are confirmed[\s\S]*LEFT OUT, AS YOU ASKED\n\nMon, Dec 14: /);
+  assert.match(page(Object.assign({ import: 'fixsave', batch: batchId }, keep)), /cannot be corrected any more/, 'a second tap changes nothing');
+  assert.match(page({ import: 'fixsave', batch: batchId }), /No nights were ticked/);
+  activeEmail = '';
+  assert.equal(held, 0);
+}
+
 // ---- The membership list's emails: a Sheet, then a Doc table ----
 {
   makeBook('member-sheet-id').insertSheet('Members 2026');
