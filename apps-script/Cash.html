@@ -100,6 +100,7 @@ details.players .scroll{padding:0 16px 14px}
 details.table-view{margin-top:10px;font:14px Arial,sans-serif}
 details.table-view summary{cursor:pointer;color:var(--green2);font-weight:700}
 .insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
+.insight.wide{grid-column:1/-1}.share-cell{display:flex;align-items:center;gap:8px}.share-cell .share{flex:none;max-width:70%}
 .insight{border:1px solid var(--line);border-radius:6px;background:#fbfcfb;min-width:0}
 .insight summary{padding:10px 12px;cursor:pointer;font:700 15px Georgia,"Times New Roman",serif}
 .insight .insight-body{padding:0 12px 12px;font:14px/1.45 Arial,sans-serif}
@@ -632,8 +633,8 @@ details.table-view summary{cursor:pointer;color:var(--green2);font-weight:700}
   }
   function num(text) { return { text: String(text), num: true }; }
   function cell(text) { return { text: String(text) }; }
-  function insight(title, children) {
-    var node = el('details', { className: 'insight' }, [el('summary', { text: title }), el('div', { className: 'insight-body' }, children)]);
+  function insight(title, children, wide) {
+    var node = el('details', { className: 'insight' + (wide ? ' wide' : '') }, [el('summary', { text: title }), el('div', { className: 'insight-body' }, children)]);
     // Open side by side on a wide screen; folded into a list of titles on a phone.
     node.open = !window.matchMedia || window.matchMedia('(min-width: 761px)').matches;
     return node;
@@ -658,7 +659,7 @@ details.table-view summary{cursor:pointer;color:var(--green2);font-weight:700}
         var share = el('span', { className: 'share-cell' }, [el('span', { className: 'share', style: 'width:' + Math.max(2, item.countShare / maxShare * 100) + '%' }), el('span', { className: 'muted', text: item.countShare + '%' })]);
         return [cell(MIX_NAMES[item.method]), num(item.count), share, num(item.method === 'unpaid' ? money(item.amount) + ' owed' : money(item.amount)), num(item.amountShare === null ? '—' : item.amountShare + '%')];
       }))
-    ]));
+    ], true));
     grid.appendChild(insight('Most active players', [
       smallTable([{ text: '#' }, { text: 'Name' }, { text: 'Status' }, { text: 'Nights', num: true }, { text: 'Paid', num: true }], info.topPlayers.map(function (player, index) {
         return [cell(index + 1), cell(player.name), cell(STATUS[player.status] || player.status), num(player.nights), num(money(player.paid))];
