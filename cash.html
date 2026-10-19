@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src https://script.google.com; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>CTTC Daily Cash Flow</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; height: 100dvh; background: #123f2b; }
+    iframe { flex: 1; display: block; width: 100%; border: 0; background: #fff; }
+    .fallback { margin: 0; padding: 5px 12px; font: 12px Arial, sans-serif; text-align: right; color: #dce9e1; }
+    .fallback a { color: #e8c06a; }
+  </style>
+</head>
+<body>
+  <iframe id="cash" title="CTTC Daily cash flow"></iframe>
+  <p class="fallback">Page not loading? <a id="direct" target="_blank" rel="noopener">Open it directly</a></p>
+  <script>
+    (function () {
+      // The cash flow page is a view of the owner-only desk: only the club's Google account can open it, and anyone
+      // else sees Google's sign-in page. Nothing from this page's own address is passed on.
+      var url = new URL('https://script.google.com/macros/s/AKfycbzXI7Kk4hz3JDF0DXJL_wmF6ibKp_Avz5uvwyRD-84OJJ23LfDf9yAZetS97L4zabvzDw/exec');
+      url.searchParams.set('view', 'cash');
+      document.getElementById('cash').src = url.toString();
+      document.getElementById('direct').href = url.toString();
+    })();
+  </script>
+</body>
+</html>

@@ -19,6 +19,7 @@ const server = http.createServer(function (req, res) {
   let urlPath = req.url.split('?')[0];
   if (urlPath === '/') urlPath = '/index.html';
   if (urlPath === '/desk') urlPath = '/desk.html';
+  if (urlPath === '/cash') urlPath = '/cash.html';
 
   const filePath = path.join(ROOT, urlPath);
 
