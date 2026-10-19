@@ -923,9 +923,10 @@ const seedCheck = () => {
   assert.doesNotMatch(told, /@|Ron Tate|Zoey Hart|Sam Kim|Sam Lee|Ada Park|Ortiz/, 'the report and console hold counts and the seed Sheet\'s own first names only');
   assert.match(logged.join('\n'), /^Seed import: \{/m);
   // Training: Yes is trained; No, N/A and blank are not. Bobby is Ben by the desk's alias; Kai by the only active Kai.
-  assert.deepEqual(trainingOf('p03')[0].slice(2, 5), ['yes', 'yes', 'no']);
-  assert.deepEqual(trainingOf('p04')[0].slice(1, 5), ['Ben Ortiz', 'no', 'no', 'yes']);
-  assert.deepEqual(trainingOf('p13')[0].slice(2, 5), ['yes', 'yes', 'no']);
+  // Ada, Ben and Kai already had Training rows the club filled in: those stay, whatever the volunteer's list says.
+  assert.deepEqual(trainingOf('p03')[0].slice(2, 5), ['yes', 'yes', 'Yes'], 'the club\'s Training tab wins over the volunteer\'s list');
+  assert.deepEqual(trainingOf('p04')[0].slice(1, 5), ['Ben Ortiz', 'yes', 'yes', 'Yes']);
+  assert.deepEqual(trainingOf('p13')[0].slice(2, 5), ['yes', 'yes', 'Yes']);
   assert.deepEqual(trainingOf('p27')[0].slice(1, 5), ['Ron Tate', 'yes', 'yes', 'yes'], 'Ron has no email: his training still imports');
   // Holds: one normal email per person, every matching night but closures.
   // (The sweep the import runs also tells earlier checks' people their old holds expired: those are not seed emails.)
@@ -1022,6 +1023,13 @@ const seedCheck = () => {
   assert.equal(grids.Signups.length, rows);
   assert.equal(sent.length, before, 'a third run emails nobody');
   assert.equal(trainingOf('p27').length, 1, 'training is updated in place');
+  // A change made in the Training tab stays: the import only adds people and fills blank cells.
+  const edited = trainingOf('p03')[0];
+  const frontDesk = edited[4];
+  edited[4] = 'yes'; // the club marks Ada Front Desk trained; the volunteer's list still says No
+  context.importSeed_(false);
+  assert.equal(trainingOf('p03')[0][4], 'yes', 'running the import again never undoes the club\'s change');
+  edited[4] = frontDesk;
   reply('ada.park@example.com', 'YES');
   assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'status') === 'confirmed').length, 25, 'a seeded sign-up is confirmed like any other');
   // Ben never answered: once his hold expires, the next import may offer him those nights again. Ada (confirmed) is not offered twice.

@@ -225,7 +225,7 @@ Run **`importSeedSheet`** from the editor (after `setup`). It:
    row first; then the exact full name (case and spacing don't matter) or a
    desk `Aliases` row; then a first name that only one active player has.
    Ambiguous or unmatched names are skipped, never guessed.
-2. Writes the training list to `Training` (updated in place by `player_id`).
+2. Writes the training list to `Training`: it adds people it can link and fills blank cells, but never changes a value already in the tab, so the **Training tab is where the club manages training** (an edit there survives every later import).
 3. Finds each linked person's email: their `SeedLinks` email, else the latest
    desk `ZeffyPayments` row under their display name or an alias, else the
    coaching app's `Coaches` / `Students` (if `COACHING_DB_ID` is set; these may
