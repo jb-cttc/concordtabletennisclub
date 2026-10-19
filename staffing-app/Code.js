@@ -189,7 +189,31 @@ function ownerSetup_(params) {
   try {
     var result = setup();
     lines.push('<p>&#10003; Set up. Player list: ' + esc_(result.players) + '. Reminders and replies are checked automatically from now on.</p>');
-    if (params['import'] === 'seed') {
+    var button = function (href, label) {
+      return '<p><a style="display:inline-block;padding:10px 16px;background:#1f6b3a;color:#fff;border-radius:4px;text-decoration:none" href="' + esc_(href) + '">' + esc_(label) + '</a></p>';
+    };
+    var toFix = function (report) {
+      var names = [].concat(report.unmatched.map(function (name) { return name + ' (no matching player)'; }),
+        report.ambiguous.map(function (name) { return name + ' (more than one matching player)'; }),
+        report.noEmail.map(function (name) { return name + ' (no email on file)'; }));
+      return names.length ? '<p>Not emailed, to fix in the private Sheet\'s SeedLinks tab first: ' + esc_(names.join(', ')) + '.</p>' : '';
+    };
+    if (params['import'] === 'preview') {
+      var plan = importSeed_(true);
+      lines.push('<h2 style="font-size:1.05rem">Preview: nothing has been sent or saved</h2>');
+      if (plan.preview.length) {
+        lines.push('<p>Sending would email ' + plan.preview.length + ' ' + (plan.preview.length === 1 ? 'person' : 'people') + ', one email each, to confirm their nights with YES:</p><ul>' +
+          plan.preview.map(function (person) {
+            return '<li><strong>' + esc_(person.name) + '</strong> (' + esc_(person.email) + '): ' + esc_(person.nights) + ' nights as ' + esc_(person.positions.join(' and ')) +
+              ', ' + esc_(shortDay_(person.first)) + ' to ' + esc_(shortDay_(person.last)) + '</li>';
+          }).join('') + '</ul>');
+      } else {
+        lines.push('<p>Sending now would email nobody.</p>');
+      }
+      lines.push(toFix(plan));
+      lines.push('<p>' + esc_(plan.training) + ' training rows would be recorded (no email for those).</p>');
+      if (plan.preview.length) lines.push(button(base + '&import=seed', 'Send these ' + plan.preview.length + ' emails'));
+    } else if (params['import'] === 'seed') {
       var seeded = importSeedSheet();
       lines.push('<p>&#10003; Open/close list imported: ' + esc_(seeded.people) + ' people emailed to confirm ' + esc_(seeded.signups) + ' shifts; ' +
         esc_(seeded.training) + ' training rows. Names to fix: ' + esc_([].concat(seeded.unmatched, seeded.ambiguous, seeded.noEmail).length) +
@@ -199,9 +223,8 @@ function ownerSetup_(params) {
       lines.push('<p>&#10003; Membership emails imported: ' + esc_(JSON.stringify(members)) + '</p>');
     }
     lines.push('<p><a href="' + esc_(result.privateSheet) + '">Open the private staffing Sheet</a> (never share it).</p>');
-    if (properties.getProperty('SEED_SHEET_ID') && params['import'] !== 'seed') {
-      lines.push('<p><a style="display:inline-block;padding:10px 16px;background:#1f6b3a;color:#fff;border-radius:4px;text-decoration:none" href="' + esc_(base + '&import=seed') +
-        '">Import the open/close list and email the regulars</a></p><p>Run it again after fixing names in SeedLinks; nobody is emailed twice.</p>');
+    if (properties.getProperty('SEED_SHEET_ID') && !params['import']) {
+      lines.push(button(base + '&import=preview', 'Preview who the open/close list would email') + '<p>The preview sends nothing; you choose to send from there.</p>');
     }
     if (properties.getProperty('MEMBER_LIST_ID') && params['import'] !== 'members') {
       lines.push('<p><a href="' + esc_(base + '&import=members') + '">Import emails from the membership list</a></p>');
@@ -1043,6 +1066,13 @@ var SEED_CANDIDATES = 5;
 // Returns, and logs, counts and the seed Sheet's own names (first name and last initial) only: no emails or desk names.
 function importSeedSheet() {
   if (Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) throw new Error('Only the owner can import the seed Sheet.');
+  return importSeed_(false);
+}
+
+// preview: work out exactly what importSeedSheet would do and return it, but write nothing to any Sheet and send nothing.
+// report.preview lists each person who would be emailed: the seed Sheet's name for them, their email masked, how many
+// nights and which positions.
+function importSeed_(preview) {
   var id = property_('SEED_SHEET_ID', '');
   if (!id) throw new Error('Set the script property SEED_SHEET_ID to the id of the volunteer\'s Sheet.');
   var book = SpreadsheetApp.openById(id);
@@ -1062,6 +1092,12 @@ function importSeedSheet() {
     }
   }
   var report = { training: 0, people: 0, signups: 0, skipped: {}, unmatched: [], ambiguous: [], noEmail: [] };
+  if (preview) report.preview = [];
+  // A preview keeps every change in memory: an email found goes on file only in this run's copy of the Emails rows.
+  var putOnFile = function (emails, player, email, source, phone) {
+    if (!preview) return upsertEmail_(emails, player, email, source, phone);
+    if (!approvedEmail_(emails, player.playerId)) emails.push({ player_id: player.playerId, email: email, phone: phone || '', source: source, status: 'approved' });
+  };
   var problems = [];
   var skip = function (reason, count) { if (count !== 0) report.skipped[reason] = (report.skipped[reason] || 0) + (count || 1); };
   var unresolved = function (kind, sheetName, candidates) {
@@ -1099,7 +1135,7 @@ function importSeedSheet() {
     var emails = rows_('Emails');
     Object.keys(groups).forEach(function (playerId) {
       var found = groups[playerId].found;
-      if (found) upsertEmail_(emails, groups[playerId].player, found.email, found.source, found.phone);
+      if (found) putOnFile(emails, groups[playerId].player, found.email, found.source, found.phone);
     });
     parsed.training.forEach(function (row) {
       var found = linkOf(row.name);
@@ -1115,11 +1151,11 @@ function importSeedSheet() {
       Object.keys(SKILLS).forEach(function (skill) { if (row[skill]) entry[skill] = row[skill]; });
       if (JSON.stringify([entry.name, entry.keys, entry.open, entry.front_desk]) !== before) {
         entry.updated_at = nowIso_();
-        save_('Training', entry);
+        if (!preview) save_('Training', entry);
       }
       report.training += 1;
       var email = seedEmail_(found.player, row.name, data);
-      if (email) upsertEmail_(emails, found.player, email.email, email.source, email.phone);
+      if (email) putOnFile(emails, found.player, email.email, email.source, email.phone);
     });
     var now = Date.now();
     var signups = rows_('Signups');
@@ -1149,6 +1185,15 @@ function importSeedSheet() {
         accepted.push({ date: pick.date, position: pick.position, finalize: '', key: person.key, seedKey: pick.seedKey });
       });
       if (!accepted.length) return;
+      report.people += 1;
+      report.signups += accepted.length;
+      if (preview) {
+        var labels = {};
+        accepted.forEach(function (pick) { labels[position_(pick.position).label] = true; });
+        report.preview.push({ name: seedLabel_(group.sheetName), email: maskEmail_(group.email), nights: accepted.length, positions: Object.keys(labels),
+          first: accepted[0].date, last: accepted[accepted.length - 1].date });
+        return;
+      }
       var expires = expiryFor_(accepted, now);
       var batch = { batch_id: id_(), email: group.email, name: person.name, player_id: playerId, phone: phoneDigits_(onFile.phone), status: 'pending', created_at: nowIso_(),
         expires_at: String(expires), emailed: '', texted: '', updated_at: nowIso_(), source: 'seed' };
@@ -1165,13 +1210,12 @@ function importSeedSheet() {
       rememberPerson_(person, phoneDigits_(onFile.phone), known);
       if (!known) people = rows_('People');
       logRow_('step', 'step:pending', batch.batch_id, '-', accepted.length + ' picks from the seed Sheet');
-      report.people += 1;
-      report.signups += accepted.length;
     });
-    writeSeedReport_(report, problems, data);
+    if (!preview) writeSeedReport_(report, problems, data);
   } finally {
     lock.releaseLock();
   }
+  if (preview) return report;
   // Sends each new person their single confirmation email (and retries any that fail, every hour).
   sweep_();
   console.log('Seed import: ' + JSON.stringify(report));
