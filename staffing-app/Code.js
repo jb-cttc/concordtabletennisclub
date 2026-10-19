@@ -569,7 +569,12 @@ function personKey_(entry) {
 function firstName_(name) {
   var text = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
   var comma = text.match(/^[^,]+,\s*(.+)$/);
-  return ((comma ? comma[1] : text).split(/[\s\/&,()]+/).filter(Boolean)[0] || '');
+  var words = (comma ? comma[1] : text).split(/[\s\/&,()]+/).filter(Boolean);
+  // Initials at the start stay together: "J. B. Birch" goes by "J.B.", not "J.".
+  var initials = 0;
+  while (initials < words.length && /^\p{L}\.?$/u.test(words[initials])) initials += 1;
+  if (initials >= 2) return words.slice(0, initials).map(function (word) { return word.charAt(0) + '.'; }).join('');
+  return words[0] || '';
 }
 
 // "K" for "Sam Kim" or "Kim, Sam"; '' for a one-word name.
