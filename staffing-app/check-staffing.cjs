@@ -866,6 +866,12 @@ const seedCheck = () => {
   assert.ok(plan.preview.every(person => /^.\u2022\u2022\u2022@example\.com$/.test(person.email)), 'emails masked');
   assert.deepEqual(plan.preview.find(person => person.name === 'Ada').positions.sort(), ['Desk organizer', 'Desk organizer backup']);
   assert.equal(plan.preview.reduce((total, person) => total + person.nights, 0), plan.signups);
+  // Everyone on the roster the import leaves out (or holds only partly) is listed with the reason, in nights.
+  const susan = plan.held.find(person => person.name === 'Susan');
+  assert.deepEqual(susan, { name: 'Susan', nights: 0, reasons: { 'needs training': 12 } }, 'the untrained backup is explained');
+  assert.ok(!plan.held.some(person => person.name === 'Bobby'), 'someone missing only closed nights is not listed');
+  const ron = plan.held.find(person => person.name === 'Ron');
+  assert.ok(ron && ron.reasons['roster: no email found'] > 0, 'no email is explained per person too');
   let result = JSON.parse(JSON.stringify(context.importSeedSheet()));
   assert.deepEqual([plan.people, plan.signups, plan.training, plan.unmatched, plan.ambiguous, plan.noEmail],
     [result.people, result.signups, result.training, result.unmatched, result.ambiguous, result.noEmail], 'the preview shows exactly what the import then does');
@@ -1084,6 +1090,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   const previewSent = sent.length;
   html = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
   assert.match(html, /Preview: nothing has been sent or saved/);
+  assert.match(html, /All skips: /);
   assert.equal(sent.length, previewSent, 'the preview page sends nothing');
   assert.match(html, /\u2022\u2022\u2022@example\.com/);
   assert.doesNotMatch(html, /[a-z0-9._-]{2,}@example\.com/, 'only masked addresses on the preview page');

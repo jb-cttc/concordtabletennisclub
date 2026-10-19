@@ -211,6 +211,13 @@ function ownerSetup_(params) {
         lines.push('<p>Sending now would email nobody.</p>');
       }
       lines.push(toFix(plan));
+      if (plan.held.length) {
+        lines.push('<p>Nights the import would leave out, and why:</p><ul>' + plan.held.map(function (person) {
+          return '<li><strong>' + esc_(person.name) + '</strong>' + (person.nights ? ' (' + esc_(person.nights) + ' nights held)' : ' (nothing held, not emailed)') + ': ' +
+            esc_(Object.keys(person.reasons).map(function (reason) { return person.reasons[reason] + ' ' + reason; }).join('; ')) + '</li>';
+        }).join('') + '</ul>');
+      }
+      if (Object.keys(plan.skipped).length) lines.push('<p>All skips: ' + esc_(Object.keys(plan.skipped).map(function (reason) { return plan.skipped[reason] + ' ' + reason; }).join('; ')) + '.</p>');
       lines.push('<p>' + esc_(plan.training) + ' training rows would be recorded (no email for those).</p>');
       if (plan.preview.length) lines.push(button(base + '&import=seed', 'Send these ' + plan.preview.length + ' emails'));
     } else if (params['import'] === 'seed') {
@@ -1092,7 +1099,11 @@ function importSeed_(preview) {
     }
   }
   var report = { training: 0, people: 0, signups: 0, skipped: {}, unmatched: [], ambiguous: [], noEmail: [] };
-  if (preview) report.preview = [];
+  if (preview) {
+    report.preview = [];
+    // Each roster person the preview cannot fully hold, and why: {name, nights held, reasons: {reason: nights}}.
+    report.held = [];
+  }
   // A preview keeps every change in memory: an email found goes on file only in this run's copy of the Emails rows.
   var putOnFile = function (emails, player, email, source, phone) {
     if (!preview) return upsertEmail_(emails, player, email, source, phone);
@@ -1165,9 +1176,19 @@ function importSeed_(preview) {
     var people = rows_('People');
     Object.keys(groups).forEach(function (playerId) {
       var group = groups[playerId];
+      var reasons = {};
+      var skip = function (reason, count) {
+        report.skipped[reason] = (report.skipped[reason] || 0) + (count || 1);
+        // A closed night is left out on purpose, so it is not listed as a problem.
+        if (reason !== 'club closed that night') reasons[reason] = (reasons[reason] || 0) + (count || 1);
+      };
+      var tell = function (nights) {
+        if (preview && Object.keys(reasons).length) report.held.push({ name: seedLabel_(group.sheetName), nights: nights, reasons: reasons });
+      };
       var onFile = approvedEmail_(emails, playerId);
       if (!onFile) {
         skip('roster: no email found', group.picks.length);
+        tell(0);
         unresolved('noEmail', group.sheetName, [group.player.name]);
         return;
       }
@@ -1184,6 +1205,7 @@ function importSeed_(preview) {
         imported[pick.seedKey] = true;
         accepted.push({ date: pick.date, position: pick.position, finalize: '', key: person.key, seedKey: pick.seedKey });
       });
+      tell(accepted.length);
       if (!accepted.length) return;
       report.people += 1;
       report.signups += accepted.length;
