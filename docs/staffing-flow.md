@@ -191,7 +191,18 @@ reason.
 address the question went to, counts; auto-replies are ignored, a reply from
 another address gets a "reply from the right address" email, an unreadable
 reply gets "we could not read your reply" (and "Yes, but…", "Yes except…" are
-never read as a plain YES). The coaching app uses a different
+never read as a plain YES, nor "No for Oct 19 and Nov 2" as a NO to every
+night: a NO that names dates changes nothing and the sender is told how to
+leave out only some nights).
+
+**The club corrects an answer.** When someone answers in words the app cannot
+apply (say, a NO and then "yes to all those Mondays except Oct 19 and Nov 2"),
+the setup page's **Correct a volunteer's answer** lists the sign-ups answered
+NO or left to expire in the last 7 days with nights ahead. Open one, tick the
+nights they asked to keep and confirm: each is checked again like a new
+sign-up (someone may have taken it meanwhile), the rest are left out, and the
+volunteer gets the usual confirmation email listing both. Only the club
+account can open it, and a second tap changes nothing. The coaching app uses a different
 tag (`[CTTC ref …]`), so neither app reads the other's replies.
 
 **Texts (optional).** The public form takes no phone (it could be anyone's).
@@ -365,6 +376,7 @@ All of this lives in `canTake_`; tests cover both modes.
 | Name search says the list is not available | `DESK_SHEET_ID` set, the desk Sheet shared with the club account, a `Players` tab with `player_id`, `display_name`, `active`. Changes to the list show within 10 minutes (cache). |
 | A volunteer never got the confirm email | `Batches.emailed` is empty while `status = pending`: the send failed or the daily quota ran out; the hourly sweep retries for 3 days. The `Log` tab shows `email batch:pending` once it went. |
 | They replied "YES except …" and nothing changed | A date was not among that email's nights or a word was not a date; they were emailed *We could not read the dates in your reply* with their My nights link. |
+| Someone answered NO (or let it expire) but meant some nights | Setup page, **Correct a volunteer's answer** (within 7 days): tick the nights they asked for. |
 | A My nights link says no upcoming nights | Their nights are past or released, or the email on file changed since (the link is made from the address; newer emails carry the new link). |
 | They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The minute trigger `checkReplies` must exist (Triggers page). |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |

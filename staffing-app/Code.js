@@ -314,6 +314,44 @@ function ownerSetup_(params) {
       lines.push('<p>&#10003; Sent ' + esc_(seeded.people + resentNow) + ' ' + (seeded.people + resentNow === 1 ? 'email' : 'emails') + ': ' + esc_(seeded.people) + ' new (' + esc_(seeded.signups) +
         ' nights held) and ' + esc_(resentNow) + ' re-sent to people still waiting for a YES. ' + esc_(seeded.training) + ' training rows recorded. Names to fix: ' +
         esc_([].concat(seeded.unmatched, seeded.ambiguous, seeded.noEmail).length) + ' (see the SeedReport tab in the private Sheet).</p>');
+    } else if (params['import'] === 'answers') {
+      var fixable = fixable_(Date.now());
+      lines.push('<h2 style="font-size:1.05rem">Correct a volunteer\'s answer</h2><p>Sign-ups answered NO, or left to expire, in the last ' + FIX_DAYS +
+        ' days. Open one to confirm the nights the volunteer asked for in words the app could not read.</p>');
+      lines.push(fixable.length ? '<ul>' + fixable.map(function (each) {
+        return '<li><a href="' + esc_(base + '&import=fix&batch=' + each.batch.batch_id) + '">' + esc_(each.batch.name) + '</a>: ' + esc_(each.status === 'released' ? 'answered NO' : 'no answer in time') +
+          ', ' + esc_(each.nights.length) + ' nights ahead (' + esc_(shortDay_(each.nights[0].date)) + ' to ' + esc_(shortDay_(each.nights[each.nights.length - 1].date)) + ')</li>';
+      }).join('') + '</ul>' : '<p>None right now.</p>');
+    } else if (params['import'] === 'fix') {
+      var fixing = fixable_(Date.now()).filter(function (each) { return each.batch.batch_id === params.batch; })[0];
+      if (!fixing) {
+        lines.push('<p>That sign-up cannot be corrected here (it is not one answered NO or expired in the last ' + FIX_DAYS + ' days with nights ahead).</p>');
+      } else {
+        // A plain form: each ticked night arrives as k_<signup id>.
+        lines.push('<h2 style="font-size:1.05rem">' + esc_(fixing.batch.name) + '</h2><p>Tick the nights ' + esc_(firstName_(fixing.batch.name)) +
+          ' asked to keep, then confirm. Each is checked again like a new sign-up (someone may have taken it meanwhile). ' + esc_(firstName_(fixing.batch.name)) +
+          ' gets the usual confirmation email, listing the nights left out.</p>' +
+          '<form method="get" action="' + esc_(ScriptApp.getService().getUrl()) + '"><input type="hidden" name="setup" value=""><input type="hidden" name="import" value="fixsave">' +
+          '<input type="hidden" name="batch" value="' + esc_(fixing.batch.batch_id) + '">' + fixing.nights.map(function (entry) {
+            return '<p style="margin:6px 0"><label><input type="checkbox" name="k_' + esc_(entry.signup_id) + '" value="1" style="width:20px;height:20px;vertical-align:middle"> ' +
+              esc_(shortDay_(entry.date)) + ': ' + esc_(shiftLabel_(entry)) + '</label></p>';
+          }).join('') + '<p><button type="submit" style="padding:10px 16px;background:#1f6b3a;color:#fff;border:0;border-radius:4px;font:inherit">Confirm the ticked nights and email ' +
+          esc_(firstName_(fixing.batch.name)) + '</button></p></form>');
+      }
+      lines.push('<p><a href="' + esc_(base + '&import=answers') + '">Back to the list</a></p>');
+    } else if (params['import'] === 'fixsave') {
+      var keep = Object.keys(params).filter(function (key) { return /^k_[0-9a-f]{1,32}$/.test(key); }).map(function (key) { return key.slice(2); });
+      var fixed = keep.length ? clubFix_(String(params.batch || ''), keep) : null;
+      if (!keep.length) lines.push('<p>No nights were ticked, so nothing changed.</p>');
+      else if (!fixed) lines.push('<p>That sign-up cannot be corrected any more (it was already corrected, or answered meanwhile). Nothing changed.</p>');
+      else {
+        lines.push('<p>&#10003; Confirmed ' + esc_(fixed.confirmed.length) + ' night' + (fixed.confirmed.length === 1 ? '' : 's') + (fixed.confirmed.length ? ': ' +
+          esc_(fixed.confirmed.map(function (entry) { return shortDay_(entry.date); }).join(', ')) : '') + '.' + (fixed.confirmed.length ? ' The volunteer has been emailed.' : '') + '</p>');
+        if (fixed.missed.length) {
+          lines.push('<p>Not confirmed:</p><ul>' + fixed.missed.map(function (each) { return '<li>' + esc_(shortDay_(each.entry.date)) + ': ' + esc_(each.reason) + '</li>'; }).join('') + '</ul>');
+        }
+      }
+      lines.push('<p><a href="' + esc_(base + '&import=answers') + '">Back to the list</a></p>');
     } else if (params['import'] === 'members') {
       var members = importMemberEmails();
       lines.push('<p>&#10003; Membership emails imported: ' + esc_(JSON.stringify(members)) + '</p>');
@@ -322,6 +360,9 @@ function ownerSetup_(params) {
     if (properties.getProperty('SEED_SHEET_ID') && !params['import']) {
       if (seedImportedAt_()) lines.push('<p>' + esc_(seedClosedText_()) + '</p>');
       else lines.push(button(base + '&import=preview', 'Preview who the open/close list would email') + '<p>The preview sends nothing; you choose to send from there. The list is imported only once, when you send.</p>');
+    }
+    if (['answers', 'fix', 'fixsave'].indexOf(params['import']) < 0) {
+      lines.push('<p><a href="' + esc_(base + '&import=answers') + '">Correct a volunteer\'s answer</a> (someone answered NO or in words the app could not read)</p>');
     }
     if (properties.getProperty('MEMBER_LIST_ID') && params['import'] !== 'members') {
       lines.push('<p><a href="' + esc_(base + '&import=members') + '">Import emails from the membership list</a></p>');
@@ -2027,6 +2068,78 @@ function lateConfirm_(batch, mine, signups, now) {
   return result;
 }
 
+// ---------- The club corrects an answer ----------
+// A volunteer sometimes answers in words the app cannot apply ("Peg is a yes for all those Mondays except Oct 19 and Nov 2",
+// sent after a NO). From the owner's setup page the club confirms the nights they asked for: fixable_ lists the sign-ups
+// answered NO, or left to expire, in the last FIX_DAYS days that still have nights ahead; clubFix_ applies the club's ticks.
+
+var FIX_DAYS = 7;
+
+function fixable_(now) {
+  var today = pacificNow_().date;
+  var signups = rows_('Signups');
+  return rows_('Batches').filter(function (batch) {
+    var status = batchStatus_(batch, now);
+    var when = Date.parse(batch.answered_at) || Number(batch.expires_at) || 0;
+    return (status === 'released' || status === 'expired') && now - when < FIX_DAYS * 86400000 && signups.some(function (entry) {
+      return entry.batch_id === batch.batch_id && entry.date >= today && (entry.status === 'released' || signupStatus_(entry, now) === 'expired');
+    });
+  }).map(function (batch) {
+    return { batch: batch, status: batchStatus_(batch, now), nights: signups.filter(function (entry) {
+      return entry.batch_id === batch.batch_id && entry.date >= today && (entry.status === 'released' || signupStatus_(entry, now) === 'expired');
+    }).sort(function (a, b) { return a.date.localeCompare(b.date); }) };
+  });
+}
+
+// Confirms the ticked nights (keep: signup ids) of a sign-up in fixable_, each checked again exactly like a new sign-up; the
+// rest of its upcoming nights are left out (released). The volunteer is emailed their confirmation, listing what was left
+// out. Returns { confirmed: [entries], missed: [{ entry, reason }] }, or null when the sign-up cannot be corrected.
+function clubFix_(batchId, keep) {
+  var result = { confirmed: [], missed: [] };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var now = Date.now();
+    var found = fixable_(now).filter(function (each) { return each.batch.batch_id === batchId; })[0];
+    if (!found) return null;
+    var batch = found.batch;
+    var signups = rows_('Signups');
+    var horizon = horizon_();
+    var closures = closures_();
+    var person = { playerId: batch.player_id, name: batch.name, email: batch.email, key: personKey_(batch) };
+    person.training = trainingFor_(rows_('Training'), person);
+    var holding = signups.filter(function (entry) { return entry.batch_id !== batchId && holds_(entry, now); });
+    var ids = found.nights.map(function (entry) { return entry.signup_id; });
+    signups.filter(function (entry) { return ids.indexOf(entry.signup_id) >= 0; }).forEach(function (entry) {
+      var reason = keep.indexOf(entry.signup_id) < 0 ? 'left out' : pickProblem_({ date: entry.date, position: entry.position, finalize: entry.finalize === 'yes' }, person,
+        nightOf_(entry.date, horizon, closures), holding.concat(result.confirmed).filter(function (other) { return other.date === entry.date; }));
+      entry.status = reason ? 'released' : 'confirmed';
+      if (!reason) entry.confirmed_at = nowIso_();
+      entry.updated_at = nowIso_();
+      save_('Signups', entry);
+      if (!reason) result.confirmed.push(entry);
+      else if (reason !== 'left out') result.missed.push({ entry: entry, reason: reason });
+    });
+    if (result.confirmed.length) {
+      batch.status = 'confirmed';
+      batch.answer = 'club fix';
+      batch.late = '';
+      batch.emailed = '';
+      batch.updated_at = nowIso_();
+      save_('Batches', batch);
+    }
+    logRow_('step', 'step:club-fix', batchId, '-', result.confirmed.length + ' confirmed by the club, ' + result.missed.length + ' no longer free');
+  } finally {
+    lock.releaseLock();
+  }
+  try {
+    sweep_();
+  } catch (error) {
+    logError_('finish the sweep after a club fix', error, batchId);
+  }
+  return result;
+}
+
 // Applies a YES or NO to a "drop this shift" email. A YES opens the slot again, tells the person and the club, and if a
 // primary desk organizer or money collector dropped, gives that night's confirmed backup a heads-up.
 function dropAnswer_(signupId, answer) {
@@ -2403,6 +2516,10 @@ function checkMail_() {
         }
         answer = 'yes';
         skip = picked.dates;
+      } else if (question.kind === 'batch' && answer === 'no' && namesDate_(text)) {
+        // "No for Oct 19 and Nov 2" most likely means only those nights: a NO would release them all, so nothing is guessed.
+        if (recent) unclearExcept_(message.getId(), address, String(message.getSubject() || ''), question.id, null);
+        return;
       }
       if (!answer) {
         if (recent) unreadableReply_(message.getId(), address, String(message.getSubject() || ''));
@@ -2622,6 +2739,13 @@ function exceptOf_(text) {
     }
   });
   return { days: days, unclear: unclear || waiting || !days.length };
+}
+
+// Whether the person's own words name a date ("Oct 19", "November 2nd", "11/2").
+function namesDate_(text) {
+  return answerLines_(text).some(function (line) {
+    return /\b\d{1,2}\/\d{1,2}\b/.test(line) || (line.match(/\b[a-z]{3,9}\.?\s+\d{1,2}(st|nd|rd|th)?\b/g) || []).some(function (found) { return monthOf_(found.split(/[.\s]/)[0]); });
+  });
 }
 
 // 1 to 12 for "nov", "Nov.", "november" or "sept"; 0 for anything else.
