@@ -1298,7 +1298,9 @@ function importSeed_(preview, links) {
       if (!entry) trainings.push(entry = { player_id: found.player.playerId });
       var before = JSON.stringify([entry.name, entry.keys, entry.open, entry.front_desk]);
       entry.name = found.player.name;
-      Object.keys(SKILLS).forEach(function (skill) { if (row[skill]) entry[skill] = row[skill]; });
+      // The Training tab is where the club manages training: the volunteer's list only adds people and fills blank cells, so a
+      // change made in the tab (Susan marked trained) is never undone by running the import again.
+      Object.keys(SKILLS).forEach(function (skill) { if (row[skill] && !String(entry[skill] == null ? '' : entry[skill]).trim()) entry[skill] = row[skill]; });
       if (JSON.stringify([entry.name, entry.keys, entry.open, entry.front_desk]) !== before) {
         entry.updated_at = nowIso_();
         if (!preview) save_('Training', entry);
