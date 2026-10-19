@@ -77,12 +77,13 @@ var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open o
 var POSITIONS = [
   { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, max: 1, training: ['keys', 'open'], alsoWith: ['tables'],
     does: 'The opener and round robin organizer: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, turns on the lights and AC, and runs the round robin desk on round robin nights.' },
-  { id: 'desk-backup', label: 'Desk organizer backup', part: 'open', min: 0, max: 1, training: ['keys', 'open'], backupOf: 'desk',
-    does: 'Steps in as desk organizer (the opener) if the desk organizer cannot make it.' },
+  // Backups need no training: a backup spot is how someone learns alongside the trained primary.
+  { id: 'desk-backup', label: 'Desk organizer backup', part: 'open', min: 0, max: 1, training: [], backupOf: 'desk',
+    does: 'Works alongside the desk organizer, learning the role, and helps out if they cannot make it. No training needed.' },
   { id: 'money', label: 'Money collector (Front Desk)', part: 'open', min: 1, max: 1, training: ['front_desk'],
     does: 'Prints the Revenue Sheet, takes out the Clover device and the Zelle/Venmo QR codes, records everyone entering on the Revenue Sheet and manages the payments.' },
-  { id: 'money-backup', label: 'Money collector backup', part: 'open', min: 0, max: 1, training: ['front_desk'], backupOf: 'money',
-    does: 'Steps in at the Front Desk if the money collector cannot make it.' },
+  { id: 'money-backup', label: 'Money collector backup', part: 'open', min: 0, max: 1, training: [], backupOf: 'money',
+    does: 'Works alongside the money collector at the Front Desk, learning the role, and helps out if they cannot make it. No training needed.' },
   { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, max: 4, training: [], alsoWith: ['desk'],
     does: 'Arrives by 6:45 PM (2:45 PM on Saturdays): brings out the barriers, tables and nets, and knows the gym layout.' },
   { id: 'lockup', label: 'Lock-up', part: 'close', min: 1, max: 1, training: ['keys'],
@@ -672,9 +673,9 @@ function holds_(entry, now) {
 }
 
 // The one place that decides who may take what. person: {playerId, training: {keys, open, front_desk}}. Returns '' when
-// allowed, else the reason. Table setup and Closing are open to anyone on the player list (and, in hybrid mode, to anyone).
-// Desk organizer needs key access and opening training, Money collector Front Desk training (backups too), from the
-// Training tab; in hybrid mode that is also how the club approves someone who is not on the list.
+// allowed, else the reason. Table/barrier setup, putting tables away and both backups are open to anyone on the player list
+// (and, in hybrid mode, to anyone). Desk organizer needs key access and opening training, Money collector Front Desk training
+// and Lock-up key access, from the Training tab; in hybrid mode that is also how the club approves someone not on the list.
 function canTake_(person, positionId) {
   var spec = position_(positionId);
   if (!spec) return 'That position does not exist.';

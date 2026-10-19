@@ -128,7 +128,7 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | `Batches` | app | One row per submission: the one email that asks YES or NO about all its picks. `emailed` / `texted` = the status last sent. |
 | `Emails` | owner, imports, app | The one approved email (and mobile) on file per player, plus requests waiting for the club (`status` `pending`) and old rows (`replaced`, `declined`). |
 | `People` | app | Everyone who signed up, by email; the mobile on file and text opt-in (`texts`). |
-| `Training` | owner and the seed import | Who may take Desk (`keys` and `open` = yes) and Money (`front_desk` = yes). |
+| `Training` | owner and the seed import | Who may take Desk organizer (`keys` and `open` = yes), Money collector (`front_desk` = yes) and Lock-up (`keys` = yes). Backups need no training: a backup spot is where someone learns alongside the primary. |
 | `Closures` | owner | `date` (`2026-11-13` or `11/13/2026`) and a short public `note`. |
 | `SeedLinks`, `SeedReport` | owner / import | The seed import's fix-up loop (section 6). |
 | `MemberEmailReport` | import | What `importMemberEmails` added, kept and could not match (full names; private). |
@@ -319,7 +319,7 @@ All of this lives in `canTake_`; tests cover both modes.
 | A volunteer never got the confirm email | `Batches.emailed` is empty while `status = pending`: the send failed or the daily quota ran out; the hourly sweep retries for 3 days. The `Log` tab shows `email batch:pending` once it went. |
 | They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The minute trigger `checkReplies` must exist (Triggers page). |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |
-| Desk or Money is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money. |
+| Desk, Money or Lock-up is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money, `keys` for Lock-up. Backups are never greyed out. |
 | Someone says the confirmation went to an old address | Their `Emails` row: type the new address as a new `approved` row (`source` owner); the old one becomes `replaced`. |
 | A new email request is stuck | `Emails` row `pending`: answer the *Approve an email* message from `ADMIN_EMAIL`, or set `status` to `approved` / `declined`. After 7 days it is declined. |
 | A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date) or add it to `Closures`. Changes show within an hour. |
