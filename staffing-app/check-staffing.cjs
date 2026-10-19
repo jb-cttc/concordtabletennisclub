@@ -7,9 +7,13 @@ const vm = require('node:vm');
 const manifest = JSON.parse(fs.readFileSync(__dirname + '/appsscript.json', 'utf8'));
 assert.deepEqual(manifest.oauthScopes, [
   'https://www.googleapis.com/auth/spreadsheets',
+  // Only to read the membership list when it is a Google Doc (DocumentApp has no read-only scope).
+  'https://www.googleapis.com/auth/documents',
   'https://mail.google.com/',
   'https://www.googleapis.com/auth/script.send_mail',
   'https://www.googleapis.com/auth/script.scriptapp',
+  // Only to read the home page's closures.json.
+  'https://www.googleapis.com/auth/script.external_request',
   'https://www.googleapis.com/auth/userinfo.email'
 ]);
 assert.equal(manifest.webapp.access, 'ANYONE_ANONYMOUS');
@@ -20,7 +24,7 @@ assert.equal(fs.readFileSync(__dirname + '/.claspignore', 'utf8').trim(), 'check
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), [
-  'checkReplies', 'doGet', 'findPlayers', 'importSeedSheet', 'playerAccess', 'requestDrop', 'setup', 'signUp', 'staffBoard', 'sweep'
+  'checkReplies', 'doGet', 'findPlayers', 'importMemberEmails', 'importSeedSheet', 'playerAccess', 'requestDrop', 'setup', 'signUp', 'staffBoard', 'sweep'
 ], 'a public web app exposes every non-private function: only these may exist');
 assert.doesNotMatch(source, /=>|`|^\s*(let|const|class)\s/m, 'Code.js is ES5 style, like the other Apps Script projects');
 
@@ -81,6 +85,11 @@ const makeSheet = (name, bookId) => {
   };
 };
 const validations = {};
+const docs = {};
+// The home page's data/closures.json, as the site serves it. siteDown makes the fetch fail.
+let site = { days: {}, notices: [] };
+let siteDown = false;
+const fetched = [];
 const hidden = new Set();
 const makeBook = id => {
   const sheets = {};
@@ -106,8 +115,12 @@ const PLAYERS = [
   ['p11', 'Ivy Wong', true], ['p12', 'Jo Banks', true], ['p13', 'Kai Ford', true], ['p14', 'Lu Chen', true], ['p15', 'Max Gold', true],
   ['p16', 'Sasha Bell', true], ['p17', 'Sara Diaz', true], ['p18', 'Sal Roy', true], ['p19', 'Santi Ruiz', true], ['p20', 'Sage Hill', true],
   ['p21', 'Sandy Cole', true], ['p22', 'Saul Vega', true], ['p23', 'Samson Gray', false], ['p24', 'Ned Gone', 'FALSE'], ['p25', 'José Peña', true],
-  ['p27', 'Ron Tate', true], ['p28', 'Susan Lake', true], ['p29', 'Zoey Hart', true]
-];
+  ['p27', 'Ron Tate', true], ['p28', 'Susan Lake', true], ['p29', 'Zoey Hart', true],
+  ['p30', 'Una Newman', true], ['p31', 'Vic Lowe', true], ['p32', 'Wes Hunt', true], ['p33', 'Tess Vale', true], ['p34', 'Uma Rios', true],
+  ['p35', 'Gia Rowe', true], ['p36', 'Ivo Bly', true], ['p37', 'Jan Bly', true], ['p38', 'Xan Doe', true]
+].concat(['Abe', 'Bo', 'Cy', 'Di', 'Ed', 'Flo', 'Gil', 'Hap', 'Ike', 'Jud', 'Kip', 'Lars'].map((first, index) => ['q' + (40 + index), first + ' Queue', true]));
+// Players with no email on file at the start: the seed and member imports, and the club-approval path, find theirs.
+const NO_EMAIL = ['Ron Tate', 'Susan Lake', 'Zoey Hart', 'Una Newman', 'Vic Lowe', 'Wes Hunt', 'Tess Vale', 'Uma Rios', 'Gia Rowe', 'Ivo Bly', 'Jan Bly', 'Xan Doe'];
 makeBook('desk-sheet-id').insertSheet('Players');
 grids.Players.push(['display_name', 'current_rating', 'player_id', 'created_at', 'active', 'updated_at']);
 PLAYERS.forEach(([id, name, active]) => grids.Players.push([name, 1500, id, new Date(START), active, '']));
@@ -159,9 +172,9 @@ const context = {
   GmailApp: {
     getInboxUnreadCount: () => 0,
     search: query => {
-      const answers = query.match(/^newer_than:3d subject:"CTTC shift" -from:me after:(\d+)$/);
+      const answers = query.match(/^newer_than:(3|8)d subject:"CTTC shift" (-from:me )?after:(\d+)$/);
       if (answers) {
-        const found = mailbox.filter(message => message.getDate().getTime() >= Number(answers[1]) * 1000);
+        const found = mailbox.filter(message => message.getDate().getTime() >= Number(answers[3]) * 1000);
         return found.length ? [{ getMessages: () => mailbox.slice() }] : [];
       }
       assert.match(query, /^in:anywhere from:txt\.voice\.google\.com newer_than:\d+d \(.+\)$/);
@@ -176,6 +189,23 @@ const context = {
       if (format === 'yyyy-MM-dd') return pacific(date.getTime()).slice(0, 10);
       assert.equal(format, 'yyyy-MM-dd HH:mm');
       return pacific(date.getTime());
+    }
+  },
+  UrlFetchApp: {
+    fetch: (url, options) => {
+      assert.equal(options.muteHttpExceptions, true);
+      fetched.push(url);
+      if (siteDown === 'throw') throw new Error('DNS error');
+      return { getResponseCode: () => (siteDown ? 503 : 200), getContentText: () => (siteDown ? '<html>Service unavailable</html>' : JSON.stringify(site)) };
+    }
+  },
+  DocumentApp: {
+    openById: id => {
+      assert.ok(docs[id], 'only known Docs are opened');
+      return { getBody: () => ({ getTables: () => docs[id].map(rows => ({
+        getNumRows: () => rows.length,
+        getRow: r => ({ getNumCells: () => rows[r].length, getCell: c => ({ getText: () => String(rows[r][c]) }) })
+      })) }) };
     }
   },
   HtmlService: {
@@ -221,7 +251,7 @@ const signAndConfirm = (name, picks, extra) => {
   reply(emailOf(name), 'YES');
   return result;
 };
-const statusOf = (name, date, position) => cell('Signups', signupsOf(emailOf(name)).filter(line => cell('Signups', line, 'date') === date && cell('Signups', line, 'position') === position).pop(), 'status');
+const statusOf = (name, date, position) => cell('Signups', signupRows().filter(line => cell('Signups', line, 'player_id') === idOf(name)).filter(line => cell('Signups', line, 'date') === date && cell('Signups', line, 'position') === position).pop(), 'status');
 
 // ---- Setup runs only for the owner, in the editor ----
 assert.throws(() => context.setup(), /owner/, 'a web visitor cannot run setup');
@@ -229,9 +259,12 @@ assert.throws(() => context.importSeedSheet(), /owner/, 'nor import the seed She
 activeEmail = 'owner@example.com';
 properties.DESK_SHEET_ID = 'desk-sheet-id';
 const setupResult = JSON.parse(JSON.stringify(context.setup()));
-assert.equal(setupResult.players, '26 active players', 'inactive rows are left out of the player list');
+assert.equal(setupResult.players, PLAYERS.filter(player => player[2] === true || /^true$/i.test(player[2])).length + ' active players', 'inactive rows are left out of the player list');
 assert.equal(setupResult.mode, 'directory', 'v1 signs up from the player list only');
-assert.deepEqual(books['private-book-id'].names(), ['Batches', 'Closures', 'Log', 'People', 'SeedLinks', 'SeedReport', 'Signups', 'Training']);
+assert.deepEqual(books['private-book-id'].names(), ['Batches', 'Closures', 'Emails', 'Log', 'MemberEmailReport', 'People', 'SeedLinks', 'SeedReport', 'Signups', 'Training']);
+assert.deepEqual(grids.Emails[0], ['player_id', 'name', 'email', 'phone', 'source', 'status', 'requested_at', 'decided_at', 'batch_id']);
+// Emails on file, as the owner would type them, for everyone but NO_EMAIL.
+PLAYERS.forEach(([id, name]) => { if (!NO_EMAIL.includes(name) && !/Queue$/.test(name)) grids.Emails.push([id, name, emailOf(name), '', 'owner', 'approved', '', '', '']); });
 assert.deepEqual(grids.Training[0], ['player_id', 'name', 'keys', 'open', 'front_desk', 'updated_at']);
 // The owner's training list: everyone in these checks may open and run the Front Desk, except Cal (tables and closing only)
 // and Dee (keys but no opening training).
@@ -433,7 +466,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.match(signUp('Dee Nguyen', [[S, 'money']]).problems[0].reason, /Front Desk/, 'N/A is not trained');
   assert.equal(signUp('Cal Diaz', [[S, 'tables'], ['2026-11-04', 'close']]).ok, true, 'table setup and closing need no training');
   resetLimits();
-  assert.deepEqual(run('playerAccess', 'p05'), { ok: true, positions: ['tables', 'close'] }, 'the page learns only which positions the chosen player may take');
+  assert.deepEqual(run('playerAccess', 'p05'), { ok: true, positions: ['tables', 'close'], emailOnFile: 'c\u2022\u2022\u2022@example.com' }, 'the page learns only which positions the chosen player may take, and a masked email');
   assert.deepEqual(run('playerAccess', 'p06').positions, ['tables', 'close']);
   assert.deepEqual(run('playerAccess', 'p03').positions, ['desk', 'desk-backup', 'money', 'money-backup', 'tables', 'close']);
   assert.equal(run('playerAccess', 'p23').ok, false, 'not for inactive players');
@@ -592,9 +625,166 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(signUp('Nia Newcomer', [['2026-11-20', 'money']], nia).field, 'name', 'switching back to directory mode closes it again');
 }
 
+// ---- Nobody can sign up as someone else: the email on file, or the club approves a new one once ----
+{
+  assert.equal(context.maskEmail_('sam.kim@gmail.com'), 's\u2022\u2022\u2022@gmail.com');
+  resetLimits();
+  const access = run('playerAccess', 'p03');
+  assert.equal(access.emailOnFile, 'a\u2022\u2022\u2022@example.com', 'the page learns the address only masked');
+  assert.doesNotMatch(JSON.stringify(access), /ada\.park/);
+  resetLimits();
+  assert.equal(run('playerAccess', 'p30').emailOnFile, null, 'and null when the club has none');
+  // Signing up as Ada, with a forged email and phone, only emails Ada.
+  let before = sent.length;
+  const forged = signUp('Ada Park', [['2026-11-27', 'tables']], { email: 'forger@example.com', phone: '(925) 555-0177' });
+  assert.equal(forged.ok, true);
+  assert.match(forged.message, /we emailed a\u2022\u2022\u2022@example\.com/);
+  assert.doesNotMatch(JSON.stringify(forged), /ada\.park|forger/, 'the answer never holds the full address');
+  assert.deepEqual(sent.slice(before).map(message => message.to), ['ada.park@example.com'], 'the confirmation goes only to the email on file');
+  assert.equal(cell('Signups', signupRows().at(-1), 'email'), 'ada.park@example.com');
+  assert.doesNotMatch(JSON.stringify(grids.People) + JSON.stringify(grids.Batches), /forger|5550177/, 'the forged email and phone are not kept');
+
+  // No email on file: a request to the club. Nothing is held, and nothing goes to the typed address yet.
+  before = sent.length;
+  const asked = signUp('Una Newman', [['2026-11-27', 'desk'], ['2026-11-30', 'tables']], { email: 'Una@Example.com' });
+  assert.equal(asked.ok, true, asked.message);
+  assert.equal(asked.request, true);
+  assert.match(asked.message, /the club will confirm una@example\.com once/);
+  assert.deepEqual(night('2026-11-27').slots.desk, [], 'a request holds no slot');
+  assert.deepEqual(night('2026-11-30').slots.tables, []);
+  const clubAsk = sent.slice(before);
+  assert.deepEqual(clubAsk.map(message => message.to), ['owner@example.com'], 'one email, to the club');
+  assert.match(clubAsk[0].subject, /^Approve an email for staff sign-ups \[CTTC shift [0-9A-F]{10}\]$/);
+  assert.match(clubAsk[0].body, /Una Newman wants to use una@example\.com for staff sign-ups\. Reply YES to approve or NO to decline\./);
+  const unaRow = () => grids.Emails.find(line => line[0] === 'p30' && line[2] === 'una@example.com');
+  assert.deepEqual(unaRow().slice(4, 6), ['request', 'pending']);
+  assert.match(signUp('Una Newman', [['2026-12-02', 'tables']], { email: 'una2@example.com' }).message, /not answered your last request/, 'one open request per player');
+  assert.equal(signUp('Vic Lowe', [['2026-12-02', 'tables']], { email: 'una@example.com' }).field, 'email', 'and per email');
+  signAndConfirm('Hal Reed', [['2026-11-27', 'desk']]);
+  answerMail('una@example.com', 'YES', clubAsk[0].subject);
+  assert.equal(unaRow()[5], 'pending', 'only the club can approve');
+  before = sent.length;
+  answerMail('owner@example.com', 'YES', clubAsk[0].subject);
+  assert.deepEqual(unaRow().slice(4, 6), ['approved-request', 'approved']);
+  assert.equal(statusOf('Una Newman', '2026-11-30', 'tables'), 'pending', 'the picks still free become holds');
+  assert.equal(statusOf('Una Newman', '2026-11-27', 'desk'), 'unavailable', 'a pick taken meanwhile does not');
+  const confirm = mailTo('una@example.com', before);
+  assert.equal(confirm.length, 1);
+  assert.match(confirm[0].subject, /^Confirm your CTTC staff sign-up/, 'the person still confirms with their own YES');
+  assert.match(confirm[0].body, /club approved your email address[\s\S]*Mon, Nov 30: Table setup[\s\S]*NO LONGER FREE BY THE TIME THE CLUB APPROVED YOUR EMAIL\n\nFri, Nov 27: Desk organizer/);
+  reply('una@example.com', 'YES');
+  assert.equal(statusOf('Una Newman', '2026-11-30', 'tables'), 'confirmed');
+  resetLimits();
+  assert.equal(run('playerAccess', 'p30').emailOnFile, 'u\u2022\u2022\u2022@example.com', 'now on file');
+
+  // The club says NO: nothing held; the person is told once.
+  assert.equal(signUp('Vic Lowe', [['2026-12-02', 'tables']], { email: 'vic@example.com' }).ok, true);
+  before = sent.length;
+  answerMail('owner@example.com', 'No', askedBy('owner@example.com', /^Approve/));
+  assert.equal(grids.Emails.find(line => line[0] === 'p31')[5], 'declined');
+  assert.equal(statusOf('Vic Lowe', '2026-12-02', 'tables'), 'declined');
+  assert.deepEqual(sent.slice(before).map(message => [message.to, message.subject]), [['vic@example.com', 'We could not confirm your email for CTTC staff sign-ups']]);
+  context.sweep();
+  assert.equal(mailTo('vic@example.com').length, 1, 'once');
+
+  // At most MAX_OPEN_REQUESTS open; the owner can decline (or approve) in the Emails tab.
+  ['Cy', 'Di', 'Ed', 'Flo', 'Gil', 'Hap', 'Ike', 'Jud', 'Kip', 'Lars'].forEach(first => {
+    const result = signUp(first + ' Queue', [['2026-12-04', 'tables']], { email: first.toLowerCase() + '@example.com' });
+    assert.equal(result.ok, true, result.message);
+  });
+  assert.equal(signUp('Wes Hunt', [['2026-12-04', 'tables']], { email: 'wes@example.com' }).message, 'Please ask the club to add your email.');
+  grids.Emails.filter(line => /^q/.test(line[0]) && line[5] === 'pending').forEach(line => { line[5] = 'declined'; });
+  check();
+  assert.ok(grids.Batches.filter(line => /Queue$/.test(line[2])).every(line => line[column('Batches', 'status')] === 'declined'), 'an owner decision in the Sheet applies within a minute');
+  assert.equal(signUp('Wes Hunt', [['2026-12-04', 'tables']], { email: 'wes@example.com' }).ok, true);
+  grids.Emails.find(line => line[0] === 'p32')[5] = 'approved';
+  before = sent.length;
+  check();
+  assert.equal(statusOf('Wes Hunt', '2026-12-04', 'tables'), 'pending', 'an owner approval proceeds as a YES');
+  assert.match(mailTo('wes@example.com', before)[0].subject, /^Confirm your CTTC staff sign-up/);
+  reply('wes@example.com', 'YES');
+  // A later change of the email on file: drops (and reminders) go to the new address.
+  grids.Emails.push(['p32', 'Wes Hunt', 'wes.new@example.com', '', 'owner', 'approved', '', '', '']);
+  context.sweep();
+  assert.equal(grids.Emails.find(line => line[2] === 'wes@example.com')[5], 'replaced', 'one approved email per player');
+  resetLimits();
+  run('requestDrop', night('2026-12-04').slots.tables.find(slot => slot.name === 'Wes').id);
+  assert.equal(sent.at(-1).to, 'wes.new@example.com');
+  answerMail('wes.new@example.com', 'YES', sent.at(-1).subject);
+  assert.equal(statusOf('Wes Hunt', '2026-12-04', 'tables'), 'dropped');
+  // No answer from the club in 7 days: declined.
+  assert.equal(signUp('Abe Queue', [['2026-12-05', 'tables']], { email: 'abe@example.com' }).ok, true);
+  clock += 7 * 24 * 3600000 + 60000;
+  context.sweep();
+  assert.equal(grids.Emails.find(line => line[0] === 'q40')[5], 'declined');
+  assert.equal(mailTo('abe@example.com').pop().subject, 'We could not confirm your email for CTTC staff sign-ups');
+}
+
+// ---- The home page's closures (data/closures.json) ----
+{
+  assert.ok(fetched.length >= 1 && fetched.every(url => url === 'https://concordtabletennisclub.com/data/closures.json'), 'the published file is the source');
+  signAndConfirm('Ada Park', [['2026-12-09', 'tables']]);
+  signAndConfirm('Ben Ortiz', [['2026-12-09', 'close'], ['2026-12-11', 'close']]);
+  assert.equal(signUp('Cal Diaz', [['2026-12-09', 'close']]).ok, true, 'Cal is still waiting to confirm');
+  site = { months: ['2026-10', '2026-11', '2026-12'], days: { '2026-12-07': 'full', '2026-12-09': 'full', '2026-12-18': 'partial', '2026-12-19': 'partial', '2026-12-25': 'holiday', '2026-12-26': 'holiday', 'bad-date': 'full', '2026-12-28': 'weird' },
+    notices: [{ when: 'Fri, Dec 18 and Sat, Dec 19', text: 'Open with a reduced play area (10 tables max)' }, { when: 'Fri, Dec 25', text: 'Open on holiday (Christmas), regular hours' }] };
+  let fetches = fetched.length;
+  board();
+  assert.equal(fetched.length, fetches, 'read at most once an hour (cached)');
+  delete cache['site-closures'];
+  assert.equal(night('2026-12-07').status, 'closed', 'full: closed');
+  assert.equal(fetched.length, fetches + 1);
+  fetches = fetched.length;
+  for (let index = 0; index < 5; index += 1) board();
+  assert.equal(fetched.length, fetches, 'and cached again');
+  assert.equal(night('2026-12-07').bookable, false);
+  assert.deepEqual(night('2026-12-07').missing, [], 'a closed night needs nobody');
+  assert.equal(signUp('Gus Hale', [['2026-12-07', 'tables']]).problems[0].reason, 'The club is closed that night.');
+  assert.equal(night('2026-12-18').status, 'needs', 'partial: open, and still needs volunteers');
+  assert.equal(night('2026-12-18').note, 'Open with a reduced play area (10 tables max)', 'with the home page notice that mentions it');
+  assert.equal(night('2026-12-25').note, 'Open on holiday (Christmas), regular hours');
+  assert.equal(night('2026-12-26').note, 'Open on holiday', 'or the default');
+  assert.equal(night('2026-12-28').note, '', 'unknown kinds and bad dates are ignored');
+  assert.equal(night('2026-10-24').status, 'closed', 'the private Closures tab still closes nights too');
+  assert.deepEqual(board().closures.filter(date => date >= '2026-12-01'), ['2026-12-07', '2026-12-09']);
+  // A night with confirmed sign-ups became closed: each person is told once, and the club once.
+  const before = sent.length;
+  context.sweep();
+  assert.equal(statusOf('Ada Park', '2026-12-09', 'tables'), 'cancelled');
+  assert.equal(cell('Signups', signupRows().find(line => cell('Signups', line, 'player_id') === 'p03' && cell('Signups', line, 'date') === '2026-12-09'), 'cancelled_by'), 'closure');
+  assert.equal(statusOf('Cal Diaz', '2026-12-09', 'close'), 'cancelled', 'a pending pick on that night is released');
+  assert.equal(statusOf('Ben Ortiz', '2026-12-11', 'close'), 'confirmed', 'other nights are untouched');
+  const notices = sent.slice(before);
+  assert.deepEqual(notices.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'owner@example.com']);
+  assert.match(notices.find(message => message.to === 'ada.park@example.com').body, /The gym is closed on Wednesday, December 9, 2026; your Table setup shift is cancelled\. Thank you!/);
+  assert.match(notices.find(message => message.to === 'owner@example.com').subject, /^Staffing: 2 shifts cancelled because the gym is closed$/);
+  context.sweep();
+  clock += 3600000;
+  delete cache['site-closures'];
+  context.sweep();
+  assert.equal(sent.length, before + 3, 'never twice');
+  // The site is down or the file broken: the last good copy keeps closed nights closed.
+  siteDown = true;
+  delete cache['site-closures'];
+  assert.equal(night('2026-12-07').status, 'closed', 'a 503 falls back to the last good copy');
+  siteDown = 'throw';
+  delete cache['site-closures'];
+  assert.equal(night('2026-12-07').status, 'closed', 'as does a failed fetch');
+  siteDown = false;
+  site = { not: 'a closures file' };
+  delete cache['site-closures'];
+  assert.equal(night('2026-12-07').status, 'closed', 'and a file that is not a closures list');
+  // Back to no closures for the checks that follow.
+  site = { days: {}, notices: [] };
+  delete cache['site-closures'];
+  assert.equal(night('2026-12-07').status, 'needs');
+}
+
 // ---- Texts: STAFF opts in, CONFIRM answers, STOP opts out silently ----
 {
-  assert.equal(signUp('Max Gold', [['2026-11-23', 'close']], { phone: '(925) 555-0142' }).ok, true);
+  // The owner keeps the mobile in the Emails tab; the form takes none.
+  grids.Emails.find(line => line[0] === 'p15')[3] = '(925) 555-0142';
+  assert.equal(signUp('Max Gold', [['2026-11-23', 'close']], { phone: '(925) 555-0199' }).ok, true);
   assert.equal(replies.length, 0, 'no texts before the person texts STAFF');
   clock += 60000;
   inbound('(925) 555-0142', 'Staff', clock);
@@ -635,7 +825,7 @@ const seedCheck = () => {
   grids.ZeffyPayments.push(['payer_name', 'payer_email', 'amount'], ['Ada Park', 'old.ada@example.com', 10], ['Ada Park', 'ada.park@example.com', 10],
     ['Ben Ortiz', 'ben.ortiz@example.com', 10], ['Susan Lake', 'susan.lake@example.com', 10]);
   makeBook('coaching-db-id').insertSheet('Students');
-  grids.Students.push(['label', 'email', 'created_at', 'name'], ['Student A', 'eve.stone@example.com', '', 'Eve Stone']);
+  grids.Students.push(['label', 'email', 'created_at', 'name', 'phone'], ['Student A', 'eve.stone@example.com', '', 'Eve Stone', ''], ['Student B', 'zoey.hart@example.com', '', 'Zoey Hart', '925-555-0188']);
   books['coaching-db-id'].insertSheet('Coaches');
   grids.Coaches.push(['name', 'email', 'phone'], ['Some Coach', 'coach@example.com', '']);
   properties.COACHING_DB_ID = 'coaching-db-id';
@@ -674,6 +864,9 @@ const seedCheck = () => {
     },
     unmatched: ['Zoe'], ambiguous: ['Sam'], noEmail: ['Ron']
   });
+  // What the lookups found is on file now, never over the owner's own rows.
+  assert.deepEqual(grids.Emails.filter(line => line[0] === 'p28').map(line => line.slice(2, 6)), [['susan.lake@example.com', '', 'zeffy', 'approved']]);
+  assert.deepEqual(grids.Emails.filter(line => line[0] === 'p03').map(line => line.slice(4, 6)), [['owner', 'approved']], 'Ada\'s owner row stays the only one');
   const told = JSON.stringify(result) + logged.join('\n');
   assert.doesNotMatch(told, /@|Ron Tate|Zoey Hart|Sam Kim|Sam Lee|Ada Park|Ortiz/, 'the report and console hold counts and the seed Sheet\'s own first names only');
   assert.match(logged.join('\n'), /^Seed import: \{/m);
@@ -698,10 +891,10 @@ const seedCheck = () => {
   // The fix-up loop: SeedReport and a blank SeedLinks row per name, with a player dropdown.
   const report = grids.SeedReport.slice(1);
   assert.deepEqual(report.filter(line => line[1] !== 'summary' && line[1] !== 'skipped').map(line => line.slice(1)), [
-    ['no email', 'Ron', '', 'Ron Tate'], ['ambiguous', 'Sam', '', 'Sam Kim, Sam Lee'], ['unmatched', 'Zoe', '', 'Zoey Hart']
+    ['ambiguous', 'Sam', '', 'Sam Kim, Sam Lee'], ['unmatched', 'Zoe', '', 'Zoey Hart'], ['no email', 'Ron', '', 'Ron Tate']
   ], 'each name to fix, with candidate players (the private Sheet may show full names)');
   assert.ok(report.some(line => line[1] === 'skipped' && line[2] === 'needs training' && line[3] === '12'));
-  assert.deepEqual(grids.SeedLinks.slice(1), [['Ron', '', ''], ['Sam', '', ''], ['Zoe', '', '']]);
+  assert.deepEqual(grids.SeedLinks.slice(1), [['Sam', '', ''], ['Zoe', '', ''], ['Ron', '', '']]);
   const dropdown = validations['private-book-id/SeedLinks'];
   assert.equal(dropdown.column, 2, 'the dropdown is on player_name');
   assert.equal(dropdown.dropdown, true);
@@ -709,11 +902,10 @@ const seedCheck = () => {
   assert.ok(hidden.has('private-book-id/SeedPlayers'));
   assert.ok(grids.SeedPlayers.some(line => line[0] === 'Zoey Hart') && !grids.SeedPlayers.some(line => line[0] === 'Samson Gray'), 'active players only');
   // The owner fills SeedLinks and runs it again: only the newly linked people are emailed.
-  grids.SeedLinks[1][2] = 'ron.tate@example.com';
-  grids.SeedLinks[2][1] = 'Sam Lee';
-  grids.SeedLinks[2][2] = 'sam.lee@example.com';
-  grids.SeedLinks[3][1] = 'p29';
-  grids.SeedLinks[3][2] = 'zoey.hart@example.com';
+  grids.SeedLinks[1][1] = 'Sam Lee';
+  grids.SeedLinks[1][2] = 'sam.lee@example.com';
+  grids.SeedLinks[2][1] = 'p29';
+  grids.SeedLinks[3][2] = 'ron.tate@example.com';
   before = sent.length;
   result = JSON.parse(JSON.stringify(context.importSeedSheet()));
   assert.equal(result.people, 3);
@@ -724,6 +916,8 @@ const seedCheck = () => {
   assert.deepEqual([result.unmatched, result.ambiguous, result.noEmail], [[], [], []]);
   assert.deepEqual(sent.slice(before).map(message => message.to).sort(), ['ron.tate@example.com', 'sam.lee@example.com', 'zoey.hart@example.com']);
   assert.equal(trainingOf('p02').length, 1, 'Sam\'s training now goes to Sam Lee');
+  assert.deepEqual(grids.Emails.filter(line => line[0] === 'p27').map(line => line.slice(2, 6)), [['ron.tate@example.com', '', 'seedlinks', 'approved']]);
+  assert.deepEqual(grids.Emails.filter(line => line[0] === 'p29').map(line => line.slice(2, 6)), [['zoey.hart@example.com', '9255550188', 'coaching', 'approved']], 'with the mobile from the coaching Sheet');
   assert.equal(grids.SeedLinks.length, 4, 'no SeedLinks row is added twice');
   before = sent.length;
   const rows = grids.Signups.length;
@@ -778,6 +972,58 @@ const seedCheck = () => {
   assert.equal(held, 0);
 }
 seedCheck();
+
+// ---- The membership list's emails: a Sheet, then a Doc table ----
+{
+  makeBook('member-sheet-id').insertSheet('Members 2026');
+  grids['Members 2026'].push(['2026 Membership', '', ''], ['Member Name', 'E-mail', 'Paid'],
+    ['Lu Chen', 'lu.new@example.com', 'yes'],
+    ['Tess Vale; Uma Rios', 'tess@example.com; uma@example.com', ''],
+    ['Kim Pair, Lee Pair', 'only.one@example.com', ''],
+    ['Nobody Known', 'nobody@example.com', ''],
+    ['Sam', 'sam@example.com', ''],
+    ['Una Newman', 'una@example.com', ''],
+    ['Ron Tate', 'ron.member@example.com', ''],
+    ['Jo Banks', '', ''],
+    ['', '', '']);
+  properties.MEMBER_LIST_ID = 'member-sheet-id';
+  assert.throws(() => context.importMemberEmails(), /owner/, 'owner only');
+  activeEmail = 'owner@example.com';
+  const logged = [];
+  context.console.log = line => logged.push(line);
+  const emailRows = () => grids.Emails.length;
+  let result = JSON.parse(JSON.stringify(context.importMemberEmails()));
+  assert.deepEqual(result, { rows: 8, added: 2, alreadyOnFile: 1, kept: 2, skipped: {
+    'names and emails could not be paired': 1, 'name unmatched': 1, 'name ambiguous': 1, 'no email': 1 } });
+  assert.doesNotMatch(JSON.stringify(result) + logged.join('\n'), /@|Tess|Lu Chen|Nobody|Pair/, 'counts only outside the private Sheet');
+  assert.deepEqual(grids.Emails.filter(line => line[0] === 'p33' || line[0] === 'p34').map(line => [line[2], line[4], line[5]]),
+    [['tess@example.com', 'member-list', 'approved'], ['uma@example.com', 'member-list', 'approved']], 'a household row pairs names and emails one to one');
+  assert.deepEqual(grids.Emails.filter(line => line[0] === 'p14').map(line => [line[2], line[4], line[5]]), [['lu.chen@example.com', 'owner', 'approved']], 'never over the owner\'s row');
+  assert.deepEqual(grids.Emails.filter(line => line[0] === 'p27' && line[5] === 'approved').map(line => line[4]), ['seedlinks'], 'nor a SeedLinks fix');
+  const report = grids.MemberEmailReport.slice(1).map(line => line.slice(1));
+  assert.ok(report.some(line => line[0] === 'unmatched' && line[1] === 'Nobody Known'), 'the private report names who could not be matched');
+  assert.ok(report.some(line => line[0] === 'ambiguous' && line[1] === 'Sam' && line[3] === 'Sam Kim, Sam Lee'));
+  assert.ok(report.some(line => line[0] === 'unpaired' && line[1] === 'Kim Pair, Lee Pair'));
+  assert.ok(report.some(line => line[0] === 'kept' && line[1] === 'Lu Chen'));
+  const rows = emailRows();
+  result = JSON.parse(JSON.stringify(context.importMemberEmails()));
+  assert.equal(result.added, 0, 'running it again adds nothing');
+  assert.equal(result.alreadyOnFile, 3);
+  assert.equal(emailRows(), rows);
+  docs['member-doc-id'] = [[['Notes'], ['not a member table']], [['First name', 'Last name', 'Email'],
+    ['Gia', 'Rowe', 'gia@example.com'],
+    ['Ivo & Jan', 'Bly', 'ivo@example.com, jan@example.com'],
+    ['Zed', '', 'zed@example.com'],
+    ['Xan', 'Doe', '']]];
+  properties.MEMBER_LIST_ID = 'member-doc-id';
+  result = JSON.parse(JSON.stringify(context.importMemberEmails()));
+  assert.deepEqual(result, { rows: 4, added: 4, alreadyOnFile: 0, kept: 0, skipped: { 'no email': 1 } }, 'a Doc table works the same, with first and last name columns');
+  assert.deepEqual(['p35', 'p36', 'p37', 'p26'].map(id => grids.Emails.find(line => line[0] === id && line[5] === 'approved')[2]),
+    ['gia@example.com', 'ivo@example.com', 'jan@example.com', 'zed@example.com'], 'Ivo and Jan Bly share a last name; Zed is the only active Zed');
+  assert.equal(JSON.parse(JSON.stringify(context.importMemberEmails())).added, 0);
+  activeEmail = '';
+  context.console.log = () => {};
+}
 
 // ---- doGet and the page ----
 const served = context.doGet();
@@ -858,7 +1104,9 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.ok(result, 'the name search offers matching players');
   result.click();
   assert.match(document.querySelector('.chosen').textContent, /Signing up as Ivy Wong/);
-  document.getElementById('email').value = 'ivy.wong@example.com';
+  assert.equal(document.querySelector('.onfile').textContent, 'We\'ll email i\u2022\u2022\u2022@example.com to confirm. Not your address? Ask the club.');
+  assert.equal(document.getElementById('email').parentNode.hidden, true, 'no email field for a player with an email on file');
+  assert.equal(document.getElementById('phone'), null, 'and no phone field at all');
   const before = sent.length;
   document.querySelector('#picks form').dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
   assert.match(document.getElementById('picks').textContent, /Check your email[\s\S]*Reply YES to that email/);
@@ -870,7 +1118,6 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   [...document.getElementById('night').querySelectorAll('button.add')].find(button => /Add me as Table setup/.test(button.getAttribute('aria-label'))).click();
   search.value = '';
   const ivy = [...document.querySelectorAll('#picks form')][0];
-  document.getElementById('email').value = 'ivy.wong@example.com';
   ivy.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
   assert.match(document.getElementById('picks').textContent, /one opening position per night/i, 'the server\'s reason shows under the pick');
   // Picking an untrained name greys out Desk and Money ("Needs training"), and marks such picks.
@@ -889,6 +1136,21 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.match(deskAdd.parentNode.nextSibling.textContent, /Needs training: ask the club/);
   assert.equal(gated.find(button => /Add me as Table setup/.test(button.getAttribute('aria-label'))).disabled, false);
   assert.match(document.getElementById('picks').textContent, /Needs training: ask the club\. Remove this pick/, 'an earlier desk pick is marked');
+  // A player with no email on file: the email field appears, and the club is asked.
+  [...document.querySelectorAll('.chosen button')][0].click();
+  const search3 = document.getElementById('who');
+  search3.value = 'xan';
+  search3.dispatchEvent(new dom.window.Event('input'));
+  await wait(350);
+  [...document.querySelectorAll('.results button')].find(button => button.textContent === 'Xan Doe').click();
+  assert.equal(document.getElementById('email').parentNode.hidden, false);
+  assert.equal(document.getElementById('emailNote').textContent, 'We don\'t have an email for you yet. Enter it and the club will confirm it once; then we\'ll email you to confirm your shifts.');
+  assert.equal(document.querySelector('.onfile').hidden, true);
+  document.getElementById('email').value = 'xan@example.com';
+  const clubBefore = mailTo('owner@example.com').length;
+  document.querySelector('#picks form').dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+  assert.match(document.getElementById('picks').textContent, /Sent to the club[\s\S]*the club will confirm xan@example\.com once/);
+  assert.match(mailTo('owner@example.com').slice(clubBefore).pop().body, /Xan Doe wants to use xan@example\.com/);
   dom.window.close();
   properties.SIGNUP_MODE = 'hybrid';
   ({ dom, document } = open());

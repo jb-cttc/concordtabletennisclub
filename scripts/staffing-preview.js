@@ -20,7 +20,8 @@ const LOCAL = 'http://localhost:' + PORT;
 
 const grids = {};
 const outbox = [];
-const properties = { DESK_SHEET_ID: 'preview-desk' };
+// The home page's closures come from the repository's data/closures.json, as the site serves it.
+const properties = { DESK_SHEET_ID: 'preview-desk', CLOSURES_URL: LOCAL + '/data/closures.json' };
 // Stand-in for Google Voice: each message is a text forwarded to Gmail; replying to it is a text sent back.
 const inbox = [];
 const texts = [];
@@ -73,6 +74,8 @@ const pacific = ms => {
 const PLAYERS = ['Ada Park', 'Ben Ortiz', 'Cal Diaz', 'Dee Nguyen', 'Eve Stone', 'Fay Moss', 'Gus Hale', 'Hal Reed', 'Ivy Wong', 'Jo Banks', 'Kai Ford',
   'Lu Chen', 'Max Gold', 'Ned Fox', 'Ola Berg', 'Pia Lund', 'Quinn Ash', 'Rae Holt', 'Sam Kim', 'Sam Lee', 'Tess Vale', 'Uma Rios', 'Vic Hart', 'Wes Lowe'];
 const UNTRAINED = ['Cal Diaz', 'Pia Lund', 'Quinn Ash'];
+// No email on file for these two: picking them shows the email field, and the club is asked to approve it (YES at /mail).
+const NO_EMAIL = ['Pia Lund', 'Wes Lowe'];
 makeBook('preview-desk').insertSheet('Players');
 grids.Players.push(['player_id', 'display_name', 'current_rating', 'active', 'created_at', 'updated_at']);
 PLAYERS.forEach((name, index) => grids.Players.push(['demo' + String(index + 1).padStart(2, '0'), name, String(1200 + index * 25), true, '', '']));
@@ -120,6 +123,14 @@ const context = {
       return list.length ? [{ getMessages: () => list.slice() }] : [];
     }
   },
+  UrlFetchApp: {
+    // Only the closures file is fetched; it is read straight from the repository.
+    fetch: url => {
+      const ok = url === LOCAL + '/data/closures.json';
+      const text = ok ? fs.readFileSync(path.join(ROOT, 'data', 'closures.json'), 'utf8') : '';
+      return { getResponseCode: () => (ok ? 200 : 404), getContentText: () => text };
+    }
+  },
   Utilities: {
     getUuid: () => crypto.randomUUID(),
     computeHmacSha256Signature: (value, key) => Array.from(crypto.createHmac('sha256', key).update(value).digest()),
@@ -158,6 +169,8 @@ activeEmail = '';
 PLAYERS.forEach(name => {
   const trained = UNTRAINED.includes(name) ? 'no' : 'yes';
   grids.Training.push([idOf(name), name, trained, trained, trained, '']);
+  // Emails on file, as the owner (or importMemberEmails) would put them; Max also has a mobile on file for texts.
+  if (!NO_EMAIL.includes(name)) grids.Emails.push([idOf(name), name, emailOf(name), name === 'Max Gold' ? '(925) 555-0199' : '', 'owner', 'approved', '', '', '']);
 });
 const open = call('staffBoard').nights.filter(night => night.bookable);
 function sign(name, date, position, confirm = true, extra = {}) {
@@ -175,7 +188,7 @@ if (open.length >= 6) {
   // Covered: the minimum crew, backups still open.
   [['Hal Reed', 'desk'], ['Ivy Wong', 'money'], ['Jo Banks', 'tables'], ['Kai Ford', 'close'], ['Lu Chen', 'close']].forEach(([name, position]) => sign(name, covered.date, position));
   // Needs people, with a pick still waiting for its YES.
-  sign('Max Gold', waiting.date, 'desk', true, { phone: '(925) 555-0199' });
+  sign('Max Gold', waiting.date, 'desk');
   sign('Ned Fox', waiting.date, 'money', false);
   sign('Ola Berg', waiting.date, 'close');
   // A closure the owner typed into the Closures tab.
@@ -183,6 +196,8 @@ if (open.length >= 6) {
   // Needs people: only table setup so far.
   sign('Rae Holt', partial.date, 'tables');
   sign('Tess Vale', partial.date, 'tables');
+  // A player with no email on file asked to use one: the club's approval email is waiting at /mail.
+  call('signUp', { playerId: idOf('Wes Lowe'), email: 'wes.lowe@example.com', picks: [{ date: partial.date, position: 'close' }] });
 }
 
 const SHIM = `<script>
@@ -221,7 +236,7 @@ function mailPage() {
   const link = (digits, body) => '<a href="/text?digits=' + digits + '&body=' + body + '">' + body + '</a>';
   const simulate = phones.map(line => '<p>' + escapeHtml(line[1]) + ' texts: ' + ['STAFF', 'CONFIRM', 'RELEASE', 'STOP'].map(word => link(line[3], word)).join(' &middot; ') + '</p>').join('');
   return '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preview mailbox</title><style>body{font:15px/1.5 Arial,sans-serif;max-width:760px;margin:20px auto;padding:0 14px}article{border:1px solid #ccc;border-radius:6px;padding:4px 14px;margin:14px 0}pre{white-space:pre-wrap;font:inherit}h2{font-size:1.05rem;margin:10px 0 0}p{color:#666;margin:2px 0}</style>' +
-    '<h1>Preview mailbox</h1><p>Every email and text the staffing app "sends" appears here, newest first. Click YES or NO under an email, or a texted word below, to answer it. Reload to refresh. <a href="/app">Back to the app</a></p>' +
+    '<h1>Preview mailbox</h1><p>Every email and text the staffing app "sends" appears here, newest first. Click YES or NO under an email (the club answers the "Approve an email" ones), or a texted word below, to answer it. Reload to refresh. <a href="/app">Back to the app</a></p>' +
     simulate + messages + (items || '<p>No email yet.</p>');
 }
 

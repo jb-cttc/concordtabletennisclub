@@ -30,6 +30,13 @@ var LATE_MS = 3 * 24 * 60 * 60 * 1000;
 var DROP_TTL_MS = 48 * 60 * 60 * 1000;
 var DROP_WAIT_MS = 10 * 60 * 1000;
 var MAX_PICKS = 40;
+// A player with no email on file asks the club to approve one, once. The club has this long to answer, and at most this many
+// such requests can be open at a time (beyond that the page says to ask the club).
+var CLUB_WAIT_MS = 7 * 24 * 60 * 60 * 1000;
+var MAX_OPEN_REQUESTS = 10;
+// Where an email on file came from, and so which import may replace which: a higher rank is never replaced by a lower one,
+// and an equal rank only by a newer SeedLinks fix. A row the owner typed (any other source) ranks highest.
+var EMAIL_RANK = { owner: 3, seedlinks: 2, 'approved-request': 2, 'member-list': 1, zeffy: 1, coaching: 1 };
 var MAX_PENDING_PER_EMAIL = 3;
 var MAX_SIGNUPS = 20000;
 var MAX_WRITES_PER_MINUTE = 20;
@@ -53,6 +60,11 @@ var PAGE_URL = SITE_URL + '/';
 var FROM_NAME = 'Concord Table Tennis Club';
 var TEXT_NUMBER = '(925) 238-3505';
 var LOCATION = 'Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Creek, CA 94597';
+// The home page's list of gym closures (data/closures.json): the main source of closed nights. Script property CLOSURES_URL
+// overrides it (the preview serves the repository's copy). Read at most once an hour.
+var CLOSURES_URL = SITE_URL + '/data/closures.json';
+var CLOSURES_CACHE_SECONDS = 3600;
+var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open on holiday' };
 
 // Every slot a night has. 'open' positions are the opening crew: one person may hold only one of them per night (a backup
 // counts). 'close' is putting the tables away; the same person may open and close. training lists the Training tab columns
@@ -86,7 +98,10 @@ var TABS = {
   Signups: ['signup_id', 'batch_id', 'date', 'position', 'finalize', 'player_id', 'name', 'email', 'status', 'created_at', 'expires_at',
     'confirmed_at', 'updated_at', 'drop_at', 'reminded',
     // seed_key is set on picks made by importSeedSheet, so running it again never adds the same pick twice.
-    'seed_key'],
+    'seed_key',
+    // cancelled_by is 'closure' when the gym closed that night after the sign-up (status 'cancelled'); notified is when the
+    // person was told, so the notice goes out once.
+    'cancelled_by', 'notified'],
   // One row per submission: the one email (and text) that asks YES or NO about all its picks. emailed and texted hold the
   // status last sent, written only after the send worked, so the sweep retries a failed one. late is 'yes' when a late YES
   // confirmed only the picks still free.
@@ -97,6 +112,14 @@ var TABS = {
   // Everyone who has signed up, by email. texts is 'yes' after they text STAFF from the phone below, '' after STOP. ask_ref
   // is the sign-up last texted, so CONFIRM or RELEASE answers it.
   People: ['email', 'name', 'player_id', 'phone', 'texts', 'texts_at', 'ask_ref', 'ask_at', 'created_at', 'updated_at'],
+  // The one email (and mobile) on file for each player: nobody can sign up as someone else, because a sign-up is confirmed
+  // only from the email on file. status: approved (at most one per player; a newer approval marks the old row 'replaced'),
+  // pending (asked from the page, waiting for the club; batch_id is that sign-up) or declined. source: owner (typed by hand),
+  // seedlinks, zeffy, coaching (importSeedSheet), member-list (importMemberEmails), request / approved-request (the page).
+  // phone is the only mobile staffing texts ever go to (with the person's STAFF text from it).
+  Emails: ['player_id', 'name', 'email', 'phone', 'source', 'status', 'requested_at', 'decided_at', 'batch_id'],
+  // Rewritten by each importMemberEmails run: what it added, kept and could not match (full names, private Sheet only).
+  MemberEmailReport: ['at', 'kind', 'name', 'email', 'detail'],
   // Who is trained for what, yes or no: keys (key lockbox) and open for Desk organizer, front_desk for Money collector.
   // Filled by importSeedSheet from the volunteer's list, and by the owner by hand. In hybrid mode, someone not on the player
   // list is matched by their email typed in player_id (the app adds such a row, untrained, when they ask for Desk or Money).
@@ -231,14 +254,80 @@ function ensureHeaders_() {
   properties.setProperty('HEADERS', version);
 }
 
-// The owner's closure dates: {date: note}. A typed date can arrive as a Date (if the cell was not plain text) or as text.
+// Every closed night: {date: note}. A night is closed when the home page's closures.json says 'full', or the owner typed it
+// into the private Closures tab (an extra, owner-only way to close one). A typed date can arrive as a Date (if the cell was
+// not plain text) or as text.
 function closures_() {
   var found = {};
+  var site = siteClosures_();
+  Object.keys(site.days).forEach(function (date) { if (site.days[date] === 'full') found[date] = 'Gym closed'; });
   tab_('Closures').getDataRange().getValues().slice(1).forEach(function (row) {
     var date = sheetDate_(row[0]);
     if (date) found[date] = String(row[1] == null ? '' : row[1]).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 80);
   });
   return found;
+}
+
+// The home page's closures.json as {days: {date: 'full' | 'partial' | 'holiday'}, notices: [{when, text}]}. Cached for an
+// hour; the last good copy is also kept in a script property, so a site outage (or a broken file) never reopens a closed night.
+function siteClosures_() {
+  var cache = CacheService.getScriptCache();
+  var text = cache.get('site-closures');
+  var parsed = text ? siteParse_(text) : null;
+  if (parsed) return parsed;
+  var properties = PropertiesService.getScriptProperties();
+  try {
+    var response = UrlFetchApp.fetch(property_('CLOSURES_URL', CLOSURES_URL), { muteHttpExceptions: true, followRedirects: true });
+    text = response.getResponseCode() === 200 ? String(response.getContentText() || '') : '';
+    parsed = siteParse_(text);
+  } catch (error) {
+    parsed = null;
+  }
+  if (parsed) {
+    var kept = JSON.stringify(parsed);
+    cache.put('site-closures', kept, CLOSURES_CACHE_SECONDS);
+    if (kept.length < 8000 && properties.getProperty('CLOSURES_LAST_GOOD') !== kept) properties.setProperty('CLOSURES_LAST_GOOD', kept);
+    return parsed;
+  }
+  logError_('read the site closures', new Error('closures.json could not be read; using the last good copy'));
+  parsed = siteParse_(properties.getProperty('CLOSURES_LAST_GOOD') || '');
+  if (parsed) cache.put('site-closures', JSON.stringify(parsed), 600);
+  return parsed || { days: {}, notices: [] };
+}
+
+// Only valid dates and the three known kinds are kept; null when the text is not a closures file at all.
+function siteParse_(text) {
+  var data = null;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    return null;
+  }
+  if (!data || typeof data !== 'object' || !data.days || typeof data.days !== 'object') return null;
+  var days = {};
+  Object.keys(data.days).forEach(function (date) {
+    var kind = String(data.days[date]).toLowerCase();
+    if (validDate_(date) && (kind === 'full' || kind === 'partial' || kind === 'holiday')) days[date] = kind;
+  });
+  var notices = (Array.isArray(data.notices) ? data.notices : []).slice(0, 50).map(function (notice) {
+    return { when: String(notice && notice.when || '').slice(0, 120), text: String(notice && notice.text || '').replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 120) };
+  });
+  return { days: days, notices: notices };
+}
+
+// The short note an open night shows when the club is open with changes: the home page notice that mentions that date
+// ("Fri, Dec 4 and Sat, Dec 5", "Dec 7–12"), else a default for its kind. '' for an ordinary night.
+function siteNote_(site, date) {
+  var kind = site.days[date];
+  if (kind !== 'partial' && kind !== 'holiday') return '';
+  var month = MONTHS[Number(date.slice(5, 7)) - 1].slice(0, 3);
+  var day = Number(date.slice(8, 10));
+  var notice = site.notices.filter(function (each) {
+    if (new RegExp('\\b' + month + '\\.? ' + day + '\\b').test(each.when)) return true;
+    var range = each.when.match(new RegExp('\\b' + month + '\\.? (\\d{1,2})\\s*[\u2013-]\\s*(\\d{1,2})\\b'));
+    return !!range && day >= Number(range[1]) && day <= Number(range[2]);
+  })[0];
+  return notice && notice.text ? notice.text : SITE_NOTES[kind];
 }
 
 function sheetDate_(value) {
@@ -521,6 +610,7 @@ function staffBoard() {
 
 function board_(signups, closures, now) {
   var horizon = horizon_();
+  var site = siteClosures_();
   var holding = signups.filter(function (entry) { return holds_(entry, now) && entry.date >= horizon.first && entry.date <= horizon.last; });
   var nights = nightsIn_(horizon).map(function (date) {
     var night = nightOf_(date, horizon, closures);
@@ -539,7 +629,7 @@ function board_(signups, closures, now) {
     }
     return {
       date: date, day: dayLabel_(date), short: shortDay_(date), time: time12_(night.start) + ' to ' + time12_(night.end), start: night.start, end: night.end,
-      status: night.closed ? 'closed' : night.past ? 'past' : statusOf_(here, now), bookable: night.bookable, note: night.note,
+      status: night.closed ? 'closed' : night.past ? 'past' : statusOf_(here, now), bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date),
       missing: night.closed || night.past ? [] : missing_(here, now), slots: slots
     };
   });
@@ -634,7 +724,74 @@ function playerAccess(playerId) {
   }
   if (!player) return fail_('We could not find that name on the club player list.');
   var person = { playerId: player.playerId, training: trainingFor_(rows_('Training'), { playerId: player.playerId }) };
-  return { ok: true, positions: POSITIONS.filter(function (spec) { return !canTake_(person, spec.id); }).map(function (spec) { return spec.id; }) };
+  var onFile = approvedEmail_(rows_('Emails'), player.playerId);
+  return {
+    ok: true, positions: POSITIONS.filter(function (spec) { return !canTake_(person, spec.id); }).map(function (spec) { return spec.id; }),
+    // Masked, so picking someone's name never shows their address: "s•••@gmail.com", or null when the club has none.
+    emailOnFile: onFile ? maskEmail_(cleanEmail_(onFile.email)) : null
+  };
+}
+
+// ---------- Emails on file ----------
+
+// The player's approved email row (the newest, if the owner typed more than one), or null.
+function approvedEmail_(emails, playerId) {
+  var found = null;
+  emails.forEach(function (row) {
+    if (playerId && String(row.player_id).trim() === playerId && String(row.status).trim().toLowerCase() === 'approved' && cleanEmail_(row.email)) found = row;
+  });
+  return found;
+}
+
+// "s•••@gmail.com": the first character and the domain only.
+function maskEmail_(email) {
+  var parts = String(email || '').split('@');
+  return parts.length === 2 ? parts[0].charAt(0) + '\u2022\u2022\u2022@' + parts[1] : '';
+}
+
+// Where to write to a volunteer about a sign-up: the player's email on file now (it may have changed since), else the
+// address the sign-up was confirmed from.
+function contactOf_(entry, emails) {
+  var onFile = entry.player_id ? approvedEmail_(emails, entry.player_id) : null;
+  return onFile ? cleanEmail_(onFile.email) : entry.email;
+}
+
+// Call while holding the lock. Puts an email found by an import on file, unless the player already has one from an equal or
+// better source (EMAIL_RANK). Returns 'added', 'same' (already on file) or 'kept' (a different email stays on file).
+function upsertEmail_(emails, player, email, source, phone) {
+  var current = approvedEmail_(emails, player.playerId);
+  if (current && sameAddress_(current.email, email)) {
+    if (phone && !phoneDigits_(current.phone)) {
+      current.phone = phone;
+      save_('Emails', current);
+    }
+    return 'same';
+  }
+  if (current) {
+    var rank = EMAIL_RANK[String(current.source).trim().toLowerCase()] || EMAIL_RANK.owner;
+    if (rank > EMAIL_RANK[source] || (rank === EMAIL_RANK[source] && source !== 'seedlinks')) return 'kept';
+    current.status = 'replaced';
+    current.decided_at = nowIso_();
+    save_('Emails', current);
+  }
+  var row = { player_id: player.playerId, name: player.name, email: email, phone: phone || '', source: source, status: 'approved', requested_at: '', decided_at: nowIso_(), batch_id: '' };
+  save_('Emails', row);
+  emails.push(row);
+  return 'added';
+}
+
+// Call while holding the lock. At most one approved email per player: when several are approved (the owner typed a new
+// one), the newest stays and the others are marked replaced.
+function tidyEmails_(emails) {
+  var newest = {};
+  emails.forEach(function (row) { if (String(row.status).trim().toLowerCase() === 'approved' && cleanEmail_(row.email)) newest[String(row.player_id).trim()] = row; });
+  emails.forEach(function (row) {
+    var id = String(row.player_id).trim();
+    if (String(row.status).trim().toLowerCase() !== 'approved' || !newest[id] || newest[id] === row || !cleanEmail_(row.email)) return;
+    row.status = 'replaced';
+    row.decided_at = nowIso_();
+    save_('Emails', row);
+  });
 }
 
 // ---------- Public: signing up ----------
@@ -648,14 +805,18 @@ function cleanPicks_(list) {
 }
 
 // Called by the form with every pick at once. All or nothing: if any pick cannot be taken, nothing is saved and the answer
-// lists each one with its reason, so the page can mark them. Otherwise the picks are saved as pending (holding their slots)
-// and one email asks for YES. Nothing is confirmed until that YES, so nobody can sign someone else up for real.
+// lists each one with its reason, so the page can mark them. Nobody can sign up as someone else:
+//   - a player with an email on file: the picks are saved as pending (holding their slots) and one email asks for YES, sent
+//     ONLY to the email on file. Whatever email or phone the page sends is ignored, and the page only ever sees it masked;
+//   - a player with no email on file: the email typed is a REQUEST. Nothing is held; the club is asked once to approve the
+//     address (clubAnswer_). On YES the picks still free become pending holds and the person is asked for their own YES;
+//   - someone not on the list (hybrid mode only): confirmed from the email they type, as there is no player to impersonate.
+// The public form takes no phone: texts only ever go to a mobile on file (Emails.phone).
 function signUp(form) {
   form = form || {};
   if (form.website) return { ok: true, message: 'Thanks.' };
   var picks = cleanPicks_(form.picks);
-  var email = cleanEmail_(form.email);
-  var phone = phoneDigits_(form.phone);
+  var typedEmail = cleanEmail_(form.email);
   if (!picks.length) return fail_('Please pick at least one shift.');
   if (picks.length > MAX_PICKS) return fail_('Please send at most ' + MAX_PICKS + ' shifts at a time.');
   var person = null;
@@ -676,24 +837,38 @@ function signUp(form) {
   } else {
     return fail_('Please find and pick your name from the club player list.', 'name');
   }
-  if (!email) return fail_('Please enter a valid email address.', 'email');
-  if (String(form.phone || '').trim() && !phone) return fail_('Please enter a 10 digit US mobile number, or leave it blank.', 'phone');
-  person.email = email;
-  if (!person.key) person.key = 'e:' + email;
   var batch = null;
   var count = 0;
+  var request = false;
+  var onFile = null;
   var askApproval = false;
-  var refused = null;
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     if (tooBusy_('write', MAX_WRITES_PER_MINUTE)) return fail_('Too many sign-ups right now. Please try again in a few minutes.');
     var now = Date.now();
+    var emails = rows_('Emails');
+    onFile = person.playerId ? approvedEmail_(emails, person.playerId) : null;
+    var email = onFile ? cleanEmail_(onFile.email) : typedEmail;
+    var phone = onFile ? phoneDigits_(onFile.phone) : '';
+    request = !!person.playerId && !onFile;
+    if (!email) return fail_(request ? 'We don\'t have an email for you yet. Please enter yours.' : 'Please enter a valid email address.', 'email');
+    person.email = email;
+    if (!person.key) person.key = 'e:' + email;
     var signups = rows_('Signups');
     if (signups.length + picks.length > MAX_SIGNUPS) return fail_('Sign-ups are closed for now. Please contact the club.');
-    var waiting = rows_('Batches').filter(function (entry) { return batchStatus_(entry, now) === 'pending' && sameAddress_(entry.email, email); });
-    if (waiting.length >= MAX_PENDING_PER_EMAIL) {
-      return fail_('This email address already has ' + MAX_PENDING_PER_EMAIL + ' sign-ups waiting for a YES. Please answer those emails first.', 'email');
+    if (request) {
+      var open = emails.filter(function (row) { return String(row.status).trim().toLowerCase() === 'pending'; });
+      if (open.some(function (row) { return String(row.player_id).trim() === person.playerId; })) {
+        return fail_('The club has not answered your last request yet. We will email you as soon as it does.');
+      }
+      if (open.some(function (row) { return sameAddress_(row.email, email); })) return fail_('That email address is already waiting for the club to confirm it.', 'email');
+      if (open.length >= MAX_OPEN_REQUESTS) return fail_('Please ask the club to add your email.', 'email');
+    } else {
+      var waiting = rows_('Batches').filter(function (entry) { return batchStatus_(entry, now) === 'pending' && sameAddress_(entry.email, email); });
+      if (waiting.length >= MAX_PENDING_PER_EMAIL) {
+        return fail_('There are already ' + MAX_PENDING_PER_EMAIL + ' sign-ups waiting for a YES from this email address. Please answer those emails first.', person.unlisted ? 'email' : '');
+      }
     }
     var known = rows_('People').filter(function (entry) { return sameAddress_(entry.email, email); })[0];
     var trainings = rows_('Training');
@@ -715,25 +890,30 @@ function signUp(form) {
     });
     if (askApproval) markAsked_(person, trainings);
     if (problems.length) {
-      refused = { ok: false, problems: problems, message: (problems.length === 1 ? 'One pick cannot be taken' : problems.length + ' picks cannot be taken') +
+      return { ok: false, problems: problems, message: (problems.length === 1 ? 'One pick cannot be taken' : problems.length + ' picks cannot be taken') +
         ', so nothing was sent. Remove ' + (problems.length === 1 ? 'it' : 'them') + ' (marked below) and send again.' };
-      return refused;
     }
-    var expires = expiryFor_(accepted, now);
+    // A request holds nothing; it waits up to CLUB_WAIT_MS for the club.
+    var expires = request ? now + CLUB_WAIT_MS : expiryFor_(accepted, now);
     batch = {
-      batch_id: id_(), email: email, name: person.name, player_id: person.playerId, phone: phone, status: 'pending', created_at: nowIso_(),
+      batch_id: id_(), email: email, name: person.name, player_id: person.playerId, phone: phone, status: request ? 'awaiting_club' : 'pending', created_at: nowIso_(),
       expires_at: String(expires), emailed: '', texted: '', updated_at: nowIso_()
     };
     save_('Batches', batch);
     accepted.forEach(function (pick) {
       save_('Signups', {
         signup_id: id_(), batch_id: batch.batch_id, date: pick.date, position: pick.position, finalize: pick.finalize, player_id: person.playerId,
-        name: person.name, email: email, status: 'pending', created_at: nowIso_(), expires_at: String(expires), updated_at: nowIso_()
+        name: person.name, email: email, status: request ? 'requested' : 'pending', created_at: nowIso_(), expires_at: String(expires), updated_at: nowIso_()
       });
     });
     count = accepted.length;
-    rememberPerson_(person, phone, known);
-    logRow_('step', 'step:pending', batch.batch_id, '-', count + ' picks, waiting until ' + momentLabel_(expires));
+    if (request) {
+      save_('Emails', { player_id: person.playerId, name: person.name, email: email, phone: '', source: 'request', status: 'pending', requested_at: nowIso_(), decided_at: '', batch_id: batch.batch_id });
+      logRow_('step', 'step:awaiting_club', batch.batch_id, '-', count + ' picks, an email for the club to approve');
+    } else {
+      rememberPerson_(person, phone, known);
+      logRow_('step', 'step:pending', batch.batch_id, '-', count + ' picks, waiting until ' + momentLabel_(expires));
+    }
   } finally {
     lock.releaseLock();
     // Told even when the submission was refused (that is when it happens), after the lock: mail is slow.
@@ -742,17 +922,24 @@ function signUp(form) {
         'Someone who is not on the desk\'s player list asked for Desk organizer or Money collector. Their row is in the private staffing Sheet, Training tab (their email is in player_id). To allow it, type yes in keys and open (desk) or front_desk (money) for anyone the club has trained.']);
     }
   }
-  // The picks are saved and hold their slots. Nothing after this may turn into an error on the page: the person would send
-  // again and be told their own picks are taken. A failed email is retried by the hourly sweep.
+  // The picks are saved. Nothing after this may turn into an error on the page: the person would send again and be told their
+  // own picks are taken. A failed email is retried by the hourly sweep.
   try {
     sweep_();
   } catch (error) {
     logError_('finish a saved sign-up', error, batch.batch_id);
   }
+  var shifts = count + ' shift' + (count === 1 ? '' : 's');
+  if (request) {
+    return { ok: true, request: true, count: count, textNumber: TEXT_NUMBER,
+      message: 'Thanks. We don\'t have an email for you yet, so the club will confirm ' + batch.email + ' once. Then we\'ll email you to confirm your ' + shifts +
+        '. Nothing is held until then, so someone else may take a spot meanwhile.' };
+  }
+  var to = onFile ? maskEmail_(batch.email) : batch.email;
   return {
-    ok: true, count: count, deadline: momentLabel_(Number(batch.expires_at)), textNumber: TEXT_NUMBER, texts: !!phone,
-    message: 'Almost done: we emailed ' + email + '. Reply YES to that email by ' + momentLabel_(Number(batch.expires_at)) + ' to confirm your ' +
-      count + ' shift' + (count === 1 ? '' : 's') + '. ' + (count === 1 ? 'It is' : 'They are') + ' held for you until then and show as "waiting to confirm".'
+    ok: true, count: count, deadline: momentLabel_(Number(batch.expires_at)), textNumber: TEXT_NUMBER, emailOnFile: onFile ? to : null,
+    message: 'Almost done: we emailed ' + to + '. Reply YES to that email by ' + momentLabel_(Number(batch.expires_at)) + ' to confirm your ' + shifts + '. ' +
+      (count === 1 ? 'It is' : 'They are') + ' held for you until then and show as "waiting to confirm".'
   };
 }
 
@@ -762,11 +949,12 @@ function expiryFor_(picks, now) {
   return now + Math.max(0, Math.min(HOLD_MS, (soonest - nowMinutes_() - CUTOFF_MINUTES) * 60000));
 }
 
-// Call while holding the lock. Keeps the latest name and mobile number; a new number has to text STAFF again.
+// Call while holding the lock. Keeps the latest name, and the mobile number on file (Emails.phone); a new number has to text
+// STAFF again, and with no number on file there are no texts.
 function rememberPerson_(person, phone, known) {
   var entry = known || { email: person.email, created_at: nowIso_(), texts: '' };
-  if (phone && phone !== phoneDigits_(entry.phone)) {
-    entry.phone = phone;
+  if ((phone || '') !== phoneDigits_(entry.phone)) {
+    entry.phone = phone || '';
     entry.texts = '';
   }
   entry.name = person.name;
@@ -797,8 +985,9 @@ var SEED_CANDIDATES = 5;
 //   1. Each name in the volunteer's Sheet is linked to ONE active desk player (seedPlayer_): a filled SeedLinks row first,
 //      then the exact full name or a desk alias, then a first name only one active player has. Anything else is skipped.
 //   2. The training list is written to the Training tab (by player id, so a re-run updates rather than adds).
-//   3. Each roster name with an email (seedEmail_) gets the normal PENDING holds on every matching night in the calendar
-//      (not closures), one submission per person, checked by the same rules as the page, and one normal email asking YES.
+//   3. Emails found for linked people (seedEmail_) go on file in the Emails tab, unless a better one is there already.
+//      Each roster name with an email on file gets the normal PENDING holds on every matching night in the calendar (not
+//      closures), one submission per person, checked by the same rules as the page, and one normal email asking YES.
 //   4. SeedReport is rewritten with the counts and every name that needs fixing, with candidate players; SeedLinks gets a
 //      blank row for each such name (a dropdown of players in player_name). Fill those in and run it again.
 // Safe to run again: a hold already made from the seed Sheet (seed_key) is never made or emailed twice, whatever became of it.
@@ -847,13 +1036,8 @@ function importSeedSheet() {
       unresolved(found.kind, entry.name, found.candidates);
       return;
     }
-    var email = seedEmail_(found.player, entry.name, data);
-    if (!email) {
-      skip('roster: no email found', nights.length);
-      unresolved('noEmail', entry.name, [found.player.name]);
-      return;
-    }
-    var group = groups[found.player.playerId] = groups[found.player.playerId] || { player: found.player, email: email, picks: [] };
+    var group = groups[found.player.playerId] = groups[found.player.playerId] || { player: found.player, sheetName: entry.name, found: null, picks: [] };
+    group.found = group.found || seedEmail_(found.player, entry.name, data);
     nights.forEach(function (date) {
       group.picks.push({ date: date, position: entry.position, finalize: false, seedKey: code_('seed:' + date + ':' + entry.position + ':' + found.player.playerId) });
     });
@@ -862,6 +1046,12 @@ function importSeedSheet() {
   lock.waitLock(30000);
   try {
     var trainings = rows_('Training');
+    // What the lookups found goes on file (EMAIL_RANK decides against what is already there); holds then use the email on file.
+    var emails = rows_('Emails');
+    Object.keys(groups).forEach(function (playerId) {
+      var found = groups[playerId].found;
+      if (found) upsertEmail_(emails, groups[playerId].player, found.email, found.source, found.phone);
+    });
     parsed.training.forEach(function (row) {
       var found = linkOf(row.name);
       if (!found.player) {
@@ -879,6 +1069,8 @@ function importSeedSheet() {
         save_('Training', entry);
       }
       report.training += 1;
+      var email = seedEmail_(found.player, row.name, data);
+      if (email) upsertEmail_(emails, found.player, email.email, email.source, email.phone);
     });
     var now = Date.now();
     var signups = rows_('Signups');
@@ -888,6 +1080,13 @@ function importSeedSheet() {
     var people = rows_('People');
     Object.keys(groups).forEach(function (playerId) {
       var group = groups[playerId];
+      var onFile = approvedEmail_(emails, playerId);
+      if (!onFile) {
+        skip('roster: no email found', group.picks.length);
+        unresolved('noEmail', group.sheetName, [group.player.name]);
+        return;
+      }
+      group.email = cleanEmail_(onFile.email);
       var person = { playerId: playerId, name: group.player.name, email: group.email, key: 'p:' + playerId };
       person.training = trainingFor_(trainings, person);
       var accepted = [];
@@ -902,7 +1101,7 @@ function importSeedSheet() {
       });
       if (!accepted.length) return;
       var expires = expiryFor_(accepted, now);
-      var batch = { batch_id: id_(), email: group.email, name: person.name, player_id: playerId, phone: '', status: 'pending', created_at: nowIso_(),
+      var batch = { batch_id: id_(), email: group.email, name: person.name, player_id: playerId, phone: phoneDigits_(onFile.phone), status: 'pending', created_at: nowIso_(),
         expires_at: String(expires), emailed: '', texted: '', updated_at: nowIso_(), source: 'seed' };
       save_('Batches', batch);
       accepted.forEach(function (pick) {
@@ -914,7 +1113,7 @@ function importSeedSheet() {
         holding.push(entry);
       });
       var known = people.filter(function (entry) { return sameAddress_(entry.email, group.email); })[0];
-      rememberPerson_(person, '', known);
+      rememberPerson_(person, phoneDigits_(onFile.phone), known);
       if (!known) people = rows_('People');
       logRow_('step', 'step:pending', batch.batch_id, '-', accepted.length + ' picks from the seed Sheet');
       report.people += 1;
@@ -1063,17 +1262,20 @@ function seedPlayer_(sheetName, data) {
 }
 
 // The desk has no emails. In order: the owner's SeedLinks row, the latest Zeffy payment under the player's name (or an
-// alias), the coaching app's Coaches and Students tabs by full name. '' when none has one.
+// alias), the coaching app's Coaches and Students tabs by full name (which may also have a mobile). {email, source, phone}
+// or null when none has one.
 function seedEmail_(player, sheetName, data) {
   var link = seedLinkRow_(data.links, sheetName);
-  if (link && cleanEmail_(link.email)) return cleanEmail_(link.email);
+  if (link && cleanEmail_(link.email)) return { email: cleanEmail_(link.email), source: 'seedlinks', phone: '' };
   var keys = {};
   keys[seedKeyOf_(player.name)] = true;
   data.aliases.forEach(function (alias) { if (alias.playerId === player.playerId) keys[seedKeyOf_(alias.alias)] = true; });
   var paid = data.zeffy.filter(function (row) { return keys[seedKeyOf_(row.payer_name)] && cleanEmail_(row.payer_email); });
-  if (paid.length) return cleanEmail_(paid[paid.length - 1].payer_email);
+  if (paid.length) return { email: cleanEmail_(paid[paid.length - 1].payer_email), source: 'zeffy', phone: '' };
   var known = data.coaching.filter(function (row) { return seedKeyOf_(row.name) === seedKeyOf_(player.name) && cleanEmail_(row.email); });
-  return known.length ? cleanEmail_(known[known.length - 1].email) : '';
+  if (!known.length) return null;
+  var last = known[known.length - 1];
+  return { email: cleanEmail_(last.email), source: 'coaching', phone: phoneDigits_(last.phone) };
 }
 
 // Call while holding the lock. Rewrites SeedReport, adds a blank SeedLinks row for each name to fix (never a second one), and
@@ -1115,6 +1317,238 @@ function seedReason_(reason) {
   return 'not allowed for this person';
 }
 
+// ---------- The membership list's emails (owner only) ----------
+
+// Run from the Apps Script editor by the owner. Does nothing from the web page. Reads the 2026 membership list (script property
+// MEMBER_LIST_ID: a Google Sheet, or a Google Doc with a table), links each member to ONE active desk player with the seed's
+// rules (exact full name, a desk alias, or a first name only one active player has when the list gives just a first name),
+// and puts their email on file (Emails, source member-list). It never replaces an email the owner typed or fixed in
+// SeedLinks, or one already on file from another import. A household row with several names and several emails is paired
+// only when the counts match one to one. Safe to run again. MemberEmailReport (private) lists what it did and every name it
+// could not match, with full names; the return value and the execution log hold counts only.
+function importMemberEmails() {
+  if (Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) throw new Error('Only the owner can import the membership list.');
+  var id = property_('MEMBER_LIST_ID', '');
+  if (!id) throw new Error('Set the script property MEMBER_LIST_ID to the id of the membership list (a Sheet or a Doc).');
+  var tables = memberTables_(id);
+  CacheService.getScriptCache().remove('directory');
+  var desk = SpreadsheetApp.openById(property_('DESK_SHEET_ID', ''));
+  var data = { players: directory_(), links: [],
+    aliases: tableOf_(desk, 'Aliases').map(function (row) { return { alias: String(row.alias || ''), playerId: String(row.player_id || '').trim() }; }) };
+  var report = { rows: 0, added: 0, alreadyOnFile: 0, kept: 0, skipped: {} };
+  var lines = [];
+  var skip = function (reason, line) {
+    report.skipped[reason] = (report.skipped[reason] || 0) + 1;
+    if (line) lines.push(line);
+  };
+  var found = [];
+  tables.forEach(function (table) {
+    var headerAt = -1;
+    for (var r = 0; r < Math.min(table.length, 10) && headerAt < 0; r += 1) if (memberRow_(table[r].map(seedText_), table[r])) headerAt = r;
+    if (headerAt < 0) return;
+    var headers = table[headerAt].map(seedText_);
+    table.slice(headerAt + 1).forEach(function (cells) {
+      if (!cells.some(function (value) { return String(value == null ? '' : value).trim(); })) return;
+      report.rows += 1;
+      var member = memberRow_(headers, cells);
+      var names = member.names.join(', ');
+      if (!member.names.length) return skip('no name', ['skipped', '', member.emails.join(', '), 'no name']);
+      if (!member.emails.length) return skip('no email', ['no email', names, '', '']);
+      if (member.names.length !== member.emails.length) {
+        return skip('names and emails could not be paired', ['unpaired', names, member.emails.join(', '), member.names.length + ' names, ' + member.emails.length + ' emails']);
+      }
+      member.names.forEach(function (name, index) {
+        var link = seedPlayer_(name, data);
+        if (!link.player) return skip('name ' + link.kind, [link.kind, name, member.emails[index], link.candidates.join(', ')]);
+        found.push({ player: link.player, email: member.emails[index] });
+      });
+    });
+  });
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var emails = rows_('Emails');
+    found.forEach(function (entry) {
+      var result = upsertEmail_(emails, entry.player, entry.email, 'member-list', '');
+      if (result === 'added') report.added += 1;
+      else if (result === 'same') report.alreadyOnFile += 1;
+      else {
+        report.kept += 1;
+        lines.push(['kept', entry.player.name, entry.email, 'a different email is already on file and was kept']);
+      }
+    });
+    var sheet = tab_('MemberEmailReport');
+    if (sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+    var at = nowIso_();
+    [['summary', 'rows read', report.rows], ['summary', 'emails added', report.added], ['summary', 'already on file', report.alreadyOnFile], ['summary', 'kept the email on file', report.kept]]
+      .concat(Object.keys(report.skipped).sort().map(function (reason) { return ['skipped', reason, report.skipped[reason]]; }))
+      .forEach(function (line) { save_('MemberEmailReport', { at: at, kind: line[0], name: line[1], email: '', detail: line[2] }); });
+    lines.forEach(function (line) { save_('MemberEmailReport', { at: at, kind: line[0], name: line[1], email: line[2], detail: line[3] }); });
+  } finally {
+    lock.releaseLock();
+  }
+  console.log('Member email import: ' + JSON.stringify(report));
+  return report;
+}
+
+// Every table in the membership list as rows of cell text: each tab of a Sheet, or each table in a Doc. Opening a Doc as a
+// Sheet fails, so a Sheet is tried first (no Drive access is needed to tell them apart).
+function memberTables_(id) {
+  var book = null;
+  try {
+    book = SpreadsheetApp.openById(id);
+  } catch (error) {
+    book = null;
+  }
+  if (book) return book.getSheets().map(function (sheet) { return sheet.getDataRange().getValues(); });
+  return DocumentApp.openById(id).getBody().getTables().map(function (table) {
+    var rows = [];
+    for (var r = 0; r < table.getNumRows(); r += 1) {
+      var row = table.getRow(r);
+      var cells = [];
+      for (var c = 0; c < row.getNumCells(); c += 1) cells.push(row.getCell(c).getText());
+      rows.push(cells);
+    }
+    return rows;
+  });
+}
+
+// THE ONE PLACE that knows the membership list's columns, found by header name: a full name column (name, member, player)
+// or first name and last name columns, and an email column. headers are lowercased. Returns {names, emails} (a household
+// row may hold several of each, split on , ; / & "and" or a line break), or null when the headers are not a member table.
+function memberRow_(headers, cells) {
+  var at = function (test) {
+    for (var index = 0; index < headers.length; index += 1) if (test(headers[index])) return index;
+    return -1;
+  };
+  var emailAt = at(function (label) { return /^e-?mails?\b|\be-?mail( address)?$/.test(label); });
+  var nameAt = at(function (label) { return /^((full |member |player )?names?|members?|players?)$/.test(label); });
+  var firstAt = at(function (label) { return /^first( name)?$|first name/.test(label); });
+  var lastAt = at(function (label) { return /^(last|sur|family)( ?name)?$|(last|family) name|surname/.test(label); });
+  if (emailAt < 0 || (nameAt < 0 && firstAt < 0)) return null;
+  var text = function (index) { return index < 0 ? '' : String(cells[index] == null ? '' : cells[index]); };
+  var emails = text(emailAt).split(/[\s,;\/&]+/).map(cleanEmail_).filter(Boolean);
+  var names = [];
+  if (nameAt >= 0) {
+    names = splitNames_(text(nameAt));
+  } else {
+    var firsts = splitNames_(text(firstAt));
+    var lasts = splitNames_(text(lastAt));
+    // "Ivo & Jan" + "Bly" are Ivo Bly and Jan Bly; two first and two last names pair in order; anything else is reported.
+    if (lasts.length <= 1) names = firsts.map(function (first) { return lasts.length ? first + ' ' + lasts[0] : first; });
+    else if (lasts.length === firsts.length) names = firsts.map(function (first, index) { return first + ' ' + lasts[index]; });
+    else names = firsts.concat(lasts);
+  }
+  return { names: names, emails: emails };
+}
+
+// ---------- A new email, approved once by the club ----------
+
+// Applies the club's YES or NO (a reply from ADMIN_EMAIL to the approval email) to a request.
+function clubAnswer_(batchId, answer) {
+  var batch = null;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    batch = rows_('Batches').filter(function (entry) { return entry.batch_id === batchId; })[0];
+    if (!batch || batch.status !== 'awaiting_club') return;
+    var emails = rows_('Emails');
+    var row = emails.filter(function (entry) { return entry.batch_id === batchId; })[0] || null;
+    if (answer === 'yes' && row) approveRequest_(batch, row, emails, Date.now());
+    else declineRequest_(batch, row);
+  } finally {
+    lock.releaseLock();
+  }
+  if (!batch) return;
+  logReply_('email', 'club', batchId, answer, batch.status !== 'awaiting_club', batch.status);
+  try {
+    sweep_();
+  } catch (error) {
+    logError_('finish the sweep after a club answer', error, batchId);
+  }
+}
+
+// Call while holding the lock. The owner may also decide in the Emails tab (status approved or declined); an unanswered
+// request is declined after CLUB_WAIT_MS. Run by the sweep, and by the minute check while a request is open.
+function settleRequests_(now) {
+  var waiting = rows_('Batches').filter(function (batch) { return batch.status === 'awaiting_club'; });
+  if (!waiting.length) return;
+  var emails = rows_('Emails');
+  waiting.forEach(function (batch) {
+    var row = emails.filter(function (entry) { return entry.batch_id === batch.batch_id; })[0] || null;
+    var status = row ? String(row.status).trim().toLowerCase() : 'declined';
+    if (status === 'approved') approveRequest_(batch, row, emails, now);
+    else if (status === 'declined' || now >= Number(batch.expires_at)) declineRequest_(batch, row);
+  });
+}
+
+// Call while holding the lock. The address becomes the player's email on file (replacing any other), and the picks still
+// free become normal pending holds, so the person is asked for their own YES. Picks taken meanwhile are marked unavailable
+// and listed in that email.
+function approveRequest_(batch, row, emails, now) {
+  emails.forEach(function (other) {
+    if (other === row || String(other.player_id).trim() !== batch.player_id || String(other.status).trim().toLowerCase() !== 'approved') return;
+    other.status = 'replaced';
+    other.decided_at = nowIso_();
+    save_('Emails', other);
+  });
+  row.status = 'approved';
+  row.source = 'approved-request';
+  row.decided_at = row.decided_at || nowIso_();
+  save_('Emails', row);
+  // The owner may have corrected the address in the Emails row before approving it.
+  batch.email = cleanEmail_(row.email) || batch.email;
+  var signups = rows_('Signups');
+  var mine = signups.filter(function (entry) { return entry.batch_id === batch.batch_id && entry.status === 'requested'; });
+  var holding = signups.filter(function (entry) { return holds_(entry, now); });
+  var person = { playerId: batch.player_id, name: batch.name, email: batch.email, key: 'p:' + batch.player_id };
+  person.training = trainingFor_(rows_('Training'), person);
+  var horizon = horizon_();
+  var closures = closures_();
+  var accepted = [];
+  mine.forEach(function (entry) {
+    var others = holding.concat(accepted).filter(function (other) { return other.date === entry.date; });
+    if (pickProblem_({ date: entry.date, position: entry.position, finalize: entry.finalize === 'yes' }, person, nightOf_(entry.date, horizon, closures), others)) entry.status = 'unavailable';
+    else accepted.push(entry);
+  });
+  var expires = accepted.length ? expiryFor_(accepted, now) : now;
+  mine.forEach(function (entry) {
+    if (entry.status === 'requested') {
+      entry.status = 'pending';
+      entry.expires_at = String(expires);
+    }
+    entry.email = batch.email;
+    entry.updated_at = nowIso_();
+    save_('Signups', entry);
+  });
+  batch.status = accepted.length ? 'pending' : 'unavailable';
+  batch.expires_at = String(expires);
+  batch.phone = phoneDigits_(row.phone);
+  batch.updated_at = nowIso_();
+  save_('Batches', batch);
+  rememberPerson_(person, phoneDigits_(row.phone), rows_('People').filter(function (entry) { return sameAddress_(entry.email, batch.email); })[0]);
+  logRow_('step', 'step:' + batch.status, batch.batch_id, '-', 'email approved by the club, ' + accepted.length + ' of ' + mine.length + ' picks still free');
+}
+
+// Call while holding the lock. Nothing was held, so nothing reopens; the person is told once (deliverBatch_).
+function declineRequest_(batch, row) {
+  if (row) {
+    row.status = 'declined';
+    row.decided_at = nowIso_();
+    save_('Emails', row);
+  }
+  rows_('Signups').forEach(function (entry) {
+    if (entry.batch_id !== batch.batch_id || entry.status !== 'requested') return;
+    entry.status = 'declined';
+    entry.updated_at = nowIso_();
+    save_('Signups', entry);
+  });
+  batch.status = 'declined';
+  batch.updated_at = nowIso_();
+  save_('Batches', batch);
+  logRow_('step', 'step:declined', batch.batch_id, '-', row && row.decided_at ? 'email not approved' : 'no club answer');
+}
+
 // ---------- Public: dropping a confirmed shift ----------
 
 // "This is me: drop this shift". The page never learns whose shift it is: we email the address that confirmed it, and only a
@@ -1136,13 +1570,14 @@ function requestDrop(signupId) {
     entry.drop_at = String(now);
     entry.updated_at = nowIso_();
     save_('Signups', entry);
+    var contact = contactOf_(entry, rows_('Emails'));
   } finally {
     lock.releaseLock();
   }
   try {
     if (!mailAvailable_()) throw new Error('the daily email quota is used up');
     var night = NIGHTS[weekday_(entry.date)];
-    sendMail_(entry.email, 'Drop your CTTC shift? ' + refTag_(dropCode_(entry)), [
+    sendMail_(contact, 'Drop your CTTC shift? ' + refTag_(dropCode_(entry)), [
       'Hello ' + firstName_(entry.name) + ',',
       'Someone (we hope you) asked on the club website to drop this shift:',
       { rows: [['When', dayLabel_(entry.date) + ', ' + time12_(night.start) + ' to ' + time12_(night.end)], ['Position', shiftLabel_(entry)]] },
@@ -1302,6 +1737,9 @@ function dropAnswer_(signupId, answer) {
     }
     save_('Signups', entry);
     if (answer === 'yes') logRow_('step', 'step:dropped', entry.batch_id, '-', entry.position + ' on ' + entry.date);
+    var emails = rows_('Emails');
+    var contact = contactOf_(entry, emails);
+    var backupContact = backup ? contactOf_(backup, emails) : '';
   } finally {
     lock.releaseLock();
   }
@@ -1317,12 +1755,12 @@ function dropAnswer_(signupId, answer) {
   };
   if (answer !== 'yes') {
     attempt('confirm a kept shift', function () {
-      sendMail_(entry.email, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + when + '. Thank you!'], ['drop-kept', entry.signup_id]);
+      sendMail_(contact, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + when + '. Thank you!'], ['drop-kept', entry.signup_id]);
     });
     return;
   }
   attempt('confirm a dropped shift', function () {
-    sendMail_(entry.email, 'Shift dropped: ' + shortDay_(entry.date), ['Hello ' + firstName_(entry.name) + ',',
+    sendMail_(contact, 'Shift dropped: ' + shortDay_(entry.date), ['Hello ' + firstName_(entry.name) + ',',
       'Done: you are off ' + shiftLabel_(entry) + ' on ' + when + '. The spot is open for someone else and the club has been told.',
       'Thanks for letting us know early. You can pick another night any time at ' + PAGE_URL + '.'], ['drop-done', entry.signup_id]);
   });
@@ -1334,7 +1772,7 @@ function dropAnswer_(signupId, answer) {
   });
   if (backup) {
     attempt('give a backup a heads-up', function () {
-      sendMail_(backup.email, 'Heads-up: you may be needed as ' + position_(entry.position).label + ' on ' + shortDay_(entry.date), ['Hello ' + firstName_(backup.name) + ',',
+      sendMail_(backupContact, 'Heads-up: you may be needed as ' + position_(entry.position).label + ' on ' + shortDay_(entry.date), ['Hello ' + firstName_(backup.name) + ',',
         { callout: 'The ' + position_(entry.position).label.toLowerCase() + ' for **' + when + '** has dropped out. As the backup, **please plan to step in** unless someone else signs up for it.', tone: 'action' },
         'The calendar at ' + PAGE_URL + ' shows who is on that night. If you cannot make it either, please tell the club.'], ['backup-heads-up', backup.signup_id]);
     });
@@ -1356,9 +1794,22 @@ function checkReplies() {
     step_('read email answers', checkMail_);
     step_('read CONFIRM and RELEASE texts', checkTextAnswers_);
     step_('read STAFF and STOP texts', checkOptIns_);
+    step_('apply the club\'s email decisions', checkDecisions_);
   } finally {
     running.releaseLock();
   }
+}
+
+// An open request the owner decided in the Emails tab (or whose 7 days ran out) is applied within a minute, not an hour.
+function checkDecisions_() {
+  var waiting = rows_('Batches').filter(function (batch) { return batch.status === 'awaiting_club'; });
+  if (!waiting.length) return;
+  var emails = rows_('Emails');
+  var now = Date.now();
+  if (waiting.some(function (batch) {
+    var row = emails.filter(function (entry) { return entry.batch_id === batch.batch_id; })[0];
+    return !row || String(row.status).trim().toLowerCase() !== 'pending' || now >= Number(batch.expires_at);
+  })) sweep_();
 }
 
 // One failing step never stops the others. The club is emailed about a failing step at most every 6 hours.
@@ -1396,7 +1847,10 @@ function batchCode_(batch) { return code_('b:' + batch.batch_id); }
 
 function dropCode_(entry) { return code_('d:' + entry.signup_id + ':' + entry.drop_at); }
 
-function mailQuery_(since) { return 'newer_than:3d subject:"CTTC shift" -from:me after:' + since; }
+function clubCode_(batch) { return code_('c:' + batch.batch_id); }
+
+// own: also our own account's messages, when the club's answer can come from it (ADMIN_EMAIL is the club account).
+function mailQuery_(since, days, own) { return 'newer_than:' + days + 'd subject:"CTTC shift" ' + (own ? '' : '-from:me ') + 'after:' + since; }
 
 // Every question still waiting for an emailed answer: {code, email, after, kind, id}.
 function emailQuestions_(now) {
@@ -1406,9 +1860,15 @@ function emailQuestions_(now) {
     var question = { code: batchCode_(batch), email: batch.email, after: Date.parse(batch.created_at) || 0, kind: 'batch', id: batch.batch_id };
     if (status === 'pending' || (status === 'expired' && !batch.answered_at && now - Number(batch.expires_at) < LATE_MS)) questions.push(question);
   });
+  rows_('Batches').forEach(function (batch) {
+    if (batch.status === 'awaiting_club' && now < Number(batch.expires_at)) {
+      questions.push({ code: clubCode_(batch), email: adminEmail_(), after: Date.parse(batch.created_at) || 0, kind: 'club', id: batch.batch_id });
+    }
+  });
+  var emails = null;
   rows_('Signups').forEach(function (entry) {
     if (entry.status === 'confirmed' && Number(entry.drop_at) > 0 && now - Number(entry.drop_at) < DROP_TTL_MS) {
-      questions.push({ code: dropCode_(entry), email: entry.email, after: Number(entry.drop_at), kind: 'drop', id: entry.signup_id });
+      questions.push({ code: dropCode_(entry), email: contactOf_(entry, emails || (emails = rows_('Emails'))), after: Number(entry.drop_at), kind: 'drop', id: entry.signup_id });
     }
   });
   return questions;
@@ -1420,17 +1880,23 @@ function checkMail_() {
   if (!questions.length) return;
   var byCode = {};
   questions.forEach(function (question) { byCode[question.code] = question; });
-  var us = [Session.getEffectiveUser().getEmail(), adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
-  // Only threads with a message from someone else since the oldest open question are opened, to spare the Gmail quota.
+  var self = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  var us = [self, adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
+  var club = questions.some(function (question) { return question.kind === 'club'; });
+  // Only threads with a message since the oldest open question are opened, to spare the Gmail quota: from someone else, or
+  // from our own account too while the club (when it is this account) has an approval to answer.
   var since = Math.floor(Math.min.apply(null, questions.map(function (question) { return question.after; })) / 1000);
   var answers = {};
-  GmailApp.search(mailQuery_(since), 0, 50).forEach(function (thread) {
+  GmailApp.search(mailQuery_(since, club ? 8 : 3, club && sameAddress_(adminEmail_(), self)), 0, 50).forEach(function (thread) {
     thread.getMessages().forEach(function (message) {
-      var code = (String(message.getSubject() || '').match(/\[CTTC shift ([0-9A-F]{10})\]/) || [])[1];
+      var subject = String(message.getSubject() || '');
+      var code = (subject.match(/\[CTTC shift ([0-9A-F]{10})\]/) || [])[1];
       var question = code && byCode[code];
       if (!question) return;
       var from = String(message.getFrom() || '');
       var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
+      // Our own question in the thread is not an answer; the club's reply from this account starts "Re:".
+      if (sameAddress_(address, self) && !/^re\s*:/i.test(subject)) return;
       var at = message.getDate().getTime();
       if (at <= question.after) return;
       var recent = Date.now() - at < 5 * 3600000;
@@ -1450,6 +1916,7 @@ function checkMail_() {
   Object.keys(answers).forEach(function (code) {
     var found = answers[code];
     if (found.question.kind === 'batch') batchAnswer_(found.question.id, found.answer, 'email');
+    else if (found.question.kind === 'club') clubAnswer_(found.question.id, found.answer);
     else dropAnswer_(found.question.id, found.answer);
   });
 }
@@ -1655,7 +2122,8 @@ function checkOptIns_() {
   var cache = CacheService.getScriptCache();
   if (cache.get('opt-ins')) return;
   cache.put('opt-ins', '1', 300);
-  if (!rows_('People').some(function (person) { return phoneDigits_(person.phone); })) return;
+  var onFile = rows_('Emails').filter(function (row) { return String(row.status).trim().toLowerCase() === 'approved' && phoneDigits_(row.phone) && cleanEmail_(row.email); });
+  if (!onFile.length && !rows_('People').some(function (person) { return phoneDigits_(person.phone); })) return;
   var seen = {};
   var texts = [];
   GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:2d (STAFF OR STOP)', 0, 30).forEach(function (thread) {
@@ -1675,7 +2143,21 @@ function checkOptIns_() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    var people = rows_('People').filter(function (person) { return phoneDigits_(person.phone); });
+    // Only a mobile on file counts: someone the club has a number for may opt in before they ever sign up.
+    var everyone = rows_('People');
+    onFile.forEach(function (row) {
+      var person = everyone.filter(function (entry) { return sameAddress_(entry.email, row.email); })[0];
+      if (!person) {
+        person = { email: cleanEmail_(row.email), name: row.name, player_id: row.player_id, phone: phoneDigits_(row.phone), texts: '', created_at: nowIso_() };
+        save_('People', person);
+        everyone.push(person);
+      } else if (phoneDigits_(person.phone) !== phoneDigits_(row.phone)) {
+        person.phone = phoneDigits_(row.phone);
+        person.texts = '';
+        save_('People', person);
+      }
+    });
+    var people = everyone.filter(function (person) { return phoneDigits_(person.phone); });
     texts.forEach(function (text) {
       var matched = people.filter(function (person) { return fromPerson_(text, person) && text.at > Number(person.texts_at || 0); });
       matched.forEach(function (person) {
@@ -1710,6 +2192,8 @@ function sweep_() {
   try {
     ensureHeaders_();
     var now = Date.now();
+    tidyEmails_(rows_('Emails'));
+    settleRequests_(now);
     var signups = rows_('Signups');
     signups.forEach(function (entry) {
       var status = signupStatus_(entry, now);
@@ -1731,7 +2215,8 @@ function sweep_() {
       deliverBatch_(batch, signups, now);
       textBatch_(batch, signups, people, now);
     });
-    remind_(signups, now);
+    cancelClosed_(signups, rows_('Emails'));
+    remind_(signups, rows_('Emails'), now);
     trimLog_();
   } catch (error) {
     logError_('finish the sweep', error);
@@ -1746,7 +2231,7 @@ function sweep_() {
 function deliverBatch_(batch, signups, now) {
   if (batch.emailed === batch.status) return;
   // A submission that expired before its question ever went out has nothing to tell.
-  if (batch.status === 'expired' && batch.emailed !== 'pending') {
+  if ((batch.status === 'expired' && batch.emailed !== 'pending') || (batch.status === 'declined' && batch.emailed !== 'awaiting_club')) {
     batch.emailed = batch.status;
     save_('Batches', batch);
     return;
@@ -1757,7 +2242,7 @@ function deliverBatch_(batch, signups, now) {
   var message = batchMail_(batch, mine, now);
   if (!mailAvailable_()) return;
   try {
-    sendMail_(batch.email, message.subject, message.lines, ['batch:' + batch.status, batch.batch_id]);
+    sendMail_(message.to || batch.email, message.subject, message.lines, ['batch:' + batch.status, batch.batch_id]);
   } catch (error) {
     logError_('email a sign-up (' + batch.status + ')', error, batch.batch_id);
     return;
@@ -1788,6 +2273,59 @@ function textBatch_(batch, signups, people, now) {
   save_('Batches', batch);
 }
 
+// Call while holding the lock. A night that became closed (closures.json or the Closures tab) after people signed up: its
+// confirmed and pending sign-ups are cancelled (cancelled_by 'closure'). Each confirmed person is told once, per night (notified
+// is written after the email was accepted, so a failure is retried and a success never repeated), and the club gets one
+// summary per sweep. A pending pick was never confirmed, so it is only released.
+function cancelClosed_(signups, emails) {
+  var closures = closures_();
+  var today = pacificNow_().date;
+  signups.forEach(function (entry) {
+    if (entry.date < today || !Object.prototype.hasOwnProperty.call(closures, entry.date) || (entry.status !== 'confirmed' && entry.status !== 'pending')) return;
+    entry.notified = entry.status === 'confirmed' ? '' : '-';
+    entry.status = 'cancelled';
+    entry.cancelled_by = 'closure';
+    entry.updated_at = nowIso_();
+    save_('Signups', entry);
+    logRow_('step', 'step:cancelled', entry.batch_id, '-', 'gym closed on ' + entry.date);
+  });
+  var groups = {};
+  signups.forEach(function (entry) {
+    if (entry.cancelled_by !== 'closure' || entry.notified || entry.date < today) return;
+    var key = contactOf_(entry, emails) + ' ' + entry.date;
+    (groups[key] = groups[key] || []).push(entry);
+  });
+  var told = [];
+  Object.keys(groups).forEach(function (key) {
+    var entries = groups[key];
+    if (!mailAvailable_()) return;
+    var positions = entries.map(function (entry) { return position_(entry.position).label; }).join(' and ');
+    try {
+      sendMail_(key.split(' ')[0], 'Cancelled: your CTTC shift on ' + shortDay_(entries[0].date), ['Hello ' + firstName_(entries[0].name) + ',',
+        { callout: 'The gym is closed on **' + dayLabel_(entries[0].date) + '**; your ' + positions + ' shift is cancelled. Thank you!', tone: 'action' },
+        'Nothing else is needed from you. You can pick another night any time at ' + PAGE_URL + '.'], ['closure-cancelled', entries[0].batch_id]);
+    } catch (error) {
+      logError_('tell a volunteer their night closed', error, entries[0].batch_id);
+      return;
+    }
+    entries.forEach(function (entry) {
+      entry.notified = nowIso_();
+      save_('Signups', entry);
+      told.push(entry);
+    });
+  });
+  if (!told.length) return;
+  try {
+    if (mailAvailable_()) {
+      sendMail_(adminEmail_(), 'Staffing: ' + told.length + ' shift' + (told.length === 1 ? '' : 's') + ' cancelled because the gym is closed', [
+        'These volunteers were told their shift is cancelled because the gym is closed that night:',
+        { rows: told.map(function (entry) { return [shortDay_(entry.date), entry.name + ', ' + position_(entry.position).label]; }) }], ['closure-summary', told[0].batch_id]);
+    }
+  } catch (error) {
+    logError_('tell the club about cancelled shifts', error);
+  }
+}
+
 // "Table setup (opening, 7:00 PM)", "Closing (put tables away) (10:00 PM), also finalizing the desk".
 function shiftLabel_(entry) {
   var spec = position_(entry.position);
@@ -1801,12 +2339,34 @@ function shiftRows_(entries) { return { rows: entries.map(function (entry) { ret
 function batchMail_(batch, mine, now) {
   var hello = 'Hello ' + (firstName_(batch.name) || 'there') + ',';
   var deadline = momentLabel_(Number(batch.expires_at));
+  var unavailable = mine.filter(function (entry) { return entry.status === 'unavailable'; });
+  var approved = batch.emailed === 'awaiting_club';
+  if (batch.status === 'awaiting_club') {
+    return { to: adminEmail_(), subject: 'Approve an email for staff sign-ups ' + refTag_(clubCode_(batch)), lines: [
+      { callout: '**' + batch.name + '** wants to use **' + batch.email + '** for staff sign-ups. Reply **YES** to approve or **NO** to decline.', tone: 'action' },
+      'The club has no email on file for ' + batch.name + ', so this address needs the club\'s OK once. On YES it becomes their email on file and we email them to confirm these shifts (they still reply YES themselves). On NO, or no answer within 7 days, nothing is held and they are told to contact the club.',
+      { heading: 'The shifts they picked (not held yet)' }, shiftRows_(mine),
+      { choices: [['YES', 'Approve this address for ' + batch.name + '.'], ['NO', 'Decline it.']] },
+      'Only a reply from the club address counts. You can also decide in the private staffing Sheet: Emails tab, status approved or declined.'] };
+  }
+  if (batch.status === 'declined') {
+    return { subject: 'We could not confirm your email for CTTC staff sign-ups', lines: ['Hello,',
+      'Someone asked to use this email address for volunteer sign-ups at the Concord Table Tennis Club. The club could not confirm it, so no shifts were saved.',
+      'If that was you, please contact the club (talk to the desk on a club night) and we will set it up.'] };
+  }
+  if (batch.status === 'unavailable') {
+    return { subject: 'Your email is approved, but those shifts were taken', lines: [hello,
+      'The club approved your email address: from now on we use it for your sign-ups. Sorry: by then none of the shifts you picked were still free.', shiftRows_(unavailable),
+      'Please pick again at ' + PAGE_URL + '. This time we email you straight away.'] };
+  }
   if (batch.status === 'pending') {
     return { subject: 'Confirm your CTTC staff sign-up ' + refTag_(batchCode_(batch)), lines: [hello,
       batch.source === 'seed' ? 'The club\'s open/close list has you down for the shifts below, and we have moved that list to the new sign-up calendar. Please confirm them.' : null,
       { callout: 'Reply **YES** to this email by **' + deadline + '** to confirm ' + (mine.length === 1 ? 'this shift' : 'all ' + mine.length + ' shifts') +
         '. Until then they are held for you and show as "waiting to confirm".', tone: 'action' },
-      { heading: 'Your picks' }, shiftRows_(mine),
+      approved ? 'The club approved your email address: from now on we use it for your sign-ups.' : null,
+      { heading: 'Your picks' }, shiftRows_(mine.filter(function (entry) { return entry.status !== 'unavailable'; })),
+      unavailable.length ? { heading: 'No longer free by the time the club approved your email' } : null, unavailable.length ? shiftRows_(unavailable) : null,
       { choices: [['YES', 'Confirm ' + (mine.length === 1 ? 'it' : 'all of them') + '.'], ['NO', 'Cancel ' + (mine.length === 1 ? 'it' : 'all of them') + ': the spots open for others.']] },
       'If you do not reply in time, the picks are released so someone else can take them. Please reply from this same email address.',
       'Didn\'t sign up? Just ignore this email: nothing is confirmed without your YES.'] };
@@ -1822,7 +2382,8 @@ function batchMail_(batch, mine, now) {
       'Can\'t make it after all? Open the calendar at ' + PAGE_URL + ', tap the night, tap your name and choose "This is me". We email you to confirm the drop.'] };
   }
   if (batch.status === 'released') {
-    return { subject: 'Your CTTC staff sign-up is cancelled', lines: [hello, 'OK, we released these picks as you asked. Nothing is on the schedule for you from this sign-up:', shiftRows_(mine),
+    return { subject: 'Your CTTC staff sign-up is cancelled', lines: [hello, 'OK, we released these picks as you asked. Nothing is on the schedule for you from this sign-up:',
+      shiftRows_(mine.filter(function (entry) { return entry.status !== 'unavailable'; })),
       'You can pick other nights any time at ' + PAGE_URL + '.'] };
   }
   return { subject: 'Your CTTC staff sign-up expired', lines: [hello,
@@ -1832,7 +2393,7 @@ function batchMail_(batch, mine, now) {
 
 // Call while holding the lock. One email per person per night, the day before (from REMIND_FROM, Pacific), listing their
 // positions. reminded is written after the email was accepted, so a failure is retried by the next sweep.
-function remind_(signups, now) {
+function remind_(signups, emails, now) {
   var today = pacificNow_();
   if (today.time < REMIND_FROM) return;
   var tomorrow = addDays_(today.date, 1);
@@ -1840,14 +2401,14 @@ function remind_(signups, now) {
   var groups = {};
   signups.forEach(function (entry) {
     if (entry.status !== 'confirmed' || entry.date !== tomorrow || entry.reminded || Object.prototype.hasOwnProperty.call(closures, entry.date)) return;
-    var key = entry.email + ' ' + entry.date;
+    var key = contactOf_(entry, emails) + ' ' + entry.date;
     (groups[key] = groups[key] || []).push(entry);
   });
   Object.keys(groups).forEach(function (key) {
     var entries = groups[key];
     if (!mailAvailable_()) return;
     try {
-      sendMail_(entries[0].email, 'Reminder: your CTTC shift tomorrow, ' + shortDay_(tomorrow), ['Hello ' + firstName_(entries[0].name) + ',',
+      sendMail_(key.split(' ')[0], 'Reminder: your CTTC shift tomorrow, ' + shortDay_(tomorrow), ['Hello ' + firstName_(entries[0].name) + ',',
         { callout: 'Thanks for helping run the club **tomorrow, ' + dayLabel_(tomorrow) + '**.', tone: 'good' }, shiftRows_(entries),
         { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]] },
         'Can\'t make it? Please drop the shift on the calendar at ' + PAGE_URL + ' (tap the night, tap your name, then "This is me") so someone can step in.'], ['reminder', entries[0].batch_id]);

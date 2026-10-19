@@ -55,6 +55,7 @@
   .pos-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: 0.95rem; }
   .pos-head span { color: #666; font-size: 0.8rem; }
   .does { margin: 2px 0 0; color: #555; font-size: 0.82rem; }
+  .night-note { padding: 6px 10px; background: #fff4d6; border-left: 4px solid #c98a00; border-radius: 4px; font-size: 0.9rem; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; align-items: center; }
   .chip { display: inline-block; padding: 5px 10px; border-radius: 16px; font-size: 0.9rem; border: 1px solid #ccc; background: #fafafa; color: #1c1c1c; font-weight: 600; }
   button.chip { cursor: pointer; }
@@ -168,6 +169,9 @@
     call('playerAccess', [player.playerId], function (result) {
       if (who !== player) return;
       player.positions = result.ok ? result.positions : null;
+      // Masked ("s•••@gmail.com") or null: the page never learns anyone's address.
+      player.emailOnFile = result.ok ? result.emailOnFile : null;
+      player.checked = !!result.ok;
       redraw();
     });
   }
@@ -204,7 +208,7 @@
     if (!night) return el('span', { 'class': 'day', 'aria-hidden': 'true', text: String(day) });
     if (night.status === 'past') return el('span', { 'class': 'day past', title: 'Past', text: String(day) });
     var mine = picksOn(date).length;
-    var label = night.day + ': ' + WORDS[night.status] + (night.bookable ? '' : night.status === 'closed' ? '' : ', sign-ups closed') + (mine ? ', ' + mine + ' of your picks' : '');
+    var label = night.day + ': ' + WORDS[night.status] + (night.note && night.status !== 'closed' ? ' (' + night.note + ')' : '') + (night.bookable ? '' : night.status === 'closed' ? '' : ', sign-ups closed') + (mine ? ', ' + mine + ' of your picks' : '');
     var cell = el('button', { type: 'button', 'class': 'day ' + night.status + (date === selected ? ' selected' : '') + (night.bookable ? '' : ' late'),
       'aria-label': label, 'aria-pressed': date === selected ? 'true' : 'false', 'data-date': date }, [
       el('span', { text: String(day) }), el('span', { 'class': 'mark', 'aria-hidden': 'true', text: MARKS[night.status] || '' }),
@@ -226,10 +230,12 @@
     panel.appendChild(el('h2', { text: night.day }));
     panel.appendChild(el('p', {}, [night.time + ' ', el('span', { 'class': 'badge ' + night.status, text: (MARKS[night.status] ? MARKS[night.status] + ' ' : '') + WORDS[night.status] })]));
     if (night.status === 'closed') {
-      panel.appendChild(el('p', { text: 'The club is closed this night' + (night.note ? ': ' + night.note : '.') }));
+      panel.appendChild(el('p', { text: 'The gym is closed this night' + (night.note && night.note !== 'Gym closed' ? ': ' + night.note : '.') + ' No volunteers needed.' }));
       area.appendChild(panel);
       return;
     }
+    // Open with changes (closures.json: reduced play area, or a holiday): still needs volunteers.
+    if (night.note) panel.appendChild(el('p', { 'class': 'night-note', text: '\u2139 ' + night.note }));
     if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
     else if (night.status === 'covered') panel.appendChild(el('p', { 'class': 'muted', text: 'The minimum crew is confirmed. A backup or extra spot is still open.' }));
     if (!night.bookable) panel.appendChild(el('p', { 'class': 'why', text: 'Sign-ups for this night have closed (they close an hour before the club opens).' }));
@@ -355,8 +361,7 @@
     });
     picksBox.appendChild(list);
     picksBox.appendChild(keep || detailsForm());
-    var send = picksBox.querySelector('#send');
-    if (send) send.textContent = 'Email me to confirm (' + picks.length + ' shift' + (picks.length === 1 ? '' : 's') + ')';
+    if (keep) keep.syncEmail();
   }
   function field(labelText, input, note) {
     return [el('label', { 'for': input.id, text: labelText }), input, note ? el('p', { 'class': 'muted', id: input.id + 'Note', text: note }) : null];
@@ -368,8 +373,10 @@
     var typedBox = el('div', { hidden: 'hidden' }, field('Your first and last name', el('input', { type: 'text', id: 'typedName', maxlength: '60', autocomplete: 'name' }),
       'Table setup and Closing are open to you now. Desk organizer and Money collector need a one-time OK from the club first.'));
     var unlisted = el('button', { type: 'button', 'class': 'link', text: 'I\'m not listed' });
-    var email = el('input', { type: 'email', id: 'email', maxlength: '254', autocomplete: 'email', required: 'required' });
-    var phone = el('input', { type: 'tel', id: 'phone', maxlength: '20', autocomplete: 'tel' });
+    var email = el('input', { type: 'email', id: 'email', maxlength: '254', autocomplete: 'email', 'aria-describedby': 'emailNote' });
+    // No phone here: texts only go to a mobile the club has on file, so nobody can sign someone else up for texts.
+    var emailBox = el('div', { hidden: 'hidden' }, field('Your email', email, ' '));
+    var onFile = el('p', { 'class': 'chosen onfile', hidden: 'hidden', role: 'status' });
     var keep = el('input', { type: 'checkbox', id: 'remember' });
     var trap = el('input', { type: 'text', id: 'website', tabindex: '-1', autocomplete: 'off' });
     var send = el('button', { type: 'submit', id: 'send', text: 'Email me to confirm' });
@@ -377,14 +384,27 @@
     var form = el('form', { novalidate: 'novalidate' }, [el('h3', { text: 'Your details' })].concat(
       field('Your name, as on the club player list', search, 'Type at least 2 letters, then tap your name.'), [results, chosen],
       board.mode === 'hybrid' ? [el('p', {}, [unlisted]), typedBox] : [],
-      field('Email (required)', email, 'We email you once to confirm. It is never shown on the site.'),
-      field('Mobile (optional)', phone, 'For texts about your shifts, after you text STAFF to ' + board.textNumber + ' from this phone.'),
-      [el('label', { 'class': 'check', 'for': 'remember' }, [keep, el('span', { text: 'Remember my details on this device' })]),
+      [onFile, emailBox],
+      [el('label', { 'class': 'check', 'for': 'remember' }, [keep, el('span', { text: 'Remember my name on this device' })]),
         el('div', { 'class': 'trap', 'aria-hidden': 'true' }, [el('label', { 'for': 'website', text: 'Leave this empty' }), trap]),
         el('div', { 'class': 'actions' }, [send]), status,
         el('p', { 'class': 'muted', text: 'The calendar shows first names only. Nothing is confirmed until you reply YES.' })]));
     var timer = null;
     var asked = '';
+    // Who is signing up decides where the confirmation goes: the email on file (shown masked), or for a player with none an
+    // address the club approves once, or for someone not on the list (hybrid mode) the address they type.
+    function syncEmail() {
+      var typing = board.mode === 'hybrid' && !typedBox.hidden;
+      var known = !!(who && !who.unlisted && who.checked);
+      var shifts = picks.length + ' shift' + (picks.length === 1 ? '' : 's');
+      onFile.hidden = !(known && who.emailOnFile);
+      onFile.textContent = known && who.emailOnFile ? 'We\'ll email ' + who.emailOnFile + ' to confirm. Not your address? Ask the club.' : '';
+      emailBox.hidden = !(typing || (known && !who.emailOnFile) || (who && !who.unlisted && !who.checked && who.positions === null));
+      form.querySelector('#emailNote').textContent = typing ? 'We email you once to confirm. It is never shown on the site.' :
+        'We don\'t have an email for you yet. Enter it and the club will confirm it once; then we\'ll email you to confirm your shifts.';
+      send.textContent = known && !who.emailOnFile ? 'Send to the club (' + shifts + ')' : 'Email me to confirm (' + shifts + ')';
+    }
+    form.syncEmail = syncEmail;
     // quiet: restoring a remembered name while the form is built; its access is already being fetched.
     function choose(player, quiet) {
       who = player;
@@ -397,7 +417,8 @@
       change.addEventListener('click', function () { who = null; chosen.hidden = true; redraw(); search.focus(); });
       chosen.appendChild(el('span', {}, ['Signing up as ', el('b', { text: player.unlisted ? player.name + ' (not on the list)' : player.name }), ' ']));
       chosen.appendChild(change);
-      if (!quiet && !player.unlisted && !player.positions) access(player);
+      syncEmail();
+      if (!quiet && !player.unlisted && !player.checked) access(player);
     }
     search.addEventListener('input', function () {
       clearTimeout(timer);
@@ -424,30 +445,31 @@
       event.preventDefault();
       var typed = board.mode === 'hybrid' && !typedBox.hidden ? form.querySelector('#typedName').value : '';
       if (!who && !typed.trim()) { report('Please find and tap your name first.', 'error', search); return; }
-      if (!email.value.trim()) { report('Please enter your email address.', 'error', email); return; }
+      if (!emailBox.hidden && !email.value.trim()) { report('Please enter your email address.', 'error', email); return; }
       report('Sending…');
       send.disabled = true;
       call('signUp', [{
         picks: picks.map(function (pick) { return { date: pick.date, position: pick.position, finalize: !!pick.finalize }; }),
-        playerId: who && !who.unlisted ? who.playerId : '', unlisted: !who && !!typed, name: typed, email: email.value, phone: phone.value, website: trap.value
+        playerId: who && !who.unlisted ? who.playerId : '', unlisted: !who && !!typed, name: typed, email: emailBox.hidden ? '' : email.value, website: trap.value
       }], function (result) {
         send.disabled = false;
         if (!result.ok) {
           lastProblems = result.problems || [];
-          var fields = { name: who ? search : form.querySelector('#typedName') || search, email: email, phone: phone };
+          var fields = { name: who ? search : form.querySelector('#typedName') || search, email: email };
           if (lastProblems.length) drawPicks();
           report(result.message, 'error', fields[result.field]);
           return;
         }
-        remember('cttc-staff', keep.checked ? { player: who && { playerId: who.playerId, name: who.name }, email: email.value, phone: phone.value } : null);
+        remember('cttc-staff', keep.checked && who ? { player: { playerId: who.playerId, name: who.name } } : null);
         picks = [];
         lastProblems = [];
         empty(picksBox);
         picksBox.setAttribute('data-done', '1');
         picksBox.hidden = false;
-        picksBox.appendChild(el('h2', { id: 'picksTitle', tabindex: '-1', text: 'Check your email' }));
+        picksBox.appendChild(el('h2', { id: 'picksTitle', tabindex: '-1', text: result.request ? 'Sent to the club' : 'Check your email' }));
         picksBox.appendChild(el('p', { 'class': 'form-status ok', role: 'status', text: result.message }));
-        if (result.texts) picksBox.appendChild(el('p', { 'class': 'muted', text: 'Want texts instead? Text STAFF to ' + result.textNumber + ' from the mobile you gave; next time we text you too and you can reply CONFIRM.' }));
+        if (!result.request) picksBox.appendChild(el('p', { 'class': 'muted', text: 'Texts: if the club has your mobile on file, text STAFF to ' + result.textNumber + ' from it and we\'ll text you too (reply CONFIRM).' }));
+        if (who && result.request) who.checked = false;
         picksBox.querySelector('h2').focus({ preventScroll: true });
         picksBox.scrollIntoView({ block: 'nearest' });
         reload();
@@ -472,13 +494,9 @@
       var note = document.getElementById(input.id + 'Error');
       if (note) note.parentNode.removeChild(note);
     }
-    var me = saved('cttc-staff');
-    if (me) {
-      keep.checked = true;
-      email.value = me.email || '';
-      phone.value = me.phone || '';
-    }
+    if (saved('cttc-staff')) keep.checked = true;
     if (who) choose(who, true);
+    syncEmail();
     return form;
   }
 

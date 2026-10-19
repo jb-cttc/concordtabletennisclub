@@ -132,13 +132,15 @@ const short = reads(MON, MON);
 const long = reads('2026-07-15', '2026-10-15');
 assert.deepEqual(long, short, 'reads do not grow with the range');
 ['SessionPlayers', 'OpenPlay', 'SessionPayments', 'ZeffyPasses', 'ZeffyPayments'].forEach(name => assert.equal(long[name], 1, name + ' is read once'));
+assert.equal(long.CashCounts, undefined, 'a tab not made yet is not read (or made)');
+assert.equal(long.CashTargets, undefined);
 
 // Range checks.
 for (const [from, to, pattern] of [
   ['2026-10-1', FRI, /YYYY-MM-DD/], [MON, 'yesterday', /YYYY-MM-DD/], ['2026-02-30', '2026-03-01', /not a real date/],
-  [FRI, MON, /on or before/], ['2026-07-01', '2026-10-02', /at most 93 days/], ['', '', /YYYY-MM-DD/]
+  [FRI, MON, /on or before/], ['2025-09-01', '2026-10-06', /at most 400 days/], ['', '', /YYYY-MM-DD/]
 ]) assert.throws(() => run('getCashFlow', from, to), pattern, from + ' to ' + to);
-assert.equal(run('getCashFlow', '2026-07-01', '2026-10-01').days.length, 1, '93 days is allowed');
+assert.equal(run('getCashFlow', '2025-09-01', '2026-10-05').days.length, 1, '400 days is allowed');
 
 // ---------------------------------------------------------------------------------------------------------------
 // Cash counts.
@@ -186,6 +188,175 @@ assert.deepEqual([day(FRI).cash.expected, day(FRI).cash.counted, day(FRI).cash.d
 assert.deepEqual([day(TUE).players, day(TUE).cash.counted, day(TUE).cash.difference], [0, 0, 0]);
 assert.deepEqual(plain(flow.totals.cash), { expected: 65, counted: 52.25, difference: -2.75, countedDays: 3 });
 assert.equal(flow.totals.days, 4);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Targets, grouping and insights, on a second club whose "today" is Wednesday 2026-12-09.
+(() => {
+  const club = sim.createWorld({ seed: 52, players: 12, date: '2026-12-09' });
+  const cx = club.server.context;
+  const go = (name, ...args) => club.server.run(name, ...args);
+  const pid = name => club.players.find(player => player.display_name === name + ' Example').player_id;
+  go('setMemberStatus', pid('Ava'), 'member');
+  go('ensurePrivatePaymentTables_');
+  go('ensureOpenPlayTable_');
+  go('setZeffyPass', pid('Fay'), true);
+  // Mondays and Wednesdays are round robins, Fridays and Saturdays Open Play. '' is unpaid, 'pass' a Zeffy holder.
+  const night = (date, entries) => {
+    const weekday = new Date(date + 'T12:00:00Z').getUTCDay();
+    entries.forEach(([name, method]) => {
+      if (weekday === 1 || weekday === 3) cx.appendObjects_('SessionPlayers', [{ session_id: 'session-' + date, player_id: pid(name), group_number: 1, starting_rating: 1500, promotion_from_group: '' }]);
+      else go('setOpenPlayParticipant', date, pid(name), true);
+      if (method && method !== 'pass') go('setSessionPayment', date, pid(name), method);
+    });
+  };
+  night('2025-03-03', [['Gus', 'cash']]);
+  night('2026-09-14', [['Ivy', 'cash']]);
+  night('2026-10-21', [['Ava', 'cash'], ['Ben', 'cash'], ['Cy', 'cash']]);
+  night('2026-10-28', [['Ava', 'cash'], ['Ben', 'venmo']]);
+  night('2026-11-02', [['Ava', 'cash'], ['Ben', 'cash'], ['Cy', 'cash']]);
+  night('2026-11-06', [['Ben', 'venmo'], ['Dee', 'zelle']]);
+  night('2026-11-16', [['Ava', 'venmo'], ['Ben', 'venmo'], ['Cy', ''], ['Dee', 'venmo']]);
+  night('2026-11-21', [['Eli', 'credit']]);
+  night('2026-11-23', [['Ava', 'cash'], ['Ben', 'cash'], ['Cy', ''], ['Fay', 'pass']]);
+  night('2026-12-02', [['Ava', 'venmo'], ['Ben', 'cash'], ['Cy', 'cash'], ['Dee', 'cash'], ['Gus', 'cash']]);
+  night('2026-12-05', [['Hal', 'cash']]);
+  night('2026-12-07', [['Ava', 'cash'], ['Ben', 'cash']]);
+  night('2026-12-09', [['Ava', 'cash']]);
+  const FROM = '2026-10-28';
+  const TO = '2026-12-09';
+  const flowOf = (from, to) => { const result = go('getCashFlow', from, to); noDates(result, 'getCashFlow'); return plain(result); };
+
+  // Targets: club-wide, validated, audited with the amount as text.
+  const targetAudits = () => plain(club.server.audit.filter(entry => entry.action === 'cash_target_updated'));
+  assert.deepEqual(plain(go('getCashTargets')), { day: null, week: null, month: null }, 'no targets until one is saved');
+  assert.equal(club.server.spreadsheet.getSheetByName('CashTargets'), null, 'reading targets never makes the tab');
+  assert.throws(() => go('saveCashTarget', 'year', '5'), /day, week or month/);
+  assert.throws(() => go('saveCashTarget', '', '5'), /day, week or month/);
+  for (const bad of ['-1', '12.345', 'lots', '1000000.01', '1e3', -5]) assert.throws(() => go('saveCashTarget', 'week', bad), /The target must be an amount/, 'rejects ' + bad);
+  assert.equal(targetAudits().length, 0);
+  assert.deepEqual(plain(go('saveCashTarget', 'week', '1000000')), { day: null, week: 1000000, month: null }, 'up to a million');
+  assert.deepEqual(plain(go('saveCashTarget', 'week', '50')), { day: null, week: 50, month: null }, 'one row per period');
+  assert.deepEqual(plain(go('saveCashTarget', 'month', '$200.00')), { day: null, week: 50, month: 200 });
+  go('saveCashTarget', 'day', '30');
+  assert.deepEqual(plain(go('saveCashTarget', 'day', '')), { day: null, week: 50, month: 200 }, 'blank clears');
+  assert.deepEqual(plain(cx.rows_('CashTargets').map(row => [row.period, row.amount])), [['week', 50], ['month', 200]]);
+  assert.deepEqual(targetAudits().map(entry => [entry.id, entry.details]), [
+    ['cash-target-week', { period: 'week', amount: '1000000.00' }], ['cash-target-week', { period: 'week', amount: '50.00' }],
+    ['cash-target-month', { period: 'month', amount: '200.00' }], ['cash-target-day', { period: 'day', amount: '30.00' }], ['cash-target-day', { period: 'day', amount: 'cleared' }]
+  ]);
+  const clubLog = club.server.spreadsheet.getSheetByName('CTTC Desk Logs').getDataRange().getValues().filter(row => row[2] === 'cash_target_updated');
+  assert.equal(clubLog.length, 5);
+  assert.ok(clubLog.every(row => !/\d{2}/.test(String(row[5]))), 'target amounts stay out of the public desk log');
+
+  const flow = flowOf(FROM, TO);
+  assert.equal(flow.today, '2026-12-09');
+  assert.deepEqual(flow.targets, { day: null, week: 50, month: 200 }, 'targets come with the cash flow, so the page needs one call');
+
+  // Weeks run Monday to Sunday. Only finished weeks wholly inside the range count.
+  const week = flow.groups.week;
+  assert.equal(week.target, 50);
+  assert.deepEqual(week.periods.map(p => [p.start, p.end, p.collected, p.nights, p.state, p.counted]), [
+    ['2026-10-26', '2026-11-01', 25, 1, 'partial', false],
+    ['2026-11-02', '2026-11-08', 70, 2, 'met', true],
+    ['2026-11-09', '2026-11-15', 0, 0, 'empty', false],
+    ['2026-11-16', '2026-11-22', 55, 2, 'met', true],
+    ['2026-11-23', '2026-11-29', 25, 1, 'missed', true],
+    ['2026-11-30', '2026-12-06', 85, 2, 'met', true],
+    ['2026-12-07', '2026-12-13', 35, 2, 'in_progress', false]
+  ]);
+  assert.equal(week.periods[1].label, 'Week of Nov 2, 2026');
+  assert.deepEqual([week.periods[1].difference, week.periods[4].difference], [20, -25]);
+  assert.deepEqual(week.stats, {
+    counted: 4, collected: 235, targetTotal: 200, overUnder: 35, met: 3, missed: 1, metPercent: 75, average: 58.75,
+    best: { key: '2026-11-30', label: 'Week of Nov 30, 2026', collected: 85 }, worst: { key: '2026-11-23', label: 'Week of Nov 23, 2026', collected: 25 }, partial: 2, empty: 1
+  });
+
+  // Months: October is cut by the range start, December is in progress, November counts.
+  const month = flow.groups.month;
+  assert.deepEqual(month.periods.map(p => [p.key, p.start, p.end, p.label, p.collected, p.state]), [
+    ['2026-10', '2026-10-01', '2026-10-31', 'October 2026', 25, 'partial'],
+    ['2026-11', '2026-11-01', '2026-11-30', 'November 2026', 150, 'missed'],
+    ['2026-12', '2026-12-01', '2026-12-31', 'December 2026', 120, 'in_progress']
+  ]);
+  assert.deepEqual([month.stats.counted, month.stats.met, month.stats.missed, month.stats.overUnder, month.stats.metPercent, month.stats.worst], [1, 0, 1, -50, 0, null], 'one counted month has no separate worst');
+
+  // Days: each club night with players is a bar; tonight counts once it is over. No day target: neutral.
+  const daily = flow.groups.day;
+  assert.equal(daily.target, null);
+  assert.deepEqual(daily.periods.map(p => p.start), ['2026-10-28', '2026-11-02', '2026-11-06', '2026-11-16', '2026-11-21', '2026-11-23', '2026-12-02', '2026-12-05', '2026-12-07', '2026-12-09']);
+  assert.equal(daily.periods[1].label, 'Mon Nov 2, 2026');
+  assert.deepEqual(daily.periods.map(p => p.state), ['none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'in_progress']);
+  assert.deepEqual(daily.stats, {
+    counted: 9, collected: 285, targetTotal: null, overUnder: null, met: null, missed: null, metPercent: null, average: 31.67,
+    best: { key: '2026-12-02', label: 'Wed Dec 2, 2026', collected: 70 }, worst: { key: '2026-12-05', label: 'Sat Dec 5, 2026', collected: 15 }, partial: 1, empty: 0
+  });
+  go('saveCashTarget', 'day', '30');
+  const withDay = flowOf(FROM, TO).groups.day;
+  assert.deepEqual(withDay.periods.map(p => p.state), ['missed', 'met', 'met', 'met', 'missed', 'missed', 'met', 'missed', 'missed', 'in_progress'], 'meeting the target exactly counts as met');
+  assert.deepEqual([withDay.stats.met, withDay.stats.missed, withDay.stats.metPercent, withDay.stats.targetTotal, withDay.stats.overUnder], [4, 5, 44.4, 270, 15]);
+  go('saveCashTarget', 'day', '');
+
+  // Full weeks only: a Monday-to-Sunday range has no partial weeks.
+  const full = flowOf('2026-11-02', '2026-11-29').groups.week;
+  assert.deepEqual(full.periods.map(p => p.state), ['met', 'empty', 'met', 'missed']);
+  assert.equal(full.stats.partial, 0);
+  // Year ends: a week starting in December, and months across the new year.
+  assert.equal(cx.cashMonday_('2026-01-01'), '2025-12-29', 'Thursday January 1 belongs to the week of Monday December 29');
+  assert.equal(cx.cashMonday_('2026-01-04'), '2025-12-29');
+  assert.equal(cx.cashMonday_('2026-01-05'), '2026-01-05');
+  assert.deepEqual(plain(cx.cashGroup_('week', [], '2025-12-29', '2026-01-04', 100, '2026-06-01').periods.map(p => [p.start, p.end, p.state])), [['2025-12-29', '2026-01-04', 'empty']]);
+  assert.deepEqual(plain(cx.cashGroup_('month', [], '2025-12-15', '2026-03-01', null, '2026-06-01').periods.map(p => [p.key, p.end, p.partial])),
+    [['2025-12', '2025-12-31', true], ['2026-01', '2026-01-31', false], ['2026-02', '2026-02-28', false], ['2026-03', '2026-03-31', true]]);
+
+  // Insights.
+  const info = flow.insights;
+  assert.deepEqual([info.attendance, info.nights, info.averagePlayersPerNight, info.averagePerPlayer], [25, 10, 2.5, 11.8]);
+  assert.deepEqual(info.methods, [
+    { method: 'cash', count: 14, amount: 185, countShare: 56, amountShare: 62.7 },
+    { method: 'venmo', count: 6, amount: 80, countShare: 24, amountShare: 27.1 },
+    { method: 'zelle', count: 1, amount: 15, countShare: 4, amountShare: 5.1 },
+    { method: 'credit', count: 1, amount: 15, countShare: 4, amountShare: 5.1 },
+    { method: 'zeffy', count: 1, amount: 0, countShare: 4, amountShare: null },
+    { method: 'unpaid', count: 2, amount: 30, countShare: 8, amountShare: null }
+  ]);
+  assert.deepEqual([info.topByCount, info.topByDollars], ['cash', 'cash']);
+  assert.deepEqual(info.topPlayers.map(p => [p.name.split(' ')[0], p.nights, p.paid]), [['Ben', 7, 105], ['Ava', 7, 70], ['Cy', 4, 30], ['Dee', 3, 45], ['Eli', 1, 15], ['Gus', 1, 15], ['Hal', 1, 15], ['Fay', 1, 0]], 'nights, then dollars paid, then name');
+  assert.deepEqual(info.weekdays, [
+    { weekday: 'Mon', nights: 4, averagePlayers: 3.3, averageCollected: 32.5 },
+    { weekday: 'Wed', nights: 3, averagePlayers: 2.7, averageCollected: 35 },
+    { weekday: 'Fri', nights: 1, averagePlayers: 2, averageCollected: 30 },
+    { weekday: 'Sat', nights: 2, averagePlayers: 1, averageCollected: 15 }
+  ]);
+  assert.equal(info.busiestWeekday, 'Mon');
+  assert.deepEqual([info.statusMix, info.zeffyShare], [{ junior: 0, member: 7, visitor: 18 }, 4]);
+  assert.deepEqual(info.unpaid, { count: 2, amount: 30, repeat: [{ name: 'Cy Example', nights: 2, owed: 30 }] });
+  assert.deepEqual(info.trend, {
+    previousFrom: '2026-09-15', previousTo: '2026-10-27', collected: 295, previousCollected: 40, collectedChange: 637.5,
+    attendance: 25, previousAttendance: 3, attendanceChange: 733.3, nights: 10, previousNights: 1
+  }, 'against the 43 days before; the night on September 14 is outside both windows');
+  assert.deepEqual(info.newFaces, [
+    { name: 'Dee Example', firstDate: '2026-11-06' }, { name: 'Eli Example', firstDate: '2026-11-21' },
+    { name: 'Fay Example', firstDate: '2026-11-23' }, { name: 'Hal Example', firstDate: '2026-12-05' }
+  ], 'Gus played back in 2025, so he is not new');
+  assert.ok(flow.days.every(day => day.playerList.every(player => !('playerId' in player))), 'player ids stay on the server');
+
+  // Method winners: a tie goes to the method listed first (cash, venmo, zelle, credit, zeffy).
+  const fake = (weekday, list) => ({ date: '2026-11-02', weekday, players: list.length, expected: list.reduce((sum, p) => sum + p.collected, 0), playerList: list });
+  const paid = (playerId, method, amount) => ({ playerId, name: playerId, status: 'visitor', kind: 'rr', method, owed: amount, collected: method === 'zeffy' || !method ? 0 : amount });
+  let tie = plain(cx.cashInsights_([fake('Mon', [paid('a', 'venmo', 15), paid('b', 'cash', 15)])], [], {}, {}, FROM, TO, '', ''));
+  assert.deepEqual([tie.topByCount, tie.topByDollars], ['cash', 'cash']);
+  tie = plain(cx.cashInsights_([fake('Mon', [paid('a', 'credit', 15), paid('b', 'zelle', 15), paid('c', 'zeffy', 0)])], [], {}, {}, FROM, TO, '', ''));
+  assert.deepEqual([tie.topByCount, tie.topByDollars], ['zelle', 'zelle'], 'a three-way tie of zelle, credit and zeffy goes to zelle');
+  assert.deepEqual(plain(cx.cashInsights_([], [], {}, {}, FROM, TO, '', '')).trend.collectedChange, null, 'no earlier nights: no percentage');
+
+  // Still one read per tab, now including the targets and the previous window.
+  const clubRows = cx.rows_;
+  const counts = {};
+  cx.rows_ = name => { counts[name] = (counts[name] || 0) + 1; return clubRows(name); };
+  try { go('getCashFlow', '2025-11-05', TO); } finally { cx.rows_ = clubRows; }
+  ['SessionPlayers', 'OpenPlay', 'SessionPayments', 'ZeffyPasses', 'ZeffyPayments', 'CashTargets'].forEach(name => assert.equal(counts[name], 1, name + ' is read once over 400 days'));
+  assert.ok(Object.keys(counts).every(name => counts[name] <= 2), 'no tab is read more than twice: ' + JSON.stringify(counts));
+})();
 
 // ---------------------------------------------------------------------------------------------------------------
 // ?view=cash opens the Cash template; everything else opens the desk, as before.
@@ -258,7 +429,7 @@ function openPage(ancestorOrigins) {
           if (name === 'withFailureHandler') return fn => build(ok, fn);
           return (...args) => {
             calls.push([name].concat(args));
-            setTimeout(() => {
+            window.setTimeout(() => {
               let result;
               try { result = plain(run(name, ...plain(args))); } catch (error) { bad({ message: error.message }); return; }
               ok(result);
@@ -303,10 +474,57 @@ const text = node => {
   assert.equal(document.getElementById('desk-link').getAttribute('href'), DESK_URL);
   assert.equal(document.getElementById('mode-pill').textContent, '/exec');
 
-  // It loads the last 7 days at once, showing that it is loading.
+  // It loads the last 8 weeks at once, grouped by week, showing that it is loading.
   assert.match(document.getElementById('status').className, /busy/);
   assert.match(text(document.getElementById('status')), /Loading/);
-  assert.deepEqual(calls[0], ['getCashFlow', '2026-10-10', FRI]);
+  assert.deepEqual(calls[0], ['getCashFlow', '2026-08-24', FRI], 'eight Monday-to-Sunday weeks, this one included');
+  await settle();
+  assert.equal(document.querySelector('[data-preset=last8w]').getAttribute('aria-pressed'), 'true');
+  assert.equal(document.querySelector('[data-group=week]').getAttribute('aria-pressed'), 'true');
+  assert.equal(text(document.getElementById('chart-title')), 'Collected by week');
+  const chart = () => document.getElementById('chart');
+  assert.equal(chart().querySelectorAll('.hit').length, 8, 'one bar slot per week');
+  assert.equal(chart().querySelectorAll('.bar-mark').length, 2, 'weeks with no club nights are gaps');
+  assert.equal(chart().querySelectorAll('.gap-mark').length, 6);
+  assert.equal(chart().querySelectorAll('.target-line').length, 0);
+  assert.equal(document.getElementById('chart-prompt').hidden, false, 'no target yet: the chart still draws, with a prompt');
+  assert.match(text(document.getElementById('chart-prompt')), /No weekly target yet/);
+  assert.match(text(document.getElementById('legend')), /^Collected/);
+  assert.match(chart().querySelector('[data-key="2026-09-28"]').getAttribute('aria-label'), /^\$10\.00, Week of Sep 28, 2026, Collected/);
+  assert.match(text(document.getElementById('chart-stats')), /Target total No target/);
+  assert.match(text(document.getElementById('period-table')), /Week of Oct 12, 2026 2 \$90\.00 — — … In progress, not counted/);
+  // Hover or focus shows the period's details.
+  chart().querySelector('[data-key="2026-09-28"]').dispatchEvent(new window.FocusEvent('focus'));
+  assert.match(text(chart().querySelector('.tooltip')), /^\$10\.00 Week of Sep 28, 2026/);
+  // A weekly target, saved for everyone from beside the chart.
+  document.getElementById('target').value = '50';
+  document.querySelector('#target-form button').click();
+  await settle();
+  await settle();
+  assert.deepEqual(plain(run('getCashTargets')), { day: null, week: 50, month: null });
+  assert.equal(chart().querySelectorAll('.target-line').length, 1);
+  assert.equal(document.getElementById('chart-prompt').hidden, true);
+  assert.deepEqual(Array.from(chart().querySelectorAll('.bar-mark')).map(bar => bar.getAttribute('data-state')), ['missed', 'in_progress']);
+  assert.equal(chart().querySelector('.bar-mark[data-state=missed]').getAttribute('fill'), 'url(#missed-hatch)', 'below target is hatched as well as red');
+  assert.deepEqual(Array.from(chart().querySelectorAll('.bar-symbol')).map(node => node.textContent), ['\u2717', '\u2026'], 'and marked with a symbol');
+  assert.match(text(document.getElementById('legend')), /✓ Met target ✗ Below target Target \$50\.00 … In progress or partial, not counted/);
+  assert.match(text(document.getElementById('chart-stats')), /Target total \$50\.00 \$50\.00 × 1 counted week Over \/ under ▼ Under by \$40\.00 counted weeks only Weeks meeting target 0 of 1 0%/);
+  document.querySelector('[data-group=month]').click();
+  assert.equal(text(document.getElementById('chart-title')), 'Collected by month');
+  assert.equal(text(document.getElementById('target-label')), 'Monthly target');
+  assert.equal(chart().querySelectorAll('.hit').length, 3, 'August, September and October');
+  assert.match(text(document.getElementById('chart-prompt')), /No monthly target yet/);
+  assert.equal(calls.filter(call => call[0] === 'getCashFlow').length, 2, 'switching the grouping needs no new call');
+  document.querySelector('[data-group=week]').click();
+  document.getElementById('target').value = '';
+  document.querySelector('#target-form button').click();
+  await settle();
+  await settle();
+  assert.deepEqual(plain(run('getCashTargets')), { day: null, week: null, month: null }, 'a blank target clears it');
+  assert.match(text(document.getElementById('insight-grid')), /Payment mix Most common: Cash by players, Cash by dollars\./);
+  assert.match(text(document.getElementById('insight-grid')), /Most active players # Name Status Nights Paid 1 Ben Example Visitor 2 \$30\.00/);
+  document.querySelector('[data-preset=last7]').click();
+  assert.deepEqual(calls[calls.length - 1], ['getCashFlow', '2026-10-10', FRI]);
   await settle();
   assert.match(text(document.getElementById('status')), /Showing 3 club days from Oct 10, 2026 to Oct 16, 2026/);
   assert.equal(document.querySelector('[data-preset=last7]').getAttribute('aria-pressed'), 'true');
@@ -365,6 +583,8 @@ const text = node => {
   assert.deepEqual(preset('today'), [FRI, FRI]);
   assert.deepEqual(preset('week'), [MON, FRI], 'the week starts on Monday');
   assert.deepEqual(preset('month'), ['2026-10-01', FRI]);
+  assert.deepEqual(preset('last3m'), ['2026-08-01', FRI]);
+  assert.deepEqual(preset('year'), ['2026-01-01', FRI]);
   assert.deepEqual(preset('lastMonth'), ['2026-09-01', '2026-09-30']);
   await settle();
   assert.equal(document.querySelectorAll('.day').length, 1, 'only the last answer is shown');
@@ -374,11 +594,11 @@ const text = node => {
   await settle();
   assert.match(text(document.getElementById('status')), /No players or payments were recorded/);
   assert.match(text(document.getElementById('days')), /No players or payments in this range/);
-  document.getElementById('from').value = '2026-01-01';
+  document.getElementById('from').value = '2025-01-01';
   document.getElementById('show').click();
   await settle();
   assert.match(document.getElementById('status').className, /error/);
-  assert.match(text(document.getElementById('status')), /Could not load the cash flow: Choose at most 93 days/);
+  assert.match(text(document.getElementById('status')), /Could not load the cash flow: Choose at most 400 days/);
   document.getElementById('from').value = '2026-09-02';
   document.getElementById('show').click();
   assert.match(text(document.getElementById('status')), /on or before/, 'a reversed range is caught before asking Google');

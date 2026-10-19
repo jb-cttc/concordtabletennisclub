@@ -19,6 +19,7 @@ h1,h2,h3,p{margin-top:0}
 .mode-pill{font:600 11px Arial,sans-serif;letter-spacing:.04em;padding:3px 9px;border:1px solid currentColor;border-radius:999px;color:#c9d3cd}
 .mode-pill[data-mode=dev]{color:#e8c06a}.mode-pill[data-mode=live]{color:#9fd6b0}
 body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
+body.reloading #summary,body.reloading #trend,body.reloading #insights,body.reloading #days{opacity:.55}
 .shell{max-width:1180px;margin:auto;padding:22px 28px 48px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px;margin-bottom:18px}
 .range{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
@@ -75,7 +76,38 @@ details.players .scroll{padding:0 16px 14px}
 .footnote{font:12px/1.5 Arial,sans-serif;color:var(--muted);margin-top:22px}
 .footnote p{margin:0 0 6px}
 [hidden]{display:none!important}
-@media(max-width:760px){.top-inner{flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.brand{font-size:20px;flex:1}.top-links{width:100%;margin-left:0;justify-content:space-between}.shell{padding:16px}.range label{flex:1 1 130px}.range input{width:100%}.tile strong{font-size:19px}.count-fields{grid-template-columns:1fr 1fr}.count-fields .note{grid-column:1/-1;order:3}.count-fields button{order:2}}
+.groupby{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font:12px Arial,sans-serif;color:var(--muted)}
+.groupby .preset{font-size:13px}
+.target-form{display:flex;align-items:end;gap:8px;flex-wrap:wrap;font:13px Arial,sans-serif}
+.target-form label{font:12px Arial,sans-serif;color:var(--muted)}
+.target-form .money{display:flex;align-items:center;gap:4px;margin-top:3px;color:var(--ink);font-size:14px}
+.target-form input{width:110px;border:1px solid #aeb7b1;border-radius:4px;padding:7px 8px;color:var(--ink);background:#fff}
+.prompt{margin:0 0 10px;padding:8px 12px;border-left:4px solid var(--gold);background:#fff7e3;font:13px Arial,sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0 8px;font:12px Arial,sans-serif;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px}
+.legend i.line{height:2px;width:16px;border-radius:0;background:var(--ink)}
+.chart{position:relative;overflow-x:auto;max-width:100%}
+.chart svg{display:block}
+.chart .hit{fill:transparent;cursor:default;outline:none}
+.chart .hit:hover+.bar-mark,.chart .hit:focus+.bar-mark{opacity:.75}
+.chart .hit:focus{stroke:var(--ink);stroke-width:1}
+.tooltip{position:absolute;z-index:2;pointer-events:none;min-width:160px;max-width:240px;padding:8px 10px;background:#fff;border:1px solid #b8c7bc;border-radius:4px;box-shadow:0 6px 14px #17211b2b;font:12px/1.45 Arial,sans-serif;color:var(--muted)}
+.tooltip strong{display:block;font-size:16px;color:var(--ink)}
+.tile.good{border-top-color:var(--green);background:#eef7f1}
+.delta-up{color:var(--green2);font-weight:700}.delta-down{color:var(--red);font-weight:700}
+.period-rule{font:12px/1.5 Arial,sans-serif;color:var(--muted);margin:10px 0 0}
+details.table-view{margin-top:10px;font:14px Arial,sans-serif}
+details.table-view summary{cursor:pointer;color:var(--green2);font-weight:700}
+.insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px}
+.insight{border:1px solid var(--line);border-radius:6px;background:#fbfcfb;min-width:0}
+.insight summary{padding:10px 12px;cursor:pointer;font:700 15px Georgia,"Times New Roman",serif}
+.insight .insight-body{padding:0 12px 12px;font:14px/1.45 Arial,sans-serif}
+.insight .headline{margin:0 0 8px}
+.share{display:block;height:8px;min-width:2px;border-radius:0 4px 4px 0;background:var(--green)}
+.share-cell{width:30%;min-width:60px}
+.muted{color:var(--muted)}
+@media(max-width:760px){.groupby{width:100%}.target-form input{width:96px}.top-inner{flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.brand{font-size:20px;flex:1}.top-links{width:100%;margin-left:0;justify-content:space-between}.shell{padding:16px}.range label{flex:1 1 130px}.range input{width:100%}.tile strong{font-size:19px}.count-fields{grid-template-columns:1fr 1fr}.count-fields .note{grid-column:1/-1;order:3}.count-fields button{order:2}}
 </style>
 </head>
 <body>
@@ -99,22 +131,51 @@ details.players .scroll{padding:0 16px 14px}
 <form id="range" class="panel range" novalidate>
   <div class="presets" role="group" aria-label="Quick ranges">
     <button type="button" class="preset" data-preset="last7">Last 7 days</button>
+    <button type="button" class="preset" data-preset="last8w">Last 8 weeks</button>
     <button type="button" class="preset" data-preset="today">Today</button>
     <button type="button" class="preset" data-preset="week">This week</button>
     <button type="button" class="preset" data-preset="month">This month</button>
     <button type="button" class="preset" data-preset="lastMonth">Last month</button>
+    <button type="button" class="preset" data-preset="last3m">Last 3 months</button>
+    <button type="button" class="preset" data-preset="year">This year</button>
   </div>
   <label>From<input id="from" type="date" required></label>
   <label>To<input id="to" type="date" required></label>
   <button id="show" class="primary" type="submit">Show</button>
+  <div class="groupby" role="group" aria-label="Group by">Group by
+    <button type="button" class="preset" data-group="day">Day</button>
+    <button type="button" class="preset" data-group="week">Week</button>
+    <button type="button" class="preset" data-group="month">Month</button>
+  </div>
 </form>
 <div id="status" class="statusbar busy" role="status" aria-live="polite">Loading the cash flow...</div>
 <section id="summary" class="panel" hidden aria-labelledby="summary-title">
   <div class="summary-head"><h2 id="summary-title">Range totals</h2><button id="csv" class="secondary" type="button">Download CSV</button></div>
   <div id="tiles" class="tiles"></div>
 </section>
+<section id="trend" class="panel" hidden aria-labelledby="chart-title">
+  <div class="summary-head">
+    <h2 id="chart-title">Collected by week</h2>
+    <form id="target-form" class="target-form" novalidate>
+      <label><span id="target-label">Weekly target</span><span class="money">$<input id="target" type="text" inputmode="decimal" autocomplete="off" placeholder="none"></span></label>
+      <button class="secondary" type="submit">Save target</button>
+      <span id="target-note" class="save-note" aria-live="polite"></span>
+    </form>
+  </div>
+  <p id="chart-prompt" class="prompt" hidden></p>
+  <div id="legend" class="legend"></div>
+  <div id="chart" class="chart"></div>
+  <div id="chart-stats" class="tiles" style="margin-top:12px"></div>
+  <p id="period-rule" class="period-rule"></p>
+  <details class="table-view"><summary>Show the chart as a table</summary><div class="scroll"><table id="period-table"></table></div></details>
+</section>
+<section id="insights" class="panel" hidden aria-labelledby="insights-title">
+  <div class="summary-head"><h2 id="insights-title">Insights</h2></div>
+  <div id="insight-grid" class="insights"></div>
+</section>
 <div id="days" class="days"></div>
 <div class="footnote">
+  <p>Targets are club-wide and saved for everyone. Only finished weeks or months wholly inside the chosen range count towards a target: the current week or month is "in progress", one cut off by the start or end of the range is "partial", and a week or month with no club nights is left empty. Those are drawn but never counted as met or missed. With Group by Day, each club night with players is a bar, and tonight counts once it is over.</p>
   <p>Fees per night: Junior $5, Member $10, Visitor $15. A Zeffy monthly play pass covers the night, so pass holders are counted but owe $0. Expected is what was recorded as paid by Cash, Venmo, Zelle or Credit; outstanding is what unpaid players still owe.</p>
   <p>Status is each player's status today: the desk keeps no status history, so someone who became a member later shows at the member fee on earlier nights too. Archived players count as visitors.</p>
   <p>Round robin players come from the saved roster and Open Play from the desk's Open Play list (Friday and Saturday nights are Open Play only). "Paid, not on the sheet" is a payment recorded for someone on neither list, kept so no payment is lost.</p>
@@ -199,10 +260,14 @@ details.players .scroll{padding:0 16px 14px}
     if (name === 'week') return [iso(new Date(y, m, d - (today.getDay() + 6) % 7)), iso(today)];
     if (name === 'month') return [iso(new Date(y, m, 1)), iso(today)];
     if (name === 'lastMonth') return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
+    // Eight Monday-to-Sunday weeks, this one included.
+    if (name === 'last8w') return [iso(new Date(y, m, d - (today.getDay() + 6) % 7 - 49)), iso(today)];
+    if (name === 'last3m') return [iso(new Date(y, m - 2, 1)), iso(today)];
+    if (name === 'year') return [iso(new Date(y, 0, 1)), iso(today)];
     return [iso(new Date(y, m, d - 6)), iso(today)];
   }
   function markPreset() {
-    document.querySelectorAll('.preset').forEach(function (button) {
+    document.querySelectorAll('[data-preset]').forEach(function (button) {
       var range = presetRange(button.getAttribute('data-preset'));
       button.setAttribute('aria-pressed', String(range[0] === fromField.value && range[1] === toField.value));
     });
@@ -216,6 +281,7 @@ details.players .scroll{padding:0 16px 14px}
     if (from > to) { setStatus('The start date must be on or before the end date.', 'error'); return; }
     var mine = ++requestNumber;
     showButton.disabled = true;
+    document.body.classList.add('reloading');
     setStatus('Loading ' + longDate(from) + ' to ' + longDate(to) + '...', 'busy');
     request('getCashFlow', from, to).then(function (result) {
       if (mine !== requestNumber) return;
@@ -225,7 +291,7 @@ details.players .scroll{padding:0 16px 14px}
     }).catch(function (error) {
       if (mine !== requestNumber) return;
       setStatus('Could not load the cash flow: ' + message(error), 'error');
-    }).then(function () { if (mine === requestNumber) showButton.disabled = false; });
+    }).then(function () { if (mine === requestNumber) { showButton.disabled = false; document.body.classList.remove('reloading'); } });
   }
 
   function cashSummary() {
@@ -353,6 +419,8 @@ details.players .scroll{padding:0 16px 14px}
   function render() {
     summary.hidden = false;
     renderTiles();
+    renderTrend();
+    renderInsights();
     dayList.textContent = '';
     if (!data.days.length) {
       dayList.appendChild(el('div', { className: 'empty', text: 'No players or payments in this range.' }));
@@ -367,6 +435,310 @@ details.players .scroll{padding:0 16px 14px}
       ]));
     });
   }
+
+  // ---- Collected per period against the club target (inline SVG, no libraries) ----
+  var grouping = 'week';
+  var UNIT = { day: ['night', 'nights', 'Daily target', 'Collected by club night'], week: ['week', 'weeks', 'Weekly target', 'Collected by week'], month: ['month', 'months', 'Monthly target', 'Collected by month'] };
+  // Met and missed are status colors, checked for color-blind separation; each also has a symbol, and missed bars a hatch.
+  var COLORS = { met: '#176b45', missed: '#e06a5a', none: '#5f7f8f', pending: '#b9c4bd', grid: '#e3e8e4', axis: '#c3ccc6', ink: '#17211b', muted: '#657069' };
+  var STATE_TEXT = { met: 'Met target', missed: 'Below target', none: 'Collected', partial: 'Partial: cut by the range edge, not counted', in_progress: 'In progress, not counted', empty: 'No club nights' };
+  var SYMBOL = { met: '✓', missed: '✗', partial: '…', in_progress: '…' };
+  var SVG = 'http://www.w3.org/2000/svg';
+  var chartBox = document.getElementById('chart');
+  var tooltip = null;
+  function svg(tag, attrs, parent) {
+    var node = document.createElementNS(SVG, tag);
+    Object.keys(attrs || {}).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+  function niceMax(value) {
+    if (value <= 0) return 100;
+    var step = Math.pow(10, Math.floor(Math.log(value) / Math.LN10));
+    var options = [1, 2, 2.5, 5, 10];
+    for (var i = 0; i < options.length; i += 1) if (options[i] * step >= value) return options[i] * step;
+    return 10 * step;
+  }
+  function compact(value) { return value >= 1000 ? '$' + (Math.round(value / 100) / 10) + 'K' : '$' + Math.round(value); }
+  function axisLabel(period, index) {
+    var parts = period.start.split('-').map(Number);
+    if (grouping === 'month') return MONTHS[parts[1] - 1] + (parts[1] === 1 || index === 0 ? ' ' + String(parts[0]).slice(2) : '');
+    return parts[1] + '/' + parts[2];
+  }
+  function overUnder(difference) {
+    if (difference === null || difference === undefined) return '';
+    return difference >= 0 ? 'Over by ' + money(difference) : 'Under by ' + money(-difference);
+  }
+  function tipLines(period, target) {
+    var lines = [period.label, (SYMBOL[period.state] ? SYMBOL[period.state] + ' ' : '') + STATE_TEXT[period.state]];
+    if (period.nights) lines.push(period.nights + ' club night' + (period.nights === 1 ? '' : 's') + ', ' + period.players + ' player nights');
+    if (target !== null) lines.push('Target ' + money(target) + (period.nights ? ' · ' + overUnder(period.difference) : ''));
+    return lines;
+  }
+  function showTip(period, target, x, y) {
+    if (!tooltip) return;
+    tooltip.textContent = '';
+    tooltip.appendChild(el('strong', { text: period.nights ? money(period.collected) : '—' }));
+    tipLines(period, target).forEach(function (line) { tooltip.appendChild(el('div', { text: line })); });
+    tooltip.hidden = false;
+    var width = chartBox.clientWidth || 720;
+    tooltip.style.left = Math.max(chartBox.scrollLeft, Math.min(x + 12, chartBox.scrollLeft + width - 250)) + 'px';
+    tooltip.style.top = Math.max(0, y - 20) + 'px';
+  }
+  function hideTip() { if (tooltip) tooltip.hidden = true; }
+  function legendItem(color, text, kind) {
+    var swatch = kind === 'line' ? el('i', { className: 'line' }) : el('i', { style: 'background:' + color + (kind === 'hatch' ? ';background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.55) 0 2px,transparent 2px 5px)' : '') });
+    return el('span', {}, [swatch, text]);
+  }
+  function renderTrend() {
+    var group = data.groups[grouping];
+    var unit = UNIT[grouping];
+    var target = group.target;
+    var periods = group.periods;
+    document.getElementById('trend').hidden = false;
+    document.getElementById('chart-title').textContent = unit[3];
+    document.getElementById('target-label').textContent = unit[2];
+    var targetField = document.getElementById('target');
+    if (document.activeElement !== targetField) targetField.value = target === null ? '' : target.toFixed(2);
+    targetField.setAttribute('aria-label', unit[2] + ' in dollars, saved for everyone');
+    var prompt = document.getElementById('chart-prompt');
+    prompt.hidden = target !== null;
+    prompt.textContent = 'No ' + unit[2].toLowerCase() + ' yet. Enter one next to the chart to see which ' + unit[1] + ' met it; it is saved for everyone.';
+    var legend = document.getElementById('legend');
+    legend.textContent = '';
+    if (target === null) legend.appendChild(legendItem(COLORS.none, 'Collected'));
+    else {
+      legend.appendChild(legendItem(COLORS.met, '✓ Met target'));
+      legend.appendChild(legendItem(COLORS.missed, '✗ Below target', 'hatch'));
+      legend.appendChild(legendItem(COLORS.ink, 'Target ' + money(target), 'line'));
+    }
+    if (periods.some(function (period) { return period.nights && !period.counted; })) legend.appendChild(legendItem(COLORS.pending, '… In progress or partial, not counted'));
+    renderGroupStats(group);
+    renderPeriodTable(group);
+
+    chartBox.textContent = '';
+    tooltip = null;
+    if (!periods.length) {
+      chartBox.appendChild(el('div', { className: 'empty', text: 'No club nights in this range.' }));
+      return;
+    }
+    var width = chartBox.clientWidth || 720;
+    var left = 48;
+    var right = 12;
+    var top = 22;
+    var bottom = 26;
+    var height = 250;
+    var plotWidth = Math.max(width - left - right, periods.length * (grouping === 'day' ? 8 : 16));
+    width = plotWidth + left + right;
+    var plotHeight = height - top - bottom;
+    var base = top + plotHeight;
+    var maxValue = niceMax(Math.max(target || 0, Math.max.apply(null, periods.map(function (period) { return period.collected; }))) * 1.08);
+    var y = function (value) { return base - value / maxValue * plotHeight; };
+    var chartSvg = svg('svg', { width: width, height: height, viewBox: '0 0 ' + width + ' ' + height, role: 'group', 'aria-label': unit[3] + (target === null ? '' : ', target ' + money(target)) + '. Every value is also in the table below the chart.' });
+    var pattern = svg('pattern', { id: 'missed-hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, svg('defs', {}, chartSvg));
+    svg('rect', { width: 6, height: 6, fill: COLORS.missed }, pattern);
+    svg('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: '#fff', 'stroke-opacity': 0.5, 'stroke-width': 2 }, pattern);
+    for (var tick = 0; tick <= 4; tick += 1) {
+      var value = maxValue / 4 * tick;
+      svg('line', { x1: left, x2: left + plotWidth, y1: y(value), y2: y(value), stroke: tick ? COLORS.grid : COLORS.axis, 'stroke-width': 1 }, chartSvg);
+      svg('text', { x: left - 6, y: y(value) + 4, 'text-anchor': 'end', fill: COLORS.muted, 'font-size': 11, 'font-family': 'Arial, sans-serif' }, chartSvg).textContent = compact(value);
+    }
+    var slot = plotWidth / periods.length;
+    var barWidth = Math.max(2, Math.min(24, slot - 2, slot * 0.7));
+    var every = Math.max(1, Math.ceil(44 / slot));
+    periods.forEach(function (period, index) {
+      var center = left + slot * index + slot / 2;
+      var fill = !period.counted ? COLORS.pending : period.state === 'met' ? COLORS.met : period.state === 'missed' ? 'url(#missed-hatch)' : COLORS.none;
+      var hit = svg('rect', { class: 'hit', x: left + slot * index, y: top, width: slot, height: plotHeight, tabindex: 0, role: 'img', 'data-key': period.key, 'aria-label': (period.nights ? money(period.collected) : 'Nothing collected') + ', ' + tipLines(period, target).join(', ') }, chartSvg);
+      if (period.nights) {
+        var barTop = y(period.collected);
+        var radius = Math.min(4, barWidth / 2, Math.max(0, base - barTop));
+        var x0 = center - barWidth / 2;
+        var x1 = center + barWidth / 2;
+        svg('path', { class: 'bar-mark', 'data-state': period.state, fill: fill, 'pointer-events': 'none', d: 'M' + x0 + ',' + base + 'V' + (barTop + radius) + 'Q' + x0 + ',' + barTop + ' ' + (x0 + radius) + ',' + barTop + 'H' + (x1 - radius) + 'Q' + x1 + ',' + barTop + ' ' + x1 + ',' + (barTop + radius) + 'V' + base + 'Z' }, chartSvg);
+        if (SYMBOL[period.state] && slot >= 12) {
+          svg('text', { class: 'bar-symbol', x: center, y: barTop - 5, 'text-anchor': 'middle', fill: period.counted ? COLORS.ink : COLORS.muted, 'font-size': 12, 'font-family': 'Arial, sans-serif', 'pointer-events': 'none' }, chartSvg).textContent = SYMBOL[period.state];
+        }
+      } else {
+        // A week or month with no club nights is a gap with a short tick on the baseline.
+        svg('rect', { class: 'gap-mark', x: center - Math.min(8, barWidth) / 2, y: base - 2, width: Math.min(8, barWidth), height: 2, fill: COLORS.axis, 'pointer-events': 'none' }, chartSvg);
+      }
+      if (index % every === 0) {
+        svg('text', { x: center, y: height - 8, 'text-anchor': 'middle', fill: COLORS.muted, 'font-size': 11, 'font-family': 'Arial, sans-serif' }, chartSvg).textContent = axisLabel(period, index);
+      }
+      var show = function (event) {
+        var pointer = event && event.type !== 'focus' && event.clientX !== undefined;
+        var box = chartBox.getBoundingClientRect();
+        showTip(period, target, pointer ? event.clientX - box.left + chartBox.scrollLeft : center, pointer ? event.clientY - box.top : (period.nights ? y(period.collected) : base));
+      };
+      hit.addEventListener('pointermove', show);
+      hit.addEventListener('focus', show);
+      hit.addEventListener('pointerleave', hideTip);
+      hit.addEventListener('blur', hideTip);
+    });
+    if (target !== null) {
+      svg('line', { class: 'target-line', x1: left, x2: left + plotWidth, y1: y(target), y2: y(target), stroke: COLORS.ink, 'stroke-width': 2, 'pointer-events': 'none' }, chartSvg);
+      svg('text', { x: left + plotWidth, y: y(target) - 5, 'text-anchor': 'end', fill: COLORS.ink, 'font-size': 11, 'font-weight': 700, 'font-family': 'Arial, sans-serif', 'paint-order': 'stroke', stroke: '#fff', 'stroke-width': 3, 'pointer-events': 'none' }, chartSvg).textContent = 'Target ' + compact(target);
+    }
+    chartBox.appendChild(chartSvg);
+    tooltip = el('div', { className: 'tooltip', 'aria-hidden': 'true' });
+    tooltip.hidden = true;
+    chartBox.appendChild(tooltip);
+  }
+  function renderGroupStats(group) {
+    var stats = group.stats;
+    var unit = UNIT[grouping];
+    var box = document.getElementById('chart-stats');
+    box.textContent = '';
+    var counted = stats.counted + ' counted ' + (stats.counted === 1 ? unit[0] : unit[1]);
+    box.appendChild(tile('Total collected', money(data.totals.expected), money(stats.collected) + ' in ' + counted, 'total'));
+    if (group.target === null) {
+      box.appendChild(tile('Target total', 'No target', 'Set a ' + unit[2].toLowerCase() + ' above'));
+    } else {
+      box.appendChild(tile('Target total', money(stats.targetTotal), money(group.target) + ' × ' + counted));
+      box.appendChild(tile('Over / under', stats.counted ? (stats.overUnder >= 0 ? '▲ ' : '▼ ') + overUnder(stats.overUnder) : '—', 'counted ' + unit[1] + ' only', stats.counted ? (stats.overUnder >= 0 ? 'good' : 'alert') : ''));
+      box.appendChild(tile(unit[1].charAt(0).toUpperCase() + unit[1].slice(1) + ' meeting target', stats.met + ' of ' + stats.counted, stats.metPercent === null ? 'none counted yet' : stats.metPercent + '%'));
+    }
+    box.appendChild(tile('Average per ' + unit[0], stats.average === null ? '—' : money(stats.average), counted));
+    box.appendChild(tile('Best ' + unit[0], stats.best ? money(stats.best.collected) : '—', stats.best ? stats.best.label : 'none counted yet'));
+    box.appendChild(tile('Worst ' + unit[0], stats.worst ? money(stats.worst.collected) : '—', stats.worst ? stats.worst.label : 'needs two counted ' + unit[1]));
+    var notes = [];
+    if (stats.partial) notes.push(stats.partial + ' ' + (stats.partial === 1 ? unit[0] : unit[1]) + ' in progress or cut by the range edge (light bars marked …) not counted');
+    if (stats.empty) notes.push(stats.empty + ' with no club nights left empty');
+    document.getElementById('period-rule').textContent = (grouping === 'day' ? 'Each bar is a club night with players; tonight counts once it is over.'
+      : 'Counted ' + unit[1] + ' are finished ' + unit[1] + ' wholly inside the range' + (grouping === 'week' ? ' (Monday to Sunday)' : '') + '.') + (notes.length ? ' ' + notes.join('; ') + '.' : '');
+  }
+  function renderPeriodTable(group) {
+    var periodTable = document.getElementById('period-table');
+    periodTable.textContent = '';
+    periodTable.appendChild(el('thead', {}, [el('tr', {}, [el('th', { text: 'Period' }), el('th', { className: 'num', text: 'Nights' }), el('th', { className: 'num', text: 'Collected' }), el('th', { className: 'num', text: 'Target' }), el('th', { className: 'num', text: 'Over / under' }), el('th', { text: 'Status' })])]));
+    periodTable.appendChild(el('tbody', {}, group.periods.map(function (period) {
+      return el('tr', {}, [el('td', { text: period.label }), el('td', { className: 'num', text: String(period.nights) }), el('td', { className: 'num', text: money(period.collected) }),
+        el('td', { className: 'num', text: group.target === null ? '—' : money(group.target) }), el('td', { className: 'num', text: period.counted && group.target !== null ? overUnder(period.difference) : '—' }),
+        el('td', { text: (SYMBOL[period.state] ? SYMBOL[period.state] + ' ' : '') + STATE_TEXT[period.state] })]);
+    })));
+  }
+
+  // ---- Insights ----
+  var WEEKDAY_NAMES = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+  var MIX_NAMES = { cash: 'Cash', venmo: 'Venmo', zelle: 'Zelle', credit: 'Credit', zeffy: 'Zeffy pass', unpaid: 'Unpaid' };
+  function smallTable(headers, rows) {
+    return el('div', { className: 'scroll' }, [el('table', {}, [
+      el('thead', {}, [el('tr', {}, headers.map(function (header) { return el('th', { className: header.num ? 'num' : '', text: header.text }); }))]),
+      el('tbody', {}, rows.map(function (cells) {
+        return el('tr', {}, cells.map(function (item) { return item.nodeType ? el('td', {}, [item]) : el('td', { className: item.num ? 'num' : '', text: item.text }); }));
+      }))
+    ])]);
+  }
+  function num(text) { return { text: String(text), num: true }; }
+  function cell(text) { return { text: String(text) }; }
+  function insight(title, children) {
+    var node = el('details', { className: 'insight' }, [el('summary', { text: title }), el('div', { className: 'insight-body' }, children)]);
+    // Open side by side on a wide screen; folded into a list of titles on a phone.
+    node.open = !window.matchMedia || window.matchMedia('(min-width: 761px)').matches;
+    return node;
+  }
+  function change(value) {
+    if (value === null) return el('span', { className: 'muted', text: 'nothing before to compare' });
+    return el('span', { className: value >= 0 ? 'delta-up' : 'delta-down', text: (value >= 0 ? '↑ up ' : '↓ down ') + Math.abs(value) + '%' });
+  }
+  function renderInsights() {
+    var info = data.insights;
+    var grid = document.getElementById('insight-grid');
+    document.getElementById('insights').hidden = false;
+    grid.textContent = '';
+    if (!info.attendance) {
+      grid.appendChild(el('p', { className: 'muted', text: 'No club nights in this range.' }));
+      return;
+    }
+    var maxShare = Math.max.apply(null, info.methods.map(function (item) { return item.countShare; })) || 1;
+    grid.appendChild(insight('Payment mix', [
+      el('p', { className: 'headline' }, ['Most common: ', el('strong', { text: info.topByCount ? MIX_NAMES[info.topByCount] : '—' }), ' by players, ', el('strong', { text: info.topByDollars ? MIX_NAMES[info.topByDollars] : '—' }), ' by dollars.']),
+      smallTable([{ text: 'Method' }, { text: 'Players', num: true }, { text: 'Share of players' }, { text: 'Dollars', num: true }, { text: '% of $', num: true }], info.methods.map(function (item) {
+        var share = el('span', { className: 'share-cell' }, [el('span', { className: 'share', style: 'width:' + Math.max(2, item.countShare / maxShare * 100) + '%' }), el('span', { className: 'muted', text: item.countShare + '%' })]);
+        return [cell(MIX_NAMES[item.method]), num(item.count), share, num(item.method === 'unpaid' ? money(item.amount) + ' owed' : money(item.amount)), num(item.amountShare === null ? '—' : item.amountShare + '%')];
+      }))
+    ]));
+    grid.appendChild(insight('Most active players', [
+      smallTable([{ text: '#' }, { text: 'Name' }, { text: 'Status' }, { text: 'Nights', num: true }, { text: 'Paid', num: true }], info.topPlayers.map(function (player, index) {
+        return [cell(index + 1), cell(player.name), cell(STATUS[player.status] || player.status), num(player.nights), num(money(player.paid))];
+      })),
+      el('p', { className: 'muted', text: 'Nights on the round robin or Open Play list.' })
+    ]));
+    grid.appendChild(insight('Busiest weekday', [
+      el('p', { className: 'headline' }, [el('strong', { text: WEEKDAY_NAMES[info.busiestWeekday] || '—' }), ' has the most players on average.']),
+      smallTable([{ text: 'Weekday' }, { text: 'Nights', num: true }, { text: 'Avg players', num: true }, { text: 'Avg collected', num: true }], info.weekdays.map(function (item) {
+        return [cell(WEEKDAY_NAMES[item.weekday] + (item.weekday === info.busiestWeekday ? ' ★ busiest' : '')), num(item.nights), num(item.averagePlayers), num(money(item.averageCollected))];
+      }))
+    ]));
+    var zeffy = info.methods.filter(function (item) { return item.method === 'zeffy'; })[0];
+    grid.appendChild(insight('Who plays', [
+      el('p', { className: 'headline' }, [el('strong', { text: String(info.averagePlayersPerNight) }), ' players a night on average, ', el('strong', { text: money(info.averagePerPlayer) }), ' collected per player.']),
+      smallTable([{ text: 'Status' }, { text: 'Player nights', num: true }, { text: 'Share', num: true }], ['junior', 'member', 'visitor'].map(function (status) {
+        return [cell(STATUS[status]), num(info.statusMix[status] || 0), num(Math.round((info.statusMix[status] || 0) / info.attendance * 1000) / 10 + '%')];
+      }).concat([[cell('Zeffy pass holders'), num(zeffy.count), num(info.zeffyShare + '%')]]))
+    ]));
+    grid.appendChild(insight('Unpaid', [
+      el('p', { className: 'headline' }, [el('strong', { text: String(info.unpaid.count) }), ' unpaid player nights, ', el('strong', { text: money(info.unpaid.amount) }), ' still owed.']),
+      info.unpaid.repeat.length ? smallTable([{ text: 'Unpaid on 2+ nights' }, { text: 'Nights', num: true }, { text: 'Owed', num: true }], info.unpaid.repeat.map(function (person) {
+        return [cell(person.name), num(person.nights), num(money(person.owed))];
+      })) : el('p', { className: 'muted', text: 'Nobody has two or more unpaid nights in this range.' })
+    ]));
+    var trend = info.trend;
+    grid.appendChild(insight('Against the previous period', [
+      el('p', { className: 'muted', text: longDate(data.from) + ' – ' + longDate(data.to) + ' against the same number of days before: ' + longDate(trend.previousFrom) + ' – ' + longDate(trend.previousTo) + '.' }),
+      smallTable([{ text: 'Measure' }, { text: 'This range', num: true }, { text: 'Before', num: true }, { text: 'Change' }], [
+        [cell('Collected'), num(money(trend.collected)), num(money(trend.previousCollected)), change(trend.collectedChange)],
+        [cell('Player nights'), num(trend.attendance), num(trend.previousAttendance), change(trend.attendanceChange)],
+        [cell('Club nights'), num(trend.nights), num(trend.previousNights), cell('')]
+      ])
+    ]));
+    grid.appendChild(insight('New faces', info.newFaces.length ? [
+      el('p', { className: 'headline', text: info.newFaces.length + ' player' + (info.newFaces.length === 1 ? '' : 's') + ' came for the first time in the desk’s records.' }),
+      smallTable([{ text: 'Name' }, { text: 'First night' }], info.newFaces.map(function (face) { return [cell(face.name), cell(longDate(face.firstDate))]; }))
+    ] : [el('p', { className: 'muted', text: 'No first-time players in this range.' })]));
+  }
+
+  function markGrouping() {
+    document.querySelectorAll('[data-group]').forEach(function (button) { button.setAttribute('aria-pressed', String(button.getAttribute('data-group') === grouping)); });
+  }
+  document.querySelectorAll('[data-group]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      grouping = button.getAttribute('data-group');
+      markGrouping();
+      document.getElementById('target-note').textContent = '';
+      if (data) renderTrend();
+    });
+  });
+  markGrouping();
+  document.getElementById('target-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var field = document.getElementById('target');
+    var note = document.getElementById('target-note');
+    var text = field.value.trim();
+    if (text && !/^\$?\d[\d,]*(\.\d{1,2})?$/.test(text)) {
+      note.textContent = 'Enter an amount like 450 or 450.50, or leave it blank to clear.';
+      note.className = 'save-note error';
+      return;
+    }
+    var button = event.target.querySelector('button');
+    button.disabled = true;
+    note.textContent = 'Saving...';
+    note.className = 'save-note';
+    request('saveCashTarget', grouping, text).then(function () {
+      note.textContent = text ? 'Saved for everyone.' : 'Target cleared.';
+      field.blur();
+      load();
+    }).catch(function (error) {
+      note.textContent = 'Not saved: ' + message(error);
+      note.className = 'save-note error';
+    }).then(function () { button.disabled = false; });
+  });
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { if (data) renderTrend(); }, 150);
+  });
 
   // One row per day, oldest first, then a total row. Text cells that a spreadsheet could read as a formula get a leading '.
   var CSV_COLUMNS = ['date', 'weekday', 'players', 'rr_players', 'open_play_players', 'paid_not_listed', 'cash_payments', 'cash_dollars', 'venmo_payments', 'venmo_dollars',
@@ -402,7 +774,7 @@ details.players .scroll{padding:0 16px 14px}
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   });
 
-  document.querySelectorAll('.preset').forEach(function (button) {
+  document.querySelectorAll('[data-preset]').forEach(function (button) {
     button.addEventListener('click', function () {
       var range = presetRange(button.getAttribute('data-preset'));
       fromField.value = range[0];
@@ -412,7 +784,7 @@ details.players .scroll{padding:0 16px 14px}
   });
   document.getElementById('range').addEventListener('submit', function (event) { event.preventDefault(); load(); });
   window.cttcCashCsv = function () { return data ? csvText() : ''; };
-  var start = presetRange('last7');
+  var start = presetRange('last8w');
   fromField.value = start[0];
   toField.value = start[1];
   load();
