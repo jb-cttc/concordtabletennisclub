@@ -199,7 +199,23 @@ function ownerSetup_(params) {
         report.noEmail.map(function (name) { return name + ' (no email on file)'; }));
       return names.length ? '<p>Not emailed, to fix in the private Sheet\'s SeedLinks tab first: ' + esc_(names.join(', ')) + '.</p>' : '';
     };
-    if (params['import'] === 'sample') {
+    var waitingLines = function () {
+      var waiting = waitingSeed_(Date.now());
+      if (!waiting.length) return '';
+      return '<h2 style="font-size:1.05rem">Already emailed, still waiting for a YES</h2><ul>' + waiting.map(function (each) {
+        var sentTo = maskEmail_(cleanEmail_(each.batch.email));
+        var moved = each.onFile && !sameAddress_(each.onFile, each.batch.email);
+        return '<li><strong>' + esc_(firstName_(each.batch.name)) + '</strong>: ' + esc_(each.picks.length) + ' nights held, ' +
+          (each.batch.emailed === 'pending' ? 'emailed ' + esc_(sentTo) : 'email not sent yet') + ', held until ' + esc_(momentLabel_(Number(each.batch.expires_at))) +
+          (moved ? '. A re-send goes to the newer address on file, ' + esc_(maskEmail_(each.onFile)) : '') + '.</li>';
+      }).join('') + '</ul>' + button(base + '&import=resend', 'Re-send the new email to ' + (waiting.length === 1 ? firstName_(waiting[0].batch.name) : 'these ' + waiting.length + ' people')) +
+        '<p>The re-send uses the new calendar email and gives them a fresh 24 hours. A YES to the earlier email still counts.</p>';
+    };
+    if (params['import'] === 'resend') {
+      var resent = resendSeed_();
+      lines.push('<p>&#10003; Re-sent the confirmation email to ' + esc_(resent) + ' ' + (resent === 1 ? 'person' : 'people') + ' still waiting, with a fresh deadline.</p>');
+      lines.push(button(base + '&import=preview', 'Back to the preview'));
+    } else if (params['import'] === 'sample') {
       var sample = importSeed_(true).sample;
       if (!sample) {
         lines.push('<p>Nobody would be emailed right now, so there is no test copy to send.</p>');
@@ -233,6 +249,7 @@ function ownerSetup_(params) {
       }
       if (Object.keys(plan.skipped).length) lines.push('<p>All skips: ' + esc_(Object.keys(plan.skipped).map(function (reason) { return plan.skipped[reason] + ' ' + reason; }).join('; ')) + '.</p>');
       lines.push('<p>' + esc_(plan.training) + ' training rows would be recorded (no email for those).</p>');
+      lines.push(waitingLines());
       if (plan.preview.length) {
         lines.push('<p><a href="' + esc_(base + '&import=sample') + '">Send me a test copy of ' + esc_(plan.preview[0].name) + '\'s email first</a> (to the club inbox; holds nothing).</p>');
         lines.push(button(base + '&import=seed', 'Send these ' + plan.preview.length + ' emails'));
@@ -1096,6 +1113,52 @@ function importSeedSheet() {
 // preview: work out exactly what importSeedSheet would do and return it, but write nothing to any Sheet and send nothing.
 // report.preview lists each person who would be emailed: the seed Sheet's name for them, their email masked, how many
 // nights and which positions.
+// Seed submissions still waiting for a YES: [{batch, picks (still pending), onFile (the email on file now, or '')}].
+function waitingSeed_(now) {
+  var signups = rows_('Signups');
+  var emails = rows_('Emails');
+  return rows_('Batches').filter(function (batch) { return batch.source === 'seed' && batchStatus_(batch, now) === 'pending'; }).map(function (batch) {
+    var picks = signups.filter(function (entry) { return entry.batch_id === batch.batch_id && signupStatus_(entry, now) === 'pending'; });
+    var onFile = batch.player_id ? approvedEmail_(emails, batch.player_id) : null;
+    return { batch: batch, picks: picks, onFile: onFile ? cleanEmail_(onFile.email) : '' };
+  }).filter(function (waiting) { return waiting.picks.length; });
+}
+
+// Sends everyone still waiting the current confirmation email again, at their email on file now, with a fresh deadline.
+// The submission and its code stay the same, so a YES to the old email still counts too. Returns how many were re-sent.
+function resendSeed_() {
+  var now = Date.now();
+  var count = 0;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var signups = rows_('Signups');
+    waitingSeed_(now).forEach(function (waiting) {
+      var batch = waiting.batch;
+      var expires = expiryFor_(waiting.picks, now);
+      batch.email = waiting.onFile || batch.email;
+      batch.expires_at = String(expires);
+      batch.emailed = '';
+      batch.texted = '';
+      batch.updated_at = nowIso_();
+      save_('Batches', batch);
+      signups.forEach(function (entry) {
+        if (entry.batch_id !== batch.batch_id || signupStatus_(entry, now) !== 'pending') return;
+        entry.email = batch.email;
+        entry.expires_at = String(expires);
+        entry.updated_at = nowIso_();
+        save_('Signups', entry);
+      });
+      logRow_('step', 'step:resent', batch.batch_id, '-', waiting.picks.length + ' picks, waiting until ' + momentLabel_(expires));
+      count += 1;
+    });
+  } finally {
+    lock.releaseLock();
+  }
+  if (count) sweep_();
+  return count;
+}
+
 function importSeed_(preview) {
   var id = property_('SEED_SHEET_ID', '');
   if (!id) throw new Error('Set the script property SEED_SHEET_ID to the id of the volunteer\'s Sheet.');
@@ -1188,7 +1251,8 @@ function importSeed_(preview) {
     var now = Date.now();
     var signups = rows_('Signups');
     var imported = {};
-    signups.forEach(function (entry) { if (entry.seed_key) imported[entry.seed_key] = true; });
+    // A hold that expired without an answer may be offered again; a NO (released), a confirmation or a drop stays final.
+    signups.forEach(function (entry) { if (entry.seed_key && signupStatus_(entry, now) !== 'expired') imported[entry.seed_key] = true; });
     var holding = signups.filter(function (entry) { return holds_(entry, now); });
     var people = rows_('People');
     Object.keys(groups).forEach(function (playerId) {
