@@ -196,6 +196,8 @@ if (open.length >= 6) {
   // Needs people: only table setup so far.
   sign('Rae Holt', partial.date, 'tables');
   sign('Tess Vale', partial.date, 'tables');
+  // Every remaining night for one volunteer, waiting for their YES: the email's "Yes, except some nights" opens My nights.
+  call('signUp', { playerId: idOf('Rae Holt'), email: emailOf('Rae Holt'), picks: open.slice(1).filter(night => night.date !== closed.date).slice(0, 8).map(night => ({ date: night.date, position: 'close' })) });
   // A player with no email on file asked to use one: the club's approval email is waiting at /mail.
   call('signUp', { playerId: idOf('Wes Lowe'), email: 'wes.lowe@example.com', picks: [{ date: partial.date, position: 'close' }] });
 }
@@ -218,15 +220,15 @@ const SHIM = `<script>
 
 const escapeHtml = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function appPage() {
-  // The real doGet: the page with the calendar injected, plus the viewport tag doGet adds.
-  return context.doGet().getContent().replace('<script>', SHIM + '\n<script>')
+function appPage(mine) {
+  // The real doGet: the page with the calendar injected (and someone's nights, for a My nights link), plus the viewport tag.
+  return context.doGet(mine ? { parameter: { mine } } : undefined).getContent().replace('<script>', SHIM + '\n<script>')
     .replace(/<head>/i, '<head><meta name="viewport" content="width=device-width, initial-scale=1">');
 }
 
 function mailPage() {
   const items = outbox.map(message => {
-    const body = escapeHtml(message.body).replace(/https:\/\/concordtabletennisclub\.com\//g, '<a href="/">' + LOCAL + '/</a>');
+    const body = escapeHtml(message.body).replace(/https:\/\/concordtabletennisclub\.com\/(\?mine=[0-9A-F]{20})?/g, (all, mine) => '<a href="/' + (mine || '') + '">' + LOCAL + '/' + (mine || '') + '</a>');
     const reply = /\[CTTC shift [0-9A-F]{10}\]$/.test(message.subject) ?
       '<p><strong>Reply by email:</strong> <a href="/reply?id=' + message.id + '&body=YES">YES</a> &middot; <a href="/reply?id=' + message.id + '&body=NO">NO</a></p>' : '';
     return '<article><h2>' + escapeHtml(message.subject) + '</h2><p>To: ' + escapeHtml(message.to) + ' &middot; ' + message.at.toLocaleTimeString() + '</p>' + reply + '<pre>' + body + '</pre></article>';
@@ -256,8 +258,8 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
-  if (url.pathname === '/') return back('/index.html');
-  if (url.pathname === '/app') return send(200, 'text/html; charset=utf-8', appPage());
+  if (url.pathname === '/') return back('/index.html' + url.search);
+  if (url.pathname === '/app') return send(200, 'text/html; charset=utf-8', appPage(url.searchParams.get('mine')));
   if (url.pathname === '/mail') return send(200, 'text/html; charset=utf-8', mailPage());
   if (url.pathname === '/reply') {
     const message = outbox.find(entry => entry.id === url.searchParams.get('id'));
@@ -280,7 +282,7 @@ const server = http.createServer((request, response) => {
   let body = fs.readFileSync(file);
   // The home page frames the app; here it frames the local copy, and accepts its messages from this origin instead of Google's.
   if (relative === 'index.html') {
-    body = body.toString('utf8').replace(/var APP_URL = "PENDING_DEPLOYMENT";|var APP_URL = 'PENDING_DEPLOYMENT';/, 'var APP_URL = "' + LOCAL + '/app";')
+    body = body.toString('utf8').replace(/var APP_URL = "[^"]*";/, 'var APP_URL = "' + LOCAL + '/app";')
       .replace('if (!/^https:\\/\\/[a-z0-9-]+\\.googleusercontent\\.com$/.test(event.origin)) return;', 'if (event.origin !== "' + LOCAL + '") return;');
   }
   send(200, TYPES[path.extname(file)], body);

@@ -138,11 +138,39 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 
 | `Signups.status` | Meaning | Who acts | Public calendar |
 | --- | --- | --- | --- |
-| `pending` | Submitted; holds its slot. One email, subject *Confirm your CTTC staff sign-up [CTTC shift …]*, lists every pick. | **Volunteer** replies YES (all) or NO (all). | Name, "waiting to confirm" |
+| `pending` | Submitted; holds its slot. One email, subject *Please confirm your CTTC volunteer nights [CTTC shift …]*, lists every pick. | **Volunteer** replies YES (all), NO (all) or YES except some dates, or unticks nights on **My nights**. | Name, "waiting to confirm" |
 | `confirmed` | YES received. *You are on the CTTC staff schedule*. Reminder the day before (from 9 AM). | Nobody | Name |
-| `released` | NO received. *…is cancelled*. | Nobody | Open again |
+| `released` | NO received, or the night was left out of a YES (typed "YES except", or unticked on My nights). | Nobody | Open again |
 | `expired` | No YES by the deadline: 24 hours after submitting, but never later than **1 hour before the earliest picked night**. *…expired*. | Nobody | Open again (at once, even before the sweep writes it) |
-| `dropped` | The volunteer pressed "This is me: drop this shift" on a confirmed slot and replied YES to *Drop your CTTC shift? [CTTC shift …]* (open 48 hours, sent at most once per 10 minutes). The club is emailed, and if a primary desk organizer or money collector dropped, that night's confirmed backup gets a heads-up. | Nobody | Open again |
+| `dropped` | The volunteer unticked a confirmed night on **My nights** and tapped Save, or pressed "This is me: drop this shift" on a confirmed slot and replied YES to *Drop your CTTC shift? [CTTC shift …]* (open 48 hours, sent at most once per 10 minutes). The volunteer and the club are emailed (one email listing every drop of one Save), and if a primary desk organizer or money collector dropped, that night's confirmed backup gets a heads-up. | Nobody | Open again |
+
+**Some nights but not all.** Someone signed up for many nights (every
+Wednesday, say, or a whole roster from the seed import) can leave out just the
+nights they can't do, without losing the rest:
+
+- **My nights page.** Every email about someone's shifts (the confirm email's
+  blue *Yes, except some nights* button, the confirmation, the reminder and
+  the drop notice) links to `concordtabletennisclub.com/?mine=CODE`. The home
+  page opens the app straight at a "Your nights" list (and takes the code out
+  of the address bar, so a copied home page link never carries it): every
+  upcoming night ticked, marked *waiting* or *confirmed*; a night with two
+  shifts has a box per shift. Untick, tap **Save**: ticked waiting nights are
+  confirmed, unticked waiting ones released, unticked confirmed ones dropped.
+  A sign-up with nothing left waiting is answered, so its confirmation email
+  lists what was confirmed and, under *Left out, as you asked*, what was not.
+  The code is made with the app's secret from the address on file (20
+  characters), is the same in every email, and only works for that person's
+  upcoming nights: having the link is like replying from their address, so it
+  only ever goes to the email on file. A link with no upcoming nights says
+  so; a page left open is safe (nights that changed since are skipped).
+- **Typed reply.** *YES except Nov 4 and 18*, *Yes to all but not 11/4,
+  12/2*, or the dates on the next lines. Every date must be one of the nights
+  in that email and every word part of a date (or *and*, *or*, a weekday):
+  then the rest are confirmed and the named nights released. Anything else
+  (*yes except when it rains*, *yes except Wednesdays*, a date not in the
+  email) **changes nothing**, and the sender is told once, with their nights
+  and their My nights link. A plain YES is never read from such a reply.
+  By text the same works as *CONFIRM except Nov 4*.
 
 **Late YES.** A YES that arrives after the hold expired (up to 3 days later)
 confirms whichever picks are still free, checked exactly like a new sign-up;
@@ -161,7 +189,8 @@ reason.
 **Replies.** Only a reply quoting the `[CTTC shift …]` code, from the same
 address the question went to, counts; auto-replies are ignored, a reply from
 another address gets a "reply from the right address" email, an unreadable
-reply gets "we could not read your reply". The coaching app uses a different
+reply gets "we could not read your reply" (and "Yes, but…", "Yes except…" are
+never read as a plain YES). The coaching app uses a different
 tag (`[CTTC ref …]`), so neither app reads the other's replies.
 
 **Texts (optional).** The public form takes no phone (it could be anyone's).
@@ -329,6 +358,8 @@ All of this lives in `canTake_`; tests cover both modes.
 | --- | --- |
 | Name search says the list is not available | `DESK_SHEET_ID` set, the desk Sheet shared with the club account, a `Players` tab with `player_id`, `display_name`, `active`. Changes to the list show within 10 minutes (cache). |
 | A volunteer never got the confirm email | `Batches.emailed` is empty while `status = pending`: the send failed or the daily quota ran out; the hourly sweep retries for 3 days. The `Log` tab shows `email batch:pending` once it went. |
+| They replied "YES except …" and nothing changed | A date was not among that email's nights or a word was not a date; they were emailed *We could not read the dates in your reply* with their My nights link. |
+| A My nights link says no upcoming nights | Their nights are past or released, or the email on file changed since (the link is made from the address; newer emails carry the new link). |
 | They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The minute trigger `checkReplies` must exist (Triggers page). |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |
 | Desk, Money or Lock-up is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money, `keys` for Lock-up. Backups are never greyed out. |

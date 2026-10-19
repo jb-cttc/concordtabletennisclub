@@ -24,7 +24,7 @@ assert.equal(fs.readFileSync(__dirname + '/.claspignore', 'utf8').trim(), 'check
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), [
-  'checkReplies', 'doGet', 'findPlayers', 'importMemberEmails', 'importSeedSheet', 'playerAccess', 'requestDrop', 'setup', 'signUp', 'staffBoard', 'sweep'
+  'checkReplies', 'doGet', 'findPlayers', 'importMemberEmails', 'importSeedSheet', 'myNights', 'playerAccess', 'requestDrop', 'saveMyNights', 'setup', 'signUp', 'staffBoard', 'sweep'
 ], 'a public web app exposes every non-private function: only these may exist');
 assert.doesNotMatch(source, /=>|`|^\s*(let|const|class)\s/m, 'Code.js is ES5 style, like the other Apps Script projects');
 
@@ -378,7 +378,8 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(asks.length, 1, 'one email for every pick');
   assert.match(asks[0].subject, /^Please confirm your CTTC volunteer nights? \[CTTC shift [0-9A-F]{10}\]$/);
   assert.match(asks[0].body, /Desk organizer, Mondays 7:00 PM: Oct 26\nTable\/barrier setup, Wednesdays 7:00 PM: Oct 28\nPut tables and barriers away, Fridays 10:00 PM: Oct 30 \(finalize\)/);
-  assert.match(asks[0].body, /Yes, confirm all 3 nights: reply YES\nNo, release them: reply NO/);
+  assert.match(asks[0].body, /Yes, confirm all 3 nights: reply YES\nYes, except some nights: https:\/\/concordtabletennisclub\.com\/\?mine=[0-9A-F]{20}\nNo, release them: reply NO/);
+  assert.match(asks[0].body, /reply to this email with YES, NO, or YES except and the dates you can't do, like YES except Oct 28, Oct 30/, 'an example from their own nights');
   // The HTML version: a calendar with each night marked by its position letter, and one-tap replies with the same subject.
   assert.match(asks[0].htmlBody, /October 2026[\s\S]*<strong>26<\/strong><br><span[^>]*>D<\/span>[\s\S]*<strong>28<\/strong><br><span[^>]*>S<\/span>[\s\S]*<strong>30<\/strong><br><span[^>]*>T<\/span>/);
   const yes = /href="(mailto:[^"]+)"[^>]*>Yes, confirm all 3 nights</.exec(asks[0].htmlBody.replace(/&amp;/g, '&'));
@@ -813,6 +814,25 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   check();
   assert.equal(statusOf('Max Gold', '2026-11-23', 'close'), 'confirmed');
   assert.equal(replies.at(-1).body, 'CTTC: Done: you are confirmed for 1 shift. Details are in your email.');
+  // CONFIRM except: dates that are not among the nights change nothing; then the rest are confirmed.
+  assert.equal(signUp('Max Gold', [['2026-11-30', 'close'], ['2026-12-07', 'close'], ['2026-12-14', 'close']]).ok, true);
+  context.sweep();
+  assert.match(replies.at(-1).body, /^CTTC: Reply CONFIRM to lock in your 3 staff shifts/);
+  clock += 60000;
+  inbound('(925) 555-0142', 'Confirm except Dec 8', clock);
+  check();
+  assert.equal(statusOf('Max Gold', '2026-11-30', 'close'), 'pending');
+  assert.match(replies.at(-1).body, /^CTTC: We could not match Dec 8 to your nights, so nothing changed\. Reply CONFIRM, RELEASE, or CONFIRM except Dec 7, Dec 14\./);
+  check();
+  assert.match(replies.at(-1).body, /could not match Dec 8/, 'told once');
+  const told = replies.length;
+  check();
+  assert.equal(replies.length, told);
+  clock += 60000;
+  inbound('(925) 555-0142', 'CONFIRM except Dec 7', clock);
+  check();
+  assert.deepEqual(['2026-11-30', '2026-12-07', '2026-12-14'].map(date => statusOf('Max Gold', date, 'close')), ['confirmed', 'released', 'confirmed']);
+  assert.equal(replies.at(-1).body, 'CTTC: Done: you are confirmed for 2 shifts, and the 1 night you listed is released. Details are in your email.');
   const texts = replies.length;
   clock += 6 * 60000;
   inbound('(925) 555-0142', 'STOP', clock);
@@ -1101,6 +1121,90 @@ const seedCheck = () => {
 }
 seedCheck();
 
+// ---- YES except some nights: by email, and on the My nights page ----
+{
+  const days = text => { const found = context.exceptOf_(text); return found && JSON.parse(JSON.stringify(found)); };
+  assert.deepEqual(days('YES except Nov 4 and 18').days.map(day => [day.month, day.day]), [[11, 4], [11, 18]]);
+  assert.deepEqual(days('Yes to all but not 11/4, 12/2').days.map(day => [day.month, day.day]), [[11, 4], [12, 2]]);
+  assert.deepEqual(days('Hi Sam,\nyes, except:\nWed Nov 4\nDecember 2nd\n\nOn Mon the club wrote:\n> Reply YES').days.map(day => [day.month, day.day]), [[11, 4], [12, 2]], 'dates on the next lines');
+  assert.deepEqual(days('ok yes except Wednesday, November 4, 2026').days, [{ month: 11, day: 4, year: 2026 }], 'a date as our emails write it');
+  ['Yes except when it rains', 'yes except Wednesdays', 'yes except November', 'yes except 4', 'yes except Nov 4 maybe'].forEach(text => assert.equal(days(text).unclear, true, text));
+  ['yes', 'Yes, see you then', 'no except Nov 4', 'Sure, Nov 4 works except'].forEach(text => assert.equal(days(text), null, text));
+  ['YES except Nov 4', 'Yes, except Nov 4', 'yes apart from Nov 4', 'Yes but not Nov 4'].forEach(text => assert.equal(context.answerOf_(text), '', 'never a plain YES: ' + text));
+
+  const SAL = 'sal.roy@example.com';
+  const dates = ['2026-12-11', '2026-12-14', '2026-12-18', '2026-12-21'];
+  assert.equal(signUp('Sal Roy', dates.map(date => [date, 'close'])).ok, true);
+  const ask = mailTo(SAL).at(-1);
+  const code = /\?mine=([0-9A-F]{20})/.exec(ask.body)[1];
+  assert.match(ask.htmlBody, new RegExp('<a href="https://concordtabletennisclub\\.com/\\?mine=' + code + '"[^>]*>Yes, except some nights</a>'), 'a third button opens their nights');
+  // A reply naming a night that is not in the email changes nothing and says how to answer.
+  let from = sent.length;
+  reply(SAL, 'Yes except Dec 12');
+  assert.deepEqual(dates.map(date => statusOf('Sal Roy', date, 'close')), ['pending', 'pending', 'pending', 'pending']);
+  const unclear = mailTo(SAL, from);
+  assert.equal(unclear.length, 1);
+  assert.equal(unclear[0].subject, 'We could not read the dates in your reply');
+  assert.match(unclear[0].body, /Dec 12 is not one of the nights in that email, so nothing changed yet[\s\S]*\?mine=[0-9A-F]{20}[\s\S]*like YES except Dec 14, Dec 21/);
+  from = sent.length;
+  reply(SAL, 'YES except Dec 14 and 21');
+  assert.deepEqual(dates.map(date => statusOf('Sal Roy', date, 'close')), ['confirmed', 'released', 'confirmed', 'released'], 'the rest are confirmed');
+  const confirmed = mailTo(SAL, from).pop();
+  assert.equal(confirmed.subject, 'You are on the CTTC staff schedule');
+  assert.match(confirmed.body, /2 nights are confirmed[\s\S]*LEFT OUT, AS YOU ASKED\n\nMon, Dec 14: Put tables and barriers away \(closing, 10:00 PM\)\nMon, Dec 21: /);
+  assert.match(confirmed.body, /\?mine=[0-9A-F]{20}/, 'and links to their nights');
+
+  // My nights: the link shows the person's upcoming nights, and nothing about anyone else.
+  resetLimits();
+  assert.deepEqual(run('myNights', '0'.repeat(20)), { ok: false, message: 'We found no upcoming nights for this link. If you expected some, use the link in the newest email we sent you.' });
+  assert.equal(run('myNights', 'nonsense').ok, false);
+  let view = run('myNights', code.toLowerCase());
+  assert.equal(view.ok, true);
+  assert.equal(view.name, 'Sal');
+  assert.equal(view.email, 's•••@example.com');
+  assert.doesNotMatch(JSON.stringify(view), /sal\.roy|Roy/, 'no address or last name');
+  assert.deepEqual(view.nights.map(entry => [entry.date, entry.shifts.map(shift => shift.status)]), [['2026-12-11', ['confirmed']], ['2026-12-18', ['confirmed']]]);
+  // A new sign-up with two shifts on one night is waiting; the page confirms one, releases the other and drops a confirmed night.
+  assert.equal(signUp('Sal Roy', [['2026-12-28', 'desk-backup'], ['2026-12-28', 'close'], ['2026-12-30', 'close']]).ok, true);
+  resetLimits();
+  view = run('myNights', code);
+  const dec28 = view.nights.find(entry => entry.date === '2026-12-28');
+  assert.deepEqual(dec28.shifts.map(shift => [shift.status, shift.label]), [['pending', 'Desk organizer backup (opening, 7:00 PM)'], ['pending', 'Put tables and barriers away (closing, 10:00 PM)']]);
+  assert.match(view.until, /^[A-Z][a-z]+day, [A-Z][a-z]+ \d+, 2026, \d+:\d\d [AP]M$/, 'until when the waiting nights are held');
+  const idOn = (date, index = 0) => view.nights.find(entry => entry.date === date).shifts[index].id;
+  const otherId = cell('Signups', signupRows().find(line => cell('Signups', line, 'status') === 'confirmed' && cell('Signups', line, 'email') !== SAL), 'signup_id');
+  from = sent.length;
+  resetLimits();
+  const saved = run('saveMyNights', code, { keep: [idOn('2026-12-11'), idOn('2026-12-28', 0), idOn('2026-12-30')], release: [idOn('2026-12-18'), idOn('2026-12-28', 1), otherId] });
+  assert.equal(saved.ok, true, saved.message);
+  assert.equal(saved.message, 'Saved. Confirmed 2 nights. Released 1 night. Dropped 1 night: the club was told. 1 shift had already changed, so it was left as is. We emailed you the details.');
+  assert.equal(statusOf('Sal Roy', '2026-12-18', 'close'), 'dropped');
+  assert.equal(statusOf('Sal Roy', '2026-12-28', 'desk-backup'), 'confirmed');
+  assert.equal(statusOf('Sal Roy', '2026-12-28', 'close'), 'released');
+  assert.equal(statusOf('Sal Roy', '2026-12-30', 'close'), 'confirmed');
+  assert.equal(cell('Signups', signupRows().find(line => cell('Signups', line, 'signup_id') === otherId), 'status'), 'confirmed', 'someone else\'s shift is never touched');
+  assert.deepEqual(saved.nights.map(entry => entry.date), ['2026-12-11', '2026-12-28', '2026-12-30']);
+  const notes = sent.slice(from);
+  assert.equal(notes.find(message => message.to === 'owner@example.com').subject, 'Staffing: Sal Roy dropped Put tables and barriers away on Fri, Dec 18');
+  assert.deepEqual(notes.filter(message => message.to === SAL).map(message => message.subject).sort(), ['Shift dropped: Fri, Dec 18', 'You are on the CTTC staff schedule']);
+  assert.match(notes.find(message => message.subject === 'You are on the CTTC staff schedule').body, /LEFT OUT, AS YOU ASKED\n\nMon, Dec 28: Put tables/, 'the answered sign-up lists what was left out');
+  // Two drops at once: one email to the club listing both.
+  from = sent.length;
+  resetLimits();
+  const both = run('saveMyNights', code, { keep: [], release: [idOn('2026-12-11'), idOn('2026-12-30')] });
+  assert.match(both.message, /^Saved\. Dropped 2 nights: the club was told\./);
+  const club = mailTo('owner@example.com', from);
+  assert.equal(club.length, 1);
+  assert.equal(club[0].subject, 'Staffing: Sal Roy dropped 2 shifts');
+  assert.match(club[0].body, /Fri, Dec 11: Put tables[\s\S]*Wed, Dec 30: Put tables/);
+  assert.equal(mailTo(SAL, from).length, 1);
+  resetLimits();
+  assert.equal(run('saveMyNights', code, { keep: [], release: [] }).message, 'Nothing to save.');
+  assert.equal(run('saveMyNights', '1'.repeat(20), { release: [idOn('2026-12-28')] }).ok, false, 'a wrong code changes nothing');
+  assert.equal(statusOf('Sal Roy', '2026-12-28', 'desk-backup'), 'confirmed');
+  assert.equal(held, 0);
+}
+
 // ---- The membership list's emails: a Sheet, then a Doc table ----
 {
   makeBook('member-sheet-id').insertSheet('Members 2026');
@@ -1169,7 +1273,7 @@ assert.match(page, /new ResizeObserver\(postHeight\)\.observe\(document\.body\)/
 const script = /<script>([\s\S]*?)<\/script>/.exec(page)[1];
 new vm.Script(script);
 const called = new Set([...script.matchAll(/call\('([A-Za-z]+)'/g)].map(match => match[1]));
-assert.deepEqual([...called].sort(), ['findPlayers', 'playerAccess', 'requestDrop', 'signUp', 'staffBoard']);
+assert.deepEqual([...called].sort(), ['findPlayers', 'myNights', 'playerAccess', 'requestDrop', 'saveMyNights', 'signUp', 'staffBoard']);
 for (const name of called) assert.ok(globals.includes(name), name + ' exists and is callable from the page');
 
 // ---- Reading the club's full roster layout: every column becomes a position (made-up names) ----
@@ -1258,10 +1362,10 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
 (async () => {
   const { JSDOM } = require('jsdom');
   clock = START;
-  const open = () => {
+  const open = parameter => {
     resetLimits();
     const posted = [];
-    const html = context.doGet().getContent();
+    const html = context.doGet(parameter && { parameter }).getContent();
     const dom = new JSDOM(html, {
       runScripts: 'dangerously', pretendToBeVisual: true,
       beforeParse(window) {
@@ -1374,5 +1478,38 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.match(document.getElementById('picks').textContent, /I'm not listed/, 'hybrid mode offers "I\'m not listed"');
   dom.window.close();
   delete properties.SIGNUP_MODE;
+
+  // My nights, opened from the link in an email: every night ticked; untick one and Save.
+  assert.equal(signUp('Sage Hill', [['2026-12-21', 'desk-backup'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']]).ok, true);
+  const sage = /\?mine=([0-9A-F]{20})/.exec(mailTo('sage.hill@example.com').at(-1).body)[1];
+  ({ dom, document } = open({ mine: sage }));
+  const mine = document.getElementById('mine');
+  assert.equal(mine.hidden, false);
+  assert.equal(mine.querySelector('h2').textContent, 'Your nights, Sage');
+  assert.ok(mine.compareDocumentPosition(document.getElementById('calendar')) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'above the calendar');
+  const box = label => [...mine.querySelectorAll('input[type=checkbox]')].find(input => input.getAttribute('aria-label') === label);
+  assert.equal(mine.querySelectorAll('input[type=checkbox]').length, 5, 'one box per night, and one per shift on a night with two');
+  assert.ok([...mine.querySelectorAll('input[type=checkbox]')].every(input => input.checked));
+  const saveButton = () => mine.querySelector('.actions button');
+  assert.equal(saveButton().textContent, 'Save: confirm 4');
+  box('Wednesday, December 23, 2026').click();
+  assert.equal(saveButton().textContent, 'Save: confirm 3, release 1');
+  box('Monday, December 21, 2026: Put tables and barriers away (closing, 10:00 PM)').click();
+  assert.equal(box('Monday, December 21, 2026').indeterminate, true, 'half a night is shown as such');
+  assert.equal(saveButton().textContent, 'Save: confirm 2, release 2');
+  saveButton().click();
+  assert.match(mine.querySelector('.form-status').textContent, /^Saved\. Confirmed 2 nights\. Released 2 nights\./);
+  assert.deepEqual([['2026-12-21', 'desk-backup'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']].map(([date, position]) => statusOf('Sage Hill', date, position)),
+    ['confirmed', 'released', 'released', 'confirmed']);
+  assert.equal(saveButton().textContent, 'Nothing to save', 'the page shows the nights as they are now');
+  box('Wednesday, December 30, 2026').click();
+  assert.equal(saveButton().textContent, 'Save: drop 1', 'a confirmed night is dropped');
+  dom.window.close();
+  ({ dom, document } = open({ mine: '0'.repeat(20) }));
+  assert.match(document.getElementById('mine').textContent, /We found no upcoming nights for this link/);
+  dom.window.close();
+  ({ dom, document } = open());
+  assert.equal(document.getElementById('mine').hidden, true, 'no link, no panel');
+  dom.window.close();
   console.log('staffing app checks passed');
 })().catch(error => { console.error(error); process.exit(1); });

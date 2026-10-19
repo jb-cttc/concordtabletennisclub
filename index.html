@@ -306,15 +306,25 @@
       }
     });
     frame.addEventListener("load", function () { setTimeout(ready, 10000); });
+    // The "My nights" link in a volunteer's email (?mine=CODE) opens the app straight at their nights. The code is taken out of
+    // the address bar at once, so a copied or shared home page link never carries it.
+    var mine = (/[?&]mine=([0-9A-Fa-f]{20})(?![0-9A-Za-z])/.exec(window.location.search) || [])[1] || "";
+    if (/[?&]mine=/.test(window.location.search)) {
+      try { window.history.replaceState(null, "", window.location.pathname + window.location.hash); } catch (error) {}
+    }
     launch.hidden = false;
     launch.addEventListener("click", function () {
       var open = app.hidden;
-      if (open && !frame.getAttribute("src")) frame.setAttribute("src", APP_URL);
+      if (open && !frame.getAttribute("src")) frame.setAttribute("src", APP_URL + (mine ? "?mine=" + mine.toUpperCase() : ""));
       app.hidden = !open;
       calendar.forEach(function (el) { el.hidden = open; });
       launch.setAttribute("aria-expanded", String(open));
       label.textContent = open ? "Back to closures calendar" : "Volunteer signups";
     });
+    if (mine) {
+      launch.click();
+      try { app.scrollIntoView({ block: "start" }); } catch (error) {}
+    }
   })();
 
   // Notice from schedule.json (auto-hides once noticeUntil date has passed)
