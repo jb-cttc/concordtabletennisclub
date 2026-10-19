@@ -57,10 +57,14 @@ do. It then offers a **preview** of the open/close import (`&import=preview`:
 who would be emailed, masked, how many nights and which positions, and which
 names need fixing; it writes and sends nothing) with a **Send** button that
 runs the real import (`&import=seed`), and one tap for the membership email
-import. The preview also lists anyone **already emailed and still waiting for
-a YES** (masked address, how many nights, held until when), with a **Re-send**
-button (`&import=resend`): the current email, to their email on file now,
-with a fresh 24 hours (a YES to the earlier email still counts). A hold that
+import. The preview's list also includes anyone **already emailed and still waiting
+for a YES** (marked "Re-send"), and the one **Send** button emails them again
+too: the current email, to their email on file after the import (a SeedLinks
+address replaces one found in Zeffy or coaching records; one the club typed
+in the Emails tab stays), with a fresh 24 hours. A YES to the earlier email
+still counts. Someone emailed less than an hour ago is not re-sent, so a
+second tap on Send emails nobody twice (`&import=resend` re-sends without
+importing). A hold that
 expires with no answer can be offered again by the next import; a NO, a
 confirmation or a drop is never re-offered. Anyone else sees "not available", and
 `/dev` only opens for the project's editors anyway.
