@@ -467,18 +467,18 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.match(signUp('Cal Diaz', many).message, /at most 40/);
 }
 
-// ---- Training: Desk needs keys and opening, Money needs Front Desk; tables and closing are open to anyone listed ----
+// ---- Training: Desk needs keys and opening, Money Front Desk, Lock-up keys; backups, setup and takedown are open to anyone listed ----
 {
   const S = '2026-11-02';
   assert.match(signUp('Cal Diaz', [[S, 'desk']]).problems[0].reason, /^Desk organizer needs key access and opening training/, 'the server refuses an untrained desk pick');
-  assert.match(signUp('Cal Diaz', [[S, 'desk-backup']]).problems[0].reason, /needs key access and opening training/, 'backups too');
-  assert.match(signUp('Cal Diaz', [[S, 'money-backup']]).problems[0].reason, /needs Front Desk training/);
+  assert.equal(context.canTake_({ playerId: 'p05', training: {} }, 'desk-backup'), '', 'a backup spot needs no training: it is where someone learns');
+  assert.equal(context.canTake_({ playerId: 'p05', training: {} }, 'money-backup'), '');
   assert.match(signUp('Dee Nguyen', [[S, 'desk']]).problems[0].reason, /needs opening training/, 'keys alone are not enough');
   assert.match(signUp('Dee Nguyen', [[S, 'money']]).problems[0].reason, /Front Desk/, 'N/A is not trained');
   assert.equal(signUp('Cal Diaz', [[S, 'tables'], ['2026-11-04', 'close']]).ok, true, 'table setup and closing need no training');
   resetLimits();
-  assert.deepEqual(run('playerAccess', 'p05'), { ok: true, positions: ['tables', 'close'], emailOnFile: 'c\u2022\u2022\u2022@example.com' }, 'the page learns only which positions the chosen player may take, and a masked email');
-  assert.deepEqual(run('playerAccess', 'p06').positions, ['tables', 'lockup', 'close'], 'key access alone allows lock-up');
+  assert.deepEqual(run('playerAccess', 'p05'), { ok: true, positions: ['desk-backup', 'money-backup', 'tables', 'close'], emailOnFile: 'c\u2022\u2022\u2022@example.com' }, 'the page learns only which positions the chosen player may take, and a masked email');
+  assert.deepEqual(run('playerAccess', 'p06').positions, ['desk-backup', 'money-backup', 'tables', 'lockup', 'close'], 'key access alone allows lock-up');
   assert.deepEqual(run('playerAccess', 'p03').positions, ['desk', 'desk-backup', 'money', 'money-backup', 'tables', 'lockup', 'close']);
   assert.equal(run('playerAccess', 'p23').ok, false, 'not for inactive players');
   assert.deepEqual(night(S).slots.desk, []);
@@ -615,7 +615,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(context.canTake_({ playerId: '' }, 'tables'), '');
   assert.equal(context.canTake_({ playerId: '' }, 'close'), '');
   assert.match(context.canTake_({ playerId: '' }, 'desk'), /training/);
-  assert.match(context.canTake_({ playerId: '' }, 'money-backup'), /training/);
+  assert.equal(context.canTake_({ playerId: '' }, 'money-backup'), '', 'backups need no training, in hybrid mode too');
   assert.equal(context.canTake_({ playerId: '', training: full }, 'money'), '');
   const nia = { playerId: '', unlisted: true, name: 'Nia Newcomer', email: 'nia@example.com' };
   const alerts = mailTo('owner@example.com').length;
@@ -871,7 +871,8 @@ const seedCheck = () => {
   const plan = JSON.parse(JSON.stringify(context.importSeed_(true)));
   assert.equal(JSON.stringify(grids), sheetBefore, 'a preview changes no Sheet');
   assert.equal(sent.length, before, 'a preview sends nothing');
-  assert.deepEqual(plan.preview.map(person => person.name).sort(), ['Ada', 'Bobby', 'Eve S.']);
+  assert.deepEqual(plan.preview.map(person => person.name).sort(), ['Ada', 'Bobby', 'Eve S.', 'Susan']);
+  assert.deepEqual(plan.preview.find(person => person.name === 'Susan').positions, ['Desk organizer backup'], 'an untrained backup is held: backups need no training');
   assert.ok(plan.preview.every(person => /^.\u2022\u2022\u2022@example\.com$/.test(person.email)), 'emails masked');
   assert.deepEqual(plan.preview.find(person => person.name === 'Ada').positions.sort(), ['Desk organizer', 'Desk organizer backup']);
   assert.equal(plan.preview.reduce((total, person) => total + person.nights, 0), plan.signups);
@@ -900,8 +901,7 @@ const seedCheck = () => {
   assert.equal(sent.length, linksAt, 'and sends nothing');
   before = sent.length;
   // Everyone on the roster the import leaves out (or holds only partly) is listed with the reason, in nights.
-  const susan = plan.held.find(person => person.name === 'Susan');
-  assert.deepEqual(susan, { name: 'Susan', nights: 0, reasons: { 'needs training': 12 } }, 'the untrained backup is explained');
+  assert.ok(!plan.held.some(person => person.name === 'Susan'), 'nothing of Susan\'s is left out');
   assert.ok(!plan.held.some(person => person.name === 'Bobby'), 'someone missing only closed nights is not listed');
   const ron = plan.held.find(person => person.name === 'Ron');
   assert.ok(ron && ron.reasons['roster: no email found'] > 0, 'no email is explained per person too');
@@ -909,9 +909,9 @@ const seedCheck = () => {
   assert.deepEqual([plan.people, plan.signups, plan.training, plan.unmatched, plan.ambiguous, plan.noEmail],
     [result.people, result.signups, result.training, result.unmatched, result.ambiguous, result.noEmail], 'the preview shows exactly what the import then does');
   assert.deepEqual(result, {
-    training: 5, people: 3, signups: 50,
+    training: 5, people: 4, signups: 62,
     skipped: {
-      'unknown roster column': 1, 'roster: no email found': 13, 'club closed that night': 2, 'needs training': 12, 'roster: name ambiguous': 12,
+      'unknown roster column': 1, 'roster: no email found': 13, 'club closed that night': 2, 'roster: name ambiguous': 12,
       'roster: name unmatched': 12, 'training: name ambiguous': 1
     },
     unmatched: ['Zoe'], ambiguous: ['Sam'], noEmail: ['Ron']
@@ -930,7 +930,7 @@ const seedCheck = () => {
   // Holds: one normal email per person, every matching night but closures.
   // (The sweep the import runs also tells earlier checks' people their old holds expired: those are not seed emails.)
   const asks = sent.slice(before).filter(message => /^Please confirm/.test(message.subject));
-  assert.deepEqual(asks.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com']);
+  assert.deepEqual(asks.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com', 'susan.lake@example.com']);
   assert.ok(asks.every(message => /^Please confirm your CTTC volunteer nights? \[CTTC shift [0-9A-F]{10}\]$/.test(message.subject)));
   assert.match(asks.find(message => message.to === 'ada.park@example.com').body, /open\/close list, which has moved[\s\S]*Desk organizer, Wednesdays 7:00 PM: [^\n]*Jan 6[\s\S]*Desk organizer backup, Saturdays 3:00 PM: Jan 9/);
   assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key')).length, 25, 'Ada: 13 Wednesdays and 12 Saturdays, the latest Zeffy email');
@@ -939,22 +939,22 @@ const seedCheck = () => {
   const seeded = email => signupsOf(email).filter(line => cell('Signups', line, 'seed_key'));
   assert.equal(seeded('eve.stone@example.com').length, 13, 'Eve: her email from the coaching Sheet');
   assert.ok(seeded('eve.stone@example.com').every(line => cell('Signups', line, 'status') === 'pending' && cell('Signups', line, 'position') === 'money'));
-  assert.equal(signupsOf('susan.lake@example.com').length, 0, 'Susan has no opening training: nothing is held');
+  assert.equal(signupsOf('susan.lake@example.com').filter(line => cell('Signups', line, 'position') === 'desk-backup').length, 12, 'Susan, the second name under Open, is held as desk organizer backup on every Monday');
   // Already emailed and still waiting: listed on the preview, and one tap re-sends the current email with a fresh deadline.
   let page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
   assert.doesNotMatch(page, /Re-send:/, 'just emailed: not offered again within the hour');
   clock += 2 * 3600000;
   page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
-  assert.match(page, /Sending would email 3 people[\s\S]*<strong>Ada<\/strong> \(a\u2022\u2022\u2022@example\.com\): 25 nights as [^<]*<em>Re-send: emailed a\u2022\u2022\u2022@example\.com earlier, no YES yet/,
+  assert.match(page, /Sending would email 4 people[\s\S]*<strong>Ada<\/strong> \(a\u2022\u2022\u2022@example\.com\): 25 nights as [^<]*<em>Re-send: emailed a\u2022\u2022\u2022@example\.com earlier, no YES yet/,
     'people still waiting are in the one list, marked as a re-send');
-  assert.match(page, />Send these 3 emails</, 'one button for everyone');
+  assert.match(page, />Send these 4 emails</, 'one button for everyone');
   const adaBatch = () => grids.Batches.slice(1).find(line => cell('Batches', line, 'email') === 'ada.park@example.com' && cell('Batches', line, 'source') === 'seed');
   const oldExpiry = Number(cell('Batches', adaBatch(), 'expires_at'));
   const resendAt = sent.length;
   const batchCount = grids.Batches.length;
-  assert.match(context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent(), /Sent 3 emails: 0 new \(0 nights held\) and 3 re-sent to people still waiting/, 'the one Send button re-sends too');
+  assert.match(context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent(), /Sent 4 emails: 0 new \(0 nights held\) and 4 re-sent to people still waiting/, 'the one Send button re-sends too');
   const resent = sent.slice(resendAt).filter(message => /^Please confirm/.test(message.subject));
-  assert.deepEqual(resent.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com'], 'each person still waiting, once');
+  assert.deepEqual(resent.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com', 'susan.lake@example.com'], 'each person still waiting, once');
   assert.equal(grids.Batches.length, batchCount, 'the same submissions: no new holds');
   assert.ok(Number(cell('Batches', adaBatch(), 'expires_at')) > oldExpiry, 'a fresh deadline');
   assert.ok(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key')).every(line => cell('Signups', line, 'expires_at') === cell('Batches', adaBatch(), 'expires_at')), 'the held nights move with it');
@@ -989,7 +989,7 @@ const seedCheck = () => {
   assert.deepEqual(report.filter(line => line[1] !== 'summary' && line[1] !== 'skipped').map(line => line.slice(1)), [
     ['ambiguous', 'Sam', '', 'Sam Kim, Sam Lee'], ['unmatched', 'Zoe', '', 'Zoey Hart'], ['no email', 'Ron', '', 'Ron Tate']
   ], 'each name to fix, with candidate players (the private Sheet may show full names)');
-  assert.ok(report.some(line => line[1] === 'skipped' && line[2] === 'needs training' && line[3] === '12'));
+  assert.ok(report.some(line => line[1] === 'skipped' && line[2] === 'roster: name ambiguous' && line[3] === '12'));
   assert.deepEqual(grids.SeedLinks.slice(1), [['Sam', '', ''], ['Zoe', '', ''], ['Ron', '', '']]);
   const dropdown = validations['private-book-id/SeedLinks'];
   assert.equal(dropdown.column, 2, 'the dropdown is on player_name');
@@ -1006,7 +1006,7 @@ const seedCheck = () => {
   result = JSON.parse(JSON.stringify(context.importSeedSheet()));
   assert.equal(result.people, 3);
   assert.equal(result.signups, 36, 'Ron\'s 12 Mondays, Sam Lee\'s 12 Fridays and Zoe\'s 12 Saturdays');
-  assert.equal(result.skipped['already imported'], 50, 'what was held before is not held or emailed again');
+  assert.equal(result.skipped['already imported'], 62, 'what was held before is not held or emailed again');
   assert.equal(result.skipped['position already full'], undefined, 'the second name in "Zoe / Ada" is the backup, so Zoe (p29) gets the Saturday desk');
   assert.ok(signupsOf('zoey.hart@example.com').every(line => cell('Signups', line, 'position') === 'desk'));
   assert.deepEqual([result.unmatched, result.ambiguous, result.noEmail], [[], [], []]);
