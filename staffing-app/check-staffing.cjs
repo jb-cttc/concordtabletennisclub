@@ -932,20 +932,48 @@ const seedCheck = () => {
   assert.equal(signupsOf('susan.lake@example.com').length, 0, 'Susan has no opening training: nothing is held');
   // Already emailed and still waiting: listed on the preview, and one tap re-sends the current email with a fresh deadline.
   let page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
-  assert.match(page, /Already emailed, still waiting for a YES[\s\S]*<strong>Ada<\/strong>: 25 nights held, emailed a\u2022\u2022\u2022@example\.com/);
-  assert.match(page, /import=resend/);
+  assert.doesNotMatch(page, /Re-send:/, 'just emailed: not offered again within the hour');
+  clock += 2 * 3600000;
+  page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
+  assert.match(page, /Sending would email 3 people[\s\S]*<strong>Ada<\/strong> \(a\u2022\u2022\u2022@example\.com\): 25 nights as [^<]*<em>Re-send: emailed a\u2022\u2022\u2022@example\.com earlier, no YES yet/,
+    'people still waiting are in the one list, marked as a re-send');
+  assert.match(page, />Send these 3 emails</, 'one button for everyone');
   const adaBatch = () => grids.Batches.slice(1).find(line => cell('Batches', line, 'email') === 'ada.park@example.com' && cell('Batches', line, 'source') === 'seed');
   const oldExpiry = Number(cell('Batches', adaBatch(), 'expires_at'));
-  clock += 3 * 3600000;
   const resendAt = sent.length;
   const batchCount = grids.Batches.length;
-  assert.match(context.doGet({ parameter: { setup: '', import: 'resend' } }).getContent(), /Re-sent the confirmation email to 3 people/);
+  assert.match(context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent(), /Sent 3 emails: 0 new \(0 nights held\) and 3 re-sent to people still waiting/, 'the one Send button re-sends too');
   const resent = sent.slice(resendAt).filter(message => /^Please confirm/.test(message.subject));
   assert.deepEqual(resent.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com'], 'each person still waiting, once');
   assert.equal(grids.Batches.length, batchCount, 'the same submissions: no new holds');
   assert.ok(Number(cell('Batches', adaBatch(), 'expires_at')) > oldExpiry, 'a fresh deadline');
   assert.ok(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key')).every(line => cell('Signups', line, 'expires_at') === cell('Batches', adaBatch(), 'expires_at')), 'the held nights move with it');
-  clock -= 3 * 3600000;
+  // A SeedLinks email typed after someone was emailed is where the preview says (and the import then sends) the re-send goes,
+  // when the email on file was found automatically (Ben: Zeffy). An email the club typed itself (Ada: owner) stays.
+  clock += 2 * 3600000;
+  grids.SeedLinks.push(['Bobby', 'Ben Ortiz', 'ben.new@example.com'], ['Ada', 'Ada Park', 'ada.new@example.com']);
+  const benRow = grids.Emails.find(line => line[2] === 'ben.ortiz@example.com');
+  const benSource = benRow[4];
+  benRow[4] = 'zeffy'; // as if the first import had found Ben's address in the Zeffy records (Raymond's case)
+  const benId = cell('Batches', grids.Batches.slice(1).find(line => cell('Batches', line, 'email') === 'ben.ortiz@example.com' && cell('Batches', line, 'source') === 'seed'), 'player_id');
+  const previewed = JSON.parse(JSON.stringify(context.importSeed_(true)));
+  assert.equal(previewed.emailsFor[benId], 'ben.new@example.com', 'the preview follows the SeedLinks email over a Zeffy one, as the import does');
+  assert.equal(previewed.emailsFor[cell('Batches', adaBatch(), 'player_id')], 'ada.park@example.com', 'an email the club typed itself is kept');
+  page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
+  assert.match(page, /<strong>Ben<\/strong> \(b\u2022\u2022\u2022@example\.com\)[^<]*<em>Re-send: emailed b\u2022\u2022\u2022@example\.com earlier/);
+  const moved = sent.length;
+  context.doGet({ parameter: { setup: '', import: 'seed' } });
+  const resentTo = sent.slice(moved).filter(message => /^Please confirm/.test(message.subject)).map(message => message.to);
+  assert.ok(resentTo.includes('ben.new@example.com') && !resentTo.includes('ben.ortiz@example.com'), 'Ben\'s re-send goes to the new SeedLinks address');
+  grids.SeedLinks.splice(-2, 2);
+  const benNow = grids.Emails.filter(line => line[0] === benRow[0] && line[5] === 'approved');
+  assert.deepEqual(benNow.map(line => [line[2], line[4]]), [['ben.new@example.com', 'seedlinks']], 'the SeedLinks address is now on file; the old one is marked replaced');
+  benRow[4] = benSource;
+  clock -= 2 * 3600000;
+  const doubleTap = sent.length;
+  assert.match(context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent(), /and 0 re-sent/, 'a second tap re-sends nothing');
+  assert.equal(sent.slice(doubleTap).filter(message => /^Please confirm/.test(message.subject)).length, 0);
+  clock -= 2 * 3600000;
   // The fix-up loop: SeedReport and a blank SeedLinks row per name, with a player dropdown.
   const report = grids.SeedReport.slice(1);
   assert.deepEqual(report.filter(line => line[1] !== 'summary' && line[1] !== 'skipped').map(line => line.slice(1)), [
@@ -987,7 +1015,7 @@ const seedCheck = () => {
   reply('ada.park@example.com', 'YES');
   assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'status') === 'confirmed').length, 25, 'a seeded sign-up is confirmed like any other');
   // Ben never answered: once his hold expires, the next import may offer him those nights again. Ada (confirmed) is not offered twice.
-  const benExpiry = Number(cell('Batches', grids.Batches.slice(1).find(line => cell('Batches', line, 'email') === 'ben.ortiz@example.com' && cell('Batches', line, 'source') === 'seed'), 'expires_at'));
+  const benExpiry = Number(cell('Batches', grids.Batches.slice(1).find(line => cell('Batches', line, 'player_id') === benId && cell('Batches', line, 'source') === 'seed'), 'expires_at'));
   const beforeExpiry = clock;
   clock = benExpiry + 60000;
   const again = JSON.parse(JSON.stringify(context.importSeed_(true)));
@@ -1145,7 +1173,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.match(context.doGet({ parameter: { setup: '', import: 'sample' } }).getContent(), /Sent a test copy|no test copy to send/);
   const before = sent.length;
   html = context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent();
-  assert.match(html, /Open\/close list imported: \d+ people emailed to confirm \d+ shifts/);
+  assert.match(html, /Sent \d+ emails: \d+ new \(\d+ nights held\) and \d+ re-sent to people still waiting for a YES/);
   const keys = signupRows().map(line => cell('Signups', line, 'seed_key')).filter(Boolean);
   assert.equal(new Set(keys).size, keys.length, 'a repeat import never holds the same night twice (it only adds nights newly in the calendar)');
   html = context.doGet({ parameter: { setup: '', import: 'seed' } }).getContent();
