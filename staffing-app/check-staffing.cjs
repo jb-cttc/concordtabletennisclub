@@ -415,7 +415,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(statusOf('Ivy Wong', '2026-10-28', 'desk'), 'released');
   assert.equal(statusOf('Ivy Wong', '2026-10-30', 'money'), 'released');
   assert.equal(night('2026-10-28').slots.desk.length, 0, 'the slots open again');
-  assert.equal(mailTo('ivy.wong@example.com').pop().subject, 'Your CTTC staff sign-up is cancelled');
+  assert.match(mailTo('ivy.wong@example.com').pop().subject, /^Your CTTC staff sign-up is cancelled \[CTTC shift [0-9A-F]{10}\]$/, 'tagged, so a change of mind is read');
 }
 
 // ---- Statuses, capacities and the one-opening-position rule (Wednesday October 21) ----
@@ -524,7 +524,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(statusOf('Kai Ford', '2026-11-11', 'money'), 'pending');
   context.sweep();
   assert.equal(statusOf('Kai Ford', '2026-11-11', 'money'), 'expired');
-  assert.ok(mailTo('kai.ford@example.com').some(message => message.subject === 'Your CTTC staff sign-up expired'), 'the person is told the hold expired');
+  assert.ok(mailTo('kai.ford@example.com').some(message => message.subject.startsWith('Your CTTC staff sign-up expired [CTTC shift ')), 'the person is told the hold expired');
   signAndConfirm('Lu Chen', [['2026-11-11', 'money']]);
   reply('kai.ford@example.com', 'YES');
   assert.equal(statusOf('Kai Ford', '2026-11-13', 'tables'), 'confirmed', 'a late YES confirms the pick that is still free');
@@ -1164,8 +1164,9 @@ seedCheck();
   reply(SAL, 'YES except Dec 14 and 21');
   assert.deepEqual(dates.map(date => statusOf('Sal Roy', date, 'close')), ['confirmed', 'released', 'confirmed', 'released'], 'the rest are confirmed');
   const confirmed = mailTo(SAL, from).pop();
-  assert.equal(confirmed.subject, 'You are on the CTTC staff schedule');
-  assert.match(confirmed.body, /2 nights are confirmed[\s\S]*LEFT OUT, AS YOU ASKED\n\nMon, Dec 14: Put tables and barriers away \(closing, 10:00 PM\)\nMon, Dec 21: /);
+  assert.equal(confirmed.subject, 'Understood: your CTTC volunteer nights are updated');
+  assert.match(confirmed.body, /^Hello Sal,\n\nUnderstood - we have updated the system with the following confirmed nights:\n\nFri, Dec 11: Put tables and barriers away \(closing, 10:00 PM\)\nFri, Dec 18: [^\n]*\n\nThat is 2 nights\./);
+  assert.match(confirmed.body, /That is 2 nights[\s\S]*LEFT OUT, AS YOU ASKED\n\nMon, Dec 14: Put tables and barriers away \(closing, 10:00 PM\)\nMon, Dec 21: /);
   assert.match(confirmed.body, /\?mine=[0-9A-F]{20}/, 'and links to their nights');
 
   // My nights: the link shows the person's upcoming nights, and nothing about anyone else.
@@ -1200,8 +1201,8 @@ seedCheck();
   assert.deepEqual(saved.nights.map(entry => entry.date), ['2026-12-11', '2026-12-28', '2026-12-30']);
   const notes = sent.slice(from);
   assert.equal(notes.find(message => message.to === 'owner@example.com').subject, 'Staffing: Sal Roy dropped Put tables and barriers away on Fri, Dec 18');
-  assert.deepEqual(notes.filter(message => message.to === SAL).map(message => message.subject).sort(), ['Shift dropped: Fri, Dec 18', 'You are on the CTTC staff schedule']);
-  assert.match(notes.find(message => message.subject === 'You are on the CTTC staff schedule').body, /LEFT OUT, AS YOU ASKED\n\nMon, Dec 28: Put tables/, 'the answered sign-up lists what was left out');
+  assert.deepEqual(notes.filter(message => message.to === SAL).map(message => message.subject).sort(), ['Shift dropped: Fri, Dec 18', 'Understood: your CTTC volunteer nights are updated']);
+  assert.match(notes.find(message => message.subject === 'Understood: your CTTC volunteer nights are updated').body, /LEFT OUT, AS YOU ASKED\n\nMon, Dec 28: Put tables/, 'the answered sign-up lists what was left out');
   // Two drops at once: one email to the club listing both.
   from = sent.length;
   resetLimits();
@@ -1251,12 +1252,55 @@ seedCheck();
   assert.match(done, /Confirmed 3 nights: Wed, Dec 16, Mon, Dec 21, Mon, Dec 28\. The volunteer has been emailed\./);
   assert.deepEqual(mondays.map(date => statusOf('Santi Ruiz', date, 'close')), ['released', 'confirmed', 'confirmed', 'confirmed']);
   const told = mailTo(SANTI, from).pop();
-  assert.equal(told.subject, 'You are on the CTTC staff schedule');
-  assert.match(told.body, /3 nights are confirmed[\s\S]*LEFT OUT, AS YOU ASKED\n\nMon, Dec 14: /);
+  assert.equal(told.subject, 'Understood: your CTTC volunteer nights are updated');
+  assert.match(told.body, /Understood - we have updated the system with the following confirmed nights:\n\nWed, Dec 16: [^\n]*\nMon, Dec 21: [^\n]*\nMon, Dec 28: [^\n]*\n\nThat is 3 nights[\s\S]*LEFT OUT, AS YOU ASKED\n\nMon, Dec 14: /);
   assert.match(page(Object.assign({ import: 'fixsave', batch: batchId }, keep)), /cannot be corrected any more/, 'a second tap changes nothing');
   assert.match(page({ import: 'fixsave', batch: batchId }), /No nights were ticked/);
   activeEmail = '';
   assert.equal(held, 0);
+}
+
+// ---- A change of mind after a NO, replied to the "cancelled" email, in someone else's words ----
+{
+  const SANDY = 'sandy.cole@example.com';
+  const nights = ['2026-12-05', '2026-12-18', '2026-12-19', '2026-12-26'];
+  const signed = signUp('Sandy Cole', nights.map(date => [date, 'close']));
+  assert.equal(signed.ok, true, JSON.stringify(signed));
+  reply(SANDY, 'NO');
+  assert.deepEqual(nights.map(date => statusOf('Sandy Cole', date, 'close')), ['released', 'released', 'released', 'released']);
+  const cancelled = mailTo(SANDY).pop();
+  assert.match(cancelled.body, /Changed your mind\? Reply to this email within 3 days/);
+  check();
+  assert.deepEqual(nights.map(date => statusOf('Sandy Cole', date, 'close')), ['released', 'released', 'released', 'released'], 'the NO is not read again');
+  const from = sent.length;
+  answerMail(SANDY, 'Sandy is a  YES  for all those nights except (dec 5 and dec 19).  Please correct the schedule... thanks!', cancelled.subject);
+  assert.deepEqual(nights.map(date => statusOf('Sandy Cole', date, 'close')), ['released', 'confirmed', 'released', 'confirmed'], 'the rest are confirmed');
+  const understood = mailTo(SANDY, from);
+  assert.equal(understood.length, 1);
+  assert.equal(understood[0].subject, 'Understood: your CTTC volunteer nights are updated');
+  assert.match(understood[0].body, /Understood - we have updated the system with the following confirmed nights:\n\nFri, Dec 18: Put tables and barriers away \(closing, 10:00 PM\)\nSat, Dec 26: Put tables and barriers away \(closing, 6:00 PM\)\n\nThat is 2 nights\./);
+  assert.match(understood[0].body, /LEFT OUT, AS YOU ASKED\n\nSat, Dec 5: [^\n]*\nSat, Dec 19: /);
+  check();
+  assert.equal(mailTo(SANDY, from).length, 1, 'answered once');
+  {
+    // A second NO after the first changes nothing and is not applied again every minute.
+    assert.equal(signUp('Sandy Cole', [['2026-12-23', 'close']]).ok, true);
+    reply(SANDY, 'NO');
+    const subject = mailTo(SANDY).pop().subject;
+    answerMail(SANDY, 'No, sorry', subject);
+    const logged = grids.Log.length;
+    check();
+    assert.equal(grids.Log.length, logged, 'nothing more to read');
+    assert.equal(statusOf('Sandy Cole', '2026-12-23', 'close'), 'released');
+  }
+  // Only within 3 days of the NO.
+  assert.equal(signUp('Sandy Cole', [['2026-12-30', 'close']]).ok, true);
+  reply(SANDY, 'NO');
+  const later = mailTo(SANDY).pop().subject;
+  clock += 4 * 86400000;
+  answerMail(SANDY, 'yes', later);
+  assert.equal(statusOf('Sandy Cole', '2026-12-30', 'close'), 'released', 'too late to change your mind by email');
+  clock -= 4 * 86400000;
 }
 
 // ---- The membership list's emails: a Sheet, then a Doc table ----
