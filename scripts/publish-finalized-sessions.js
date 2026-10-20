@@ -17,9 +17,11 @@ const HEADERS = {
 
 // Sheets created before these trailing columns existed are still accepted.
 const ADDED_COLUMNS = { Matches: ['forfeited_by', 'won_by'] };
+// Name corrections made at the desk (apps-script/PlayerEdits.js). The tab is made by the first correction.
+const OPTIONAL_HEADERS = { NameChanges: ['player_id', 'old_name', 'new_name', 'changed_at'] };
 
 function parseTable(table, rows) {
-  const headers = HEADERS[table];
+  const headers = HEADERS[table] || OPTIONAL_HEADERS[table];
   const accepted = [headers.join('|')];
   (ADDED_COLUMNS[table] || []).forEach(function (_name, index) { accepted.push(headers.slice(0, headers.length - 1 - index).join('|')); });
   const actual = rows.length ? rows[0].join('|') : '';
@@ -37,6 +39,17 @@ async function readDatabase(spreadsheetId, email, privateKey, reader) {
   for (const table of Object.keys(HEADERS)) {
     tables[table] = parseTable(table, await fetchRows(spreadsheetId, table + '!A:Z', email, privateKey));
   }
+  for (const table of Object.keys(OPTIONAL_HEADERS)) {
+    let rows;
+    try {
+      rows = await fetchRows(spreadsheetId, table + '!A:Z', email, privateKey);
+    } catch (error) {
+      // The Sheets API cannot parse a range on a tab that does not exist yet.
+      if (!/Unable to parse range/.test(error.message)) throw error;
+      rows = [];
+    }
+    tables[table] = rows.length ? parseTable(table, rows) : [];
+  }
   return tables;
 }
 
@@ -51,8 +64,51 @@ async function loadPublished(dataDir) {
   return sessions;
 }
 
+// Each name a player had before a desk correction, mapped to the name they have now. The desk never gives a corrected
+// name to anyone else; a name that some player has now is left as it is, so a published session that still shows it
+// stops publication instead of being changed.
+function correctedNames(nameChanges, players) {
+  const current = new Map(players.map(function (player) { return [String(player.player_id), String(player.display_name)]; }));
+  const inUse = new Set(current.values());
+  const corrected = new Map();
+  (nameChanges || []).forEach(function (change) {
+    const name = current.get(String(change.player_id));
+    const old = String(change.old_name);
+    if (name !== undefined && old && old !== name && !inUse.has(old)) corrected.set(old, name);
+  });
+  return corrected;
+}
+
+function withCorrectedNames(session, corrected) {
+  if (!corrected.size) return session;
+  const fix = function (name) { return corrected.has(name) ? corrected.get(name) : name; };
+  return {
+    ...session,
+    groups: session.groups.map(function (group) {
+      return {
+        ...group,
+        players: group.players.map(function (player) {
+          const fixed = { ...player, name: fix(player.name) };
+          if (Array.isArray(player.matches)) {
+            fixed.matches = player.matches.map(function (match) {
+              const named = { ...match, opponent: fix(match.opponent) };
+              if (match.forfeitedBy !== undefined && match.forfeitedBy !== 'both') named.forfeitedBy = fix(match.forfeitedBy);
+              return named;
+            });
+          }
+          return fixed;
+        })
+      };
+    })
+  };
+}
+
 function buildPublication(existing, tables, startDate) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) throw new Error('Set a valid CTTC_LIVE_START_DATE before publishing');
+  // A name corrected at the desk is corrected in every session the site already shows, so a player's history stays
+  // under one name.
+  const corrected = correctedNames(tables.NameChanges, tables.Players);
+  existing = existing.map(function (session) { return withCorrectedNames(session, corrected); });
   const historical = existing.filter(function (session) { return session.date < startDate; });
   const later = existing.filter(function (session) { return session.date >= startDate; });
   if (later.some(function (session) { return session.source !== 'app'; })) {
