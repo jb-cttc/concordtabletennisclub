@@ -20,6 +20,8 @@ function noDates(value, trail) {
   assert.notEqual(Object.prototype.toString.call(value), '[object Date]', 'a Date at ' + trail);
   if (value && typeof value === 'object') Object.keys(value).forEach(key => noDates(value[key], trail + '.' + key));
 }
+// What the page receives: google.script.run leaves out object fields whose value is null.
+const wire = value => JSON.parse(JSON.stringify(value, (key, item) => item === null && key !== '' ? undefined : item));
 const cashFlow = (from, to) => { const result = run('getCashFlow', from, to); noDates(result, 'getCashFlow'); return plain(result); };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -431,7 +433,7 @@ function openPage(ancestorOrigins) {
             calls.push([name].concat(args));
             window.setTimeout(() => {
               let result;
-              try { result = plain(run(name, ...plain(args))); } catch (error) { bad({ message: error.message }); return; }
+              try { result = wire(run(name, ...plain(args))); } catch (error) { bad({ message: error.message }); return; }
               ok(result);
             }, 5);
           };
@@ -577,6 +579,19 @@ const text = node => {
   assert.match(text(monday.querySelector('.save-note')), /Enter an amount/);
   await settle();
   assert.deepEqual(counts().find(row => row[0] === MON), [MON, 25, 'found the fives'], 'a bad amount is not sent');
+  // Clearing the count: the night reads as not counted, even though Google leaves the empty fields out.
+  inputs[0].value = '';
+  inputs[1].value = '';
+  monday.querySelector('.count-fields button').click();
+  await settle();
+  assert.equal(counts().find(row => row[0] === MON), undefined);
+  assert.equal(text(monday.querySelector('.diff')), 'Not counted yet');
+  assert.equal(inputs[0].value, '');
+  assert.match(text(document.getElementById('tiles')), /Cash over \/ short Over by \$2\.25 2 of 3 days counted/);
+  document.getElementById('show').click();
+  await settle();
+  assert.equal(text(document.querySelector('.day[data-date="' + MON + '"] .diff')), 'Not counted yet', 'and after a reload');
+  assert.match(text(document.getElementById('tiles')), /2 of 3 days counted/);
 
   // Quick ranges, an empty range, and errors are all shown.
   const preset = name => { document.querySelector('[data-preset=' + name + ']').click(); return calls[calls.length - 1].slice(1); };
