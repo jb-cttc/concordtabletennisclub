@@ -133,7 +133,11 @@
   var bar = document.getElementById('bar');
   var picksBox = document.getElementById('picks');
   var mineBox = document.getElementById('mine');
-  var mineCode = (INITIAL && INITIAL.mineCode) || '';
+  // Served by Google, the page calls the app with google.script.run. The club site's copy (volunteer-app.html) has no
+  // google.script and calls the app's address instead, reading a My nights code from its own address.
+  var API_URL = 'https://script.google.com/macros/s/AKfycbx_ApmyAF8Yk6DCuzeD_3JR9HOo_QCbI5hGLyBLWMl8feuoTI969BYAWba268Er4_1h3g/exec';
+  var ON_SITE = !(window.google && window.google.script && window.google.script.run);
+  var mineCode = (INITIAL && INITIAL.mineCode) || (ON_SITE ? ((/[?&]mine=([0-9A-Fa-f]{20})(?![0-9A-Za-z])/.exec(window.location.search) || [])[1] || '').toUpperCase() : '');
 
   // Details a visitor chose to remember on this device. Storage can be blocked in a framed page, so it is optional.
   function saved(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return null; } }
@@ -151,6 +155,14 @@
   function empty(node) { while (node.firstChild) node.removeChild(node.firstChild); }
   function show(text, kind) { messageBox.textContent = text || ''; messageBox.className = kind || ''; }
   function call(name, args, done) {
+    if (ON_SITE) {
+      // No cookies: the visitor's Google sign-ins never reach Google, so they can never get in the way.
+      fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: name, args: args }), credentials: 'omit', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' } })
+        .then(function (response) { return response.json(); })
+        .then(function (result) { done(result || { ok: false, message: 'Something went wrong. Please try again.' }); },
+          function () { done({ ok: false, message: 'Something went wrong. Please check your connection and try again.' }); });
+      return;
+    }
     var runner = google.script.run
       .withSuccessHandler(function (result) { done(result || { ok: false, message: 'Something went wrong. Please try again.' }); })
       .withFailureHandler(function () { done({ ok: false, message: 'Something went wrong. Please try again.' }); });
