@@ -46,6 +46,19 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   masked (`s•••@gmail.com`). A player with no email on file asks the club to
   approve one, once (section 5).
 
+**How the website shows it.** The home page's Volunteer signups button opens
+the site's own copy of the page, `volunteer-app.html`, which the deploy
+workflow publishes from `staffing-app/Index.html`. That copy calls the app at
+`https://script.google.com/macros/s/AKfycbx_ApmyAF8Yk6DCuzeD_3JR9HOo_QCbI5hGLyBLWMl8feuoTI969BYAWba268Er4_1h3g/exec`
+(`API_URL` in `Index.html`) with `fetch` and **no cookies** (`doPost`, which
+answers only the page's seven calls). Nobody needs a Google account, and a
+browser signed in to several Google accounts cannot trip Google's "Sorry,
+unable to open the file at this time" page, which Google's own page host can
+show for any Apps Script page. The same page still works served by Google at
+that address (with `google.script.run`). A change to `Index.html` reaches the
+website with the next site deploy (any push to `main`), and a change to
+`Code.js` with the usual `/exec` release.
+
 ## 2. Setup (owner, once)
 
 The project exists: *CTTC Volunteer Signups* in the club account, linked by

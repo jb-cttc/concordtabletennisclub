@@ -284,11 +284,12 @@
     .then(drawClosures)
     .catch(function () {});
 
-  // Volunteer signups: the staffing app (staffing-app/, its own Apps Script project) takes the calendar's place, showing which
-  // nights need help and who has signed up. The button stays hidden until the app is deployed.
+  // Volunteer signups: the staffing app takes the calendar's place, showing which nights need help and who has signed up. Its
+  // page (staffing-app/Index.html) is published with the site as volunteer-app.html and talks to the app (its own Apps Script
+  // project) with fetch and no cookies, so a visitor's Google sign-ins never matter: Google's own page host can refuse to open
+  // in a browser signed in to several Google accounts.
   (function () {
-    var APP_URL = "https://script.google.com/macros/s/AKfycbx_ApmyAF8Yk6DCuzeD_3JR9HOo_QCbI5hGLyBLWMl8feuoTI969BYAWba268Er4_1h3g/exec";
-    if (APP_URL.indexOf("PENDING_DEPLOYMENT") >= 0) return;
+    var APP_PAGE = "volunteer-app.html";
     var launch = document.getElementById("volunteer-launch");
     var label = document.getElementById("volunteer-label");
     var app = document.getElementById("volunteer-app");
@@ -298,7 +299,7 @@
     function ready() { loading.hidden = true; }
     // The app says when it is drawn and how tall it is, so the page grows with it instead of scrolling inside a frame.
     window.addEventListener("message", function (event) {
-      if (!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin)) return;
+      if (event.origin !== window.location.origin) return;
       if (event.data === "cttc-staffing-ready") ready();
       if (event.data && event.data.type === "cttc-staffing-height" && isFinite(event.data.height)) {
         ready();
@@ -315,7 +316,7 @@
     launch.hidden = false;
     launch.addEventListener("click", function () {
       var open = app.hidden;
-      if (open && !frame.getAttribute("src")) frame.setAttribute("src", APP_URL + (mine ? "?mine=" + mine.toUpperCase() : ""));
+      if (open && !frame.getAttribute("src")) frame.setAttribute("src", APP_PAGE + (mine ? "?mine=" + mine.toUpperCase() : ""));
       app.hidden = !open;
       calendar.forEach(function (el) { el.hidden = open; });
       launch.setAttribute("aria-expanded", String(open));
