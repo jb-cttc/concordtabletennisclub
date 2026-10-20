@@ -24,7 +24,7 @@ assert.equal(fs.readFileSync(__dirname + '/.claspignore', 'utf8').trim(), 'check
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), [
-  'checkReplies', 'doGet', 'findPlayers', 'importMemberEmails', 'importSeedSheet', 'myNights', 'playerAccess', 'requestDrop', 'saveMyNights', 'setup', 'signUp', 'staffBoard', 'sweep'
+  'checkReplies', 'doGet', 'doPost', 'findPlayers', 'importMemberEmails', 'importSeedSheet', 'myNights', 'playerAccess', 'requestDrop', 'saveMyNights', 'setup', 'signUp', 'staffBoard', 'sweep'
 ], 'a public web app exposes every non-private function: only these may exist');
 assert.doesNotMatch(source, /=>|`|^\s*(let|const|class)\s/m, 'Code.js is ES5 style, like the other Apps Script projects');
 
@@ -208,6 +208,10 @@ const context = {
         getRow: r => ({ getNumCells: () => rows[r].length, getCell: c => ({ getText: () => String(rows[r][c]) }) })
       })) }) };
     }
+  },
+  ContentService: {
+    MimeType: { JSON: 'application/json' },
+    createTextOutput: text => { const output = { text, type: '', getContent: () => text, setMimeType: type => { output.type = type; return output; } }; return output; }
   },
   HtmlService: {
     XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
@@ -1355,6 +1359,21 @@ seedCheck();
   context.console.log = () => {};
 }
 
+// ---- The club site's copy of the page calls the app with fetch (doPost), without cookies ----
+{
+  const post = body => { resetLimits(); const output = context.doPost({ postData: { contents: body } }); assert.equal(output.type, 'application/json'); return JSON.parse(output.getContent()); };
+  const viaPost = post(JSON.stringify({ fn: 'staffBoard', args: [] }));
+  assert.deepEqual(viaPost, board(), 'the same calendar as google.script.run');
+  assert.deepEqual(post(JSON.stringify({ fn: 'findPlayers', args: ['ada'] })), run('findPlayers', 'ada'));
+  ['setup', 'importSeedSheet', 'sweep', 'checkReplies', 'doGet', 'importMemberEmails', 'clubFix_', 'constructor', '__proto__', 'toString'].forEach(fn => {
+    assert.deepEqual(post(JSON.stringify({ fn, args: [] })), { ok: false, message: 'Unknown request.' }, fn + ' cannot be called from the site');
+  });
+  assert.deepEqual(post('not json'), { ok: false, message: 'Something went wrong. Please try again.' });
+  assert.deepEqual(post(''), { ok: false, message: 'Unknown request.' });
+  assert.deepEqual(post('x'.repeat(100001)), { ok: false, message: 'Unknown request.' }, 'an oversized request is refused');
+  assert.deepEqual(JSON.parse(context.doPost(undefined).getContent()), { ok: false, message: 'Unknown request.' });
+}
+
 // ---- doGet and the page ----
 const served = context.doGet();
 const initial = JSON.parse(/var INITIAL = (.*);\n/.exec(served.getContent())[1]);
@@ -1609,5 +1628,31 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   ({ dom, document } = open());
   assert.equal(document.getElementById('mine').hidden, true, 'no link, no panel');
   dom.window.close();
+
+  // The club site's copy (volunteer-app.html): no google.script, so every call is a fetch to the app, with no cookies.
+  {
+    const requests = [];
+    const site = new JSDOM(fs.readFileSync(__dirname + '/Index.html', 'utf8'), {
+      url: 'https://concordtabletennisclub.com/volunteer-app.html?mine=' + sage.toLowerCase(), runScripts: 'dangerously', pretendToBeVisual: true,
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        window.fetch = (url, options) => {
+          requests.push({ url, options });
+          resetLimits();
+          const text = context.doPost({ postData: { contents: options.body } }).getContent();
+          return Promise.resolve({ json: () => Promise.resolve(JSON.parse(text)) });
+        };
+      }
+    });
+    await wait(50);
+    const page = site.window.document;
+    assert.ok(requests.length >= 2);
+    assert.ok(requests.every(request => request.url === /var API_URL = '([^']+)'/.exec(fs.readFileSync(__dirname + '/Index.html', 'utf8'))[1] &&
+      request.options.method === 'POST' && request.options.credentials === 'omit'), 'to the app\'s address, never with the visitor\'s cookies');
+    assert.deepEqual(requests.map(request => JSON.parse(request.options.body).fn).sort(), ['myNights', 'staffBoard']);
+    assert.equal(page.querySelectorAll('.month').length, 3, 'the calendar is drawn');
+    assert.equal(page.querySelector('#mine h2').textContent, 'Your nights, Sage', 'and the My nights link works from the site\'s address');
+    site.window.close();
+  }
   console.log('staffing app checks passed');
 })().catch(error => { console.error(error); process.exit(1); });
