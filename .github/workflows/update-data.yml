@@ -135,6 +135,8 @@ jobs:
           cp *.html style.css navtoggle.js standings.js favicon.svg _site/
           cp -R data _site/
           cp -R assets _site/
+          # The volunteer sign-up page, served from the site itself (it calls the staffing app with fetch, no Google sign-in).
+          cp staffing-app/Index.html _site/volunteer-app.html
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3.0.1

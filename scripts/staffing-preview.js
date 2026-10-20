@@ -259,7 +259,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (url.pathname === '/') return back('/index.html' + url.search);
-  if (url.pathname === '/app') return send(200, 'text/html; charset=utf-8', appPage(url.searchParams.get('mine')));
+  if (url.pathname === '/app' || url.pathname === '/volunteer-app.html') return send(200, 'text/html; charset=utf-8', appPage(url.searchParams.get('mine')));
   if (url.pathname === '/mail') return send(200, 'text/html; charset=utf-8', mailPage());
   if (url.pathname === '/reply') {
     const message = outbox.find(entry => entry.id === url.searchParams.get('id'));
@@ -280,11 +280,6 @@ const server = http.createServer((request, response) => {
   const allowed = !relative.startsWith('..') && !/(^|[\\/])(node_modules|\.git|apps-script|coaching-app|staffing-app|subscribe-app|scripts|local)([\\/]|$)/.test(relative) && TYPES[path.extname(file)];
   if (!allowed || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(404, 'text/plain', 'Not found');
   let body = fs.readFileSync(file);
-  // The home page frames the app; here it frames the local copy, and accepts its messages from this origin instead of Google's.
-  if (relative === 'index.html') {
-    body = body.toString('utf8').replace(/var APP_URL = "[^"]*";/, 'var APP_URL = "' + LOCAL + '/app";')
-      .replace('if (!/^https:\\/\\/[a-z0-9-]+\\.googleusercontent\\.com$/.test(event.origin)) return;', 'if (event.origin !== "' + LOCAL + '") return;');
-  }
   send(200, TYPES[path.extname(file)], body);
 });
 
