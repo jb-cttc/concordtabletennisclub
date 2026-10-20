@@ -39,6 +39,8 @@ async function main() {
     async function mockSheetReader(_spreadsheetId, range) {
       const table = range.split('!')[0];
       const saved = await reload();
+      // What the Sheets API answers for a tab the Sheet does not have (NameChanges before the first name correction).
+      if (!saved[table]) throw new Error('Sheets API request failed: HTTP 400 {"error":{"message":"Unable to parse range: ' + range + '"}}');
       return [HEADERS[table]].concat(saved[table].map(function (row) {
         return HEADERS[table].map(function (header) { return row[header] === undefined ? '' : String(row[header]); });
       }));

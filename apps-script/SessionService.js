@@ -57,6 +57,7 @@ function addPlayer(displayName, currentRating) {
       return normalizeName_(player.display_name).toLowerCase() === name.toLowerCase();
     });
     if (duplicate) throw new Error(name + ' already exists.');
+    if (previousNameOwner_(name)) throw new Error(name + ' was another player\'s name before a correction, so it cannot be used again.');
     var now = new Date();
     var player = {
       player_id: 'player-' + Utilities.getUuid(),

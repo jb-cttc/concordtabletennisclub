@@ -134,6 +134,33 @@ V; a `MemberStatus` row or a badge click makes them M.
 Keep member-specific data (links, payments, dues, Zeffy passes, contact
 details) in the Sheet, and use made-up names in tests.
 
+### Correcting a name, rating, or email
+
+The pencil beside a name in the player directory (active or archived) opens a
+window with the player's name, rating, and email address. **Review changes**
+lists every change as old → new; nothing is saved until **Confirm and save**.
+It needs a connection to Google, and `PlayerEdits.js` refuses a change made
+on another device after the window opened.
+
+- **Name.** The `Players` row keeps its player ID, so ratings, records,
+  payments, and membership stay with the player. The old and new names are
+  added to the private `NameChanges` sheet, and `NameLinks` rows naming the old
+  spelling are updated. The next publication (`publish:finalized`) reads
+  `NameChanges` and shows the corrected name in every session the site already
+  lists, Access-era and desk sessions alike, so the player's history stays
+  under one name. A name that any player had before a correction is never
+  given to another player (the desk refuses it), because the site could not
+  tell whose results it names; if it happens anyway, publication stops with
+  "Previously published session missing or changed" instead of guessing.
+- **Rating.** Sets `Players.current_rating` for correcting a wrong rating.
+  A rostered player's draft is saved again so the session starts from the new
+  rating. The site shows it after the player's next finalized session.
+  Changing the rating of a player in a finalized, not yet published session
+  means that session can no longer be reopened.
+- **Email.** Kept only in the private `PlayerEmails` sheet (`player_id`,
+  `email`, `updated_at`), which publication never reads. The AuditLog records
+  that it changed, not the address.
+
 ## Session fees and Zeffy
 
 Members and visitors pay a per-session fee ($10 or $15), recorded per date in

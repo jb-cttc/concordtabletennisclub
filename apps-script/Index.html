@@ -60,7 +60,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
   var READ_TIMEOUT_MS = 30000;
-  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, getPublishState: 1, getCoachingParticipants: 1 };
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -935,12 +935,16 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (hadActivations && !now) scheduleAutoSync(0);
     hadActivations = now;
   });
+  // The pencil opens the edit window (the player editor script below) to correct a name, rating or email address.
+  function editButton(p) {
+    return '<button type="button" class="edit-player" data-edit-player="' + esc(p.playerId) + '" title="Edit name, rating or email" aria-label="Edit ' + esc(p.name) + '">\u270E</button>';
+  }
   function renderDirectory() {
     var query = search.value.trim().toLowerCase();
     var matches = function (p) { return !query || p.name.toLowerCase().indexOf(query) >= 0; };
     var html = state.players.filter(matches).slice(0, 50).map(function (p) {
       var added = state.roster.indexOf(p.playerId) >= 0;
-      return '<li><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
+      return '<li><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
     });
     var archivedMatches = query.length >= 2 ? state.archived.filter(matches) : [];
     if (archivedMatches.length && !state.showArchived) {
@@ -948,7 +952,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
     if (state.showArchived && archivedMatches.length) {
       html = html.concat(archivedMatches.slice(0, 25).map(function (p) {
-        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span><span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
+        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span><span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
       }));
     }
     results.innerHTML = html.join('');
@@ -1538,8 +1542,26 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
   }
 
+  // A directory record corrected in the edit window: the page shows the new name and rating at once. A rating change
+  // for a player in this draft is saved again, so the session starts from the corrected rating.
+  function playerEdited(p) {
+    var known = byId[p.playerId] || state.players.concat(state.archived).find(function (other) { return other.playerId === p.playerId; });
+    if (!known) return;
+    var ratingChanged = known.currentRating !== p.currentRating;
+    if (byName[known.name] === p.playerId) delete byName[known.name];
+    known.name = p.name;
+    known.currentRating = p.currentRating;
+    if (byId[p.playerId]) byName[p.name] = p.playerId;
+    state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    state.archived.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    render();
+    if (ratingChanged && state.roster.indexOf(p.playerId) >= 0) persistDeviceDraft();
+    if (byId[p.playerId]) document.dispatchEvent(new CustomEvent('cttc:players', { detail: known }));
+  }
+
   window.cttcDesk = {
     add: addToRoster,
+    playerEdited: playerEdited,
     remove: removeFromRoster,
     has: function (id) { return state.roster.indexOf(id) >= 0; },
     print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
@@ -2314,7 +2336,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .results li.archived strong{color:#6b726d;font-weight:600}
 .identity span.archived-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;background:#d3d8d4;color:#4c534e;font:700 11px Arial,sans-serif;text-transform:uppercase;letter-spacing:.03em}
 .results li.archived .make-active{border-color:#2f6b45;color:#2f6b45;white-space:nowrap}
-.locked .open-play-section,.locked #results [data-open-add],.locked #results [data-show-archived],.locked #results [data-activate]{pointer-events:auto;opacity:1}
+.locked .open-play-section,.locked #results [data-open-add],.locked #results [data-show-archived],.locked #results [data-activate],.locked #results [data-edit-player]{pointer-events:auto;opacity:1}
 .locked #finalize,.locked #toggle-organizer,.locked #toggle-side,.locked .match-group h3{pointer-events:auto;opacity:1}
 .side-toggle{position:absolute;top:14px;right:8px;z-index:2;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--green);font:700 16px Arial,sans-serif;line-height:1;cursor:pointer}
 .side-toggle:hover{border-color:var(--green);background:#eef6f0}
@@ -2991,6 +3013,226 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   document.body.setAttribute('data-mode', mode);
   pill.textContent = names[mode] || 'unknown';
   pill.title = names[mode] ? 'Running ' + names[mode] + '.' : 'Could not tell which deployment this is.';
+})();
+</script>
+<style>
+.results .edit-player{margin-left:5px;padding:0 4px;border:1px solid transparent;border-radius:3px;background:transparent;color:var(--muted);font:14px/1.2 Arial,sans-serif;vertical-align:baseline}
+.results .edit-player:hover,.results .edit-player:focus-visible{border-color:var(--green);color:var(--green);background:#eef6f0}
+.player-editor{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;padding:12px;background:rgba(10,19,17,.6)}
+.player-editor[hidden]{display:none}
+.player-editor-card{width:min(420px,100%);max-height:calc(100dvh - 24px);overflow:auto;padding:20px;background:#fff;color:var(--ink);border:1px solid #b8c5bc;border-radius:6px;box-shadow:0 16px 45px #0006;font:14px/1.45 Arial,sans-serif}
+.player-editor-card h2{font:700 21px/1.25 Georgia,serif;margin:0 0 14px}
+.player-editor-card label{display:block;margin-bottom:11px;font-size:12px;color:var(--muted)}
+.player-editor-card input{display:block;width:100%;margin-top:4px;border:1px solid #aeb7b1;padding:9px 10px;border-radius:4px;color:var(--ink);font:14px Arial,sans-serif}
+.player-editor-card input:disabled{background:#f2f4f2}
+.player-editor-changes{margin:0 0 12px;padding:0;list-style:none;border:1px solid var(--line);border-radius:4px}
+.player-editor-changes li{padding:8px 10px;border-top:1px solid #edf0ed}
+.player-editor-changes li:first-child{border-top:0}
+.player-editor-changes strong{display:block;font-size:12px;color:var(--muted);font-weight:700}
+.player-editor-changes del{color:#8a3b2b}
+.player-editor-changes ins{color:var(--green);text-decoration:none;font-weight:700}
+.player-editor-notes{margin:0 0 12px;padding-left:18px;color:var(--muted);font-size:12px}
+.player-editor-error{margin:0 0 12px;padding:8px 10px;background:#f6e8e6;border-left:4px solid var(--red);color:#6f241f}
+.player-editor-error:empty{display:none}
+.player-editor-card footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);padding-top:13px}
+.player-editor-card footer .secondary{padding:9px 13px}
+</style>
+<script>
+// The player editor: the pencil beside a name in the player directory opens a window to correct that player's name,
+// rating or email address. Nothing is saved until the second step, which lists every change for confirmation.
+(function () {
+  var results = document.getElementById('results');
+  var status = document.getElementById('status');
+  var editor = document.createElement('div');
+  editor.className = 'player-editor';
+  editor.hidden = true;
+  editor.innerHTML = '<form class="player-editor-card" role="dialog" aria-modal="true" aria-labelledby="player-editor-title" novalidate>' +
+    '<h2 id="player-editor-title">Edit player</h2>' +
+    '<div data-step="edit">' +
+      '<label>Name<input name="name" maxlength="80" autocomplete="off" spellcheck="false"></label>' +
+      '<label>Rating<input name="rating" type="number" min="0" max="4000" step="1" inputmode="numeric"></label>' +
+      '<label>Email<input name="email" type="email" maxlength="254" autocomplete="off" placeholder="No email on file"></label>' +
+      '<p class="player-editor-error" role="alert"></p>' +
+      '<footer><button type="button" class="secondary" data-editor-cancel>Cancel</button><button type="submit" class="primary" data-editor-review>Review changes</button></footer>' +
+    '</div>' +
+    '<div data-step="confirm" hidden>' +
+      '<p class="player-editor-lead"></p>' +
+      '<ul class="player-editor-changes"></ul>' +
+      '<ul class="player-editor-notes"></ul>' +
+      '<p class="player-editor-error" role="alert"></p>' +
+      '<footer><button type="button" class="secondary" data-editor-back>Back</button><button type="submit" class="primary" data-editor-confirm>Confirm and save</button></footer>' +
+    '</div>' +
+  '</form>';
+  document.body.appendChild(editor);
+  var form = editor.querySelector('form');
+  var title = editor.querySelector('#player-editor-title');
+  var editStep = editor.querySelector('[data-step="edit"]');
+  var confirmStep = editor.querySelector('[data-step="confirm"]');
+  var fields = { name: form.elements.name, rating: form.elements.rating, email: form.elements.email };
+  var current = null;
+  var loaded = null;
+  var opener = null;
+  var saving = false;
+  var request = 0;
+
+  function error(step, message) { step.querySelector('.player-editor-error').textContent = message || ''; }
+  function setFieldsDisabled(disabled) {
+    Object.keys(fields).forEach(function (key) { fields[key].disabled = disabled; });
+    editor.querySelector('[data-editor-review]').disabled = disabled;
+  }
+  function showStep(step) {
+    editStep.hidden = step !== 'edit';
+    confirmStep.hidden = step !== 'confirm';
+    var focus = step === 'edit' ? fields.name : editor.querySelector('[data-editor-confirm]');
+    if (!focus.disabled) focus.focus();
+  }
+
+  function open(playerId, button) {
+    var number = ++request;
+    current = playerId;
+    loaded = null;
+    opener = button;
+    saving = false;
+    var name = button.closest('li').querySelector('.identity strong').firstChild.textContent;
+    title.textContent = 'Edit ' + name;
+    fields.name.value = name;
+    fields.rating.value = '';
+    fields.email.value = '';
+    fields.email.placeholder = 'Loading...';
+    error(editStep, '');
+    error(confirmStep, '');
+    setFieldsDisabled(true);
+    editor.hidden = false;
+    showStep('edit');
+    editor.querySelector('[data-editor-cancel]').focus();
+    window.cttcRequest('getPlayerDetails', playerId).then(function (details) {
+      if (number !== request || editor.hidden) return;
+      loaded = details;
+      title.textContent = 'Edit ' + details.name;
+      fields.name.value = details.name;
+      fields.rating.value = String(details.currentRating);
+      fields.email.value = details.email || '';
+      fields.email.placeholder = 'No email on file';
+      setFieldsDisabled(false);
+      fields.name.focus();
+    }).catch(function (failure) {
+      if (number !== request || editor.hidden) return;
+      fields.email.placeholder = '';
+      error(editStep, 'Could not load this player\'s details: ' + (failure && failure.message || failure) + '. Close this window and try again.');
+    });
+  }
+  function close() {
+    if (saving) return;
+    request += 1;
+    editor.hidden = true;
+    current = null;
+    loaded = null;
+    if (opener && opener.isConnected) opener.focus();
+    opener = null;
+  }
+
+  function values() {
+    return { name: fields.name.value.trim().replace(/\s+/g, ' '), rating: fields.rating.value.trim(), email: fields.email.value.trim() };
+  }
+  function problem(next) {
+    if (!next.name || next.name.length > 80) return 'Enter a name of 1 to 80 characters.';
+    if (!/^\d+$/.test(next.rating) || Number(next.rating) > 4000) return 'Enter the rating as a whole number from 0 to 4000.';
+    if (next.email && (next.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next.email))) return 'Enter a valid email address, or leave it blank.';
+    return '';
+  }
+  function changes(next) {
+    var list = [];
+    if (next.name !== loaded.name) list.push({ label: 'Name', from: loaded.name, to: next.name });
+    if (Number(next.rating) !== loaded.currentRating) list.push({ label: 'Rating', from: String(loaded.currentRating), to: String(Number(next.rating)) });
+    if (next.email !== (loaded.email || '')) list.push({ label: 'Email', from: loaded.email || '(none)', to: next.email || '(none)' });
+    return list;
+  }
+  function item(parent, build) {
+    var li = document.createElement('li');
+    build(li);
+    parent.appendChild(li);
+  }
+  function review() {
+    if (!loaded) return;
+    var next = values();
+    var message = problem(next);
+    var list = message ? [] : changes(next);
+    if (!message && !list.length) message = 'Nothing has changed yet. Edit a field, or press Cancel.';
+    error(editStep, message);
+    if (message) return;
+    title.textContent = 'Confirm changes';
+    confirmStep.querySelector('.player-editor-lead').textContent = 'Save these changes to ' + loaded.name + '?';
+    var changeList = confirmStep.querySelector('.player-editor-changes');
+    changeList.replaceChildren();
+    list.forEach(function (change) {
+      item(changeList, function (li) {
+        var label = document.createElement('strong');
+        label.textContent = change.label;
+        var from = document.createElement('del');
+        from.textContent = change.from;
+        var to = document.createElement('ins');
+        to.textContent = change.to;
+        li.append(label, from, document.createTextNode(' → '), to);
+      });
+    });
+    var notes = confirmStep.querySelector('.player-editor-notes');
+    notes.replaceChildren();
+    var labels = list.map(function (change) { return change.label; });
+    if (labels.indexOf('Name') >= 0) item(notes, function (li) { li.textContent = 'Results already on the club site will show the new name after the next session is published.'; });
+    if (labels.indexOf('Rating') >= 0) item(notes, function (li) { li.textContent = 'The new rating is used from the next session saved here. Use this only to correct a rating; finalizing a session updates ratings by itself.'; });
+    if (labels.indexOf('Email') >= 0) item(notes, function (li) { li.textContent = 'Email addresses stay in the club\'s private Google Sheet and are never published.'; });
+    error(confirmStep, '');
+    showStep('confirm');
+  }
+  function save() {
+    if (!loaded || saving) return;
+    var next = values();
+    var playerId = current;
+    var confirmButton = editor.querySelector('[data-editor-confirm]');
+    var backButton = editor.querySelector('[data-editor-back]');
+    saving = true;
+    confirmButton.disabled = true;
+    backButton.disabled = true;
+    confirmButton.textContent = 'Saving...';
+    error(confirmStep, '');
+    window.cttcRequest('updatePlayer', playerId, { name: next.name, rating: Number(next.rating), email: next.email },
+      { name: loaded.name, rating: loaded.currentRating, email: loaded.email || '' }).then(function (saved) {
+      saving = false;
+      close();
+      window.cttcDesk.playerEdited(saved);
+      status.textContent = 'Saved changes to ' + saved.name + '.';
+      status.className = 'statusbar';
+    }).catch(function (failure) {
+      saving = false;
+      error(confirmStep, (failure && failure.message || String(failure)) + (navigator.onLine === false ? ' The device is offline: try again once it is connected.' : ''));
+    }).finally(function () {
+      confirmButton.disabled = false;
+      backButton.disabled = false;
+      confirmButton.textContent = 'Confirm and save';
+    });
+  }
+
+  results.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-edit-player]');
+    if (!button) return;
+    event.stopPropagation();
+    open(button.getAttribute('data-edit-player'), button);
+  });
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (!confirmStep.hidden) save();
+    else review();
+  });
+  editor.querySelector('[data-editor-cancel]').addEventListener('click', close);
+  editor.querySelector('[data-editor-back]').addEventListener('click', function () {
+    if (saving) return;
+    error(confirmStep, '');
+    title.textContent = 'Edit ' + loaded.name;
+    showStep('edit');
+  });
+  editor.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') { event.preventDefault(); close(); }
+  });
 })();
 </script>
 </body>

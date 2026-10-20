@@ -46,6 +46,29 @@ async function main() {
     assert.equal(JSON.parse(await fs.readFile(path.join(directory, 'site-status.json'), 'utf8')).latestSessionDate, '2026-09-23');
     assert.throws(function () { buildPublication(result.details, { ...tables, Sessions: [] }, '2026-09-23'); }, /missing or changed/);
     assert.throws(function () { buildPublication(result.details, { ...tables, Players: [{ ...tables.Players[0], display_name: 'Different name' }, tables.Players[1]] }, '2026-09-23'); }, /missing or changed/);
+    // A name corrected at the desk (NameChanges) is corrected everywhere the site already shows it, desk and older sessions alike.
+    const oldName = historical.groups[0].players[0].name;
+    const corrections = {
+      ...tables,
+      Players: [{ ...tables.Players[0], display_name: 'Alicia' }, tables.Players[1], { player_id: 'hist', display_name: 'Corrected Spelling' }],
+      NameChanges: [
+        { player_id: 'alice', old_name: 'Alice', new_name: 'Alicia' },
+        { player_id: 'hist', old_name: oldName, new_name: 'Corrected Spelling' }
+      ]
+    };
+    const corrected = buildPublication(result.details, corrections, '2026-09-23');
+    assert.equal(corrected.live[0].groups[0].players[0].name, 'Alicia');
+    assert.equal(corrected.live[0].groups[0].players[1].matches[0].opponent, 'Alicia');
+    const correctedHistory = corrected.details.find(function (session) { return session.date === '2026-09-16'; });
+    const historyJson = JSON.stringify(correctedHistory);
+    assert(!historyJson.includes('"' + oldName + '"'), 'the old spelling is gone from earlier results');
+    assert.equal(correctedHistory.groups[0].players[0].name, 'Corrected Spelling');
+    assert.equal(JSON.stringify(buildPublication(corrected.details, corrections, '2026-09-23').details), JSON.stringify(corrected.details), 'a corrected publication publishes again unchanged');
+    assert.equal(JSON.stringify(buildPublication(result.details, { ...tables, NameChanges: [] }, '2026-09-23').details), JSON.stringify(result.details), 'no corrections, no changes');
+    // An old name that another player now has is never rewritten: publication stops instead of guessing.
+    assert.throws(function () {
+      buildPublication(result.details, { ...corrections, Players: corrections.Players.concat({ player_id: 'new', display_name: 'Alice' }) }, '2026-09-23');
+    }, /missing or changed/);
     assert.throws(function () { buildPublication([historical, { date: '2026-09-23', fileId: 'old' }], tables, '2026-09-23'); }, /old Drive/);
     assert.throws(function () { buildPublication([historical], { ...tables, RatingLedger: [] }, '2026-09-23'); }, /ledger/);
     const nextYearTables = {

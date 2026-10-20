@@ -80,6 +80,7 @@ function publishPayload() {
 }
 
 const payments = {};
+const emails = {};
 const openPlay = {};
 const rpc = {
   getAppState: function (date) {
@@ -122,6 +123,20 @@ const rpc = {
     if (publishing && publishing.state === 'pending' && Date.now() >= publishing.dueAt) return rpc.publishNow();
     if (publishing && publishing.state === 'email_pending' && Date.now() >= publishing.emailDueAt) return rpc.sendEmailNow();
     return publishPayload();
+  },
+  // The pencil in the player directory; apps-script/PlayerEdits.js has the real checks.
+  getPlayerDetails: function (id) {
+    const player = players.find(function (item) { return item.playerId === id; });
+    if (!player) throw new Error('Unknown player');
+    return Object.assign({ email: emails[id] || '', active: true }, player);
+  },
+  updatePlayer: function (id, changes) {
+    const player = players.find(function (item) { return item.playerId === id; });
+    if (!player) throw new Error('Unknown player');
+    player.name = changes.name;
+    player.currentRating = changes.rating;
+    emails[id] = changes.email;
+    return rpc.getPlayerDetails(id);
   },
   getMemberStatuses: function () { return {}; },
   listVoiceSuggestions: function () { return []; },
