@@ -50,7 +50,7 @@
   </div>
   <p id="tonight-lede" class="tonight-lede">Loading tonight&rsquo;s floor&hellip;</p>
   <p id="tonight-text-us" class="tonight-text-us">
-    <strong>Want to be included?</strong> Text us at <a href="sms:9252383505">(925) 238-3505</a> <span id="text-us-when">any time during the day</span> and we&rsquo;ll add you here.
+    <strong>Want to be included?</strong> Text us at <a id="text-us-link" href="sms:+19252383505">(925) 238-3505</a> <span id="text-us-when">any time during the day</span> and we&rsquo;ll add you here.
   </p>
   <p class="tonight-cta">
     <a class="button-link" href="firstvisit.html">First visit? Start here</a>
@@ -116,6 +116,17 @@
   var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   var shown = null;
+
+  // The club's Google Voice number, and the text a tap fills in on the night itself.
+  var CLUB_TEXT_NUMBER = "+19252383505";
+  var JOIN_TEXT = "I'll join CTTC's RR tonight";
+
+  // iPhone, iPad and Mac Messages take the text after "&body="; Android and others after "?body=".
+  function textLink(body) {
+    if (!body) return "sms:" + CLUB_TEXT_NUMBER;
+    var apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+    return "sms:" + CLUB_TEXT_NUMBER + (apple ? "&" : "?") + "body=" + encodeURIComponent(body);
+  }
 
   function byId(id) { return document.getElementById(id); }
 
@@ -220,6 +231,7 @@
     // A text counts on the night itself, so ahead of time the note names the day; once sign-up closes it goes.
     byId("tonight-text-us").hidden = view.phase === "underway";
     byId("text-us-when").textContent = view.today ? "any time today" : "any time on " + day;
+    byId("text-us-link").href = textLink(view.today ? JOIN_TEXT : "");
 
     // The same numbers twice: zones across for a wide screen, zones down for a phone (style.css shows one).
     var rows = [["Playing tonight", "is-playing", function (b) { return b.here + b.texted; }]];

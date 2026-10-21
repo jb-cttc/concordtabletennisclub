@@ -136,6 +136,8 @@ messages = [
   text('Jo Changed', 'Coming tonight', at('08:00')),
   text('Jo Changed', 'Sorry, can\'t make it after all', at('09:40')),
   text('Kim Student', 'STUDENT Mon 5pm', at('09:00')),
+  text('Pat Asks', 'What time does the round robin start?', at('09:05')),
+  text('Quinn Asks', 'Can I come tonight?', at('09:06')),
   text('Lou Staff', 'STAFF', at('09:00')),
   text('Mo Yesterday', 'Coming', Date.parse('2026-10-25T20:00:00Z')),
   text('Not Voice', 'Coming', at('09:00'), 'someone@example.com')
@@ -159,7 +161,7 @@ assert.deepEqual(answer.unrated, { here: 0, texted: 3 }, 'two Eli Twins, Ivy (no
 assert.equal(answer.brackets.reduce((sum, b) => sum + b.here + b.texted, 0), 4);
 
 const said = JSON.stringify(answer);
-['Ada', 'Bo', 'Cy', 'Dee', 'Eli', 'Fay', 'Ivy', 'Jo', 'Hal', '555', '0142', 'p-', 'tonight', 'Coming'].forEach(word => {
+['Ada', 'Bo', 'Cy', 'Dee', 'Eli', 'Fay', 'Ivy', 'Jo', 'Hal', 'Pat', 'Quinn', '555', '0142', 'p-', 'tonight', 'Coming'].forEach(word => {
   assert.ok(!said.includes(word), 'the public answer never carries a name, number, id or text: ' + word);
 });
 assert.equal(opened[0], 'desk-sheet');

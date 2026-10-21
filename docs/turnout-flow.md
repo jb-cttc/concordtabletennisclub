@@ -26,8 +26,15 @@ at the night's total until more people are playing than were expected
 (`scripts/check-turnout.js` plays out a night to check this).
 
 Under the headline numbers the page invites a text: "Want to be included?
-Text us at (925) 238-3505 any time today and we'll add you here". The app
-counts the text within a minute; no one has to add it by hand. Ahead of the
+Text us at (925) 238-3505 any time today and we'll add you here". Tapping
+the number opens Messages with "I'll join CTTC's RR tonight" filled in on
+the night itself (iPhone, iPad and Mac take `sms:+19252383505&body=`;
+Android takes `?body=`). The app counts the text within a minute; no one has
+to add it by hand. When the desk's automatic answers are on, the person also
+gets a text back within a minute (see
+[Automatic answers](round-robin-operations.md#automatic-answers)). A text
+that only asks a question ("Is RR on tonight?") is not counted unless it
+also says the person is coming ("I'll come"). Ahead of the
 night it names the day, since only texts sent on the night itself count, and
 it is hidden once sign-up closes. A text is left out when it is a command for another
 app (`COACH`, `STUDENT`, `STOP`, `STAFF`, `CONFIRM`, `RELEASE`, `YES`, `NO`)

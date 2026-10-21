@@ -139,7 +139,7 @@ const turnoutSource = read('turnout.js');
 const publicRoster = JSON.parse(JSON.stringify(roster));
 const publicPlayers = { players: [{ name: 'Ada Every', currentRating: 1250 }, { name: 'Bo Mondays', currentRating: 640 }, { name: 'Cy Lapsed', currentRating: 1700 }] };
 
-function page({ now, url = '', answers = [] }) {
+function page({ now, url = '', answers = [], userAgent = '' }) {
   const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/tonight.html', pretendToBeVisual: true });
   const window = dom.window;
   const calls = [];
@@ -159,6 +159,7 @@ function page({ now, url = '', answers = [] }) {
     if (body === null || body === undefined) return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) });
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(JSON.stringify(body))) });
   };
+  if (userAgent) Object.defineProperty(window.navigator, 'userAgent', { value: userAgent });
   window.eval(turnoutSource);
   window.eval(url ? pageScript.replace('var TURNOUT_URL = "' + turnoutUrl[1] + '";', 'var TURNOUT_URL = "' + url + '";') : pageScript);
   return { window, calls, timers, $: id => window.document.getElementById(id) };
@@ -178,7 +179,11 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   assert.equal(offline.$('stat-likely').textContent, '1', 'Ada');
   assert.equal(offline.timers.length, 0, 'nothing to poll');
   assert.equal(offline.$('tonight-text-us').hidden, false, 'invites a text');
-  assert.equal(offline.$('tonight-text-us').querySelector('a').getAttribute('href'), 'sms:9252383505');
+  const join = encodeURIComponent('I\'ll join CTTC\'s RR tonight');
+  assert.equal(offline.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + join, 'Android fills in the text after ?body=');
+  const iphone = page({ now: MONDAY_10AM, url: '', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15' });
+  await settle();
+  assert.equal(iphone.$('text-us-link').getAttribute('href'), 'sms:+19252383505&body=' + join, 'iPhone after &body=');
   assert.equal(offline.$('text-us-when').textContent, 'any time today');
   const courts = offline.window.document.querySelectorAll('#gym-floor .court');
   assert.equal(courts.length, 8, 'the front desk and seven zones');
@@ -256,6 +261,7 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   assert.equal(friday.$('tonight-title').textContent, 'Who’s playing Monday');
   assert.equal(friday.$('tonight-when').textContent, 'Next round robin · Monday, October 26');
   assert.equal(friday.$('text-us-when').textContent, 'any time on Monday', 'a Friday text does not count for Monday');
+  assert.equal(friday.$('text-us-link').getAttribute('href'), 'sms:+19252383505', 'and nothing is filled in ahead of the night');
 
   console.log('Turnout checks passed');
 }()).catch(error => { console.error(error); process.exit(1); });

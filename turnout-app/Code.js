@@ -17,7 +17,10 @@ var MAX_THREADS = 100;
 // Texts that are commands for the coaching or staffing apps, or answers to their questions, not round robin signups.
 var COMMAND = /^\s*(coach|student|stop|staff|confirm|release|yes|no)\b/i;
 // A latest text like "can't make it tonight" takes the sender back off the floor.
-var NOT_COMING = /\b(can'?t|cannot|can not|won'?t|not (coming|going|gonna|able|make|making)|unable|skip(ping)?|cancel(l?ed|ling)?|out tonight)\b/i;
+var NOT_COMING = /\b(can'?t|cannot|can not|won'?t|not (coming|going|gonna|able|make|making|playing)|unable|skip(ping)?|cancel(l?ed|ling)?|out tonight)\b/i;
+// A question ("Is RR on tonight?", "What time does it start?") is not a signup unless the person also says they are
+// coming ("Is there RR tonight? I'll come").
+var SAYS_COMING = /\b(i'?ll|i will|i'?m|i am|count me|add me|sign me|save me|hold me|on my way|omw|running late)\b/i;
 var VOICE_FOOTER = /^(To respond to this text message|YOUR ACCOUNT|HELP CENTER|HELP FORUM|Google LLC)/i;
 
 function doGet() {
@@ -180,7 +183,7 @@ function siteJson_(path) {
 
 // People who texted the club's Google Voice number on date (Pacific) about playing: [{key, known}]. key is the contact
 // name's nameKey, or the number's digits when Voice has no contact name for it. Commands for the other apps are left out,
-// and so is anyone whose latest text says they are not coming.
+// and so is anyone whose latest text says they are not coming or only asks a question.
 function voiceSenders_(date) {
   var day = new Date(date + 'T12:00:00Z');
   var after = Utilities.formatDate(new Date(day.getTime() - 86400000), 'UTC', 'yyyy/MM/dd');
@@ -198,7 +201,10 @@ function voiceSenders_(date) {
       if (!latest[text.key] || latest[text.key].at < text.at) latest[text.key] = text;
     });
   });
-  return Object.keys(latest).filter(function (key) { return !NOT_COMING.test(latest[key].text); }).map(function (key) {
+  return Object.keys(latest).filter(function (key) {
+    var text = latest[key].text;
+    return !NOT_COMING.test(text) && (text.indexOf('?') < 0 || SAYS_COMING.test(text));
+  }).map(function (key) {
     return { key: key, known: latest[key].known };
   });
 }
