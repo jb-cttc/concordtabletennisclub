@@ -2559,6 +2559,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .voice-candidate .roster-status{font-size:12px}
 .voice-candidate.muted{color:var(--muted)}
 .voice-suggestions .hint{margin:4px 0}
+.voice-check{font:700 12px Arial,sans-serif}.voice-check.ok{color:#176b45}.voice-check.ask{color:#9a5b00}
+.voice-add-all{margin:4px 0 2px}
 .voice-preview-button{display:inline-flex;align-items:center;gap:3px;border:1px solid #aebbb2;border-radius:3px;background:#eef4f0;color:#125436;padding:2px 5px;font:15px Arial,sans-serif}
 .voice-preview-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 3px;border-radius:9px;background:#176b45;color:#fff;font:11px Arial,sans-serif}
 .voice-preview-text{display:none;position:fixed;left:var(--voice-preview-left,0px);top:var(--voice-preview-top,0px);width:min(360px,calc(100vw - 24px));max-height:min(300px,55vh);overflow:auto;padding:10px;background:#fff;border:1px solid #aebbb2;box-shadow:0 6px 14px #17211b2b;z-index:1000;font:13px Arial,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -2584,13 +2586,26 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   refresh.type = 'button';
   refresh.className = 'small secondary';
   refresh.textContent = 'Refresh';
-  section.append(heading, message, list, refresh);
+  // Adds everyone with a ✓ who is not on a list yet: the organizer still decides, with one press instead of one per text.
+  var addAll = document.createElement('button');
+  addAll.type = 'button';
+  addAll.className = 'small voice-add-all';
+  addAll.hidden = true;
+  section.append(heading, message, addAll, list, refresh);
   document.getElementById('new-player').closest('.section').after(section);
   var suggestions = [];
   var names = {};
   var confirmations = {};
   var requestNumber = 0;
   var loaded = false;
+  // Senders whose texts came in with the last automatic check, highlighted for a moment.
+  var fresh = {};
+  // On a round robin night the list checks for new texts every minute from 6:45 until 7:30 PM, Pacific, while
+  // tonight's date is open and the tab is in view.
+  var POLL_FROM = 18 * 60 + 45;
+  var POLL_UNTIL = 19 * 60 + 30;
+  var POLL_MS = 60000;
+  var pollingShown = false;
   var TIME_FORMAT = { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
 
   function messagePreview(suggestion) {
@@ -2600,15 +2615,21 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     badge.type = 'button';
     badge.className = 'voice-preview-button';
     badge.title = 'Read messages';
-    badge.setAttribute('aria-label', suggestion.messages.length + ' messages from ' + suggestion.senderName);
     badge.setAttribute('aria-expanded', 'false');
     var icon = document.createElement('span');
     icon.textContent = '\u2709';
     icon.setAttribute('aria-hidden', 'true');
+    // ✓: the latest text says they are coming and the contact name is exactly one player. ?: anything else; the title says why.
+    var mark = document.createElement('span');
+    mark.className = 'voice-check ' + (suggestion.validated ? 'ok' : 'ask');
+    mark.textContent = suggestion.validated ? '\u2713' : '?';
+    mark.setAttribute('aria-hidden', 'true');
     var count = document.createElement('span');
     count.className = 'voice-preview-count';
     count.textContent = String(suggestion.messages.length);
-    badge.append(icon, count);
+    badge.append(icon, mark, count);
+    badge.title = (suggestion.validated ? 'Says they are coming; matches ' + (names[suggestion.linkedPlayerId] || 'one player') : (suggestion.check || 'Check this one')) + '. Read messages';
+    badge.setAttribute('aria-label', suggestion.messages.length + ' messages from ' + suggestion.senderName + (suggestion.validated ? ', validated' : ', needs a check: ' + (suggestion.check || '')));
     var text = document.createElement('div');
     text.className = 'voice-preview-text';
     suggestion.messages.forEach(function (entry) {
@@ -2670,10 +2691,26 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return row;
   }
 
+  function senderId(suggestion) {
+    return suggestion.senderKey || suggestion.senderName;
+  }
+
+  function candidatesOf(suggestion) {
+    return suggestion.playerIds.filter(function (id) { return !!names[id]; });
+  }
+
+  // ✓ senders whose player is not in RR, Open Play or Coaching yet.
+  function readyToAdd() {
+    return suggestions.filter(function (suggestion) {
+      return suggestion.validated && names[suggestion.linkedPlayerId] && !candidatesOf(suggestion).concat([suggestion.linkedPlayerId]).some(rostered);
+    });
+  }
+
   function render() {
     list.replaceChildren();
     suggestions.forEach(function (suggestion) {
       var item = document.createElement('li');
+      if (fresh[senderId(suggestion)]) item.classList.add('just-added');
       var sender = document.createElement('div');
       sender.className = 'voice-sender';
       var name = document.createElement('span');
@@ -2686,7 +2723,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         sender.appendChild(confirmation);
       }
       item.appendChild(sender);
-      var candidates = suggestion.playerIds.filter(function (id) { return !!names[id]; });
+      var candidates = candidatesOf(suggestion);
       if (!candidates.length) {
         var none = document.createElement('p');
         none.className = 'hint';
@@ -2696,47 +2733,99 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       candidates.forEach(function (id) { item.appendChild(candidateRow(id, candidates.some(rostered), suggestion.senderKey)); });
       list.appendChild(item);
     });
-    if (loaded) message.textContent = suggestions.length ? 'Texts received on this date. Choose who to add to RR.' : 'No texts received on this date.';
-  }
-
-  async function load() {
-    var selectedDate = date.value;
-    var current = ++requestNumber;
-    suggestions = [];
-    confirmations = {};
-    loaded = false;
-    list.replaceChildren();
-    message.textContent = 'Checking forwarded texts...';
-    try {
-      var playerRequest = initialPlayers ? initialPlayers.catch(function () { return window.cttcRequest('listPlayers'); }) : window.cttcRequest('listPlayers');
-      initialPlayers = null;
-      var data = await Promise.all([window.cttcRequest('listVoiceSuggestions', selectedDate), playerRequest]);
-      if (current !== requestNumber || date.value !== selectedDate) return;
-      names = {};
-      data[1].forEach(function (player) { names[player.playerId] = player.name; });
-      suggestions = data[0];
-      loaded = true;
-      render();
-    } catch (error) {
-      if (current === requestNumber) message.textContent = 'Voice signups unavailable: ' + (error.message || error);
+    var ready = readyToAdd();
+    addAll.hidden = !loaded || !suggestions.some(function (suggestion) { return suggestion.validated; });
+    addAll.disabled = !ready.length;
+    addAll.textContent = ready.length ? 'Add all \u2713 (' + ready.length + ')' : 'All \u2713 added';
+    addAll.title = ready.length ? 'Add ' + ready.map(function (suggestion) { return names[suggestion.linkedPlayerId]; }).join(', ') + ' to the RR draft' : '';
+    pollingShown = polling();
+    if (loaded) {
+      message.textContent = (suggestions.length ? 'Texts received on this date. Choose who to add to RR.' : 'No texts received on this date.') +
+        (polling() ? ' New texts appear here every minute until 7:30 PM.' : '');
     }
   }
 
-  list.addEventListener('click', function (event) {
-    var button = event.target.closest('[data-voice-add]');
-    if (!button) return;
-    var playerId = button.getAttribute('data-voice-add');
-    var senderKey = button.getAttribute('data-voice-sender');
+  function pacificNow() {
+    var parts = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date()).forEach(function (part) { parts[part.type] = part.value; });
+    return { weekday: parts.weekday, date: parts.year + '-' + parts.month + '-' + parts.day, minutes: (Number(parts.hour) % 24) * 60 + Number(parts.minute) };
+  }
+
+  function polling() {
+    var now = pacificNow();
+    return (now.weekday === 'Mon' || now.weekday === 'Wed') && date.value === now.date && now.minutes >= POLL_FROM && now.minutes < POLL_UNTIL;
+  }
+
+  // The directory: the players the page loaded at startup the first time, then a fresh list.
+  function directory() {
+    var playerRequest = initialPlayers ? initialPlayers.catch(function () { return window.cttcRequest('listPlayers'); }) : window.cttcRequest('listPlayers');
+    initialPlayers = null;
+    return playerRequest;
+  }
+
+  // quiet (the automatic check): keep the list and what was sent while asking, reuse the directory, and highlight senders
+  // with something new. Anything else starts over.
+  async function load(quiet) {
+    quiet = quiet === true;
     var selectedDate = date.value;
-    if (!window.cttcDesk.add(playerId, 'Voice signup')) return;
+    var current = ++requestNumber;
+    var seen = {};
+    if (quiet) {
+      suggestions.forEach(function (suggestion) { seen[senderId(suggestion)] = suggestion.messages.length; });
+    } else {
+      suggestions = [];
+      confirmations = {};
+      fresh = {};
+      loaded = false;
+      list.replaceChildren();
+      message.textContent = 'Checking forwarded texts...';
+    }
+    try {
+      var data = await Promise.all([window.cttcRequest('listVoiceSuggestions', selectedDate), quiet ? null : directory()]);
+      if (current !== requestNumber || date.value !== selectedDate) return;
+      if (data[1]) {
+        names = {};
+        data[1].forEach(function (player) { names[player.playerId] = player.name; });
+      }
+      suggestions = data[0];
+      fresh = {};
+      if (quiet) {
+        suggestions.forEach(function (suggestion) {
+          if (!(senderId(suggestion) in seen) || seen[senderId(suggestion)] < suggestion.messages.length) fresh[senderId(suggestion)] = true;
+        });
+        setTimeout(function () { fresh = {}; }, 3000);
+      }
+      loaded = true;
+      render();
+    } catch (error) {
+      if (current !== requestNumber) return;
+      message.textContent = quiet ? 'Could not check for new texts just now; trying again in a minute.' : 'Voice signups unavailable: ' + (error.message || error);
+    }
+  }
+
+  // Adds one sender's player to the RR draft and queues their "Confirmed." text, as the RR button always has.
+  function addFromVoice(playerId, senderKey) {
+    var selectedDate = date.value;
+    if (!window.cttcDesk.add(playerId, 'Voice signup')) return false;
     var added = document.querySelector('#groups [data-move="' + CSS.escape(playerId) + '"]');
     if (added) {
       added.closest('li').classList.add('just-added');
       added.closest('li').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-    if (!senderKey) return;
+    if (!senderKey) return true;
     setConfirmation(senderKey, navigator.onLine === false ? 'Confirmed will send when online' : 'Sending Confirmed...');
     window.cttcOutbox.enqueue('voice:' + selectedDate + ':' + senderKey, 'sendVoiceConfirmation', [selectedDate, senderKey, playerId]);
+    return true;
+  }
+
+  list.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-voice-add]');
+    if (!button) return;
+    addFromVoice(button.getAttribute('data-voice-add'), button.getAttribute('data-voice-sender'));
+  });
+  addAll.addEventListener('click', function () {
+    readyToAdd().forEach(function (suggestion) { addFromVoice(suggestion.linkedPlayerId, suggestion.senderKey); });
   });
   window.cttcOutbox.register('sendVoiceConfirmation', {
     rejected: /no saved contact name|No text from this person|Google Voice reply address|Invalid date/,
@@ -2757,6 +2846,13 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   document.getElementById('load').addEventListener('click', load);
   date.addEventListener('change', load);
   refresh.addEventListener('click', load);
+  // An open message preview is left alone, and so is a device that knows it is offline: the next minute's check can wait.
+  setInterval(function () {
+    // The note about checking every minute comes and goes with the window.
+    if (loaded && pollingShown !== polling()) render();
+    if (!loaded || document.hidden || navigator.onLine === false || !polling() || section.querySelector('.voice-preview.open, .voice-preview:focus-within')) return;
+    load(true);
+  }, POLL_MS);
   var initialPlayers = window.cttcInitialPlayers;
   load();
 })();
@@ -2782,7 +2878,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. When a search also matches archived players, press Show archived players to include them until the page reloads.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
-    { title: 'Voice signups', text: 'Forwarded signup messages appear here when available. Match a sender to a player, then choose RR to add that player to the round robin.', target: '.voice-suggestions' },
+    { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. On Monday and Wednesday nights from 6:45 to 7:30 the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
     { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are saved to Google Sheets automatically a moment after you make them, and kept on this device if the connection drops.', target: '#groups .group-list li' },
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change. Coaches and students with a lesson confirmed in the coaching app are listed here automatically, and their texts are left out of Voice signups.', target: '.open-play-section' },

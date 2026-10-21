@@ -2,9 +2,10 @@
 // the day's forwarded Voice texts (VoiceSuggestions.js) and answers each person once:
 //   - a contact name that is exactly one desk player (or an alias of one): VOICE_LINKED_REPLY with their directory name;
 //   - anyone else (a number with no contact name, a name that is no one or several people): VOICE_UNLINKED_REPLY.
-// Only texts that plainly say the person is coming are answered (VOICE_JOINING_); questions, "can't make it", commands
-// for the coaching and volunteer apps, and anyone with a coaching lesson that day are left for a person. The organizer still adds people to the round robin from
-// Voice signups as before; a reply already in the thread stops the desk's own "Confirmed." from being sent twice.
+// Linked and "says they are coming" are the same checks as the ✓ in Voice signups (voiceValidation_ in VoiceSuggestions.js).
+// Questions, "can't make it", commands for the coaching and volunteer apps, and anyone with a coaching lesson that day are
+// left for a person. The organizer still adds people to the round robin from Voice signups; a reply already in the thread
+// stops the desk's own "Confirmed." from being sent twice.
 //
 // Off until the owner runs enableVoiceAutoReply(): a trigger runs whatever code was pushed last, including a /dev preview,
 // so it must never start texting members by itself. disableVoiceAutoReply() turns it off again.
@@ -19,9 +20,6 @@ var VOICE_REPLY_FROM = 6 * 60;
 var VOICE_REPLY_UNTIL = 19 * 60 + 15;
 var VOICE_REPLIES_PER_RUN = 20;
 var VOICE_CLOSURES_URL = 'https://concordtabletennisclub.com/data/closures.json';
-var VOICE_JOINING_ = /\b(join|joining|come|coming|play|playing|rr|round robin|i'?m in|count me in|in tonight|sign me up|add me|save (me )?a spot|hold (me )?a spot|running late|on my way|omw|be there|see you)\b/i;
-var VOICE_NOT_COMING_ = /\b(can'?t|cannot|can not|won'?t|not (coming|going|gonna|able|make|making|playing)|unable|skip(ping)?|cancel(l?ed|ling)?|out tonight)\b/i;
-var VOICE_COMMAND_ = /^\s*(coach|student|stop|staff|confirm|release|yes|no)\b/i;
 
 // The minute trigger. Returns what it did, for the editor and the tests.
 function answerVoiceSignups() {
@@ -57,9 +55,9 @@ function answerVoiceSignups_(now) {
     Object.keys(senders).forEach(function (key) {
       if (sent.length >= VOICE_REPLIES_PER_RUN || done.keys.indexOf(key) >= 0) return;
       if ((senders[key].known && coaching[senders[key].senderKey]) || coaching[senders[key].phoneKey]) return;
-      var messages = senders[key].messages.filter(function (entry) { return !VOICE_COMMAND_.test(entry.text); });
-      var latest = messages[messages.length - 1];
-      if (!latest || !voiceJoining_(latest.text)) return;
+      var check = voiceValidation_(senders[key], exact);
+      var latest = check.latest;
+      if (!latest || !check.saysComing) return;
       var replyTo = String(latest.message.getReplyTo() || latest.message.getFrom() || '');
       if (!/@txt\.voice\.google\.com\b/i.test(replyTo)) return;
       var latestAt = latest.message.getDate().getTime();
@@ -70,7 +68,7 @@ function answerVoiceSignups_(now) {
       done.keys.push(key);
       properties.setProperty(VOICE_AUTO_REPLIED_KEY, JSON.stringify(done));
       if (replied) return;
-      var player = senders[key].known ? exact(senders[key].senderKey) : null;
+      var player = check.player;
       latest.message.reply(player ? VOICE_LINKED_REPLY.replace('{name}', player.name) : VOICE_UNLINKED_REPLY);
       appendAudit_('voice_auto_reply', 'player', player ? player.playerId : '', { sessionDate: date, linked: !!player });
       sent.push(player ? 'linked' : 'unlinked');
@@ -81,37 +79,11 @@ function answerVoiceSignups_(now) {
   }
 }
 
-// A text that says the person is coming, and is not a question or a "can't make it".
-function voiceJoining_(text) {
-  return VOICE_JOINING_.test(text) && !VOICE_NOT_COMING_.test(text) && text.indexOf('?') < 0;
-}
-
 // Senders already answered today, as {date, keys}. A new day starts an empty list.
 function voiceAnswered_(properties, date) {
   var done = null;
   try { done = JSON.parse(properties.getProperty(VOICE_AUTO_REPLIED_KEY) || 'null'); } catch (error) { done = null; }
   return done && done.date === date && Array.isArray(done.keys) ? done : { date: date, keys: [] };
-}
-
-// The one active player a Voice contact name means: their exact directory name or an alias of theirs. A name that is
-// several players, or only part of a name, is no one here (the organizer can still pick from the suggestions).
-function voiceExactMatcher_() {
-  var players = listPlayers();
-  var byKey = {};
-  players.forEach(function (player) {
-    var key = voiceNameKey_(player.name);
-    (byKey[key] = byKey[key] || []).push(player);
-  });
-  var aliases = playerAliases_();
-  Object.keys(aliases).forEach(function (alias) {
-    var key = voiceNameKey_(alias);
-    var player = players.filter(function (candidate) { return candidate.playerId === aliases[alias]; })[0];
-    if (player && !byKey[key]) byKey[key] = [player];
-  });
-  return function (senderKey) {
-    var matches = byKey[senderKey] || [];
-    return matches.length === 1 ? matches[0] : null;
-  };
 }
 
 // True when the club site lists date as a full closure. If the site cannot be read, the night is assumed open.

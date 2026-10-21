@@ -10,6 +10,53 @@ function voiceNameKey_(value) {
 // Texts that are commands for the coaching app, not round robin signups.
 var COACHING_COMMAND_ = /^(coach|student|stop)\b/i;
 
+// ---- Validation: the ✓ in Voice signups, and who the desk answers automatically (VoiceAutoReply.js) ----
+// A sender is validated when their latest text says they are coming and their Voice contact name is exactly one player.
+var VOICE_JOINING_ = /\b(join|joining|come|coming|play|playing|rr|round robin|i'?m in|count me in|in tonight|sign me up|add me|save (me )?a spot|hold (me )?a spot|running late|on my way|omw|be there|see you)\b/i;
+var VOICE_NOT_COMING_ = /\b(can'?t|cannot|can not|won'?t|not (coming|going|gonna|able|make|making|playing)|unable|skip(ping)?|cancel(l?ed|ling)?|out tonight)\b/i;
+// Commands and answers for the coaching and volunteer apps.
+var VOICE_COMMAND_ = /^\s*(coach|student|stop|staff|confirm|release|yes|no)\b/i;
+
+// A text that says the person is coming, and is not a question or a "can't make it".
+function voiceJoining_(text) {
+  return VOICE_JOINING_.test(text) && !VOICE_NOT_COMING_.test(text) && text.indexOf('?') < 0;
+}
+
+// The one active player a Voice contact name means: their exact directory name or an alias of theirs. A name that is
+// several players, or only part of a name, is no one here (the organizer can still pick from the suggestions).
+function voiceExactMatcher_(players) {
+  players = players || listPlayers();
+  var byKey = {};
+  players.forEach(function (player) {
+    var key = voiceNameKey_(player.name);
+    (byKey[key] = byKey[key] || []).push(player);
+  });
+  var aliases = playerAliases_();
+  Object.keys(aliases).forEach(function (alias) {
+    var key = voiceNameKey_(alias);
+    var player = players.filter(function (candidate) { return candidate.playerId === aliases[alias]; })[0];
+    if (player && !byKey[key]) byKey[key] = [player];
+  });
+  return function (senderKey) {
+    var matches = byKey[senderKey] || [];
+    return matches.length === 1 ? matches[0] : null;
+  };
+}
+
+// What the desk makes of one sender ({known, senderKey, messages: [{text}]}): their latest text that is not a command for
+// another app, the one player their contact name is (or null), whether that text says they are coming, and, when they are
+// not validated, why, for the organizer.
+function voiceValidation_(sender, exact) {
+  var messages = sender.messages.filter(function (entry) { return !VOICE_COMMAND_.test(entry.text); });
+  var latest = messages[messages.length - 1] || null;
+  var player = sender.known ? exact(sender.senderKey) : null;
+  var saysComing = !!latest && voiceJoining_(latest.text);
+  var reasons = [];
+  if (!saysComing) reasons.push(!latest ? 'No signup text' : VOICE_NOT_COMING_.test(latest.text) ? 'Latest text says they can\'t make it' : 'Latest text doesn\'t say they\'re coming');
+  if (!player) reasons.push(!sender.known ? 'No saved contact name for this number' : 'Contact name isn\'t exactly one player');
+  return { latest: latest, player: player, saysComing: saysComing, validated: saysComing && !!player, check: reasons.join('. ') };
+}
+
 function voiceForwardedText_(message) {
   var from = String(message.getFrom() || '');
   var address = ((from.match(/<([^>]+)>/) || [null, from])[1] || '').trim().toLowerCase();
@@ -83,8 +130,8 @@ function voiceSenders_(sessionDate) {
   return senders;
 }
 
-function voiceMatcher_() {
-  var players = listPlayers();
+function voiceMatcher_(players) {
+  players = players || listPlayers();
   var byName = {};
   players.forEach(function (player) {
     var key = voiceNameKey_(player.name);
@@ -102,7 +149,9 @@ function voiceMatcher_() {
 // Leaves out coaching-app commands and anyone with a confirmed lesson that day: they come for coaching, not the round robin.
 function listVoiceSuggestions(sessionDate) {
   validateSessionDate_(sessionDate);
-  var match = voiceMatcher_();
+  var players = listPlayers();
+  var match = voiceMatcher_(players);
+  var exact = voiceExactMatcher_(players);
   var coaching = {};
   try {
     coachingLessons_(sessionDate).forEach(function (person) {
@@ -118,10 +167,14 @@ function listVoiceSuggestions(sessionDate) {
     if ((sender.known && coaching[sender.senderKey]) || coaching[sender.phoneKey]) return null;
     var messages = sender.messages.filter(function (entry) { return !COACHING_COMMAND_.test(entry.text); });
     if (!messages.length) return null;
+    var check = voiceValidation_(sender, exact);
     return {
       senderName: sender.senderName,
       senderKey: sender.known ? sender.senderKey : '',
       playerIds: match(sender),
+      linkedPlayerId: check.player ? check.player.playerId : '',
+      validated: check.validated,
+      check: check.check,
       messages: messages.slice(-10).map(function (entry) { return { text: entry.text, receivedAt: entry.receivedAt }; })
     };
   }).filter(Boolean).sort(function (left, right) {

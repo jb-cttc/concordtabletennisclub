@@ -194,6 +194,21 @@ shows likely directory matches, including linked names; the organizer clicks
 **RR** to add one to the local draft, then saves the draft. Senders without a
 saved contact name show only the last four digits of their number.
 
+Each sender's envelope carries a mark. **✓** means the latest text says they
+are coming and their Voice contact name is exactly one active player (or an
+`Aliases` name of one). **?** means look first; hovering the envelope says
+why ("Latest text doesn't say they're coming", "Contact name isn't exactly
+one player", ...). These are the same checks as the
+[automatic answers](#automatic-answers). **Add all ✓** adds every ✓ sender
+not already in RR, Open Play or Coaching, exactly as pressing **RR** on each
+would, including the **Confirmed.** text. A **?** is never added by it.
+
+On Monday and Wednesday nights from 6:45 to 7:30 PM Pacific, while tonight's
+date is open and the tab is in view, the list checks for new texts every
+minute by itself and briefly highlights anyone new. It skips a minute while
+a message preview is open or the device is offline. **Refresh** still works
+at any time.
+
 ### Automatic answers
 
 When switched on, the desk answers round robin texts by itself
