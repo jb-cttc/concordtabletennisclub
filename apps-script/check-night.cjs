@@ -372,7 +372,8 @@ const cases = {
       const real = world.server.context[name];
       world.server.context[name] = (...args) => { sent += 1; return real(...args); };
     });
-    const tab = world.device().open();
+    const device = world.device();
+    const tab = device.open();
     await run(world, 15000);
     const doc = tab.window.document;
     const rows = () => [...doc.querySelectorAll('.volunteer-signups li')].map(li => [li.querySelector('strong').textContent, li.querySelector('.identity span').textContent,
@@ -384,12 +385,18 @@ const cases = {
     ]);
     assert.ok(doc.querySelector('.voice-suggestions').nextElementSibling.classList.contains('volunteer-signups'), 'right after Voice signups');
 
+    // Pressed with Google not answering at all: both take effect on the press itself, and nothing shows as waiting.
+    device.net.blackhole = true;
     tab.click(doc.querySelector('[data-volunteer-rr="' + ray.player_id + '"]'));
     tab.click(doc.querySelector('[data-volunteer-open="' + ron.player_id + '"]'));
     assert.ok(tab.roster().includes(ray.player_id), 'RR adds to the draft at once');
     assert.ok(doc.querySelector('#open-roster [data-open-remove="' + ron.player_id + '"]'), 'Open adds to Open Play at once');
     assert.deepEqual(rows().map(r => r[2]), ['In RR', 'RR/Open', 'In Open']);
-    await run(world, 30000);
+    assert.equal(doc.querySelectorAll('.volunteer-signups .request-pending').length, 0, 'no button waits on Google');
+    await run(world, 60000);
+    assert.deepEqual(tab.errors, []);
+    device.net.blackhole = false;
+    await run(world, 6 * 60000);
     assert.ok(JSON.parse(sim.googleKey(world, DATE)).groups.join(',').includes(ray.player_id), 'the draft with Ray reached Google');
     assert.ok(world.server.rows('OpenPlay').some(r => String(r.player_id) === ron.player_id), 'Ron reached Open Play on Google');
     assert.equal(sent, 0, 'no text or email was sent');
