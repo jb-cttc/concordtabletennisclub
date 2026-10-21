@@ -1414,3 +1414,369 @@ tr.hof-gold td:nth-child(2) {
   font-style: italic;
   opacity: 0.75;
 }
+
+.tonight-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #1f6b3a;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f6b3a;
+  padding: 7px 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tonight-launch:hover {
+  background: #f0f7f1;
+  color: #14401f;
+}
+
+.tonight-teaser {
+  margin: 0 0 18px;
+}
+
+.tonight-launch .live-dot {
+  background: #1f6b3a;
+}
+
+/* ---- Tonight: who is coming to the round robin, by rating (tonight.html) ---- */
+
+.tonight-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #1f6b3a;
+}
+
+.tonight-updated {
+  font-weight: normal;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.tonight-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #1f6b3a;
+  color: #fff;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9be7b0;
+  animation: tonight-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tonight-pulse {
+  50% { opacity: 0.35; }
+}
+
+.tonight h1 {
+  margin-bottom: 18px;
+}
+
+.tonight-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.tonight-stat {
+  flex: 1 1 120px;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--red);
+  background: #fff;
+  padding: 10px 14px;
+}
+
+.tonight-stat strong {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2.4rem;
+  font-weight: normal;
+  line-height: 1.1;
+  color: var(--red);
+}
+
+.tonight-stat span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.tonight-stat.is-playing { border-top-color: #1f6b3a; }
+.tonight-stat.is-playing strong { color: #1f6b3a; }
+.tonight-stat.is-likely { border-top-color: #b98a4e; border-top-style: dashed; }
+.tonight-stat.is-likely strong { color: #8a6430; }
+
+.tonight-lede {
+  font-size: 1.05rem;
+  margin-bottom: 12px;
+}
+
+.tonight-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin-bottom: 18px;
+}
+
+.tonight-status {
+  border-left: 3px solid #b98a4e;
+  background: #fff9ee;
+  padding: 8px 12px;
+  margin-bottom: 18px;
+  font-size: 0.85rem;
+}
+
+.tonight-summary-wrap {
+  overflow-x: auto;
+  margin-bottom: 22px;
+}
+
+.tonight-summary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tonight-summary th,
+.tonight-summary td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tonight-summary thead th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.tonight-summary tbody th {
+  text-align: left;
+  font-weight: 600;
+}
+
+.tonight-summary .summary-total {
+  font-weight: 700;
+}
+
+.tonight-summary.is-stacked {
+  display: none;
+}
+
+@media (max-width: 699px) {
+  .tonight-summary.is-wide { display: none; }
+  .tonight-summary.is-stacked { display: table; }
+  .tonight-summary.is-stacked td { width: 25%; }
+  .scoreboard .flip { font-size: 1rem; }
+}
+
+.tonight-summary .is-playing td,
+.tonight-summary td.is-playing { color: #1f6b3a; font-weight: 600; }
+.tonight-summary .is-likely td,
+.tonight-summary td.is-likely { color: #8a6430; }
+
+/* The floor: maple boards, a court per rating zone walled by the club's red barriers. */
+.gym-floor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
+  border: 6px solid #5b4632;
+  border-radius: 6px;
+  background-color: #dcae72;
+  background-image:
+    repeating-linear-gradient(90deg, rgba(120, 72, 24, 0.13) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 9px, rgba(120, 72, 24, 0.06) 9px 18px);
+}
+
+@media (min-width: 700px) {
+  .gym-floor {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.court {
+  display: flex;
+  flex-direction: column;
+  border: 3px solid #7a1818;
+  border-radius: 4px;
+  background: rgba(255, 248, 235, 0.32);
+  overflow: hidden;
+}
+
+.court.has-players {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(139, 26, 26, 0.18);
+}
+
+.court.front-desk {
+  border-color: #5b4632;
+  border-style: dashed;
+}
+
+.court-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(250, 248, 243, 0.92);
+  border-bottom: 1px solid rgba(91, 70, 50, 0.25);
+}
+
+.court-name {
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.court-label {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: bold;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.court-sub {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* A table tennis flip scoreboard as the court's tally of bodies playing tonight. */
+.scoreboard {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.scoreboard .flip {
+  position: relative;
+  display: inline-block;
+  min-width: 1.15em;
+  padding: 3px 3px 2px;
+  border-radius: 3px;
+  background: #1c1c1c;
+  color: #fff;
+  font: 700 1.25rem/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  text-align: center;
+}
+
+.scoreboard .flip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.scoreboard.is-flipping .flip {
+  animation: tonight-flip 0.5s ease-out;
+}
+
+@keyframes tonight-flip {
+  0% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
+}
+
+.court-floor {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pp-table { fill: #1d4f91; stroke: #fff; stroke-width: 2; }
+.pp-line { stroke: #fff; stroke-width: 0.8; }
+.pp-net { stroke: #222; stroke-width: 2.5; stroke-linecap: round; }
+.desk { fill: #8a5a2b; }
+.desk-sheet { fill: #fff; }
+.door { fill: #5b4632; }
+.desk-open { fill: #5b4632; font: italic 13px Georgia, "Times New Roman", serif; }
+.open-spot { fill: rgba(255, 255, 255, 0.28); stroke: rgba(255, 255, 255, 0.95); stroke-width: 1.4; stroke-dasharray: 2.5 2; }
+.court-floor .more { fill: #3a2a1a; font: 700 12px system-ui, sans-serif; }
+
+.body ellipse,
+.body circle { stroke-width: 1.2; }
+.body.is-here ellipse,
+.body.is-texted ellipse { fill: var(--red); stroke: #5e1010; }
+.body.is-here circle,
+.body.is-texted circle { fill: #3a2418; stroke: #5e1010; }
+.body.is-texted .bubble { fill: #fff; stroke: #1f6b3a; stroke-width: 1.6; }
+.body.is-likely ellipse,
+.body.is-likely circle { fill: rgba(255, 255, 255, 0.55); stroke: #8a6430; stroke-dasharray: 2 1.6; }
+
+.body.is-arriving {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tonight-arrive 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@keyframes tonight-arrive {
+  0% { opacity: 0; transform: translateY(24px) scale(0.3); }
+}
+
+.tonight-ticker {
+  min-height: 1.4em;
+  margin: 10px 0 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1f6b3a;
+}
+
+.gym-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  list-style: none;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.gym-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gym-legend svg {
+  width: 24px;
+  height: 26px;
+  border-radius: 3px;
+  background: #dcae72;
+}
+
+.tonight-notes {
+  padding-left: 20px;
+  font-size: 0.92rem;
+}
+
+.tonight-notes li {
+  margin-bottom: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .scoreboard.is-flipping .flip,
+  .body.is-arriving { animation: none; }
+}

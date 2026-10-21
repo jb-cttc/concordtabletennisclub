@@ -132,7 +132,7 @@ jobs:
         run: |
           mkdir -p _site
           cp .nojekyll CNAME _site/
-          cp *.html style.css navtoggle.js standings.js favicon.svg _site/
+          cp *.html style.css navtoggle.js standings.js turnout.js favicon.svg _site/
           cp -R data _site/
           cp -R assets _site/
           # The volunteer sign-up page, served from the site itself (it calls the staffing app with fetch, no Google sign-in).

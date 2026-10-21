@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tonight - Concord Table Tennis Club</title>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Concord Table Tennis Club">
+  <meta property="og:title" content="Who's playing tonight - Concord Table Tennis Club">
+  <meta property="og:description" content="See how many players are coming to the next Monday or Wednesday round robin, by rating, as they sign in.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="site-title"><a href="index.html"><img src="assets/logo-transparent.png" alt="Concord Table Tennis Club" class="site-logo"></a></div>
+                            <nav>
+      <button class="nav-toggle" aria-label="Open navigation" aria-expanded="false">&#9776;</button>
+      <a href="index.html">Home</a>
+      <a href="firstvisit.html">First Visit</a>
+      <a href="about.html">About</a>
+      <a href="roundrobins.html">Round Robins</a>
+      <a href="leaderboard.html">Leaderboard</a>
+      <a href="halloffame.html">Hall of Fame</a>
+      <a href="membership.html">Membership</a>
+      <a href="coaching.html">Coaching</a>
+      <a href="rules.html">Rules</a>
+      <a href="pictures.html">Pictures</a>
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSdbpyuHfnAEMRjwcA4fM1cgb75ieaa8xzXpKImt8ljRoC1WZA/viewform" target="_blank" rel="noopener">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main class="tonight">
+
+  <p class="tonight-eyebrow">
+    <span id="tonight-live" class="tonight-live" hidden><span class="live-dot" aria-hidden="true"></span>Live</span>
+    <span id="tonight-when">Round robin</span>
+    <span id="tonight-updated" class="tonight-updated"></span>
+  </p>
+  <h1 id="tonight-title">Who's playing tonight</h1>
+
+  <div id="tonight-stats" class="tonight-stats" hidden>
+    <div class="tonight-stat"><strong id="stat-expected">0</strong><span>expected</span></div>
+    <div class="tonight-stat is-playing"><strong id="stat-playing">0</strong><span id="stat-playing-label">playing tonight</span></div>
+    <div class="tonight-stat is-likely" id="stat-likely-box"><strong id="stat-likely">0</strong><span>likely regulars</span></div>
+  </div>
+  <p id="tonight-lede" class="tonight-lede">Loading tonight&rsquo;s floor&hellip;</p>
+  <p class="tonight-cta">
+    <a class="button-link" href="firstvisit.html">First visit? Start here</a>
+    <a href="https://www.google.com/maps/place/2336+Buena+Vista+Ave,+Walnut+Creek,+CA+94597" target="_blank" rel="noopener">Directions</a>
+  </p>
+  <p id="tonight-status" class="tonight-status" role="status" hidden></p>
+
+  <div id="tonight-summary-wrap" class="tonight-summary-wrap" hidden>
+    <table class="tonight-summary is-wide">
+      <caption class="visually-hidden">Players by rating zone</caption>
+      <thead><tr id="summary-head"><th scope="col">Rating</th></tr></thead>
+      <tbody id="summary-body"></tbody>
+    </table>
+    <table class="tonight-summary is-stacked">
+      <caption class="visually-hidden">Players by rating zone</caption>
+      <thead><tr id="stacked-head"><th scope="col">Rating</th></tr></thead>
+      <tbody id="stacked-body"></tbody>
+    </table>
+  </div>
+
+  <section class="gym" aria-labelledby="gym-heading">
+    <h2 id="gym-heading" class="visually-hidden">The gym floor</h2>
+    <div id="gym-floor" class="gym-floor"></div>
+    <p id="tonight-ticker" class="tonight-ticker" role="status" aria-live="polite"></p>
+    <ul class="gym-legend" aria-label="Key">
+      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-here"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle></g></svg>Playing tonight: signed in at the desk</li>
+      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-texted"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle><circle class="bubble" r="3.4" cx="8" cy="-9"></circle></g></svg>Playing tonight: texted the club</li>
+      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-likely"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle></g></svg>Likely: a regular who comes 9 nights in 10</li>
+      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><circle class="open-spot" r="8"></circle></svg>Expected: a spot our forecast says will fill</li>
+    </ul>
+  </section>
+
+  <h2>How this works</h2>
+  <ul class="tonight-notes">
+    <li>Players are grouped by rating, the way the round robin groups them. Each zone shows two tables; groups are 5 or 6 players.</li>
+    <li><strong>Playing tonight</strong> counts everyone signed in at the front desk and everyone who texted the club today to say they are coming.</li>
+    <li><strong>Likely</strong> marks regulars who, going by their recent Mondays and Wednesdays, come about 9 nights in 10. <strong>Expected</strong> is our forecast: everyone playing, plus each recent player&rsquo;s chance of coming.</li>
+    <li>Only counts are shown here, never names.</li>
+    <li>Sign up in person between 6:45 and 7:15&nbsp;PM; play starts at 7:30. Running late? Text <a href="sms:9252383505">(925) 238-3505</a> before 7&nbsp;PM and your spot will be held.</li>
+  </ul>
+
+</main>
+
+<footer>
+  Concord Table Tennis Club, Walnut Creek, CA. Open since 1972. A 501(c)(3) nonprofit, sanctioned by USATT.
+</footer>
+
+<script src="navtoggle.js"></script>
+<script src="turnout.js"></script>
+
+<script>
+(function () {
+  "use strict";
+
+  // The public turnout app's released /exec address (turnout-app/, docs/turnout-flow.md). While it is empty, or when the
+  // app cannot be reached, the page shows the forecast from the published roster only.
+  var TURNOUT_URL = "";
+  var POLL_MS = 60000;
+  var MAX_DRAWN = 18;
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var T = window.CTTCTurnout;
+  var DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  var shown = null;
+
+  function byId(id) { return document.getElementById(id); }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function svg(tag, attrs, parent) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function plural(count, one, many) { return count + " " + (count === 1 ? one : many); }
+
+  function longDate(date) {
+    var parts = date.split("-");
+    return DAYS[T.weekday(date)] + ", " + MONTHS[Number(parts[1]) - 1] + " " + Number(parts[2]);
+  }
+
+  function pacificClock(now) {
+    var parts = {};
+    new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(now).forEach(function (part) { parts[part.type] = part.value; });
+    return { date: parts.year + "-" + parts.month + "-" + parts.day, minutes: (Number(parts.hour) % 24) * 60 + Number(parts.minute) };
+  }
+
+  function getJson(url, options) {
+    return fetch(url, options).then(function (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.json();
+    });
+  }
+
+  // The live answer from the turnout app: desk sign-ins, today's texts and the forecast, counted on Google.
+  function live() {
+    return getJson(TURNOUT_URL, { credentials: "omit", cache: "no-store" }).then(function (answer) {
+      if (!answer || !answer.ok) throw new Error("not available");
+      answer.live = true;
+      return answer;
+    });
+  }
+
+  // Without the app: the same forecast from the site's own published files, with nobody known to be playing yet.
+  function forecast() {
+    return Promise.all([getJson("data/session-roster.json"), getJson("data/players.json"), getJson("data/closures.json").catch(function () { return {}; })])
+      .then(function (files) {
+        var roster = files[0];
+        var rating = {};
+        (files[1].players || []).forEach(function (player) { rating[player.name] = player.currentRating; });
+        var clock = pacificClock(new Date());
+        var night = T.sessionNight(clock, files[2]);
+        if (!night) return { ok: true, date: null, live: false, updatedAt: Date.now() };
+        var people = night.phase === "underway" ? [] : T.forecastPeople(roster, night.date, function (name) {
+          return rating[name] === undefined ? null : rating[name];
+        });
+        var counts = T.tally(people);
+        return { ok: true, date: night.date, phase: night.phase, today: night.date === clock.date, live: false, updatedAt: Date.now(), brackets: counts.brackets, unrated: counts.unrated };
+      });
+  }
+
+  function totals(view) {
+    var sum = { here: view.unrated.here, texted: view.unrated.texted, likely: 0, expected: view.unrated.here + view.unrated.texted };
+    view.brackets.forEach(function (bracket) {
+      sum.here += bracket.here;
+      sum.texted += bracket.texted;
+      sum.likely += bracket.likely;
+      sum.expected += bracket.expected;
+    });
+    sum.playing = sum.here + sum.texted;
+    return sum;
+  }
+
+  // ---- The header: when, the three numbers, and the plain table ----
+
+  function renderHeader(view, sum) {
+    var day = DAYS[T.weekday(view.date)];
+    byId("tonight-when").textContent = (view.today ? "Tonight" : "Next round robin") + " · " + longDate(view.date);
+    byId("tonight-title").textContent = view.today ? "Who’s playing tonight" : "Who’s playing " + day;
+    byId("tonight-live").hidden = !view.live;
+    byId("tonight-stats").hidden = false;
+    byId("stat-expected").textContent = sum.expected;
+    byId("stat-playing").textContent = sum.playing;
+    byId("stat-likely").textContent = sum.likely;
+    byId("stat-likely-box").hidden = view.phase === "underway";
+    var lede;
+    if (view.phase === "underway") {
+      lede = "Sign-up has closed: " + plural(sum.playing, "player is", "players are") + " on the floor tonight. Come watch, or join open play.";
+    } else if (view.today) {
+      lede = "About " + plural(sum.expected, "player", "players") + " expected tonight" +
+        (sum.playing ? ", and " + sum.playing + " already in: " + sum.here + " signed in at the desk, " + sum.texted + " texted." : ". Be one of the first in.") +
+        " Sign up at the desk from 6:45 to 7:15 PM; play starts at 7:30.";
+    } else {
+      lede = "About " + plural(sum.expected, "player", "players") + " expected on " + day + ". Players who sign in at the desk or text the club that day appear here as they come in.";
+    }
+    byId("tonight-lede").textContent = lede;
+
+    // The same numbers twice: zones across for a wide screen, zones down for a phone (style.css shows one).
+    var rows = [["Playing tonight", "is-playing", function (b) { return b.here + b.texted; }]];
+    if (view.phase !== "underway") rows.push(["Likely", "is-likely", function (b) { return b.likely; }]);
+    rows.push(["Expected", "is-expected", function (b) { return b.expected; }]);
+    var newFaces = view.unrated.here + view.unrated.texted;
+    var zones = view.brackets.map(function (bracket) { return { label: bracket.label, bracket: bracket }; });
+    if (newFaces) zones.push({ label: "New faces", bracket: { here: view.unrated.here, texted: view.unrated.texted, likely: 0, expected: newFaces } });
+    zones.push({ label: "All", bracket: { here: sum.here, texted: sum.texted, likely: sum.likely, expected: sum.expected }, total: true });
+
+    var cell = function (tag, text, className, scope) {
+      var node = el(tag, className || "", text);
+      if (scope) node.scope = scope;
+      return node;
+    };
+    var head = byId("summary-head");
+    var body = byId("summary-body");
+    while (head.children.length > 1) head.removeChild(head.lastChild);
+    body.textContent = "";
+    zones.forEach(function (zone) { head.appendChild(cell("th", zone.label, zone.total ? "summary-total" : "", "col")); });
+    rows.forEach(function (row) {
+      var tr = el("tr", row[1]);
+      tr.appendChild(cell("th", row[0], "", "row"));
+      zones.forEach(function (zone) { tr.appendChild(cell("td", String(row[2](zone.bracket)), zone.total ? "summary-total" : "")); });
+      body.appendChild(tr);
+    });
+
+    var stackedHead = byId("stacked-head");
+    var stacked = byId("stacked-body");
+    while (stackedHead.children.length > 1) stackedHead.removeChild(stackedHead.lastChild);
+    stacked.textContent = "";
+    rows.forEach(function (row) { stackedHead.appendChild(cell("th", row[0], row[1], "col")); });
+    zones.forEach(function (zone) {
+      var tr = el("tr", zone.total ? "summary-total" : "");
+      tr.appendChild(cell("th", zone.label, "", "row"));
+      rows.forEach(function (row) { tr.appendChild(cell("td", String(row[2](zone.bracket)), row[1])); });
+      stacked.appendChild(tr);
+    });
+    byId("tonight-summary-wrap").hidden = false;
+  }
+
+  // ---- The floor: the front desk, then one court per rating zone with two tables each ----
+
+  function scoreboard(count, changed) {
+    var board = el("div", "scoreboard" + (changed ? " is-flipping" : ""));
+    var digits = String(Math.min(99, count));
+    if (digits.length < 2) digits = "0" + digits;
+    digits.split("").forEach(function (digit) { board.appendChild(el("span", "flip", digit)); });
+    board.setAttribute("aria-hidden", "true");
+    return board;
+  }
+
+  function body(group, x, y, kind, upright, arriving) {
+    // Seen from above: shoulders and a head. At a table they face it, so the head leans toward the net.
+    var at = svg("g", { transform: "translate(" + x + " " + y + ") scale(1.35)" }, group);
+    var g = svg("g", { "class": "body is-" + kind + (arriving ? " is-arriving" : "") }, at);
+    svg("ellipse", upright ? { rx: 5.5, ry: 9 } : { rx: 9, ry: 5.5, cy: 2 }, g);
+    svg("circle", upright ? { r: 4.6, cx: x < 100 ? 2.2 : -2.2 } : { r: 4.6, cy: -1 }, g);
+    if (kind === "texted") svg("circle", { "class": "bubble", r: 3.4, cx: 8, cy: -9 }, g);
+    return g;
+  }
+
+  function table(group, y) {
+    svg("rect", { "class": "pp-table", x: 52, y: y, width: 96, height: 52, rx: 1.5 }, group);
+    svg("line", { "class": "pp-line", x1: 52, y1: y + 26, x2: 148, y2: y + 26 }, group);
+    svg("line", { "class": "pp-net", x1: 100, y1: y - 4, x2: 100, y2: y + 56 }, group);
+  }
+
+  // Where bodies go: the four ends of the two tables first, then two rows along the side of the court.
+  var SPOTS = [[30, 54, true], [170, 54, true], [30, 126, true], [170, 126, true]];
+  // Bench rows sit low enough for the bodies, drawn at 1.35 times their size, to clear the second table.
+  for (var row = 0; row < 2; row++) {
+    for (var col = 0; col < 7; col++) SPOTS.push([19 + col * 27, 176 + row * 24, false]);
+  }
+
+  function courtFloor(kinds, arrivingFrom, label) {
+    var floor = svg("svg", { "class": "court-floor", viewBox: "0 0 200 212", role: "img", "aria-label": label });
+    var group = svg("g", {}, floor);
+    table(group, 28);
+    table(group, 100);
+    var drawn = kinds.length > MAX_DRAWN ? MAX_DRAWN - 1 : kinds.length;
+    for (var i = 0; i < drawn; i++) {
+      var spot = SPOTS[i];
+      if (kinds[i] === "open") svg("circle", { "class": "open-spot", cx: spot[0], cy: spot[1], r: 8 }, group);
+      else body(group, spot[0], spot[1], kinds[i], spot[2], kinds[i] !== "likely" && i >= arrivingFrom);
+    }
+    if (drawn < kinds.length) {
+      var last = SPOTS[MAX_DRAWN - 1];
+      var more = svg("text", { "class": "more", x: last[0], y: last[1] + 4, "text-anchor": "middle" }, group);
+      more.textContent = "+" + (kinds.length - drawn);
+    }
+    return floor;
+  }
+
+  function court(bracket, before) {
+    var playing = bracket.here + bracket.texted;
+    var kinds = [];
+    var i;
+    for (i = 0; i < bracket.here; i++) kinds.push("here");
+    for (i = 0; i < bracket.texted; i++) kinds.push("texted");
+    for (i = 0; i < bracket.likely; i++) kinds.push("likely");
+    // The rest of the forecast as chalk marks on the floor: spots someone is expected to fill.
+    while (kinds.length < bracket.expected) kinds.push("open");
+    var was = before ? before.here + before.texted : playing;
+    var tile = el("article", "court" + (playing ? " has-players" : ""));
+    var head = el("div", "court-head");
+    var name = el("div", "court-name");
+    name.appendChild(el("span", "court-label", bracket.label));
+    name.appendChild(el("span", "court-sub", bracket.expected ? "expect about\u00a0" + bracket.expected : "room to play"));
+    head.appendChild(name);
+    head.appendChild(scoreboard(playing, before && was !== playing));
+    tile.appendChild(head);
+    var said = bracket.label + ": " + plural(playing, "player", "players") + " playing tonight" +
+      (bracket.likely ? ", " + bracket.likely + " likely" : "") + ", expect about " + bracket.expected + ".";
+    tile.appendChild(courtFloor(kinds, was, said));
+    return tile;
+  }
+
+  function frontDesk(view, before) {
+    var count = view.unrated.here + view.unrated.texted;
+    var was = before ? before.here + before.texted : count;
+    var tile = el("article", "court front-desk");
+    var head = el("div", "court-head");
+    var name = el("div", "court-name");
+    name.appendChild(el("span", "court-label", "Front desk"));
+    var note = view.phase === "underway" ? "sign-up closed" : view.today ? "sign up 6:45–7:15 PM" : "opens 6:45 PM " + DAYS[T.weekday(view.date)];
+    name.appendChild(el("span", "court-sub", note));
+    head.appendChild(name);
+    head.appendChild(scoreboard(count, before && was !== count));
+    tile.appendChild(head);
+    var floor = svg("svg", { "class": "court-floor", viewBox: "0 0 200 212", role: "img",
+      "aria-label": count ? plural(count, "new face", "new faces") + " at the front desk, rating to come." : "The front desk. Your spot is open." });
+    var group = svg("g", {}, floor);
+    svg("rect", { "class": "desk", x: 40, y: 22, width: 120, height: 26, rx: 3 }, group);
+    svg("rect", { "class": "desk-sheet", x: 88, y: 28, width: 24, height: 14, rx: 1 }, group);
+    svg("rect", { "class": "door", x: 76, y: 204, width: 48, height: 8 }, group);
+    var kinds = [];
+    for (var i = 0; i < view.unrated.here; i++) kinds.push("here");
+    for (i = 0; i < view.unrated.texted; i++) kinds.push("texted");
+    kinds.slice(0, 12).forEach(function (kind, index) {
+      body(group, index % 2 ? 118 : 82, 66 + Math.floor(index / 2) * 22, kind, false, index >= was);
+    });
+    if (kinds.length > 12) {
+      var more = svg("text", { "class": "more", x: 100, y: 200, "text-anchor": "middle" }, group);
+      more.textContent = "+" + (kinds.length - 12);
+    }
+    if (!kinds.length) {
+      var open = svg("text", { "class": "desk-open", x: 100, y: 120, "text-anchor": "middle" }, group);
+      open.textContent = "Your spot is open";
+    }
+    tile.appendChild(floor);
+    return tile;
+  }
+
+  function renderFloor(view, before) {
+    var floor = byId("gym-floor");
+    floor.textContent = "";
+    floor.appendChild(frontDesk(view, before && before.unrated));
+    view.brackets.forEach(function (bracket, index) {
+      floor.appendChild(court(bracket, before && before.brackets[index]));
+    });
+  }
+
+  // "Just now: 2 more players in (1000-1199, 1200-1399)" when people arrive between two looks.
+  function renderTicker(view, before) {
+    if (!before) return;
+    var zones = [];
+    var added = 0;
+    view.brackets.forEach(function (bracket, index) {
+      var more = bracket.here + bracket.texted - before.brackets[index].here - before.brackets[index].texted;
+      if (more > 0) { added += more; zones.push(bracket.label); }
+    });
+    var newFaces = view.unrated.here + view.unrated.texted - before.unrated.here - before.unrated.texted;
+    if (newFaces > 0) { added += newFaces; zones.push("front desk"); }
+    if (added) byId("tonight-ticker").textContent = "Just now: " + plural(added, "more player", "more players") + " in (" + zones.join(", ") + ").";
+  }
+
+  function renderUpdated() {
+    if (!shown) return;
+    var minutes = Math.floor((Date.now() - shown.updatedAt) / 60000);
+    byId("tonight-updated").textContent = shown.live ? "· updated " + (minutes < 1 ? "just now" : plural(minutes, "minute", "minutes") + " ago") : "";
+  }
+
+  function render(view) {
+    if (!view.date) {
+      byId("tonight-lede").textContent = "No round robin is scheduled in the next four weeks. Check the home page for closures.";
+      return;
+    }
+    var before = shown && shown.date === view.date && shown.brackets ? shown : null;
+    var sum = totals(view);
+    renderHeader(view, sum);
+    renderFloor(view, before);
+    renderTicker(view, before);
+    shown = view;
+    renderUpdated();
+    var status = byId("tonight-status");
+    status.hidden = view.live;
+    status.textContent = view.live ? "" : "Live sign-ins are not showing right now, so this is the forecast from recent nights.";
+  }
+
+  function refresh() {
+    if (!TURNOUT_URL) return;
+    live().then(render, function () {
+      if (shown && shown.live) byId("tonight-updated").textContent = "· could not refresh, trying again";
+    });
+  }
+
+  function start() {
+    (TURNOUT_URL ? live() : Promise.reject(new Error("no app"))).catch(forecast).then(render, function () {
+      byId("tonight-lede").textContent = "Could not load tonight’s floor. Try refreshing the page.";
+    });
+    if (!TURNOUT_URL) return;
+    setInterval(function () { if (!document.hidden) refresh(); }, POLL_MS);
+    setInterval(renderUpdated, 30000);
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden && shown && Date.now() - shown.updatedAt > POLL_MS) refresh();
+    });
+  }
+
+  start();
+}());
+</script>
+
+</body>
+</html>
