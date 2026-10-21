@@ -351,6 +351,58 @@ const cases = {
     assert.deepEqual(tab.errors, []);
   },
 
+  // Tonight's volunteers: the people signed up to open or close are listed with RR and Open, and a press only adds them
+  // (to the draft, or to Open Play), like the directory's buttons. Nothing is texted or emailed.
+  async volunteersTonight() {
+    const world = sim.createWorld({ seed: 23 });
+    const [ray, ron, mia] = world.players;
+    const header = ['signup_id', 'batch_id', 'date', 'position', 'finalize', 'player_id', 'name', 'email', 'status', 'created_at', 'expires_at'];
+    const signups = [header,
+      ['1', 'b', DATE, 'desk', '', ray.player_id, ray.display_name, 'r@example.com', 'confirmed', '', ''],
+      ['2', 'b', DATE, 'close', '', ron.player_id, ron.display_name, 'o@example.com', 'confirmed', '', ''],
+      ['3', 'b', DATE, 'money', '', mia.player_id, mia.display_name, 'm@example.com', 'pending', '', String(Date.parse(DATE + 'T23:00:00Z') + 86400000)]];
+    world.server.properties.CTTC_STAFFING_DB_ID = 'staffing-sheet';
+    world.server.context.SpreadsheetApp.openById = id => {
+      assert.equal(id, 'staffing-sheet');
+      return { getSheetByName: name => (name === 'Signups' ? { getDataRange: () => ({ getValues: () => signups.map(r => r.slice()) }) } : null) };
+    };
+    let sent = 0;
+    world.server.gmail.threads = [{ getMessages: () => [] }];
+    ['sendVoiceConfirmation', 'answerVoiceSignups'].forEach(name => {
+      const real = world.server.context[name];
+      world.server.context[name] = (...args) => { sent += 1; return real(...args); };
+    });
+    const tab = world.device().open();
+    await run(world, 15000);
+    const doc = tab.window.document;
+    const rows = () => [...doc.querySelectorAll('.volunteer-signups li')].map(li => [li.querySelector('strong').textContent, li.querySelector('.identity span').textContent,
+      [...li.querySelectorAll('.volunteer-actions button, .volunteer-actions .roster-status')].map(node => node.textContent).join('/')]);
+    assert.deepEqual(rows(), [
+      [ray.display_name, 'Desk organizer', 'RR/Open'],
+      [mia.display_name, 'Front desk · waiting to confirm', 'RR/Open'],
+      [ron.display_name, 'Put away', 'RR/Open']
+    ]);
+    assert.ok(doc.querySelector('.voice-suggestions').nextElementSibling.classList.contains('volunteer-signups'), 'right after Voice signups');
+
+    tab.click(doc.querySelector('[data-volunteer-rr="' + ray.player_id + '"]'));
+    tab.click(doc.querySelector('[data-volunteer-open="' + ron.player_id + '"]'));
+    assert.ok(tab.roster().includes(ray.player_id), 'RR adds to the draft at once');
+    assert.ok(doc.querySelector('#open-roster [data-open-remove="' + ron.player_id + '"]'), 'Open adds to Open Play at once');
+    assert.deepEqual(rows().map(r => r[2]), ['In RR', 'RR/Open', 'In Open']);
+    await run(world, 30000);
+    assert.ok(JSON.parse(sim.googleKey(world, DATE)).groups.join(',').includes(ray.player_id), 'the draft with Ray reached Google');
+    assert.ok(world.server.rows('OpenPlay').some(r => String(r.player_id) === ron.player_id), 'Ron reached Open Play on Google');
+    assert.equal(sent, 0, 'no text or email was sent');
+    assert.deepEqual(tab.errors, []);
+
+    // Not connected: the section says so, and the rest of the desk works as before.
+    delete world.server.properties.CTTC_STAFFING_DB_ID;
+    tab.click(doc.querySelector('.volunteer-signups button.secondary'));
+    await run(world, 10000);
+    assert.match(doc.querySelector('.volunteer-signups .hint').textContent, /Not connected/);
+    assert.equal(doc.querySelectorAll('.volunteer-signups li').length, 0);
+  },
+
   // Add all never waits on Google: with Google not answering at all (or the Wi-Fi off), the players are on the draft the
   // moment it is pressed, and their Confirmed. texts go out by themselves once Google answers again.
   async addAllNeverWaitsForGoogle() {
