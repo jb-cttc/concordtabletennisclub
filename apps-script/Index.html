@@ -60,7 +60,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
   var READ_TIMEOUT_MS = 30000;
-  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1 };
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -2516,15 +2516,20 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     }
     openFailures = 0;
   }
+  // Puts a player in Open Play on this device at once and syncs it in the background, as the directory's Open button does.
+  function addOpen(playerId) {
+    if (open.indexOf(playerId) >= 0) return false;
+    setOpen(playerId, true);
+    renderOpen();
+    outbox.enqueue(openKey(date.value, playerId), 'setOpenPlayParticipant', [date.value, playerId, true]);
+    return true;
+  }
+  window.cttcOpenPlay = { add: addOpen };
   results.addEventListener('click', function (event) {
     var button = event.target.closest('[data-open-add]');
     if (!button) return;
     event.stopPropagation();
-    var playerId = button.getAttribute('data-open-add');
-    if (open.indexOf(playerId) >= 0) return;
-    setOpen(playerId, true);
-    renderOpen();
-    outbox.enqueue(openKey(date.value, playerId), 'setOpenPlayParticipant', [date.value, playerId, true]);
+    addOpen(button.getAttribute('data-open-add'));
   }, true);
   list.addEventListener('click', function (event) {
     var button = event.target.closest('[data-open-remove]');
@@ -2854,6 +2859,129 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     load(true);
   }, POLL_MS);
   var initialPlayers = window.cttcInitialPlayers;
+  load();
+})();
+</script>
+<style>
+.volunteer-signups ul{list-style:none;padding:0;margin:8px 0}
+.volunteer-signups li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #dce3df}
+.volunteer-signups .identity{display:flex;flex-direction:column;min-width:0}
+.volunteer-signups .identity span{color:var(--muted);font:12px Arial,sans-serif}
+.volunteer-signups .volunteer-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.volunteer-signups .roster-status{font-size:12px}
+.volunteer-signups .roster-status.muted{color:var(--muted)}
+</style>
+<script>
+// Tonight's volunteers (Volunteers.js): who signed up in the volunteer app to open or close on this date, with RR and Open
+// buttons, because volunteers are busy setting up and forget to sign in. A press only adds them to this device's draft or
+// Open Play, exactly like the directory's buttons: nothing is texted or emailed.
+(function () {
+  var date = document.getElementById('date');
+  var groups = document.getElementById('groups');
+  var open = document.getElementById('open-roster');
+  var section = document.createElement('section');
+  section.className = 'section volunteer-signups';
+  var heading = document.createElement('h2');
+  heading.textContent = 'Tonight’s volunteers';
+  var message = document.createElement('p');
+  message.className = 'hint';
+  var list = document.createElement('ul');
+  var refresh = document.createElement('button');
+  refresh.type = 'button';
+  refresh.className = 'small secondary';
+  refresh.textContent = 'Refresh';
+  section.append(heading, message, list, refresh);
+  (document.querySelector('.voice-suggestions') || document.getElementById('new-player').closest('.section')).after(section);
+  var volunteers = [];
+  var connected = true;
+  var loaded = false;
+  var requestNumber = 0;
+
+  function placed(playerId) {
+    return window.cttcDesk.has(playerId) ? 'In RR' : open.querySelector('[data-coaching="' + CSS.escape(playerId) + '"]') ? 'Coaching' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
+  }
+
+  function button(label, attribute, playerId, title) {
+    var node = document.createElement('button');
+    node.type = 'button';
+    node.className = 'small';
+    node.textContent = label;
+    node.title = title;
+    node.setAttribute(attribute, playerId);
+    return node;
+  }
+
+  function render() {
+    list.replaceChildren();
+    volunteers.forEach(function (volunteer) {
+      var item = document.createElement('li');
+      var identity = document.createElement('div');
+      identity.className = 'identity';
+      var name = document.createElement('strong');
+      name.textContent = volunteer.name;
+      var roles = document.createElement('span');
+      roles.textContent = volunteer.roles.join(', ') + (volunteer.waiting ? ' · waiting to confirm' : '');
+      identity.append(name, roles);
+      var actions = document.createElement('div');
+      actions.className = 'volunteer-actions';
+      var where = volunteer.playerId ? placed(volunteer.playerId) : '';
+      if (!volunteer.playerId) {
+        var none = document.createElement('span');
+        none.className = 'roster-status muted';
+        none.textContent = 'Not an active player';
+        none.title = 'Search the directory (Show archived players) or add them under Add a player, then use RR or Open there.';
+        actions.appendChild(none);
+      } else if (where) {
+        var status = document.createElement('span');
+        status.className = 'roster-status';
+        status.textContent = where;
+        actions.appendChild(status);
+      } else {
+        actions.append(
+          button('RR', 'data-volunteer-rr', volunteer.playerId, 'Add ' + volunteer.name + ' to the RR draft'),
+          button('Open', 'data-volunteer-open', volunteer.playerId, 'Add ' + volunteer.name + ' to Open Play')
+        );
+      }
+      item.append(identity, actions);
+      list.appendChild(item);
+    });
+    if (!loaded) return;
+    message.textContent = !connected ? 'Not connected to the volunteer sign-ups yet (desk script property CTTC_STAFFING_DB_ID).' :
+      volunteers.length ? 'Signed up to open or close on this date. Add the ones who are playing.' : 'No volunteers signed up for this date.';
+  }
+
+  async function load() {
+    var selectedDate = date.value;
+    var current = ++requestNumber;
+    volunteers = [];
+    loaded = false;
+    list.replaceChildren();
+    message.textContent = 'Checking volunteer sign-ups...';
+    try {
+      var answer = await window.cttcRequest('listVolunteers', selectedDate);
+      if (current !== requestNumber || date.value !== selectedDate) return;
+      connected = answer.connected;
+      volunteers = answer.volunteers;
+      loaded = true;
+      render();
+    } catch (error) {
+      if (current === requestNumber) message.textContent = 'Volunteer sign-ups unavailable: ' + (error.message || error);
+    }
+  }
+
+  list.addEventListener('click', function (event) {
+    var rr = event.target.closest('[data-volunteer-rr]');
+    var openButton = event.target.closest('[data-volunteer-open]');
+    if (rr) window.cttcDesk.add(rr.getAttribute('data-volunteer-rr'), 'volunteer sign-ups');
+    else if (openButton) window.cttcOpenPlay.add(openButton.getAttribute('data-volunteer-open'));
+    else return;
+    render();
+  });
+  new MutationObserver(function () { if (loaded) render(); }).observe(groups, { childList: true });
+  new MutationObserver(function () { if (loaded) render(); }).observe(open, { childList: true });
+  document.getElementById('load').addEventListener('click', load);
+  date.addEventListener('change', load);
+  refresh.addEventListener('click', load);
   load();
 })();
 </script>

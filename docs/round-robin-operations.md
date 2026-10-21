@@ -209,6 +209,30 @@ minute by itself and briefly highlights anyone new. It skips a minute while
 a message preview is open or the device is offline. **Refresh** still works
 at any time.
 
+## Tonight's volunteers
+
+Under **Voice signups**, **Tonight's volunteers** lists everyone signed up in
+the volunteer app (`staffing-app/`) to open or close on the selected date,
+with their roles. A sign-up still waiting for its YES shows "waiting to
+confirm"; released, expired, dropped and cancelled ones are left out. Each
+person has **RR** and **Open** buttons that do exactly what the directory's
+buttons do (add to the draft, or to Open Play), because volunteers are busy
+setting up and often forget to sign in. Nothing is texted or emailed. Once
+someone is placed the buttons give way to *In RR*, *In Open* or *Coaching*.
+A name that is not an active directory player says so; find them in the
+directory (Show archived players) or add them under **Add a player**.
+
+The desk only reads the volunteer app's private Sheet (tab `Signups`, by
+header name; never emails or phone numbers) and never writes to it
+(`apps-script/Volunteers.js`). To connect it, set the desk's script property
+`CTTC_STAFFING_DB_ID` to the id of the Sheet named "CTTC Staffing (private -
+do not share)" (the part of its address after `/d/`); until then the section
+says it is not connected and the rest of the desk works as before.
+
+Volunteering does not count toward the Tonight page by itself: a volunteer
+is at the gym, not necessarily in the round robin. Once one is added to RR
+here they count as playing tonight like anyone signed in.
+
 ### Automatic answers
 
 When switched on, the desk answers round robin texts by itself
