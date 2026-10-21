@@ -1528,6 +1528,20 @@ tr.hof-gold td:nth-child(2) {
   margin-bottom: 12px;
 }
 
+.tonight-text-us {
+  border: 1px solid #b9d6bf;
+  border-left: 4px solid #1f6b3a;
+  background: #f0f7f1;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.tonight-text-us a {
+  color: #1f5a2e;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .tonight-cta {
   display: flex;
   flex-wrap: wrap;

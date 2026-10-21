@@ -20,7 +20,16 @@ Zones: under 600, 600–799, 800–999, 1000–1199, 1200–1399, 1400–1599 an
 1600+. The bottom of each range is in it and the top is not.
 
 Each person is counted once, at their firmest status: signed in, then
-texted, then likely. A text is left out when it is a command for another
+texted, then likely. People who sign in or text move from the forecast into
+"playing tonight" rather than being added on top: the expected number holds
+at the night's total until more people are playing than were expected
+(`scripts/check-turnout.js` plays out a night to check this).
+
+Under the headline numbers the page invites a text: "Want to be included?
+Text us at (925) 238-3505 any time today and we'll add you here". The app
+counts the text within a minute; no one has to add it by hand. Ahead of the
+night it names the day, since only texts sent on the night itself count, and
+it is hidden once sign-up closes. A text is left out when it is a command for another
 app (`COACH`, `STUDENT`, `STOP`, `STAFF`, `CONFIRM`, `RELEASE`, `YES`, `NO`)
 or when the sender's latest text that day says they are not coming
 ("can't make it"). Someone whose text could not be matched and who later

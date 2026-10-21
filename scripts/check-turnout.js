@@ -103,6 +103,27 @@ assert.deepEqual(split.brackets.map(b => b.expected), [0, 0, 0, 1, 0, 0, 1], 'mo
 split = T.tally(crowd.filter(p => p.key !== 'u1'), 27.4);
 assert.equal(sumOf(split), 27, 'whole people per zone that add up to the forecast');
 
+// No double counting: as forecast players sign in or text, they move from expected into playing, and the total holds
+// until more are playing than were expected.
+const regulars = Array.from({ length: 40 }, (_, k) => ({ key: 'r' + k, rating: 500 + (k % 8) * 200, status: k < 3 ? 'likely' : 'maybe', chance: k < 3 ? 0.92 : 0.6 - k * 0.012 }));
+const night = [];
+for (let confirmed = 0; confirmed <= 34; confirmed++) {
+  const people = regulars.concat(regulars.slice(0, confirmed).map((p, k) => Object.assign({}, p, { status: k % 3 ? 'here' : 'texted' })));
+  const t = T.tally(people, 30.2);
+  const playing = t.brackets.reduce((sum, b) => sum + b.here + b.texted, 0);
+  assert.equal(playing, confirmed, 'each person once');
+  t.brackets.forEach(b => assert.ok(b.expected >= b.here + b.texted + b.likely, 'every body drawn has a place in its zone'));
+  night.push(sumOf(t));
+}
+assert.deepEqual(night.slice(0, 31), Array(31).fill(30), 'expected stays at 30 while people confirm');
+assert.deepEqual(night.slice(31), [31, 32, 33, 34], 'and only grows when more than 30 are playing');
+// Three likely regulars in a zone whose share is smaller: the other zones give way, the total does not grow.
+const crowded = [{ key: 'a', rating: 1700, status: 'likely', chance: 0.9 }, { key: 'b', rating: 1700, status: 'likely', chance: 0.9 },
+  { key: 'c', rating: 1700, status: 'likely', chance: 0.9 }].concat(Array.from({ length: 30 }, (_, k) => ({ key: 'm' + k, rating: 700, status: 'maybe', chance: 0.9 })));
+split = T.tally(crowded, 10);
+assert.equal(split.brackets[6].expected, 3);
+assert.equal(sumOf(split), 10);
+
 // ---- The page ----
 const html = read('tonight.html');
 const turnoutUrl = /var TURNOUT_URL = "([^"]*)";/.exec(html);
@@ -156,6 +177,9 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   assert.equal(offline.$('stat-playing').textContent, '0');
   assert.equal(offline.$('stat-likely').textContent, '1', 'Ada');
   assert.equal(offline.timers.length, 0, 'nothing to poll');
+  assert.equal(offline.$('tonight-text-us').hidden, false, 'invites a text');
+  assert.equal(offline.$('tonight-text-us').querySelector('a').getAttribute('href'), 'sms:9252383505');
+  assert.equal(offline.$('text-us-when').textContent, 'any time today');
   const courts = offline.window.document.querySelectorAll('#gym-floor .court');
   assert.equal(courts.length, 8, 'the front desk and seven zones');
   assert.equal(courts[5].querySelector('.court-label').textContent, '1200–1399');
@@ -213,6 +237,7 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   const late = page({ now: MONDAY_10AM, url, answers: [closed] });
   await settle();
   assert.equal(late.$('stat-likely-box').hidden, true);
+  assert.equal(late.$('tonight-text-us').hidden, true, 'no invitation once sign-up has closed');
   assert.match(late.$('tonight-lede').textContent, /^Sign-up has closed: 7 players are on the floor tonight/);
   assert.equal([...late.window.document.querySelectorAll('#summary-body th')].map(th => th.textContent).join('|'), 'Playing tonight|Expected');
 
@@ -230,6 +255,7 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   await settle();
   assert.equal(friday.$('tonight-title').textContent, 'Who’s playing Monday');
   assert.equal(friday.$('tonight-when').textContent, 'Next round robin · Monday, October 26');
+  assert.equal(friday.$('text-us-when').textContent, 'any time on Monday', 'a Friday text does not count for Monday');
 
   console.log('Turnout checks passed');
 }()).catch(error => { console.error(error); process.exit(1); });

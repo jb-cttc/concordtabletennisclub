@@ -160,17 +160,23 @@
       mass += chances[i];
     });
     var scale = typeof total === "number" && isFinite(total) ? (mass ? Math.max(0, total - playing) / mass : 0) : 1;
-    // Whole people per zone that add up to the rounded forecast: round down, then the largest remainders get one more.
+    // Whole people per zone that add up to the rounded forecast, so people who confirm move from the forecast into
+    // "playing" instead of being added on top. Each zone has at least the people drawn in it (playing and likely);
+    // the rest goes to the zones whose share is furthest above that, a whole person at a time.
     var raw = brackets.map(function (bracket, i) { return bracket.here + bracket.texted + chances[i] * scale; });
-    var whole = raw.map(Math.floor);
-    var left = Math.round(raw.reduce(function (sum, value) { return sum + value; }, 0)) - whole.reduce(function (sum, value) { return sum + value; }, 0);
-    raw.map(function (value, i) { return { i: i, rest: value - whole[i] }; })
-      .sort(function (a, b) { return b.rest - a.rest || a.i - b.i; })
-      .slice(0, Math.max(0, left))
-      .forEach(function (item) { whole[item.i] += 1; });
-    brackets.forEach(function (bracket, i) {
-      bracket.expected = Math.max(bracket.here + bracket.texted + bracket.likely, whole[i]);
-    });
+    var floor = brackets.map(function (bracket) { return bracket.here + bracket.texted + bracket.likely; });
+    var whole = floor.slice();
+    var target = Math.max(Math.round(raw.reduce(function (sum, value) { return sum + value; }, 0)), floor.reduce(function (sum, value) { return sum + value; }, 0));
+    var left = target - whole.reduce(function (sum, value) { return sum + value; }, 0);
+    while (left > 0) {
+      var pick = 0;
+      for (var i = 1; i < whole.length; i++) {
+        if (raw[i] - whole[i] > raw[pick] - whole[pick]) pick = i;
+      }
+      whole[pick] += 1;
+      left -= 1;
+    }
+    brackets.forEach(function (bracket, i) { bracket.expected = whole[i]; });
     return { brackets: brackets, unrated: unrated };
   }
 

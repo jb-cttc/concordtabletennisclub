@@ -49,6 +49,9 @@
     <div class="tonight-stat is-likely" id="stat-likely-box"><strong id="stat-likely">0</strong><span>likely regulars</span></div>
   </div>
   <p id="tonight-lede" class="tonight-lede">Loading tonight&rsquo;s floor&hellip;</p>
+  <p id="tonight-text-us" class="tonight-text-us">
+    <strong>Want to be included?</strong> Text us at <a href="sms:9252383505">(925) 238-3505</a> <span id="text-us-when">any time during the day</span> and we&rsquo;ll add you here.
+  </p>
   <p class="tonight-cta">
     <a class="button-link" href="firstvisit.html">First visit? Start here</a>
     <a href="https://www.google.com/maps/place/2336+Buena+Vista+Ave,+Walnut+Creek,+CA+94597" target="_blank" rel="noopener">Directions</a>
@@ -214,6 +217,9 @@
       lede = "About " + plural(sum.expected, "player", "players") + " expected on " + day + ". Players who sign in at the desk or text the club that day appear here as they come in.";
     }
     byId("tonight-lede").textContent = lede;
+    // A text counts on the night itself, so ahead of time the note names the day; once sign-up closes it goes.
+    byId("tonight-text-us").hidden = view.phase === "underway";
+    byId("text-us-when").textContent = view.today ? "any time today" : "any time on " + day;
 
     // The same numbers twice: zones across for a wide screen, zones down for a phone (style.css shows one).
     var rows = [["Playing tonight", "is-playing", function (b) { return b.here + b.texted; }]];
