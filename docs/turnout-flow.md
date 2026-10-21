@@ -124,6 +124,14 @@ must never live in it. `check-turnout-app.cjs` asserts that only `doGet`,
 5. Put the `/exec` URL into `TURNOUT_URL` in `tonight.html` in a pull
    request. The page then shows **Live**.
 
+The released app (project "CTTC turnout", script id in `turnout-app/.clasp.json`):
+`https://script.google.com/macros/s/AKfycbyhCXunOPJi54n5HQTTiRuvyTs-pSUvmirVHk7sxqS4WAlxvLmSHfdqCrI0fYimh6dXPQ/exec`
+
+`setup` prints its result to the editor's execution log ("Ready: … players in
+the desk Sheet, … published nights"); the Run button shows only what is
+logged. Before the owner has run `setup` once and approved its permissions,
+the address answers "Access Denied" and the page shows the forecast only.
+
 Scopes: `spreadsheets` (to read the desk Sheet), `mail.google.com` (to read
 forwarded Voice texts; it never replies), `script.external_request` (to read
 `closures.json` and `session-roster.json` from the site), `userinfo.email`

@@ -220,6 +220,9 @@ properties = { DESK_SHEET_ID: 'desk-sheet' };
 // setup only works for the owner in the editor.
 assert.match(call('setup'), /signed in as the owner/);
 context.Session.getActiveUser = () => ({ getEmail: () => 'club@example.com' });
+const logged = [];
+context.console.log = line => logged.push(line);
 assert.match(call('setup'), /^Ready: 8 players in the desk Sheet, \d+ published nights\.$/);
+assert.deepEqual(logged.map(line => /^Ready: /.test(line)), [true], 'the editor shows the result: Run displays only the log');
 
 console.log('Turnout app checks passed');

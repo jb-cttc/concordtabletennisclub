@@ -49,6 +49,13 @@ function turnout() {
 // Run once from the Apps Script editor by the owner, after setting DESK_SHEET_ID: Google asks for the permissions, and the
 // result says what the app could read. Does nothing for anyone else.
 function setup() {
+  var result = setup_();
+  // The editor's Run button shows only what is logged, not what a function returns.
+  console.log(result);
+  return result;
+}
+
+function setup_() {
   if (!Session.getEffectiveUser().getEmail() || Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) {
     return 'Run setup from the Apps Script editor while signed in as the owner.';
   }
