@@ -76,6 +76,33 @@ assert.equal(tally.brackets[2].here, 0, 'no key or an unknown status is not coun
 assert.deepEqual(tally.unrated, { here: 1, texted: 1 }, 'a likely player with no rating is left out');
 assert.equal(T.tally([{ key: 'a', rating: 700, status: 'likely', chance: 0.4 }]).brackets[1].expected, 1, 'expected is never below those shown');
 
+// ---- The night's total: recent turnout on the same weekday, shared out by chance ----
+const sizes = {};
+['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'].forEach((d, i) => { sizes[d] = Array.from({ length: 20 + i * 4 }, (_, k) => 'P' + k); });
+sizes['2026-10-14'] = Array.from({ length: 99 }, (_, k) => 'W' + k);
+const weights = [1, 0.9, 0.81, 0.729];
+assert.ok(Math.abs(T.expectedTotal(sizes, '2026-10-26') - (32 * 1 + 28 * 0.9 + 24 * 0.81 + 20 * 0.729) / weights.reduce((a, b) => a + b)) < 1e-9, 'recent Mondays count most; Wednesdays not at all');
+assert.equal(T.expectedTotal(sizes, '2026-09-28'), null, 'no earlier Monday, no total');
+
+const crowd = [
+  { key: 'h1', rating: 1100, status: 'here' },
+  { key: 't1', rating: null, status: 'texted' },
+  { key: 'm1', rating: 1100, status: 'maybe', chance: 0.5 },
+  { key: 'm2', rating: 500, status: 'maybe', chance: 0.5 },
+  { key: 'l1', rating: 1700, status: 'likely', chance: 0.95 },
+  { key: 'm3', rating: 1700, status: 'maybe', chance: 0.05 },
+  { key: 'u1', rating: null, status: 'maybe', chance: 0.5 }
+];
+const sumOf = t => t.brackets.reduce((sum, b) => sum + b.expected, 0) + t.unrated.here + t.unrated.texted;
+let split = T.tally(crowd, 9.5);
+// 2 playing; 7.5 more shared by chance (2.5 in all, 0.5 of it with no rating): x3.
+assert.deepEqual(split.brackets.map(b => b.expected), [2, 0, 0, 2, 0, 0, 3], 'under 600: 1.5; 1000-1199: 1 + 1.5; 1600+: 3; 7 in all, and the tied half goes to the lower zone');
+assert.equal(sumOf(split), 8, 'the share of players with no rating is not drawn in any zone');
+split = T.tally(crowd, 1);
+assert.deepEqual(split.brackets.map(b => b.expected), [0, 0, 0, 1, 0, 0, 1], 'more already playing than usual: only who is playing, and the likely');
+split = T.tally(crowd.filter(p => p.key !== 'u1'), 27.4);
+assert.equal(sumOf(split), 27, 'whole people per zone that add up to the forecast');
+
 // ---- The page ----
 const html = read('tonight.html');
 const turnoutUrl = /var TURNOUT_URL = "([^"]*)";/.exec(html);

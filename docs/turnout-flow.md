@@ -13,7 +13,7 @@ player. The plain table above the floor carries the same numbers.
 | Solid body | **Playing tonight**: signed in at the desk | The desk Sheet: `SessionPlayers` rows for tonight's `Sessions` row, at `starting_rating`. |
 | Solid body with a green bubble | **Playing tonight**: texted the club today | Forwarded Google Voice texts in the club's Gmail, matched to a player by contact name (`Players.display_name`, then `Aliases`). |
 | Ghost body | **Likely**: a regular with a 90% or better chance of coming | `turnout.js` `likelihood()` on the site's `data/session-roster.json`. |
-| Chalk spot | **Expected**: the rest of the forecast | Everyone playing, plus each other recent player's chance, rounded per zone. |
+| Chalk spot | **Expected**: the rest of the forecast | The night's total is the usual turnout for that weekday (`expectedTotal`: the last 8 same-weekday nights, recent ones counting most). Everyone playing is in it; the rest is shared out between the zones by each other recent player's chance. |
 | Body at the front desk | Playing tonight, but no rating known (an unmatched text, a number with no contact name, a player with a blank rating) | Counted in the **New faces** column. |
 
 Zones: under 600, 600–799, 800–999, 1000–1199, 1200–1399, 1400–1599 and
@@ -48,8 +48,15 @@ nights a player came is their chance.
 The score is calibrated: across 2025–2026, players scored 0.7–0.8 came about
 77% of the time and those scored 0.9 or more about 90%. Because 90% is
 strict, usually only 1 or 2 perfect regulars are flagged a night; the chalk
-spots carry the rest of the forecast. The expected total has been off by
-about 4 players a night. Check the current figures with:
+spots carry the rest of the forecast.
+
+The expected total is not the sum of everyone's chances: that ran about 2
+players high on Wednesdays, because Monday's bigger crowd and the many
+once-in-a-while players each add a little. The recent same-weekday average
+has no such bias and has been off by about 3 players a night. A
+same-time-last-year adjustment was tried and made Wednesdays worse (October
+Wednesdays averaged about 30 in 2024 but about 24 in 2025). Check the
+current figures with:
 
 ```sh
 npm run turnout:backtest            # from 2025-01-01

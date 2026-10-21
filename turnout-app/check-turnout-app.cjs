@@ -95,7 +95,9 @@ const CacheService = {
 
 const mondays = ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'];
 const siteRoster = {};
-mondays.forEach(d => { siteRoster[d] = ['Ada Every', 'Bo Mondays', 'Hal Unknown']; });
+// A usual Monday is 20: these three plus 17 others the desk doesn't know, so 20 is the forecast total.
+const others = Array.from({ length: 17 }, (_, i) => 'Other Player ' + i);
+mondays.forEach(d => { siteRoster[d] = ['Ada Every', 'Bo Mondays', 'Hal Unknown'].concat(others); });
 mondays.map(d => new Date(Date.parse(d) + 2 * 86400000).toISOString().slice(0, 10)).forEach(d => { siteRoster[d] = ['Ada Every', 'Hal Unknown']; });
 // Big enough to need more than one cache part.
 siteRoster['2024-01-01'] = Array.from({ length: 4000 }, (_, i) => 'Long Ago Player ' + i);

@@ -47,7 +47,7 @@
 
   // How names are compared between the published roster, the desk and Google Voice contacts.
   function nameKey(name) {
-    return String(name || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    return String(name || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
       .replace(/[^a-z0-9]+/g, " ").trim();
   }
 
@@ -101,6 +101,21 @@
     return chance;
   }
 
+  // How many to expect on date in all: the recency-weighted average turnout of the last LOOKBACK nights on the same
+  // weekday. Summing every player's chance instead ran about 2 high on Wednesdays (Monday's bigger crowd and many
+  // once-in-a-while players each add a little), and a same-time-last-year adjustment made it worse, not better.
+  function expectedTotal(roster, date) {
+    var day = weekday(date);
+    var same = Object.keys(roster || {}).filter(function (d) { return d < date && weekday(d) === day; }).sort().reverse().slice(0, LOOKBACK);
+    var weight = 0;
+    var players = 0;
+    same.forEach(function (d, i) {
+      weight += Math.pow(DECAY, i);
+      players += Math.pow(DECAY, i) * (roster[d] || []).length;
+    });
+    return weight ? players / weight : null;
+  }
+
   function likelyNames(roster, date) {
     var chance = likelihood(roster, date);
     return Object.keys(chance).filter(function (name) { return chance[name] >= LIKELY_AT; }).sort();
@@ -109,8 +124,9 @@
   // people: [{key, rating, status, chance}]. status is "here" (signed in at the desk), "texted" (Google Voice today),
   // "likely" (chance of LIKELY_AT or more) or "maybe" (any other recent player, who only adds their chance to expected).
   // A person is counted once, at their firmest status. Returns counts only, per bracket, plus the people with no rating.
-  // expected is the forecast: everyone playing tonight, plus each other player's chance, rounded.
-  function tally(people) {
+  // expected is the forecast: everyone playing tonight, plus the rest of total (expectedTotal) shared out between the
+  // zones by the other players' chances. Without total, each chance counts as it is.
+  function tally(people, total) {
     var rank = { here: 4, texted: 3, likely: 2, maybe: 1 };
     var best = {};
     (people || []).forEach(function (person) {
@@ -122,19 +138,38 @@
       return { label: bracket.label, min: bracket.min, max: bracket.max, here: 0, texted: 0, likely: 0, expected: 0 };
     });
     var unrated = { here: 0, texted: 0 };
+    var chances = BRACKETS.map(function () { return 0; });
+    // Recent players with no rating take their share of the forecast with them: no zone gets it.
+    var unratedChance = 0;
     Object.keys(best).forEach(function (key) {
       var person = best[key];
       var at = bracketIndex(person.rating);
       var sure = person.status === "here" || person.status === "texted";
       if (at < 0) {
         if (sure) unrated[person.status] += 1;
+        else unratedChance += Math.max(0, Math.min(1, Number(person.chance) || 0));
         return;
       }
       if (person.status !== "maybe") brackets[at][person.status] += 1;
-      brackets[at].expected += sure ? 1 : Math.max(0, Math.min(1, Number(person.chance) || 0));
+      if (!sure) chances[at] += Math.max(0, Math.min(1, Number(person.chance) || 0));
     });
-    brackets.forEach(function (bracket) {
-      bracket.expected = Math.max(bracket.here + bracket.texted + bracket.likely, Math.round(bracket.expected));
+    var playing = unrated.here + unrated.texted;
+    var mass = unratedChance;
+    brackets.forEach(function (bracket, i) {
+      playing += bracket.here + bracket.texted;
+      mass += chances[i];
+    });
+    var scale = typeof total === "number" && isFinite(total) ? (mass ? Math.max(0, total - playing) / mass : 0) : 1;
+    // Whole people per zone that add up to the rounded forecast: round down, then the largest remainders get one more.
+    var raw = brackets.map(function (bracket, i) { return bracket.here + bracket.texted + chances[i] * scale; });
+    var whole = raw.map(Math.floor);
+    var left = Math.round(raw.reduce(function (sum, value) { return sum + value; }, 0)) - whole.reduce(function (sum, value) { return sum + value; }, 0);
+    raw.map(function (value, i) { return { i: i, rest: value - whole[i] }; })
+      .sort(function (a, b) { return b.rest - a.rest || a.i - b.i; })
+      .slice(0, Math.max(0, left))
+      .forEach(function (item) { whole[item.i] += 1; });
+    brackets.forEach(function (bracket, i) {
+      bracket.expected = Math.max(bracket.here + bracket.texted + bracket.likely, whole[i]);
     });
     return { brackets: brackets, unrated: unrated };
   }
@@ -159,6 +194,7 @@
     addDays: addDays,
     sessionNight: sessionNight,
     likelihood: likelihood,
+    expectedTotal: expectedTotal,
     likelyNames: likelyNames,
     forecastPeople: forecastPeople,
     tally: tally

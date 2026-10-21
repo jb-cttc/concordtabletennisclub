@@ -84,7 +84,7 @@
   <ul class="tonight-notes">
     <li>Players are grouped by rating, the way the round robin groups them. Each zone shows two tables; groups are 5 or 6 players.</li>
     <li><strong>Playing tonight</strong> counts everyone signed in at the front desk and everyone who texted the club today to say they are coming.</li>
-    <li><strong>Likely</strong> marks regulars who, going by their recent Mondays and Wednesdays, come about 9 nights in 10. <strong>Expected</strong> is our forecast: everyone playing, plus each recent player&rsquo;s chance of coming.</li>
+    <li><strong>Likely</strong> marks regulars who, going by their recent Mondays and Wednesdays, come about 9 nights in 10. <strong>Expected</strong> is our forecast: about as many as usually come on this night of the week, shared out by rating according to who has been coming lately.</li>
     <li>Only counts are shown here, never names.</li>
     <li>Sign up in person between 6:45 and 7:15&nbsp;PM; play starts at 7:30. Running late? Text <a href="sms:9252383505">(925) 238-3505</a> before 7&nbsp;PM and your spot will be held.</li>
   </ul>
@@ -173,7 +173,8 @@
         var people = night.phase === "underway" ? [] : T.forecastPeople(roster, night.date, function (name) {
           return rating[name] === undefined ? null : rating[name];
         });
-        var counts = T.tally(people);
+        var total = night.phase === "underway" ? null : T.expectedTotal(roster, night.date);
+        var counts = T.tally(people, total === null ? undefined : total);
         return { ok: true, date: night.date, phase: night.phase, today: night.date === clock.date, live: false, updatedAt: Date.now(), brackets: counts.brackets, unrated: counts.unrated };
       });
   }

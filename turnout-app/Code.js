@@ -84,9 +84,11 @@ function answer_(now) {
   var only = function (key) { return byKey[key] && byKey[key].length === 1 ? byKey[key][0] : null; };
   var ratingOf = function (id) { return byId[id] && byId[id].current_rating !== '' ? Number(byId[id].current_rating) : null; };
   var people = [];
+  var total = null;
 
   if (night.phase !== 'underway') {
     var roster = siteJson_('/data/session-roster.json');
+    total = T.expectedTotal(roster, night.date);
     people = T.forecastPeople(roster, night.date, function (name) {
       var id = only(T.nameKey(name));
       return id ? ratingOf(id) : null;
@@ -112,7 +114,7 @@ function answer_(now) {
     });
   }
 
-  var counts = T.tally(people);
+  var counts = T.tally(people, total === null ? undefined : total);
   return {
     ok: true,
     date: night.date,
