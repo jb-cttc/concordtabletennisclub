@@ -1,4 +1,5 @@
-// Prints the round-robin desk's CTTC Desk Logs tab (see apps-script/DeskLog.js) as a report: what failed, when each key
+// Prints the round-robin desk's CTTC Desk Logs tab (see apps-script/DeskLog.js), or with --log turnout the turnout app's
+// CTTC Turnout Logs tab (turnout-app/Code.js), as a report: what failed, when each key
 // step last happened, steps that should have followed and did not, and the latest lines. Run by the "Desk log" GitHub
 // workflow, whose logs are public: the tab holds no names, addresses, numbers or payment details by design, and this
 // script takes out anything that still looks like an address or a phone number before printing.
@@ -9,7 +10,10 @@
 const fs = require('node:fs');
 const { fetchSheetRows } = require('./lib/google-sheets');
 
-const TAB = 'CTTC Desk Logs';
+// The desk's log, and the turnout app's (turnout-app/Code.js), which has the same columns.
+const TABS = { desk: 'CTTC Desk Logs', turnout: 'CTTC Turnout Logs' };
+const TAB = TABS.desk;
+const TURNOUT_STEPS = ['text_counted', 'text_skipped', 'turnout_counts', 'turnout_setup'];
 const HOUR = 3600 * 1000;
 const KEY_STEPS = ['session_created', 'session_saved', 'session_finalized', 'publish_dispatched', 'publish_confirmed', 'email_dispatched', 'ratings_synced', 'session_reopened'];
 // After a session is finalized, these should follow within the time given; a missing one is a failure nobody saw.
@@ -41,7 +45,8 @@ function buildReport(rows, now, options) {
   let shown = rows;
   if (options.session) shown = shown.filter(row => row.session === options.session);
   if (options.ref) shown = shown.filter(row => row.ref === options.ref);
-  out.push('CTTC Desk Logs: ' + rows.length + ' rows' + (rows.length ? ', ' + rows[0].at.slice(0, 16) + ' to ' + rows[rows.length - 1].at.slice(0, 16) + ' UTC' : '') +
+  const turnout = options.log === 'turnout';
+  out.push((turnout ? TABS.turnout : TAB) + ': ' + rows.length + ' rows' + (rows.length ? ', ' + rows[0].at.slice(0, 16) + ' to ' + rows[rows.length - 1].at.slice(0, 16) + ' UTC' : '') +
     (options.session ? '; session ' + options.session : '') + (options.ref ? '; reference ' + options.ref : ''));
 
   const recent = shown.filter(row => now - time(row) < 7 * 24 * HOUR);
@@ -59,26 +64,28 @@ function buildReport(rows, now, options) {
   if (!keys.length) out.push('  none');
   keys.forEach(key => out.push('  ' + String(problems[key].count).padStart(3) + 'x ' + key + '; last: ' + line(problems[key].last)));
 
-  // Steps that should have followed a finalize and did not.
+  // Steps that should have followed a finalize and did not (the desk only).
   const missing = [];
-  shown.filter(row => row.what === 'session_finalized' && now - time(row) < 14 * 24 * HOUR).forEach(done => {
+  shown.filter(row => !turnout && row.what === 'session_finalized' && now - time(row) < 14 * 24 * HOUR).forEach(done => {
     const later = rows.filter(row => row.session === done.session && time(row) >= time(done));
     if (later.some(row => row.what === 'session_reopened')) return;
     FOLLOW_UPS.forEach(([what, hours, problem]) => {
       if (now - time(done) > hours * HOUR && !later.some(row => row.what === what)) missing.push(done.session + ': finalized ' + done.at.slice(0, 16) + ' UTC, but ' + problem + ' (no ' + what + ').');
     });
   });
-  shown.filter(row => row.what === 'finalize_started').forEach(start => {
+  shown.filter(row => !turnout && row.what === 'finalize_started').forEach(start => {
     const after = rows.filter(row => row.session === start.session && time(row) >= time(start));
     if (now - time(start) > HOUR && !after.some(row => row.what === 'session_finalized' || row.what === 'finalize_failed')) {
       missing.push(start.session + ': finalize started ' + start.at.slice(0, 16) + ' UTC and never finished or failed.');
     }
   });
-  out.push('', 'Steps that should have happened and did not:');
-  out.push(...(missing.length ? missing.map(text => '  ' + text) : ['  none']));
+  if (!turnout) {
+    out.push('', 'Steps that should have happened and did not:');
+    out.push(...(missing.length ? missing.map(text => '  ' + text) : ['  none']));
+  }
 
   out.push('', 'Last time each key step happened:');
-  KEY_STEPS.forEach(what => {
+  (turnout ? TURNOUT_STEPS : KEY_STEPS).forEach(what => {
     const last = shown.filter(row => row.what === what).pop();
     out.push('  ' + what.padEnd(19) + (last ? last.at.replace('T', ' ').slice(0, 16) + ' UTC' + (last.session ? '  ' + last.session : '') : 'not in the log'));
   });
@@ -99,27 +106,31 @@ async function main() {
   const options = {
     lines: Number(option(args, 'lines')) || 150,
     session: /^\d{4}-\d{2}-\d{2}$/.test(option(args, 'session') || '') ? option(args, 'session') : '',
-    ref: /^[0-9A-F]{6,8}$/i.test(option(args, 'ref') || '') ? option(args, 'ref').toUpperCase() : ''
+    ref: /^[0-9A-F]{6,8}$/i.test(option(args, 'ref') || '') ? option(args, 'ref').toUpperCase() : '',
+    log: option(args, 'log') === 'turnout' ? 'turnout' : 'desk'
   };
+  const tab = TABS[options.log];
   const id = process.env.GOOGLE_ROUND_ROBIN_DATABASE_ID;
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const key = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
   if (!id || !email || !key) throw new Error('Reading the desk log needs the round-robin database id and the service account credentials');
   let values;
   try {
-    values = await fetchSheetRows(id, "'" + TAB + "'!A:F", email, key);
+    values = await fetchSheetRows(id, "'" + tab + "'!A:F", email, key);
   } catch (error) {
     // No tab yet means nothing has been logged yet: that is not a failure, and must not email anyone.
     if (/Unable to parse range/i.test(error.message)) values = [['at', 'level', 'what', 'session', 'ref', 'detail']];
     else {
       // The API's own message is not printed: it can name the Sheet.
       const status = /HTTP (\d+)/.exec(error.message);
-      throw new Error('Could not read the ' + TAB + ' tab' + (status ? ' (HTTP ' + status[1] + ')' : '') + '. Check that the service account can still view the round-robin Sheet.');
+      throw new Error('Could not read the ' + tab + ' tab' + (status ? ' (HTTP ' + status[1] + ')' : '') + '. Check that the service account can still view the round-robin Sheet.');
     }
   }
   const rows = parseRows(values);
   if (!rows.length) {
-    const empty = 'CTTC Desk Logs: nothing logged yet. The desk makes the tab, and starts logging, with its first save, finalize or problem.';
+    const empty = options.log === 'turnout'
+      ? tab + ': nothing logged yet. The turnout app makes the tab, and starts logging, with setup or its first counts on a round robin day.'
+      : tab + ': nothing logged yet. The desk makes the tab, and starts logging, with its first save, finalize or problem.';
     console.log(empty);
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, empty + '\n');
     return;

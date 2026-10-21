@@ -129,6 +129,7 @@ const html = read('tonight.html');
 const turnoutUrl = /var TURNOUT_URL = "([^"]*)";/.exec(html);
 assert.ok(turnoutUrl, 'the app address is set in one place');
 assert.ok(turnoutUrl[1] === '' || /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(turnoutUrl[1]), 'empty, or a released /exec address, never /dev');
+if (turnoutUrl[1]) assert.ok(read('docs/turnout-flow.md').includes(turnoutUrl[1]), 'the address is written down for maintainers');
 assert.ok(html.indexOf('<script src="turnout.js"></script>') > 0);
 assert.ok(html.indexOf('id="tonight-summary-wrap"') < html.indexOf('id="gym-floor"'), 'the plain table sits above the floor');
 assert.match(read('roundrobins.html'), /href="tonight\.html"/, 'the Round Robins page links to it');
@@ -161,7 +162,8 @@ function page({ now, url = '', answers = [], userAgent = '' }) {
   };
   if (userAgent) Object.defineProperty(window.navigator, 'userAgent', { value: userAgent });
   window.eval(turnoutSource);
-  window.eval(url ? pageScript.replace('var TURNOUT_URL = "' + turnoutUrl[1] + '";', 'var TURNOUT_URL = "' + url + '";') : pageScript);
+  // Every case says which address the page has: '' is a page before the app was deployed.
+  window.eval(pageScript.replace('var TURNOUT_URL = "' + turnoutUrl[1] + '";', 'var TURNOUT_URL = "' + url + '";'));
   return { window, calls, timers, $: id => window.document.getElementById(id) };
 }
 const settle = () => new Promise(resolve => setTimeout(resolve, 20));

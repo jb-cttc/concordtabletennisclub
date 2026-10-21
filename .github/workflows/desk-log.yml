@@ -1,10 +1,18 @@
 name: Desk log
 
-# Prints the round-robin desk's CTTC Desk Logs tab: problems, missed steps and the latest lines. Read-only. The log
+# Prints the round-robin desk's CTTC Desk Logs tab, or the turnout app's CTTC Turnout Logs tab: problems, missed steps and
+# the latest lines. Read-only. The log
 # holds no names, addresses, numbers or payment details, because run logs here are public.
 on:
   workflow_dispatch:
     inputs:
+      log:
+        description: "Which log: desk (the round-robin desk) or turnout (the Tonight page's counts and texts)"
+        type: choice
+        options:
+          - desk
+          - turnout
+        default: desk
       lines:
         description: "How many of the latest lines to show"
         default: "150"
@@ -32,8 +40,9 @@ jobs:
           node-version: 24
 
       - name: Print the desk log
-        run: node scripts/desk-log.js --lines "$LINES" --session "$SESSION" --ref "$REF"
+        run: node scripts/desk-log.js --log "$LOG" --lines "$LINES" --session "$SESSION" --ref "$REF"
         env:
+          LOG: ${{ github.event.inputs.log }}
           LINES: ${{ github.event.inputs.lines }}
           SESSION: ${{ github.event.inputs.session }}
           REF: ${{ github.event.inputs.ref }}

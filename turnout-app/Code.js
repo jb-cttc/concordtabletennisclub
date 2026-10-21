@@ -22,6 +22,17 @@ var NOT_COMING = /\b(can'?t|cannot|can not|won'?t|not (coming|going|gonna|able|m
 // coming ("Is there RR tonight? I'll come").
 var SAYS_COMING = /\b(i'?ll|i will|i'?m|i am|count me|add me|sign me|save me|hold me|on my way|omw|running late)\b/i;
 var VOICE_FOOTER = /^(To respond to this text message|YOUR ACCOUNT|HELP CENTER|HELP FORUM|Google LLC)/i;
+// CTTC Turnout Logs: a tab in the desk Sheet, with the desk log's columns (apps-script/DeskLog.js), read the same way from
+// GitHub (Actions > "Desk log", log: turnout), whose run logs are public. One row per text the app counted or left out,
+// per change in the counts, per setup and per failure. A texter appears only as a code (S + 6 hex characters, the same
+// code for the same sender), never a name, number or message; error text is cleaned the way the desk log cleans it.
+// The app writes nowhere else.
+var LOG_TAB = 'CTTC Turnout Logs';
+var LOG_HEADERS = ['at', 'level', 'what', 'session', 'ref', 'detail'];
+var LOG_KEEP = 2000;
+// The page asks every minute; the same line is written once, and a failure at most once in this many seconds.
+var LOG_REPEAT_SECONDS = 6 * 3600;
+var LOG_FAILURE_SECONDS = 600;
 
 function doGet() {
   return ContentService.createTextOutput(JSON.stringify(turnout())).setMimeType(ContentService.MimeType.JSON);
@@ -40,6 +51,8 @@ function turnout() {
     answer = answer_(new Date());
   } catch (error) {
     console.error('Turnout: ' + (error && error.stack || error));
+    var message = clean_(error && error.message || error);
+    logOnce_('failed:' + message, LOG_FAILURE_SECONDS, 'error', 'turnout_failed', '', '', message);
     return { ok: false, error: 'Live turnout is not available right now.' };
   }
   try { cache.put('turnout', JSON.stringify(answer), ANSWER_SECONDS); } catch (error) { /* answered without the cache */ }
@@ -49,6 +62,13 @@ function turnout() {
 // Run once from the Apps Script editor by the owner, after setting DESK_SHEET_ID: Google asks for the permissions, and the
 // result says what the app could read. Does nothing for anyone else.
 function setup() {
+  var result = setup_();
+  // The editor's Run button shows only what is logged, not what a function returns.
+  console.log(result);
+  return result;
+}
+
+function setup_() {
   if (!Session.getEffectiveUser().getEmail() || Session.getActiveUser().getEmail() !== Session.getEffectiveUser().getEmail()) {
     return 'Run setup from the Apps Script editor while signed in as the owner.';
   }
@@ -57,6 +77,7 @@ function setup() {
   var roster = siteJson_('/data/session-roster.json');
   GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:1d', 0, 1);
   CacheService.getScriptCache().remove('turnout');
+  log_('step', 'turnout_setup', '', '', 'players=' + Math.max(0, players.getLastRow() - 1) + ' nights=' + Object.keys(roster).length);
   return 'Ready: ' + Math.max(0, players.getLastRow() - 1) + ' players in the desk Sheet, ' + Object.keys(roster).length + ' published nights.';
 }
 
@@ -112,12 +133,30 @@ function answer_(now) {
 
   if (night.date === clock.date) {
     voiceSenders_(night.date).forEach(function (sender) {
+      var ref = 'S' + code_(sender.key);
+      if (sender.skip) {
+        logOnce_(night.date + ':' + ref + ':skip:' + sender.skip, LOG_REPEAT_SECONDS, 'step', 'text_skipped', night.date, ref, sender.skip);
+        return;
+      }
       var id = sender.known ? only(sender.key) : null;
-      people.push({ key: id || 'voice:' + sender.key, rating: id ? ratingOf(id) : null, status: 'texted' });
+      var rating = id ? ratingOf(id) : null;
+      var zone = T.bracketIndex(rating);
+      logOnce_(night.date + ':' + ref + ':counted', LOG_REPEAT_SECONDS, 'step', 'text_counted', night.date, ref,
+        zone >= 0 ? 'zone=' + T.BRACKETS[zone].label : !sender.known ? 'front desk: no contact name' : 'front desk: contact name is not exactly one player');
+      people.push({ key: id || 'voice:' + sender.key, rating: rating, status: 'texted' });
     });
   }
 
   var counts = T.tally(people, total === null ? undefined : total);
+  var sum = { here: counts.unrated.here, texted: counts.unrated.texted, likely: 0, expected: counts.unrated.here + counts.unrated.texted };
+  counts.brackets.forEach(function (bracket) {
+    sum.here += bracket.here;
+    sum.texted += bracket.texted;
+    sum.likely += bracket.likely;
+    sum.expected += bracket.expected;
+  });
+  var summary = 'phase=' + night.phase + ' playing=' + (sum.here + sum.texted) + ' here=' + sum.here + ' texted=' + sum.texted + ' likely=' + sum.likely + ' expected=' + sum.expected;
+  logOnce_(night.date + ':counts:' + summary, LOG_REPEAT_SECONDS, 'step', 'turnout_counts', night.date, '', summary);
   return {
     ok: true,
     date: night.date,
@@ -181,9 +220,9 @@ function siteJson_(path) {
   return value;
 }
 
-// People who texted the club's Google Voice number on date (Pacific) about playing: [{key, known}]. key is the contact
-// name's nameKey, or the number's digits when Voice has no contact name for it. Commands for the other apps are left out,
-// and so is anyone whose latest text says they are not coming or only asks a question.
+// Everyone who texted the club's Google Voice number on date (Pacific): [{key, known, skip}]. key is the contact name's
+// nameKey, or the number's digits when Voice has no contact name for it. skip says why a sender is not counted: only
+// commands for the other apps, a latest text that says they are not coming, or one that only asks a question.
 function voiceSenders_(date) {
   var day = new Date(date + 'T12:00:00Z');
   var after = Utilities.formatDate(new Date(day.getTime() - 86400000), 'UTC', 'yyyy/MM/dd');
@@ -191,22 +230,30 @@ function voiceSenders_(date) {
   var threads = GmailApp.search('in:anywhere from:txt.voice.google.com after:' + after + ' before:' + before, 0, MAX_THREADS);
   var seen = {};
   var latest = {};
+  var commands = {};
   threads.forEach(function (thread) {
     thread.getMessages().forEach(function (message) {
       if (seen[message.getId()]) return;
       seen[message.getId()] = true;
       if (Utilities.formatDate(message.getDate(), TZ, 'yyyy-MM-dd') !== date) return;
       var text = voiceText_(message);
-      if (!text || COMMAND.test(text.text)) return;
+      if (!text) return;
+      if (COMMAND.test(text.text)) {
+        commands[text.key] = text.known;
+        return;
+      }
       if (!latest[text.key] || latest[text.key].at < text.at) latest[text.key] = text;
     });
   });
-  return Object.keys(latest).filter(function (key) {
+  var senders = Object.keys(latest).map(function (key) {
     var text = latest[key].text;
-    return !NOT_COMING.test(text) && (text.indexOf('?') < 0 || SAYS_COMING.test(text));
-  }).map(function (key) {
-    return { key: key, known: latest[key].known };
+    var skip = NOT_COMING.test(text) ? 'latest text says not coming' : text.indexOf('?') >= 0 && !SAYS_COMING.test(text) ? 'latest text only asks a question' : '';
+    return { key: key, known: latest[key].known, skip: skip };
   });
+  Object.keys(commands).forEach(function (key) {
+    if (!latest[key]) senders.push({ key: key, known: commands[key], skip: 'only commands for the coaching or volunteer apps' });
+  });
+  return senders;
 }
 
 // A forwarded Voice text as {key, known, text, at}, or null for anything else (the same reading as the desk's
@@ -236,4 +283,48 @@ function voiceText_(message) {
     text: body.join('\n'),
     at: message.getDate().getTime()
   };
+}
+
+// ---- CTTC Turnout Logs ----
+
+function log_(level, what, session, ref, detail) {
+  try {
+    var book = desk_();
+    var sheet = book.getSheetByName(LOG_TAB);
+    if (!sheet) {
+      sheet = book.insertSheet(LOG_TAB);
+      sheet.getRange(1, 1, 1, LOG_HEADERS.length).setValues([LOG_HEADERS]).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
+    // appendRow adds the whole row in one step, so two writers never share a row; the leading ' keeps each value as text.
+    sheet.appendRow([new Date().toISOString(), level, what, session || '', ref || '', String(detail || '').slice(0, 300)]
+      .map(function (value) { return "'" + value; }));
+    var extra = sheet.getLastRow() - 1 - LOG_KEEP;
+    if (extra >= 100) sheet.deleteRows(2, extra);
+  } catch (error) {
+    console.error('Could not write to the turnout log: ' + error);
+  }
+}
+
+// Writes the line unless the same key was written in the last seconds.
+function logOnce_(key, seconds, level, what, session, ref, detail) {
+  var cache = CacheService.getScriptCache();
+  var mark = 'log:' + code_(key);
+  try {
+    if (cache.get(mark)) return;
+    cache.put(mark, '1', seconds);
+  } catch (error) { /* without the cache a line may be written twice; harmless */ }
+  log_(level, what, session, ref, detail);
+}
+
+// A short code for a sender or a key: the same input always gets the same code, and it cannot be turned back into it.
+function code_(value) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'cttc-turnout:' + value).slice(0, 3)
+    .map(function (byte) { return ('0' + (byte & 255).toString(16)).slice(-2); }).join('').toUpperCase();
+}
+
+// Error text with nothing personal left in it (as the desk log's cleanDeskText_).
+function clean_(text) {
+  return String(text).replace(/\S+@\S+/g, '<address>').replace(/\bplayer-[A-Za-z0-9_-]+/g, '<player>').replace(/\+?\d[\d\s().-]{5,}\d/g, '<number>').replace(/"[^"]*"/g, '"…"')
+    .replace(/“[^”]*”/g, '"…"').replace(/[A-Za-z0-9_-]{20,}/g, '<id>').slice(0, 200);
 }

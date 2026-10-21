@@ -124,12 +124,41 @@ must never live in it. `check-turnout-app.cjs` asserts that only `doGet`,
 5. Put the `/exec` URL into `TURNOUT_URL` in `tonight.html` in a pull
    request. The page then shows **Live**.
 
+The released app (project "CTTC turnout", script id in `turnout-app/.clasp.json`):
+`https://script.google.com/macros/s/AKfycbyhCXunOPJi54n5HQTTiRuvyTs-pSUvmirVHk7sxqS4WAlxvLmSHfdqCrI0fYimh6dXPQ/exec`
+
+`setup` prints its result to the editor's execution log ("Ready: … players in
+the desk Sheet, … published nights"); the Run button shows only what is
+logged. Before the owner has run `setup` once and approved its permissions,
+the address answers "Access Denied" and the page shows the forecast only.
+
 Scopes: `spreadsheets` (to read the desk Sheet), `mail.google.com` (to read
 forwarded Voice texts; it never replies), `script.external_request` (to read
 `closures.json` and `session-roster.json` from the site), `userinfo.email`
 (for `setup`'s owner check).
 
-## 5. Where it can go wrong
+## 5. The turnout log
+
+The app keeps a **CTTC Turnout Logs** tab in the desk Sheet, with the same
+columns as the desk's **CTTC Desk Logs** (`at, level, what, session, ref,
+detail`). Read it from GitHub: **Actions > Desk log > Run workflow**, with
+*log* set to **turnout**.
+
+| what | level | detail |
+| --- | --- | --- |
+| `text_counted` | step | The zone the texter was counted in (`zone=1000–1199`), or why they wait at the front desk: no contact name, or a contact name that isn't exactly one player |
+| `text_skipped` | step | Why the text was left out: says not coming, only asks a question, or only commands for the coaching or volunteer apps |
+| `turnout_counts` | step | The totals whenever they change: phase, playing (here and texted), likely, expected |
+| `turnout_setup` | step | How many players and published nights `setup` could read |
+| `turnout_failed` | error | What went wrong, cleaned of anything personal |
+
+A texter appears only as a code in `ref` (`S` and six characters; the same
+sender always gets the same code), never a name, number or message. The
+page asks every minute, so each line is written once: a text's line once a
+day, the counts when they change, the same failure at most once in ten
+minutes. The tab keeps the latest 2,000 rows.
+
+## 6. Where it can go wrong
 
 | Symptom | Likely cause |
 | --- | --- |
