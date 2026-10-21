@@ -94,6 +94,15 @@ assert.equal(bySender['Patrick Lee'].senderKey, 'patrick lee');
 assert.equal(bySender['Unknown number ending 0123'].senderKey, '', 'unknown numbers expose no key');
 assert.deepEqual(Object.keys(bySender['Patrick Lee'].messages[0]).sort(), ['receivedAt', 'text'], 'Gmail objects never reach the page');
 
+// The ✓: the latest text says they are coming, and the contact name is exactly one player (or an alias of one).
+const check = name => [bySender[name].validated, bySender[name].linkedPlayerId, bySender[name].check];
+assert.deepEqual(check('Taylor Quinn Vale'), [true, 'p6', ''], '"in tonight" from a linked contact');
+assert.deepEqual(check('Patrick Lee'), [false, 'p0', 'Latest text doesn\'t say they\'re coming'], 'linked through an alias, but only testing');
+assert.deepEqual(check('Christopher Moss'), [false, 'p1', 'Latest text says they can\'t make it']);
+assert.deepEqual(check('Casey'), [false, '', 'Contact name isn\'t exactly one player'], '"add me", but Casey is two players');
+assert.deepEqual(check('Jordan Fox'), [false, '', 'Contact name isn\'t exactly one player'], 'the coaching command is skipped; "I can play RR" says coming');
+assert.deepEqual(check('Unknown number ending 0123'), [false, '', 'Latest text doesn\'t say they\'re coming. No saved contact name for this number']);
+
 const lessons = JSON.parse(JSON.stringify(context.getCoachingParticipants('2026-09-24')));
 assert.deepEqual(lessons, [
   { playerId: 'p7', name: 'Sam Lee Park', role: 'coach', lessons: [{ start: '19:00', minutes: 30, coachLabel: 'S' }, { start: '20:00', minutes: 60, coachLabel: 'S' }] },

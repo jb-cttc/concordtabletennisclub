@@ -194,6 +194,53 @@ shows likely directory matches, including linked names; the organizer clicks
 **RR** to add one to the local draft, then saves the draft. Senders without a
 saved contact name show only the last four digits of their number.
 
+Each sender's envelope carries a mark. **✓** means the latest text says they
+are coming and their Voice contact name is exactly one active player (or an
+`Aliases` name of one). **?** means look first; hovering the envelope says
+why ("Latest text doesn't say they're coming", "Contact name isn't exactly
+one player", ...). These are the same checks as the
+[automatic answers](#automatic-answers). **Add all ✓** adds every ✓ sender
+not already in RR, Open Play or Coaching, exactly as pressing **RR** on each
+would, including the **Confirmed.** text. A **?** is never added by it.
+
+On Monday and Wednesday nights from 6:45 to 7:30 PM Pacific, while tonight's
+date is open and the tab is in view, the list checks for new texts every
+minute by itself and briefly highlights anyone new. It skips a minute while
+a message preview is open or the device is offline. **Refresh** still works
+at any time.
+
+### Automatic answers
+
+When switched on, the desk answers round robin texts by itself
+(`apps-script/VoiceAutoReply.js`). A trigger checks every minute on Mondays
+and Wednesdays from 6 AM until sign-up closes at 7:15 PM Pacific, except on
+nights the club site lists as closed. Each person gets at most one automatic
+answer a day:
+
+| The Voice contact name is | The answer |
+| --- | --- |
+| exactly one active player, or an `Aliases` name of one | "Received - you're on the list, *directory name*! See you tonight." |
+| anything else: no contact name, several players, part of a name, someone not in the directory | "We're glad to have you! This number isn't linked to anyone in our club directory yet. Reply with your name and we'll add you." |
+
+Only texts that plainly say the person is coming are answered (the Tonight
+page's tap-to-text fills in "I'll join CTTC's RR tonight"). Questions, "can't
+make it", commands for the coaching and volunteer apps, and anyone with a
+coaching lesson that day are left for a person, as is everything after 7:15.
+A name sent back after the second answer is not read automatically: match
+the sender in **Voice signups** as usual, and save their name as the contact
+in Google Voice (or add an `Aliases` row) so their next text links. An
+automatic answer counts as a reply, so **Confirmed.** is not sent on top of
+it. Each answer is logged as `voice_auto_reply` with the player id when
+linked, never the number or the text.
+
+It is off until the owner turns it on, because a trigger runs whatever code
+was pushed last, including a `/dev` preview. After the release that includes
+it, run `enableVoiceAutoReply` once in the Apps Script editor (it installs
+the minute trigger and sets `CTTC_VOICE_AUTO_REPLY` to `on`).
+`disableVoiceAutoReply` turns it off; `voiceAutoReplyStatus` shows the state.
+The minute trigger stops at once outside the hours above, so most runs cost
+almost nothing.
+
 ## Finalizing and reopening
 
 **Finalize RR Results** checks that every match is complete, updates every

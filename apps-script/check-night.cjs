@@ -286,6 +286,114 @@ const cases = {
     assert.equal(googleScored(world), 1, 'the score was saved while Gmail was still being read');
     await run(world, 40000);
     assert.equal(world.server.rows('SessionPayments').length, 1);
+  },
+
+  // Texts come in while the desk is open: the list checks by itself every minute from 6:45 to 7:30, marks who is
+  // validated (✓) and who needs a look (?), and Add all puts every ✓ on the round robin with one press.
+  async voiceSignupsTonight() {
+    const world = sim.createWorld({ seed: 21 });
+    const replies = [];
+    const inbox = [];
+    const voiceText = (name, phone, body, when) => {
+      const message = {
+        getId: () => name + phone + when,
+        getFrom: () => '"' + (name || phone) + ' (SMS)" <19255550100.19255550199.x@txt.voice.google.com>',
+        getReplyTo: () => '"' + (name || phone) + ' (SMS)" <19255550100.19255550199.x@txt.voice.google.com>',
+        getSubject: () => 'New text message from ' + (name ? name + ' ' : '') + phone,
+        getPlainBody: () => body + '\nTo respond to this text message, reply to this email or visit Google Voice.\nYOUR ACCOUNT',
+        getDate: () => new Date(when),
+        getThread: () => ({ getMessages: () => [message] }),
+        reply: text => replies.push({ to: name, text })
+      };
+      return message;
+    };
+    const pacific = time => Date.parse(DATE + 'T' + time + ':00-07:00');
+    const [ava, ben, cy] = world.players;
+    inbox.push(voiceText(ava.display_name, '(925) 555-0101', 'I\'ll join CTTC\'s RR tonight', pacific('18:30')));
+    inbox.push(voiceText(ben.display_name, '(925) 555-0102', 'Is RR on tonight?', pacific('18:35')));
+    inbox.push(voiceText('', '(925) 555-0103', 'coming tonight', pacific('18:36')));
+    world.server.gmail.threads = [{ getMessages: () => inbox }];
+    const checks = () => world.server.calls.filter(call => call.name === 'listVoiceSuggestions').length;
+
+    const tab = world.device().open();
+    await run(world, 15000);
+    const doc = tab.window.document;
+    const marks = () => Object.fromEntries([...doc.querySelectorAll('.voice-suggestions li')].map(li =>
+      [li.querySelector('.voice-sender span').textContent, li.querySelector('.voice-check').textContent]));
+    assert.deepEqual(marks(), { [ava.display_name]: '✓', [ben.display_name]: '?', 'Unknown number ending 0103': '?' });
+    assert.match(doc.querySelector('.voice-suggestions .voice-preview-button[title*="Latest text"]').title, /doesn't say they're coming/, 'the ? says why');
+    const addAll = doc.querySelector('.voice-add-all');
+    assert.equal(addAll.textContent, 'Add all ✓ (1)');
+    assert.match(doc.querySelector('.voice-suggestions .hint').textContent, /every minute until 7:30 PM/);
+
+    // A new text at 6:50 shows up within a minute, with no Refresh.
+    const before = checks();
+    inbox.push(voiceText(cy.display_name, '(925) 555-0104', 'count me in', pacific('18:50')));
+    await world.clock.runUntil(pacific('18:51') + 5000);
+    assert.ok(checks() > before, 'checked again by itself');
+    assert.equal(marks()[cy.display_name], '✓');
+    assert.equal(addAll.textContent, 'Add all ✓ (2)');
+
+    tab.click(addAll);
+    await run(world, 20000);
+    assert.ok(tab.roster().includes(ava.player_id) && tab.roster().includes(cy.player_id), 'both ✓ players added');
+    assert.ok(!tab.roster().includes(ben.player_id), 'a ? is left for the organizer');
+    assert.equal(addAll.textContent, 'All ✓ added');
+    assert.equal(addAll.disabled, true);
+    assert.deepEqual(replies.map(reply => reply.to).sort(), [ava.display_name, cy.display_name].sort(), 'each gets the usual Confirmed.');
+
+    // After 7:30 it stops checking by itself.
+    await world.clock.runUntil(pacific('19:31'));
+    const after = checks();
+    await run(world, 5 * 60000);
+    assert.equal(checks(), after, 'no checks after 7:30');
+    assert.doesNotMatch(doc.querySelector('.voice-suggestions .hint').textContent, /every minute/);
+    assert.deepEqual(tab.errors, []);
+  },
+
+  // Add all never waits on Google: with Google not answering at all (or the Wi-Fi off), the players are on the draft the
+  // moment it is pressed, and their Confirmed. texts go out by themselves once Google answers again.
+  async addAllNeverWaitsForGoogle() {
+    const world = sim.createWorld({ seed: 22 });
+    const replies = [];
+    const inbox = world.players.slice(0, 3).map((player, index) => {
+      const message = {
+        getId: () => 'v' + index,
+        getFrom: () => '"' + player.display_name + ' (SMS)" <1@txt.voice.google.com>',
+        getReplyTo: () => '"' + player.display_name + ' (SMS)" <1@txt.voice.google.com>',
+        getSubject: () => 'New text message from ' + player.display_name + ' (925) 555-010' + index,
+        getPlainBody: () => 'I\'ll join CTTC\'s RR tonight\nTo respond to this text message, reply to this email or visit Google Voice.',
+        getDate: () => new Date(Date.parse(DATE + 'T18:3' + index + ':00-07:00')),
+        getThread: () => ({ getMessages: () => [message] }),
+        reply: text => replies.push(player.display_name)
+      };
+      return message;
+    });
+    world.server.gmail.threads = [{ getMessages: () => inbox }];
+    const device = world.device();
+    const tab = device.open();
+    await run(world, 15000);
+    const addAll = tab.$('.voice-add-all');
+    assert.equal(addAll.textContent, 'Add all ✓ (3)');
+
+    device.net.blackhole = true;
+    tab.click(addAll);
+    // No virtual time passes: everything below happened on the press itself.
+    world.players.slice(0, 3).forEach(player => assert.ok(tab.roster().includes(player.player_id), player.display_name + ' is on the draft at once'));
+    assert.equal(addAll.disabled, true);
+    assert.equal(addAll.textContent, 'All ✓ added');
+    assert.ok(!addAll.classList.contains('request-pending'), 'the button never shows as waiting');
+    assert.equal(tab.$('#network-activity').textContent.includes('Working') && tab.$('.voice-add-all.request-pending') !== null, false);
+    await run(world, 120000);
+    assert.equal(replies.length, 0, 'nothing reached Google yet');
+    assert.deepEqual(tab.errors, []);
+
+    device.net.blackhole = false;
+    await run(world, 6 * 60000);
+    assert.deepEqual(replies.sort(), world.players.slice(0, 3).map(p => p.display_name).sort(), 'every Confirmed. went out once Google answered');
+    const saved = JSON.parse(sim.googleKey(world, DATE)).groups.join(',');
+    world.players.slice(0, 3).forEach(player => assert.ok(saved.includes(player.player_id), 'the draft reached Google'));
+    assert.deepEqual(tab.errors, []);
   }
 };
 

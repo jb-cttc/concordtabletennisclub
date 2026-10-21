@@ -29,6 +29,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 | `docs/round-robin-operations.md` | How the desk and site fit together, rating rules, and the go-live checklist. |
 | `coaching-app/`, `docs/coaching-flow.md` | Public coaching booking app (its own Apps Script project), and the guide to which step a booking is at and where it can get stuck. |
 | `staffing-app/`, `docs/staffing-flow.md` | Public volunteer sign-ups to open and close the club (its own Apps Script project, shown on the home page in place of the closures calendar), and the guide to setting it up, importing the existing open/close list, and where a sign-up can get stuck. |
+| `tonight.html`, `turnout.js`, `turnout-app/`, `docs/turnout-flow.md` | The Tonight page: who to expect at the next round robin by rating, drawn as a gym floor; the forecast it shares with the public turnout app (its own Apps Script project), which counts desk sign-ins and today's Voice texts without ever returning names; and the guide to setting it up. |
 | `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
 
 ## Request an app or website change
