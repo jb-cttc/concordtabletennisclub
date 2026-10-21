@@ -44,4 +44,20 @@ assert.match(byRef, /Latest 1 lines/);
 const reopened = buildReport(parseRows(values.concat([row('2026-10-14T05:00:00.000Z', 'step', 'session_reopened', '2026-10-13')])), NOW, {});
 assert.doesNotMatch(reopened, /2026-10-13: finalized/);
 assert.equal(redact('call (925) 555-1234 or +1 925.555.1234, mail a@b.co'), 'call <number> or +1 <number>, mail <address>');
+
+// The turnout app's log (log: turnout) reads the same way, with its own key steps and no finalize follow-ups.
+const turnoutRows = parseRows([
+  ['at', 'level', 'what', 'session', 'ref', 'detail'],
+  row('2026-10-15T01:00:00.000Z', 'step', 'turnout_setup', '', '', 'players=120 nights=250'),
+  row('2026-10-15T09:00:00.000Z', 'step', 'text_counted', '2026-10-15', 'S0A1B2C', 'zone=1000–1199'),
+  row('2026-10-15T09:01:00.000Z', 'step', 'text_skipped', '2026-10-15', 'S3D4E5F', 'latest text only asks a question'),
+  row('2026-10-15T09:01:00.000Z', 'step', 'turnout_counts', '2026-10-15', '', 'phase=signup playing=1 here=0 texted=1 likely=1 expected=27'),
+  row('2026-10-15T10:00:00.000Z', 'error', 'turnout_failed', '', '', 'The site answered 503 for /data/closures.json'),
+  row('2026-10-15T09:30:00.000Z', 'step', 'finalize_started', '2026-10-15')
+]);
+const turnout = buildReport(turnoutRows, NOW, { log: 'turnout' });
+assert.match(turnout, /^CTTC Turnout Logs: 6 rows/);
+assert.match(turnout, /1x error turnout_failed/);
+assert.match(turnout, /  text_counted {7}2026-10-15 09:00 UTC  2026-10-15/, 'its own key steps');
+assert.doesNotMatch(turnout, /session_finalized|Steps that should have happened/, 'no desk follow-ups');
 console.log('Desk log report checks passed');

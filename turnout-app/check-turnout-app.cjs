@@ -21,7 +21,11 @@ const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), ['doGet', 'setup', 'turnout'], 'a public web app exposes every non-private function: only these may exist');
 assert.doesNotMatch(source, /=>|`|^\s*(let|const|class)\s/m, 'Code.js is ES5 style, like the other Apps Script projects');
-assert.doesNotMatch(source, /HtmlService|getActiveSpreadsheet|\.setValue|\.appendRow|\.reply\(|sendEmail|deleteRow/, 'it only reads: no page, no writes, no replies');
+// The one write is the log (log_ appends to LOG_TAB in the desk Sheet); nothing else in the app writes, replies or sends.
+const logWriter = /\nfunction log_\([\s\S]*?\n}\n/.exec(source)[0];
+assert.doesNotMatch(source.replace(logWriter, ''), /HtmlService|getActiveSpreadsheet|\.setValue|\.appendRow|insertSheet|\.reply\(|sendEmail|deleteRow/, 'it only reads: no page, no writes, no replies');
+assert.match(logWriter, /getSheetByName\(LOG_TAB\)/);
+assert.match(source, /var LOG_TAB = 'CTTC Turnout Logs';/);
 
 // ---- Fakes ----
 let clock = Date.parse('2026-10-26T17:00:00Z'); // Monday October 26, 2026, 10:00 AM Pacific
@@ -36,7 +40,9 @@ const Utilities = {
     const d = zone === 'UTC' ? new Date(date.getTime()) : pacific(date.getTime());
     return pattern.replace('yyyy', d.getUTCFullYear()).replace('MM', pad(d.getUTCMonth() + 1)).replace('dd', pad(d.getUTCDate()))
       .replace(/^H$/, String(d.getUTCHours())).replace(/^m$/, String(d.getUTCMinutes()));
-  }
+  },
+  DigestAlgorithm: { SHA_256: 'sha256' },
+  computeDigest: (algorithm, value) => Array.from(require('node:crypto').createHash(algorithm).update(String(value)).digest()).map(byte => (byte > 127 ? byte - 256 : byte))
 };
 
 const tabs = {
@@ -62,7 +68,18 @@ const opened = [];
 const SpreadsheetApp = {
   openById(id) {
     opened.push(id);
-    return { getSheetByName: name => tabs[name] ? { getDataRange: () => ({ getValues: () => tabs[name].map(row => row.slice()) }), getLastRow: () => tabs[name].length } : null };
+    const sheet = name => ({
+      getDataRange: () => ({ getValues: () => tabs[name].map(row => row.slice()) }),
+      getLastRow: () => tabs[name].length,
+      appendRow: row => { tabs[name].push(row); },
+      deleteRows: (start, count) => { tabs[name].splice(start - 1, count); },
+      getRange: () => ({ setValues: values => { tabs[name][0] = values[0]; return { setFontWeight() {} }; } }),
+      setFrozenRows() {}
+    });
+    return {
+      getSheetByName: name => tabs[name] ? sheet(name) : null,
+      insertSheet: name => { tabs[name] = [[]]; return sheet(name); }
+    };
   }
 };
 
@@ -169,6 +186,32 @@ assert.match(searches[0], /^in:anywhere from:txt\.voice\.google\.com after:2026\
 assert.deepEqual(fetched, ['https://concordtabletennisclub.com/data/closures.json', 'https://concordtabletennisclub.com/data/session-roster.json']);
 assert.ok(Object.keys(cache).filter(key => key.startsWith('site:/data/session-roster.json:')).length >= 2, 'the roster is cached in parts');
 
+// CTTC Turnout Logs: one row per text counted or left out, and one for the counts, with codes in place of people.
+const LOG = 'CTTC Turnout Logs';
+const logRows = () => tabs[LOG].slice(1).map(row => row.map(value => String(value).replace(/^'/, '')));
+const rowsOf = what => logRows().filter(row => row[2] === what);
+assert.deepEqual(JSON.parse(JSON.stringify(tabs[LOG][0])), ['at', 'level', 'what', 'session', 'ref', 'detail'], 'the desk log\'s columns');
+assert.deepEqual(rowsOf('text_counted').map(row => row[5]).sort(), [
+  'front desk: contact name is not exactly one player', 'front desk: contact name is not exactly one player',
+  'front desk: no contact name', 'zone=1000–1199', 'zone=1600+', 'zone=800–999'
+], 'Eli Twin and Ivy, the number, Cy, Dee and Faye A');
+assert.deepEqual(rowsOf('text_skipped').map(row => row[5]).sort(), [
+  'latest text only asks a question', 'latest text only asks a question', 'latest text says not coming',
+  'only commands for the coaching or volunteer apps', 'only commands for the coaching or volunteer apps'
+], 'Pat and Quinn ask, Jo cannot make it, Kim and Lou only sent commands');
+assert.deepEqual(rowsOf('turnout_counts').map(row => row[5]), ['phase=signup playing=7 here=2 texted=5 likely=0 expected=' + answer.brackets.reduce((sum, b) => sum + b.expected, 3)]);
+logRows().forEach(row => {
+  assert.equal(row[1], 'step');
+  if (/^text_/.test(row[2])) assert.match(row[4], /^S[0-9A-F]{6}$/, 'a texter is a code');
+  if (/^text_/.test(row[2]) || row[2] === 'turnout_counts') assert.equal(row[3], '2026-10-26');
+});
+const logText = JSON.stringify(tabs[LOG]);
+['Ada', 'Bo', 'Cy', 'Dee', 'Eli', 'Fay', 'Ivy', 'Jo', 'Kim', 'Lou', 'Pat', 'Quinn', '555', '0142', 'p-', 'Coming', 'STUDENT', 'STAFF'].forEach(word => {
+  assert.ok(!logText.includes(word), 'the log never holds a name, number, id or text: ' + word);
+});
+assert.equal(new Set(rowsOf('text_counted').concat(rowsOf('text_skipped')).map(row => row[4])).size, 11, 'one code per sender');
+const firstLog = logRows().length;
+
 // The same minute is served from the cache: no Sheet, no Gmail.
 const before = { opened: opened.length, searches: searches.length };
 assert.deepEqual(call('turnout'), answer);
@@ -184,6 +227,12 @@ const next = call('turnout');
 assert.equal(fetched.length, fetchedBefore, 'site files are cached for an hour');
 assert.equal(next.brackets[6].here, 1, 'Dee is now signed in');
 assert.equal(next.brackets[6].texted, 0);
+assert.equal(logRows().length, firstLog + 1, 'a minute later only the changed counts are logged: no text is logged twice');
+assert.match(rowsOf('turnout_counts')[1][5], /playing=7 here=3 texted=4/);
+call('turnout');
+delete cache.turnout;
+call('turnout');
+assert.equal(logRows().length, firstLog + 1, 'nothing changed, nothing logged');
 
 // After 7:15 PM: no forecast, only who is playing.
 cache = {};
@@ -212,6 +261,9 @@ cache = {};
 siteDown = true;
 assert.deepEqual(call('turnout'), { ok: false, error: 'Live turnout is not available right now.' });
 assert.equal(cache.turnout, undefined);
+assert.deepEqual(rowsOf('turnout_failed').map(row => [row[1], row[5]]), [['error', 'The site answered 503 for /data/closures.json']], 'a failure is logged as an error');
+call('turnout');
+assert.equal(rowsOf('turnout_failed').length, 1, 'the same failure is logged once in ten minutes, however often the page asks');
 siteDown = false;
 properties = {};
 assert.equal(call('turnout').ok, false, 'no desk Sheet set');
@@ -223,6 +275,7 @@ context.Session.getActiveUser = () => ({ getEmail: () => 'club@example.com' });
 const logged = [];
 context.console.log = line => logged.push(line);
 assert.match(call('setup'), /^Ready: 8 players in the desk Sheet, \d+ published nights\.$/);
+assert.match(rowsOf('turnout_setup')[0][5], /^players=8 nights=\d+$/);
 assert.deepEqual(logged.map(line => /^Ready: /.test(line)), [true], 'the editor shows the result: Run displays only the log');
 
 console.log('Turnout app checks passed');
