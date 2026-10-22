@@ -2116,17 +2116,6 @@ function stepWorked_(failing, name) {
   saveFailingSteps_(failing);
 }
 
-// Emails the club about something it should know, at most once every 6 hours per key.
-function alertAdmin_(key, subject, lines) {
-  try {
-    var cache = CacheService.getScriptCache();
-    if (cache.get('alert:' + key)) return;
-    if (mailClub_(subject, lines, key)) cache.put('alert:' + key, '1', 21600);
-  } catch (error) {
-    logError_('alert the club', error);
-  }
-}
-
 // True once the email is sent.
 function mailClub_(subject, lines, key) {
   try {
@@ -2253,7 +2242,7 @@ function checkMail_() {
       // Notices go out only for a recent reply to a question still open; a late YES is only looked for.
       var notify = !question.before && Date.now() - at < 5 * 3600000;
       if (!sameAddress_(address, question.email)) {
-        if (us.indexOf(address) < 0 && notify) wrongSender_(message.getId(), address, question.email, String(message.getSubject() || ''));
+        if (us.indexOf(address) < 0 && notify) wrongSender_(message.getId(), address, String(message.getSubject() || ''));
         return;
       }
       if (autoReply_(message)) return;
@@ -2263,7 +2252,7 @@ function checkMail_() {
         seen.unreadable = (seen.unreadable || 0) + 1;
         seen.odd = oddCharacters_(ownWords_(body).split('\n')[0] || body);
         seen.length = (ownWords_(body).split('\n')[0] || '').length;
-        if (notify) unreadableReply_(message.getId(), address, String(message.getSubject() || ''), ownWords_(body).split('\n')[0]);
+        if (notify) unreadableReply_(message.getId(), address, String(message.getSubject() || ''));
         return;
       }
       if (!answers[code] || at < answers[code].at) answers[code] = { question: question, answer: answer, at: at, address: address };
@@ -2325,8 +2314,9 @@ function sameAddress_(a, b) {
 }
 
 // A reply quoting our code from another address does not count (nobody may answer for someone else), but it is never silent:
-// the sender is told to reply from the address the question went to, and the club is told, once per reply.
-function wrongSender_(messageId, address, expected, subject) {
+// the sender is told to reply from the address the question went to, once per reply. The club is not emailed: the sender has
+// what they need to fix it.
+function wrongSender_(messageId, address, subject) {
   try {
     var cache = CacheService.getScriptCache();
     if (cache.get('sender:' + messageId) || !mailAvailable_()) return;
@@ -2338,15 +2328,14 @@ function wrongSender_(messageId, address, expected, subject) {
     } catch (error) {
       logError_('tell a sender to use the right address', error, messageId);
     }
-    alertAdmin_('sender:' + messageId, 'Coaching: a reply came from the wrong address', ['A reply to "' + subject + '" came from ' + address + ', but the question went to ' +
-      expected + ', so it was not counted. The sender was asked to reply from ' + expected + '.']);
   } catch (error) {
     logError_('send a reply notice', error);
   }
 }
 
-// A reply to one of our questions that is not a clear YES or NO: tell the sender how to answer, and the club, once per reply.
-function unreadableReply_(messageId, address, subject, line) {
+// A reply to one of our questions that is not a clear YES or NO: tell the sender how to answer, once per reply. The club is not
+// emailed: the sender has what they need to fix it.
+function unreadableReply_(messageId, address, subject) {
   try {
     var cache = CacheService.getScriptCache();
     if (cache.get('unread:' + messageId) || !mailAvailable_()) return;
@@ -2357,8 +2346,6 @@ function unreadableReply_(messageId, address, subject, line) {
     } catch (error) {
       logError_('tell a sender their reply was unreadable', error, messageId);
     }
-    alertAdmin_('unread:' + messageId, 'Coaching: a reply could not be read', ['A reply to "' + subject + '" from ' + address + ' started with "' +
-      String(line || '').slice(0, 80) + '", which is not YES or NO. They were asked to reply again.']);
   } catch (error) {
     logError_('send a reply notice', error);
   }

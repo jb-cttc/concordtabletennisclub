@@ -516,15 +516,13 @@ answerMail('pat@example.com', 'YES', verifyMail.subject);
 answerMail('"Sam" <sam@example.com>', 'YES', verifyMail.subject.replace(/ref [0-9A-F]+/, 'ref 0123456789'));
 answerMail('"Sam" <sam@example.com>', 'YES', 'Confirm your coaching request');
 assert.equal(statusOf('sam@example.com'), 'unverified', 'a maybe, a stranger, a wrong code and no code are not answers');
-// ...but a reply to a real question is never silently ignored: the sender is told what to do, and so is the club.
+// ...but a reply to a real question is never silently ignored: the sender is told what to do. The club is not emailed.
 assert.deepEqual(sent.slice(1).map(message => [message.to.toLowerCase(), message.subject]), [
   ['sam@example.com', 'We could not read your reply'],
-  ['owner@example.com', 'Coaching: a reply could not be read'],
-  ['pat@example.com', 'Your reply did not count: please answer from the right address'],
-  ['owner@example.com', 'Coaching: a reply came from the wrong address']]);
-assert.doesNotMatch(sent[3].body, /sam@example/, 'the other sender is not shown the booked address');
+  ['pat@example.com', 'Your reply did not count: please answer from the right address']]);
+assert.doesNotMatch(sent[2].body, /sam@example/, 'the other sender is not shown the booked address');
 check();
-assert.equal(sent.length, 5, 'each unanswerable reply is answered once');
+assert.equal(sent.length, 3, 'each unanswerable reply is answered once');
 sent.splice(1);
 // The next minute's check starts while this one is still reading mail: it must not read and apply the same YES again, which
 // sent the student a second email saying "That request is no longer waiting for you (it is pending)".
