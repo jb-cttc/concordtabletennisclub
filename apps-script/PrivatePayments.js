@@ -83,6 +83,7 @@ function getPrivatePaymentOverview(sessionDate) {
   var playerRows = rows_('Players');
   var players = listPlayers(playerRows);
   var passes = getZeffyPlayers(playerRows, sessionDate);
+  var unreadable = zeffyUnreadableCount_(zeffyPaymentRows_(), sessionDate);
   var coveredIds = getZeffyCoveredPlayerIds(passes, players);
   var covered = {};
   coveredIds.forEach(function (playerId) { covered[playerId] = true; });
@@ -100,7 +101,7 @@ function getPrivatePaymentOverview(sessionDate) {
   players.forEach(function (player) {
     byPlayer[player.playerId] = covered[player.playerId] ? 'zeffy' : paid[player.playerId] || '';
   });
-  return { methods: byPlayer, coveredIds: coveredIds, passes: passes };
+  return { methods: byPlayer, coveredIds: coveredIds, passes: passes, unreadable: unreadable };
 }
 
 function setSessionPayment(sessionDate, playerId, method) {

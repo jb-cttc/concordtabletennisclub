@@ -48,9 +48,20 @@ a:hover {
 
 /* ---- Header ---- */
 
+/* The header stays at the top while the page scrolls, so the menu is always in reach. */
 header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
   padding: 18px 20px 14px;
+}
+
+/* Links to a spot on the page, and scrolling to one, stop below the header instead of under it. navtoggle.js keeps
+   --header-height at the header's real height, which changes with the screen width. */
+html {
+  scroll-padding-top: calc(var(--header-height, 100px) + 8px);
 }
 
 .header-inner {
@@ -1146,6 +1157,13 @@ footer {
 
   nav.nav-open a {
     display: block;
+  }
+
+  /* An open menu taller than the screen scrolls inside the header. */
+  header:has(nav.nav-open) {
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
   }
 
   .header-inner {

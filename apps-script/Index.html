@@ -2006,7 +2006,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 @media print{#sync-note{display:none}}
 .payment-options .unpaid{border-top:1px solid #dce3df;color:#8a3b2b}
 .payment-options{display:none;position:absolute;right:0;top:100%;min-width:108px;padding:4px;background:#fff;border:1px solid #b8c7bc;box-shadow:0 6px 14px #17211b2b;z-index:3}
-.payment-control:not(.pass):hover .payment-options,.payment-control:not(.pass):focus-within .payment-options,.payment-control.open .payment-options{display:grid;gap:3px}
+:root:not(.payment-hold) .payment-control:not(.pass):not(.picked):hover .payment-options,.payment-control:not(.pass):not(.picked):focus-within .payment-options,.payment-control.open .payment-options{display:grid;gap:3px}
 .payment-options button{padding:7px;text-align:left;border:0;background:#fff;color:#17211b}
 .payment-options button:hover,.payment-options button:focus{background:#e4f3e9}
 </style>
@@ -2080,7 +2080,21 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var trigger = document.createElement('button');
       trigger.type = 'button';
       trigger.className = 'payment-trigger';
-      trigger.addEventListener('click', function () { control.classList.toggle('open'); });
+      // The list shows on hover and focus too, so closing it (a pick, or a second press) holds it shut until the pointer
+      // and focus have left the control. Until the mouse moves, no list opens by hover either: the row below, now under
+      // the pointer where the list was, stays shut.
+      function close() {
+        control.classList.remove('open');
+        control.classList.add('picked');
+        document.documentElement.classList.add('payment-hold');
+        window.addEventListener('mousemove', function () { document.documentElement.classList.remove('payment-hold'); }, { once: true });
+      }
+      trigger.addEventListener('click', function () {
+        if (control.classList.contains('open')) close();
+        else { control.classList.remove('picked'); control.classList.add('open'); }
+      });
+      control.addEventListener('mouseleave', function () { if (!control.contains(document.activeElement)) control.classList.remove('picked'); });
+      control.addEventListener('focusout', function (event) { if (!control.contains(event.relatedTarget)) control.classList.remove('picked'); });
       var options = document.createElement('div');
       options.className = 'payment-options';
       METHODS.forEach(function (option) {
@@ -2088,9 +2102,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         button.type = 'button';
         button.textContent = option[1];
         if (!option[0]) button.className = 'unpaid';
-        button.addEventListener('click', function () {
+        button.addEventListener('click', function (event) {
           choose(playerId, option[0]);
-          control.classList.remove('open');
+          // From the keyboard, focus goes back to the control's button; a mouse or finger leaves nothing focused.
+          if (event.detail === 0) trigger.focus();
+          else button.blur();
+          close();
         });
         options.appendChild(button);
       });
@@ -2282,7 +2299,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     head.appendChild(th);
   });
   var list = table.createTBody();
-  section.append(heading, table);
+  // A play pass email the desk could not read (Zeffy changed its wording): its buyer is missing from the list.
+  var unreadable = document.createElement('p');
+  unreadable.className = 'hint zeffy-unreadable';
+  unreadable.hidden = true;
+  section.append(heading, table, unreadable);
   sidebar.appendChild(section);
   var initialDate = document.getElementById('date').value;
   function request(name) {
@@ -2304,10 +2325,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         state.title = 'Renews ' + pass.renewsOn;
       }
     });
+    unreadable.hidden = !result.unreadable;
+    unreadable.textContent = result.unreadable === 1 ? '1 Zeffy play pass email could not be read, so its buyer is not listed. Find it in the club Gmail.' :
+      result.unreadable + ' Zeffy play pass emails could not be read, so their buyers are not listed. Find them in the club Gmail.';
   }
   document.addEventListener('cttc:payment-overview', function (event) { showPasses(event.detail); });
   document.addEventListener('cttc:payment-unavailable', function () {
     list.replaceChildren();
+    unreadable.hidden = true;
     heading.textContent = 'Zeffy Players - Monthly Play Pass unavailable';
   });
   window.cttcInitialPaymentOverview.then(function (result) {
@@ -2325,6 +2350,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .zeffy-table th{font-weight:700;background:#f4f4f4}
 .zeffy-table th:last-child,.zeffy-table td:last-child{text-align:right;white-space:nowrap}
 .zeffy-table .zeffy-expired{color:#c62828;font-weight:700}
+.zeffy-unreadable{color:#a43831}
 .directory-actions{display:flex;gap:6px;flex-shrink:0}
 .directory-actions [hidden]{display:none}
 .roster-status{font:13px Arial,sans-serif;color:var(--green);font-weight:700;white-space:nowrap}
@@ -2813,11 +2839,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function addFromVoice(playerId, senderKey) {
     var selectedDate = date.value;
     if (!window.cttcDesk.add(playerId, 'Voice signup')) return false;
+    // Highlighted where it landed, without scrolling: the organizer stays on the list they are working through.
     var added = document.querySelector('#groups [data-move="' + CSS.escape(playerId) + '"]');
-    if (added) {
-      added.closest('li').classList.add('just-added');
-      added.closest('li').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
+    if (added) added.closest('li').classList.add('just-added');
     if (!senderKey) return true;
     setConfirmation(senderKey, navigator.onLine === false ? 'Confirmed will send when online' : 'Sending Confirmed...');
     window.cttcOutbox.enqueue('voice:' + selectedDate + ':' + senderKey, 'sendVoiceConfirmation', [selectedDate, senderKey, playerId]);

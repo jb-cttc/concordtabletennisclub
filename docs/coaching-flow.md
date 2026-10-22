@@ -245,7 +245,32 @@ Students can only request times that are confirmed, **at least 24 hours away**
 (`LEAD_HOURS`) and **at most 28 days ahead** (`HORIZON_DAYS`), on Fridays 7 to
 10 PM or Saturdays 3 to 6 PM Pacific.
 
-## 6. What the page said, and what it means
+## 6. How the website shows the app
+
+The **Coaching** page's button opens the site's own copy of the page,
+`coaching-app.html`, which the deploy workflow publishes from
+`coaching-app/Index.html`. That copy calls the app at
+`https://script.google.com/macros/s/AKfycbywI5OV0aaitPbzchxfyJUK4Q6_uLbFpF39O_cq8fLikbSO5Sy_NW3B3R-NlPtTS2YdTw/exec`
+(`API_URL` in `Index.html`) with `fetch` and **no cookies** (`doPost`, which
+answers only the page's seven calls). Nobody needs a Google account, and a
+browser signed in to several Google accounts cannot trip Google's "Sorry,
+unable to open the file at this time" page. Until 2026-10-22 the button framed
+Google's page host directly, and some members got that page instead of the
+app. The same page still works served by Google at that address (with
+`google.script.run`).
+
+If the copy's first call gets no answer from the app (for example the site was
+deployed before the `/exec` release that added `doPost`), the copy hands over to
+Google's own page, as the button worked before. A change to `Index.html`
+reaches the website with the next site deploy (any push to `main`), and a change
+to `Code.js` with the usual `/exec` release.
+
+| Symptom | Check |
+| --- | --- |
+| A member sees "Sorry, unable to open the file at this time" | The copy handed over to Google's page: the `/exec` release with `doPost` is not out yet, or the app did not answer. Open `/exec?log` to see whether the app runs. |
+| The page stays on "Loading" | Open `concordtabletennisclub.com/coaching-app.html` directly; a blank page or a console error points at the page, a "Something went wrong" message at the app. |
+
+## 7. What the page said, and what it means
 
 Each form shows its answer right under its own Send button (and at the top of the page), scrolls to it, and outlines and
 focuses the field to fix. Before 2026-10-10 errors appeared only at the top of the page, which on a phone is usually off
@@ -259,9 +284,9 @@ screen, so a refused request looked like nothing happened.
 | "You already have 2 requests waiting for an answer." | The student has 2 `unverified`/`pending` rows (`MAX_OPEN_REQUESTS_PER_STUDENT`). |
 | "Too many requests right now." | More than 30 calls in a minute across the whole app (`MAX_PER_MINUTE`). |
 | "Requests are closed for now." | The Requests or Students tab hit its size cap (`MAX_REQUESTS`, `MAX_STUDENTS`). |
-| "Something went wrong. Please try again." | The server threw an error (the page never shows the real message). Look in the Apps Script editor, **Executions**, for a failed `requestSlot`, `studentChange` etc. **Before the fix in this branch** a request could be saved and still show this (see §7). |
+| "Something went wrong. Please try again." | The server threw an error (the page never shows the real message). Look in the Apps Script editor, **Executions**, for a failed `requestSlot`, `studentChange` etc. **Before the fix in this branch** a request could be saved and still show this (see §8). |
 
-## 7. Known failure modes
+## 8. Known failure modes
 
 | Symptom | Likely cause | Check | Fix |
 | --- | --- | --- | --- |
@@ -273,7 +298,7 @@ screen, so a refused request looked like nothing happened.
 | Time shows "closed" | It is under 24 hours away, so it no longer takes requests. Expected. | `date`/`start`. | None in the app. |
 | Public Sheet out of date | It is rebuilt only after changes and hourly; a failed rebuild is logged, never fatal. | Executions log for "Could not update the public schedule". | Run `sweep` from the editor. |
 
-## 8. Timing reference
+## 9. Timing reference
 
 | Constant | Value | Effect |
 | --- | --- | --- |

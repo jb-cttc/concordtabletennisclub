@@ -1,6 +1,12 @@
-// Zeffy play passes are tracked from Zeffy's notification emails to the club Gmail.
-var ZEFFY_QUERY_ = 'in:anywhere from:communication.mailer.zeffy.com (subject:"Pre-pay Playpass" OR subject:"has been cancelled")';
+// Zeffy play passes are tracked from Zeffy's notification emails to the club Gmail. Every Zeffy email is looked at, so a
+// renamed form or a reworded subject still counts when the email is about the play pass.
+var ZEFFY_QUERY_ = 'in:anywhere from:communication.mailer.zeffy.com';
+var ZEFFY_PASS_ = /play\s*-?\s*pass/i;
 var ZEFFY_SYNCED_AT_ = 'CTTC_ZEFFY_SYNCED_AT';
+// Raised whenever the reader learns a new email format: the next sync reads the whole mailbox again, so emails it could
+// not read before are picked up. Emails already recorded are skipped.
+var ZEFFY_READER_ = 'CTTC_ZEFFY_READER';
+var ZEFFY_READER_VERSION_ = '2';
 var ZEFFY_SYNC_INTERVAL_MS_ = 10 * 60000;
 // A renewal retried a few days late still continues the streak.
 var ZEFFY_RENEWAL_GRACE_DAYS_ = 3;
@@ -11,7 +17,8 @@ function zeffyEmail_(value) {
   return match ? match[0].toLowerCase() : '';
 }
 
-// One row per person a message covers; renewals name only the buyer.
+// One row per person a message covers; renewals name only the buyer. A play pass email whose buyer cannot be found is one
+// 'unreadable' row with no names, so the sidebar can say so instead of leaving that person silently off the list.
 function parseZeffyEmail_(from, subject, body, paidOn) {
   if (!/@communication\.mailer\.zeffy\.com>?$/i.test(String(from || '').trim())) return [];
   subject = String(subject || '').trim();
@@ -20,10 +27,10 @@ function parseZeffyEmail_(from, subject, body, paidOn) {
   if (cancelled) {
     return [{ paid_on: paidOn, kind: 'cancel', payer_name: normalizeName_(cancelled[1]), payer_email: zeffyEmail_((text.match(/contact them at (\S+)/i) || [])[1]), participant_name: '' }];
   }
-  if (!/Pre-pay Playpass/i.test(subject)) return [];
-  var buyer = text.match(/payment received! (.+?) <?((?:mailto:)?[^\s<>]+@[^\s<>]+)/i);
-  if (!buyer) return [];
-  var kind = /\(recurring payment\)\s*$/i.test(subject) ? 'renewal' : 'purchase';
+  if (!ZEFFY_PASS_.test(subject) && !ZEFFY_PASS_.test(text)) return [];
+  var buyer = text.match(/payment received[!.:]?\s+(.+?)\s+<?((?:mailto:)?[^\s<>]+@[^\s<>]+)/i);
+  if (!buyer) return [{ paid_on: paidOn, kind: 'unreadable', payer_name: '', payer_email: '', participant_name: '' }];
+  var kind = /recurring payment/i.test(subject) ? 'renewal' : 'purchase';
   var payer = { paid_on: paidOn, kind: kind, payer_name: normalizeName_(buyer[1]), payer_email: zeffyEmail_(buyer[2]) };
   var participants = [];
   var pattern = /Name: (.+?) Email:/g;
@@ -40,14 +47,17 @@ function parseZeffyEmail_(from, subject, body, paidOn) {
 // Never call this while holding the lock: it would keep the desk waiting on Gmail.
 function syncZeffyPayments_() {
   var properties = PropertiesService.getScriptProperties();
-  var last = Number(properties.getProperty(ZEFFY_SYNCED_AT_)) || 0;
+  var current = properties.getProperty(ZEFFY_READER_) === ZEFFY_READER_VERSION_;
+  var last = current ? Number(properties.getProperty(ZEFFY_SYNCED_AT_)) || 0 : 0;
   var now = Date.now();
   if (now - last < ZEFFY_SYNC_INTERVAL_MS_) return;
   // A caller already holding the lock uses the emails recorded so far; the next caller without it reads Gmail.
   var lock = LockService.getScriptLock();
   if (lock.hasLock()) return;
+  // An email recorded as unreadable is read again (by a newer reader); it is recorded again only once it can be read.
   var known = {};
-  rows_('ZeffyPayments').forEach(function (row) { known[String(row.message_id)] = true; });
+  var unreadable = {};
+  rows_('ZeffyPayments').forEach(function (row) { (row.kind === 'unreadable' ? unreadable : known)[String(row.message_id)] = true; });
   var query = ZEFFY_QUERY_ + (last ? ' newer_than:' + (Math.ceil((now - last) / 86400000) + 2) + 'd' : '');
   var found = [];
   for (var start = 0; ; start += 100) {
@@ -58,7 +68,9 @@ function syncZeffyPayments_() {
         if (known[id]) return;
         known[id] = true;
         var paidOn = Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-        parseZeffyEmail_(message.getFrom(), message.getSubject(), message.getPlainBody(), paidOn).forEach(function (row) {
+        var rows = parseZeffyEmail_(message.getFrom(), message.getSubject(), message.getPlainBody(), paidOn);
+        if (unreadable[id] && rows.length && rows[0].kind === 'unreadable') return;
+        rows.forEach(function (row) {
           row.message_id = id;
           row.created_at = new Date();
           found.push(row);
@@ -70,9 +82,10 @@ function syncZeffyPayments_() {
   if (!lock.tryLock(10000)) return;
   try {
     var recorded = {};
-    rows_('ZeffyPayments').forEach(function (row) { recorded[String(row.message_id)] = true; });
+    rows_('ZeffyPayments').forEach(function (row) { if (row.kind !== 'unreadable') recorded[String(row.message_id)] = true; });
     appendObjects_('ZeffyPayments', found.filter(function (row) { return !recorded[String(row.message_id)]; }));
     properties.setProperty(ZEFFY_SYNCED_AT_, String(now));
+    properties.setProperty(ZEFFY_READER_, ZEFFY_READER_VERSION_);
   } finally {
     lock.releaseLock();
   }
@@ -81,6 +94,7 @@ function syncZeffyPayments_() {
 function zeffyPaymentRows_() {
   return rows_('ZeffyPayments').map(function (row) {
     return {
+      message_id: String(row.message_id || ''),
       paid_on: displayDate_(row.paid_on).slice(0, 10),
       kind: String(row.kind || ''),
       payer_name: normalizeName_(row.payer_name),
@@ -124,7 +138,20 @@ function zeffyDaysBetween_(from, to) {
   return Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000);
 }
 
+// Play pass emails from the past 90 days, up to sessionDate, that the desk still cannot read.
+function zeffyUnreadableCount_(payments, sessionDate) {
+  var readable = {};
+  payments.forEach(function (payment) { if (payment.kind !== 'unreadable') readable[payment.message_id] = true; });
+  var ids = {};
+  payments.forEach(function (payment) {
+    if (payment.kind !== 'unreadable' || readable[payment.message_id] || !payment.paid_on || payment.paid_on > sessionDate) return;
+    if (zeffyDaysBetween_(payment.paid_on, sessionDate) <= ZEFFY_EXPIRED_LIST_DAYS_) ids[payment.message_id] = true;
+  });
+  return Object.keys(ids).length;
+}
+
 function zeffyPassesForDate_(payments, sessionDate, resolve) {
+  payments = payments.filter(function (payment) { return payment.kind !== 'unreadable'; });
   var participantsByEmail = {};
   payments.forEach(function (payment) {
     if (payment.kind !== 'purchase' || !payment.payer_email || !payment.participant_name) return;

@@ -104,9 +104,10 @@
 
 <script>
   (function () {
-    // The coaching app (coaching-app/) is a separate Apps Script project. The button stays hidden until it is deployed.
-    var APP_URL = 'https://script.google.com/macros/s/AKfycbywI5OV0aaitPbzchxfyJUK4Q6_uLbFpF39O_cq8fLikbSO5Sy_NW3B3R-NlPtTS2YdTw/exec';
-    if (APP_URL.indexOf('PENDING_DEPLOYMENT') >= 0) return;
+    // The coaching app (coaching-app/) is a separate Apps Script project. Its page (coaching-app/Index.html) is published with
+    // the site as coaching-app.html and talks to the app with fetch and no cookies, so a visitor's Google sign-ins never
+    // matter: Google's own page host can refuse to open in a browser signed in to several Google accounts.
+    var APP_PAGE = 'coaching-app.html';
     var launch = document.getElementById('coaching-launch');
     var dialog = document.getElementById('coaching-dialog');
     var frame = document.getElementById('coaching-frame');
@@ -114,11 +115,11 @@
     function ready() { loading.hidden = true; }
     // The app says when it is drawn. Google's outer page can finish loading before the app inside it does.
     window.addEventListener('message', function (event) {
-      if (event.data === 'cttc-coaching-ready' && /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin)) ready();
+      if (event.data === 'cttc-coaching-ready' && (event.origin === window.location.origin || /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin))) ready();
     });
     frame.addEventListener('load', function () { setTimeout(ready, 10000); });
     function warm() {
-      if (!frame.getAttribute('src')) frame.setAttribute('src', APP_URL);
+      if (!frame.getAttribute('src')) frame.setAttribute('src', APP_PAGE);
     }
     function openApp() {
       warm();

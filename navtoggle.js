@@ -1,4 +1,16 @@
 (function () {
+  // The header stays at the top of the screen (style.css); scroll-padding-top uses its height so a jump to a spot on the
+  // page does not end under it.
+  var header = document.querySelector('header');
+  function measure() {
+    if (header) document.documentElement.style.setProperty('--header-height', Math.ceil(header.getBoundingClientRect().height) + 'px');
+  }
+  measure();
+  if (header && window.ResizeObserver) new ResizeObserver(measure).observe(header);
+  else window.addEventListener('resize', measure);
+}());
+
+(function () {
   var btn = document.querySelector('.nav-toggle');
   if (!btn) return;
   btn.addEventListener('click', function () {

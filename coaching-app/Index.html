@@ -163,7 +163,25 @@
   }
   function field(label, input) { return [el('label', { text: label, 'for': input.id }), input]; }
   function clear() { while (app.firstChild) app.removeChild(app.firstChild); }
+  // Served by Google, the page calls the app with google.script.run. The club site's copy (coaching-app.html) has no
+  // google.script and calls the app's address instead.
+  var API_URL = 'https://script.google.com/macros/s/AKfycbywI5OV0aaitPbzchxfyJUK4Q6_uLbFpF39O_cq8fLikbSO5Sy_NW3B3R-NlPtTS2YdTw/exec';
+  var ON_SITE = !(window.google && window.google.script && window.google.script.run);
+  // Until the app has answered once, a failed call hands over to Google's own page: that is how the page opened before the
+  // site had its copy, and it keeps the button working while the site is a release ahead of the app.
+  var reached = false;
   function call(name, args, done) {
+    if (ON_SITE) {
+      // No cookies: the visitor's Google sign-ins never reach Google, so they can never get in the way.
+      fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: name, args: args }), credentials: 'omit', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' } })
+        .then(function (response) { return response.json(); })
+        .then(function (result) { reached = true; done(result || { ok: false, message: 'Something went wrong. Please try again.' }); },
+          function () {
+            if (!reached) { window.location.replace(API_URL); return; }
+            done({ ok: false, message: 'Something went wrong. Please check your connection and try again.' });
+          });
+      return;
+    }
     var runner = google.script.run
       .withSuccessHandler(function (result) { done(result || { ok: false, message: 'Something went wrong. Please try again.' }); })
       .withFailureHandler(function () { done({ ok: false, message: 'Something went wrong. Please try again.' }); });

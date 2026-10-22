@@ -139,7 +139,18 @@ const rpc = {
     return rpc.getPlayerDetails(id);
   },
   getMemberStatuses: function () { return {}; },
-  listVoiceSuggestions: function () { return []; },
+  // Sample texts and volunteers, so the sidebar's RR and Open buttons can be pressed here.
+  listVoiceSuggestions: function () {
+    return players.slice(10, 16).map(function (player, index) {
+      return { senderName: player.name, senderKey: player.name.toLowerCase(), playerIds: [player.playerId], linkedPlayerId: player.playerId, validated: true, check: '',
+        messages: [{ text: "I'll join CTTC's RR tonight", receivedAt: Date.now() - (index + 1) * 600000 }] };
+    });
+  },
+  listVolunteers: function () {
+    return { connected: true, volunteers: players.slice(20, 24).map(function (player, index) {
+      return { playerId: player.playerId, name: player.name, roles: [index % 2 ? 'Close' : 'Open'], waiting: false };
+    }) };
+  },
   sendVoiceConfirmation: function () { return { sent: true, reason: '' }; },
   getOpenPlayParticipants: function (date) { return openPlay[date] || []; },
   getCoachingParticipants: function () {

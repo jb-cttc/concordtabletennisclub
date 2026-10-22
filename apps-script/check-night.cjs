@@ -334,9 +334,13 @@ const cases = {
     assert.equal(marks()[cy.display_name], '✓');
     assert.equal(addAll.textContent, 'Add all ✓ (2)');
 
+    // The page stays where the organizer is: adding from the sidebar never scrolls to the groups.
+    let scrolls = 0;
+    tab.window.Element.prototype.scrollIntoView = () => { scrolls += 1; };
     tab.click(addAll);
     await run(world, 20000);
     assert.ok(tab.roster().includes(ava.player_id) && tab.roster().includes(cy.player_id), 'both ✓ players added');
+    assert.equal(scrolls, 0, 'Add all does not scroll the page');
     assert.ok(!tab.roster().includes(ben.player_id), 'a ? is left for the organizer');
     assert.equal(addAll.textContent, 'All ✓ added');
     assert.equal(addAll.disabled, true);
@@ -387,8 +391,11 @@ const cases = {
 
     // Pressed with Google not answering at all: both take effect on the press itself, and nothing shows as waiting.
     device.net.blackhole = true;
+    let scrolls = 0;
+    tab.window.Element.prototype.scrollIntoView = () => { scrolls += 1; };
     tab.click(doc.querySelector('[data-volunteer-rr="' + ray.player_id + '"]'));
     tab.click(doc.querySelector('[data-volunteer-open="' + ron.player_id + '"]'));
+    assert.equal(scrolls, 0, 'the buttons do not scroll the page');
     assert.ok(tab.roster().includes(ray.player_id), 'RR adds to the draft at once');
     assert.ok(doc.querySelector('#open-roster [data-open-remove="' + ron.player_id + '"]'), 'Open adds to Open Play at once');
     assert.deepEqual(rows().map(r => r[2]), ['In RR', 'RR/Open', 'In Open']);
@@ -408,6 +415,41 @@ const cases = {
     await run(world, 10000);
     assert.match(doc.querySelector('.volunteer-signups .hint').textContent, /Not connected/);
     assert.equal(doc.querySelectorAll('.volunteer-signups li').length, 0);
+  },
+
+  // Picking a payment closes the list. It also opens on hover and focus, so it is held shut until the pointer moves and
+  // leaves, and the row below (now under the pointer) does not open in its place.
+  async paymentListClosesOnPick() {
+    const world = sim.createWorld({ seed: 24 });
+    const tab = await deskWith(world, world.device(), 4);
+    const win = tab.window;
+    const doc = win.document;
+    const control = doc.querySelector('#groups .payment-control');
+    const trigger = control.querySelector('.payment-trigger');
+    const option = label => [...control.querySelectorAll('.payment-options button')].find(button => button.textContent === label);
+    const press = (node, detail) => node.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true, detail }));
+    press(trigger, 1);
+    assert.ok(control.classList.contains('open'));
+    press(option('Cash'), 1);
+    assert.equal(trigger.textContent, 'Cash ✓');
+    assert.ok(!control.classList.contains('open') && control.classList.contains('picked'), 'the list closes and stays shut under the pointer');
+    assert.ok(doc.documentElement.classList.contains('payment-hold'), 'no other list opens by hover until the mouse moves');
+    win.dispatchEvent(new win.MouseEvent('mousemove'));
+    assert.ok(!doc.documentElement.classList.contains('payment-hold'));
+    control.dispatchEvent(new win.MouseEvent('mouseleave'));
+    assert.ok(!control.classList.contains('picked'), 'hovering again later opens it as before');
+    press(trigger, 1);
+    press(trigger, 1);
+    assert.ok(!control.classList.contains('open') && control.classList.contains('picked'), 'a second press closes it');
+    control.dispatchEvent(new win.MouseEvent('mouseleave'));
+    // From the keyboard (Enter gives a click with no detail), focus returns to the control's button.
+    press(trigger, 0);
+    option('Venmo').focus();
+    press(option('Venmo'), 0);
+    assert.equal(trigger.textContent, 'Venmo ✓');
+    assert.equal(doc.activeElement, trigger);
+    assert.ok(control.classList.contains('picked'));
+    assert.deepEqual(tab.errors, []);
   },
 
   // Add all never waits on Google: with Google not answering at all (or the Wi-Fi off), the players are on the draft the
