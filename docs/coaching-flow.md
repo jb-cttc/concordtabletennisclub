@@ -199,8 +199,12 @@ An email reply to an open question that cannot be used gets an explanation
 (unreadable, or wrong address) within about 5 hours of arriving, and the club
 is emailed. Text replies with no yes/no are still ignored without a message.
 Each step of the minute check runs on its own, so a failing step (for
-example Google Voice) does not stop email answers being read; the club is
-emailed about a failing step at most every 6 hours. A student's YES sent
+example Google Voice) does not stop email answers being read. A step that
+fails at every attempt for 30 minutes (`ALERT_AFTER_MS`) is emailed to the club
+once, as *Action needed: the coaching app cannot …*, with what to do; when it
+works again the club gets *Resolved: the coaching app can … again*. A failure
+that clears sooner (Google outages of a few minutes are common) is logged, not
+emailed. A student's YES sent
 before the deadline but read after it still counts if the lesson is still
 offered, free, at least about an hour from its own deadline, and the coach
 is active.

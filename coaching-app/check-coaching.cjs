@@ -893,7 +893,8 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   check();
   assert.equal(statusOf('lou.late@gmail.com'), 'pending');
 }
-// A failing step of the minute check (here Google Voice) never stops email answers being read, and the club is told once.
+// A failing step of the minute check (here Google Voice) never stops email answers being read. The club is emailed once it has
+// failed for 30 minutes without a break, and again when it works.
 {
   const picked = run('openSlots').slots[0];
   assert.equal(run('requestSlot', { key: picked.key, name: 'Val Voice', email: 'val@example.com' }).ok, true);
@@ -904,9 +905,22 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   voiceDown = true; sent.length = 0;
   replyTo('val@example.com', 'YES', /^Confirm your coaching request/);
   assert.equal(statusOf('val@example.com'), 'pending', 'the email YES is read even though texts cannot be');
-  assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'the club is told');
+  const toClub = () => mailTo('owner@example.com').filter(message => /^(Action needed|Resolved): /.test(message.subject));
+  assert.deepEqual(toClub(), [], 'a failure is logged, not emailed at once');
   check();
-  assert.equal(sent.filter(message => message.subject === 'Coaching app: could not read coach texts').length, 1, 'once');
+  assert.deepEqual(toClub(), []);
+  const failing = JSON.parse(properties.FAILING_STEPS);
+  assert.deepEqual(Object.keys(failing), ['read coach texts']);
+  // Thirty minutes ago, without moving the clock the later checks run on.
+  const since = failing['read coach texts'].since -= 30 * 60000;
+  properties.FAILING_STEPS = JSON.stringify(failing);
+  check();
+  assert.deepEqual(toClub().map(message => message.subject), ['Action needed: the coaching app cannot read coach texts'], '30 minutes without a break');
+  assert.match(toClub()[0].body, new RegExp('^The coaching app has failed to read coach texts at every attempt since ' + context.momentLabel_(since) + '\\. It retries every minute\\.\\n\\n' +
+    'Coaches\' YES and NO texts are not being read\\.\\n\\nError: Error: Google Voice is unavailable\\n\\nWHAT TO DO\\n\\n1\\. Check https://www\\.google\\.com/appsstatus/dashboard/ '));
+  assert.match(toClub()[0].body, /2\. If Google lists no outage, forward this email to JB\.\n\nThe club gets a follow-up email when this step works again\.\n\nSent by the CTTC coaching app to the club account\.$/);
+  check();
+  assert.equal(toClub().length, 1, 'once');
   // A new column gets its header at the next sweep, without running setup() again.
   grids.Requests[0] = grids.Requests[0].slice(0, 23);
   delete properties.HEADERS;
@@ -926,6 +940,14 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   assert.ok(failedView.lines.some(line => line.channel === 'error' && line.kind === 'read-coach-texts' && line.detail === 'Error: Google Voice is unavailable'));
   assert.equal(grids.Log.slice(1).filter(line => line[2] === 'read-coach-texts').length, 1, 'a failure that repeats every minute is logged once per 10 minutes');
   voiceDown = false;
+  check();
+  assert.deepEqual(toClub().map(message => message.subject).slice(1), ['Resolved: the coaching app can read coach texts again']);
+  assert.match(toClub()[1].body, new RegExp('^The coaching app can read coach texts again as of ' + context.momentLabel_(clock) + '\\. No action is needed\\.\\n\\nIt had failed at every attempt from ' +
+    context.momentLabel_(since) + '\\. This resolves the email "Action needed: the coaching app cannot read coach texts"\\.'));
+  check();
+  assert.equal(toClub().length, 2, 'told once');
+  toClub().forEach(message => assert.doesNotMatch(message.body, /\bonly\b/i, 'facts and actions, no "only"'));
+  assert.deepEqual(JSON.parse(properties.FAILING_STEPS), {});
   if (saved) grids.Coaches[grids.Coaches.indexOf(coaches[0])] = saved;
   cache = {};
 }

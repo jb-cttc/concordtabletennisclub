@@ -1374,6 +1374,61 @@ seedCheck();
   assert.deepEqual(JSON.parse(context.doPost(undefined).getContent()), { ok: false, message: 'Unknown request.' });
 }
 
+// ---- A failing step of the minute check: logged at once, emailed to the club after 30 minutes without a break, and a
+// follow-up email when it works again ----
+{
+  const real = context.checkDecisions_;
+  let down = true;
+  context.checkDecisions_ = () => {
+    // Apps Script's errors read "Exception: ...".
+    if (down) throw Object.assign(new Error('Service Spreadsheets failed while accessing document with id x'), { name: 'Exception' });
+    return real();
+  };
+  const from = sent.length;
+  const club = () => mailTo('owner@example.com', from);
+  const minutes = count => { for (let index = 0; index < count; index += 1) { clock += 60000; check(); } };
+  check();
+  minutes(20);
+  down = false;
+  minutes(1);
+  assert.deepEqual(club(), [], 'an outage that clears by itself within 30 minutes is not emailed');
+  assert.deepEqual(JSON.parse(properties.FAILING_STEPS), {}, 'and is forgotten once the step works');
+  down = true;
+  const since = clock + 60000;
+  minutes(30);
+  assert.deepEqual(club(), [], 'not yet: 29 minutes after the first failure');
+  minutes(1);
+  assert.deepEqual(club().map(message => message.subject), ['Action needed: the staffing app cannot apply the club\'s email decisions'], '30 minutes without a break');
+  const alert = club()[0];
+  assert.match(alert.body, new RegExp('^The staffing app has failed to apply the club\'s email decisions at every attempt since ' + context.momentLabel_(since) + '\\. It retries every minute\\.'));
+  assert.match(alert.body, /Approvals and declines entered in the Emails tab are not being applied\./, 'what is affected');
+  assert.match(alert.body, /\n\nError: Exception: Service Spreadsheets failed while accessing document with id x/);
+  assert.match(alert.body, /WHAT TO DO\n\n1\. Check https:\/\/www\.google\.com\/appsstatus\/dashboard\/ for a Google Sheets or Gmail outage\. If Google lists one, no action is needed: the app resumes by itself when Google recovers\.\n2\. If Google lists no outage, forward this email to JB\./);
+  assert.match(alert.body, /The club gets a follow-up email when this step works again\.\n\nSent by the CTTC staff sign-up app to the club account\.$/, 'the club footer, not a volunteer\'s');
+  assert.match(alert.htmlBody, /<ol[^>]*><li[^>]*>Check <a href="https:\/\/www\.google\.com\/appsstatus\/dashboard\/">/);
+  minutes(8 * 60);
+  assert.equal(club().length, 1, 'one alert for one outage, however long');
+  down = false;
+  const back = clock + 60000;
+  minutes(1);
+  assert.deepEqual(club().map(message => message.subject).slice(1), ['Resolved: the staffing app can apply the club\'s email decisions again']);
+  assert.match(club()[1].body, new RegExp('^The staffing app can apply the club\'s email decisions again as of ' + context.momentLabel_(back) + '\\. No action is needed\\.\\n\\nIt had failed at every attempt from ' +
+    context.momentLabel_(since) + '\\. This resolves the email "Action needed: the staffing app cannot apply the club\'s email decisions"\\.'));
+  minutes(5);
+  assert.equal(club().length, 2, 'told once');
+  club().forEach(message => assert.doesNotMatch(message.body, /\bonly\b/i, 'facts and actions, no "only"'));
+  context.checkDecisions_ = real;
+
+  // A throttled step that skipped its work says nothing about whether it works: the outage it is in stays open.
+  const failing = {};
+  context.step_(failing, 'read STAFF and STOP texts', 'STAFF and STOP texts are not being read.', () => { throw new Error('Gmail is down'); });
+  context.step_(failing, 'read STAFF and STOP texts', 'STAFF and STOP texts are not being read.', () => false);
+  assert.ok(failing['read STAFF and STOP texts'], 'skipped');
+  context.step_(failing, 'read STAFF and STOP texts', 'STAFF and STOP texts are not being read.', () => {});
+  assert.deepEqual(failing, {}, 'worked');
+  assert.equal(context.checkOptIns_(), false, 'the STAFF and STOP check skips its work within 5 minutes of the last one');
+}
+
 // ---- doGet and the page ----
 const served = context.doGet();
 const initial = JSON.parse(/var INITIAL = (.*);\n/.exec(served.getContent())[1]);

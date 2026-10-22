@@ -56,6 +56,13 @@ var RETRY_MAIL_DAYS = 3;
 var MIN_QUOTA = 10;
 var THREAD_DAYS = 90;
 var LOG_KEEP = 500;
+// A step of the minute check that fails without a break for this long is emailed to the club. Google's services have outages
+// of a few minutes that clear by themselves; those go to the Log tab, not the club inbox.
+var ALERT_AFTER_MS = 30 * 60 * 1000;
+// Who a club alert says to forward it to when the club cannot fix it.
+var MAINTAINER = 'JB';
+// The footer of every email to the club account except the sample of a volunteer's email.
+var CLUB_FOOTER = 'Sent by the CTTC staff sign-up app to the club account.';
 // 'directory' (only names on the desk's player list) or 'hybrid' (also "I'm not listed"). The script property SIGNUP_MODE
 // overrides this, so hybrid can be switched on without a code change.
 var SIGNUP_MODE = 'directory';
@@ -2246,7 +2253,7 @@ function tellDropped_(contact, drops) {
       many ? [first.name + ' dropped these shifts. The spots are open on the sign-up calendar again.', { rows: drops.map(function (drop) {
         return [shortDay_(drop.entry.date), shiftLabel_(drop.entry) + (backupNote(drop) ? '. ' + backupNote(drop) : '')];
       }) }] : [first.name + ' dropped ' + shiftLabel_(first) + ' on ' + dayLabel_(first.date) + '. The spot is open on the sign-up calendar again.' +
-        (backupNote(drops[0]) ? ' ' + backupNote(drops[0]) : '')], ['drop-club', first.signup_id]);
+        (backupNote(drops[0]) ? ' ' + backupNote(drops[0]) : '')], ['drop-club', first.signup_id], CLUB_FOOTER);
   });
   drops.forEach(function (drop) {
     if (!drop.backup) return;
@@ -2424,10 +2431,11 @@ function checkReplies() {
   if (!running.tryLock(0)) return;
   try {
     cache.put('check-replies', '1', 20);
-    step_('read email answers', checkMail_);
-    step_('read CONFIRM and RELEASE texts', checkTextAnswers_);
-    step_('read STAFF and STOP texts', checkOptIns_);
-    step_('apply the club\'s email decisions', checkDecisions_);
+    var failing = failingSteps_();
+    step_(failing, 'read email answers', 'Volunteers\' YES and NO email replies, and the club\'s emailed approvals, are not being read.', checkMail_);
+    step_(failing, 'read CONFIRM and RELEASE texts', 'Volunteers\' CONFIRM and RELEASE texts are not being read.', checkTextAnswers_);
+    step_(failing, 'read STAFF and STOP texts', 'STAFF and STOP texts are not being read.', checkOptIns_);
+    step_(failing, 'apply the club\'s email decisions', 'Approvals and declines entered in the Emails tab are not being applied.', checkDecisions_);
   } finally {
     running.releaseLock();
   }
@@ -2445,25 +2453,99 @@ function checkDecisions_() {
   })) sweep_();
 }
 
-// One failing step never stops the others. The club is emailed about a failing step at most every 6 hours.
-function step_(name, run) {
+// One failing step never stops the others. A step that fails without a break for ALERT_AFTER_MS is emailed to the club once,
+// and the club is emailed again when it works. A step that returns false skipped its work (it is throttled), which says
+// nothing either way.
+function step_(failing, name, effect, run) {
+  var ran;
   try {
-    run();
+    ran = run();
   } catch (error) {
     logError_(name, error);
-    alertAdmin_('step:' + name, 'Staffing app: could not ' + name, ['The staff sign-up app could not ' + name + '. It tries again every minute. The error was: ' + error]);
+    try {
+      stepFailed_(failing, name, effect, error);
+    } catch (failure) {
+      logError_('track a failing step', failure);
+    }
+    return;
   }
+  if (ran === false || !failing[name]) return;
+  try {
+    stepWorked_(failing, name);
+  } catch (failure) {
+    logError_('track a failing step', failure);
+  }
+}
+
+// The steps failing since their last success, {name: {since, alerted}}, in a script property so the state outlasts the cache.
+function failingSteps_() {
+  try {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty('FAILING_STEPS') || '{}');
+  } catch (error) {
+    logError_('read the failing steps', error);
+    return {};
+  }
+}
+
+function saveFailingSteps_(failing) { PropertiesService.getScriptProperties().setProperty('FAILING_STEPS', JSON.stringify(failing)); }
+
+// The state is saved before the email goes, so a save that fails never sends the same alert every minute.
+function stepFailed_(failing, name, effect, error) {
+  var now = Date.now();
+  var state = failing[name];
+  if (!state) {
+    failing[name] = { since: now };
+    return saveFailingSteps_(failing);
+  }
+  if (state.alerted || now - state.since < ALERT_AFTER_MS) return;
+  state.alerted = now;
+  saveFailingSteps_(failing);
+  var sent = mailClub_('Action needed: the staffing app cannot ' + name, [
+    { callout: 'The staffing app has failed to **' + name + '** at every attempt since ' + momentLabel_(state.since) + '. It retries every minute.', tone: 'action' },
+    effect,
+    'Error: ' + error,
+    { heading: 'What to do' },
+    { steps: ['Check https://www.google.com/appsstatus/dashboard/ for a Google Sheets or Gmail outage. If Google lists one, no action is needed: the app resumes by itself when Google recovers.',
+      'If Google lists no outage, forward this email to ' + MAINTAINER + '.'] },
+    'The club gets a follow-up email when this step works again.'], 'step:' + name);
+  if (sent) return;
+  delete state.alerted;
+  saveFailingSteps_(failing);
+}
+
+function stepWorked_(failing, name) {
+  var state = failing[name];
+  delete failing[name];
+  saveFailingSteps_(failing);
+  if (!state.alerted) return;
+  var sent = mailClub_('Resolved: the staffing app can ' + name + ' again', [
+    { callout: 'The staffing app can **' + name + '** again as of ' + momentLabel_(Date.now()) + '. No action is needed.', tone: 'good' },
+    'It had failed at every attempt from ' + momentLabel_(state.since) + '. This resolves the email "Action needed: the staffing app cannot ' + name + '".'], 'step-resolved:' + name);
+  if (sent) return;
+  failing[name] = state;
+  saveFailingSteps_(failing);
 }
 
 // Emails the club about something it should know, at most once every 6 hours per key.
 function alertAdmin_(key, subject, lines) {
   try {
     var cache = CacheService.getScriptCache();
-    if (cache.get('alert:' + key) || !mailAvailable_()) return;
-    cache.put('alert:' + key, '1', 21600);
-    sendMail_(adminEmail_(), subject, lines, ['club-alert', key]);
+    if (cache.get('alert:' + key)) return;
+    if (mailClub_(subject, lines, key)) cache.put('alert:' + key, '1', 21600);
   } catch (error) {
     logError_('alert the club', error);
+  }
+}
+
+// True once the email is sent.
+function mailClub_(subject, lines, key) {
+  try {
+    if (!mailAvailable_()) return false;
+    sendMail_(adminEmail_(), subject, lines, ['club-alert', key], CLUB_FOOTER);
+    return true;
+  } catch (error) {
+    logError_('alert the club', error);
+    return false;
   }
 }
 
@@ -2924,7 +3006,7 @@ function textExcept_(text) {
 // coaching app answers STOP for its own students, and one STOP should not get two replies.
 function checkOptIns_() {
   var cache = CacheService.getScriptCache();
-  if (cache.get('opt-ins')) return;
+  if (cache.get('opt-ins')) return false;
   cache.put('opt-ins', '1', 300);
   var onFile = rows_('Emails').filter(function (row) { return String(row.status).trim().toLowerCase() === 'approved' && phoneDigits_(row.phone) && cleanEmail_(row.email); });
   if (!onFile.length && !rows_('People').some(function (person) { return phoneDigits_(person.phone); })) return;
@@ -3046,7 +3128,7 @@ function deliverBatch_(batch, signups, now) {
   var message = batchMail_(batch, mine, now);
   if (!mailAvailable_()) return;
   try {
-    sendMail_(message.to || batch.email, message.subject, message.lines, ['batch:' + batch.status, batch.batch_id]);
+    sendMail_(message.to || batch.email, message.subject, message.lines, ['batch:' + batch.status, batch.batch_id], message.to ? CLUB_FOOTER : null);
   } catch (error) {
     logError_('email a sign-up (' + batch.status + ')', error, batch.batch_id);
     return;
@@ -3123,7 +3205,7 @@ function cancelClosed_(signups, emails) {
     if (mailAvailable_()) {
       sendMail_(adminEmail_(), 'Staffing: ' + told.length + ' shift' + (told.length === 1 ? '' : 's') + ' cancelled because the gym is closed', [
         'These volunteers were told their shift is cancelled because the gym is closed that night:',
-        { rows: told.map(function (entry) { return [shortDay_(entry.date), entry.name + ', ' + position_(entry.position).label]; }) }], ['closure-summary', told[0].batch_id]);
+        { rows: told.map(function (entry) { return [shortDay_(entry.date), entry.name + ', ' + position_(entry.position).label]; }) }], ['closure-summary', told[0].batch_id], CLUB_FOOTER);
     }
   } catch (error) {
     logError_('tell the club about cancelled shifts', error);
@@ -3175,7 +3257,7 @@ function batchMail_(batch, mine, now) {
       'The club has no email on file for ' + batch.name + ', so this address needs the club\'s OK once. On YES it becomes their email on file and we email them to confirm these shifts (they still reply YES themselves). On NO, or no answer within 7 days, nothing is held and they are told to contact the club.',
       { heading: 'The shifts they picked (not held yet)' }, shiftRows_(mine),
       { choices: [['YES', 'Approve this address for ' + batch.name + '.'], ['NO', 'Decline it.']] },
-      'Only a reply from the club address counts. You can also decide in the private staffing Sheet: Emails tab, status approved or declined.'] };
+      'A reply from another address does not count. You can also decide in the private staffing Sheet: Emails tab, status approved or declined.'] };
   }
   if (batch.status === 'declined') {
     return { subject: 'We could not confirm your email for CTTC staff sign-ups', lines: ['Hello,',
@@ -3297,6 +3379,7 @@ function blockText_(block) {
   if (block.schedule) return scheduleGroups_(block.schedule).map(function (group) { return group.title + ': ' + group.dates; }).join('\n');
   if (block.roles) return rolesOf_(block.roles).map(function (spec) { return spec.label + ': ' + spec.does; }).join('\n');
   if (block.bullets) return block.bullets.map(function (line) { return '- ' + mailText_(line); }).join('\n');
+  if (block.steps) return block.steps.map(function (step, index) { return (index + 1) + '. ' + mailText_(step); }).join('\n');
   if (block.calendar && block.closed.length) return 'Gym closed (not included): ' + block.closed.map(shortDay_).join(', ');
   return '';
 }
@@ -3420,6 +3503,7 @@ function blockHtml_(block) {
   if (block.bullets) {
     return '<ul style="margin:0 0 12px;padding-left:20px;">' + block.bullets.map(function (line) { return '<li style="margin:0 0 4px;">' + mailHtml_(line) + '</li>'; }).join('') + '</ul>';
   }
+  if (block.steps) return '<ol style="margin:0 0 12px;padding-left:22px;">' + block.steps.map(function (step) { return '<li style="margin:0 0 6px;">' + mailHtml_(step) + '</li>'; }).join('') + '</ol>';
   if (block.buttons) {
     return '<p style="margin:0 0 8px;">' + block.buttons.map(function (button) {
       return '<a href="' + esc_(button[1]) + '" style="display:inline-block;margin:0 8px 8px 0;padding:12px 18px;border-radius:6px;font-weight:700;font-size:16px;text-decoration:none;color:#fff;background:' +
@@ -3435,9 +3519,9 @@ function blockHtml_(block) {
   return '';
 }
 
-function sendMail_(to, subject, lines, log) {
+function sendMail_(to, subject, lines, log, footer) {
   var blocks = lines.filter(Boolean);
-  var footer = 'This message is only about your CTTC volunteer sign-up. It does not add you to any mailing list.';
+  footer = footer || 'This message is only about your CTTC volunteer sign-up. It does not add you to any mailing list.';
   var body = blocks.map(blockText_).filter(Boolean).concat(footer).join('\n\n');
   var html = '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px;">' + blocks.map(blockHtml_).join('') +
     '<p style="margin:20px 0 0;font-size:12px;color:#777;">' + esc_(footer) + '</p></div>';
