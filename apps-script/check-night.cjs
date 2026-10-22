@@ -417,6 +417,41 @@ const cases = {
     assert.equal(doc.querySelectorAll('.volunteer-signups li').length, 0);
   },
 
+  // Picking a payment closes the list. It also opens on hover and focus, so it is held shut until the pointer moves and
+  // leaves, and the row below (now under the pointer) does not open in its place.
+  async paymentListClosesOnPick() {
+    const world = sim.createWorld({ seed: 24 });
+    const tab = await deskWith(world, world.device(), 4);
+    const win = tab.window;
+    const doc = win.document;
+    const control = doc.querySelector('#groups .payment-control');
+    const trigger = control.querySelector('.payment-trigger');
+    const option = label => [...control.querySelectorAll('.payment-options button')].find(button => button.textContent === label);
+    const press = (node, detail) => node.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true, detail }));
+    press(trigger, 1);
+    assert.ok(control.classList.contains('open'));
+    press(option('Cash'), 1);
+    assert.equal(trigger.textContent, 'Cash ✓');
+    assert.ok(!control.classList.contains('open') && control.classList.contains('picked'), 'the list closes and stays shut under the pointer');
+    assert.ok(doc.documentElement.classList.contains('payment-hold'), 'no other list opens by hover until the mouse moves');
+    win.dispatchEvent(new win.MouseEvent('mousemove'));
+    assert.ok(!doc.documentElement.classList.contains('payment-hold'));
+    control.dispatchEvent(new win.MouseEvent('mouseleave'));
+    assert.ok(!control.classList.contains('picked'), 'hovering again later opens it as before');
+    press(trigger, 1);
+    press(trigger, 1);
+    assert.ok(!control.classList.contains('open') && control.classList.contains('picked'), 'a second press closes it');
+    control.dispatchEvent(new win.MouseEvent('mouseleave'));
+    // From the keyboard (Enter gives a click with no detail), focus returns to the control's button.
+    press(trigger, 0);
+    option('Venmo').focus();
+    press(option('Venmo'), 0);
+    assert.equal(trigger.textContent, 'Venmo ✓');
+    assert.equal(doc.activeElement, trigger);
+    assert.ok(control.classList.contains('picked'));
+    assert.deepEqual(tab.errors, []);
+  },
+
   // Add all never waits on Google: with Google not answering at all (or the Wi-Fi off), the players are on the draft the
   // moment it is pressed, and their Confirmed. texts go out by themselves once Google answers again.
   async addAllNeverWaitsForGoogle() {

@@ -2006,7 +2006,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 @media print{#sync-note{display:none}}
 .payment-options .unpaid{border-top:1px solid #dce3df;color:#8a3b2b}
 .payment-options{display:none;position:absolute;right:0;top:100%;min-width:108px;padding:4px;background:#fff;border:1px solid #b8c7bc;box-shadow:0 6px 14px #17211b2b;z-index:3}
-.payment-control:not(.pass):hover .payment-options,.payment-control:not(.pass):focus-within .payment-options,.payment-control.open .payment-options{display:grid;gap:3px}
+:root:not(.payment-hold) .payment-control:not(.pass):not(.picked):hover .payment-options,.payment-control:not(.pass):not(.picked):focus-within .payment-options,.payment-control.open .payment-options{display:grid;gap:3px}
 .payment-options button{padding:7px;text-align:left;border:0;background:#fff;color:#17211b}
 .payment-options button:hover,.payment-options button:focus{background:#e4f3e9}
 </style>
@@ -2080,7 +2080,21 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var trigger = document.createElement('button');
       trigger.type = 'button';
       trigger.className = 'payment-trigger';
-      trigger.addEventListener('click', function () { control.classList.toggle('open'); });
+      // The list shows on hover and focus too, so closing it (a pick, or a second press) holds it shut until the pointer
+      // and focus have left the control. Until the mouse moves, no list opens by hover either: the row below, now under
+      // the pointer where the list was, stays shut.
+      function close() {
+        control.classList.remove('open');
+        control.classList.add('picked');
+        document.documentElement.classList.add('payment-hold');
+        window.addEventListener('mousemove', function () { document.documentElement.classList.remove('payment-hold'); }, { once: true });
+      }
+      trigger.addEventListener('click', function () {
+        if (control.classList.contains('open')) close();
+        else { control.classList.remove('picked'); control.classList.add('open'); }
+      });
+      control.addEventListener('mouseleave', function () { if (!control.contains(document.activeElement)) control.classList.remove('picked'); });
+      control.addEventListener('focusout', function (event) { if (!control.contains(event.relatedTarget)) control.classList.remove('picked'); });
       var options = document.createElement('div');
       options.className = 'payment-options';
       METHODS.forEach(function (option) {
@@ -2088,9 +2102,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         button.type = 'button';
         button.textContent = option[1];
         if (!option[0]) button.className = 'unpaid';
-        button.addEventListener('click', function () {
+        button.addEventListener('click', function (event) {
           choose(playerId, option[0]);
-          control.classList.remove('open');
+          // From the keyboard, focus goes back to the control's button; a mouse or finger leaves nothing focused.
+          if (event.detail === 0) trigger.focus();
+          else button.blur();
+          close();
         });
         options.appendChild(button);
       });
