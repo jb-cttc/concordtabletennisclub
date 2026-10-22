@@ -334,9 +334,13 @@ const cases = {
     assert.equal(marks()[cy.display_name], '✓');
     assert.equal(addAll.textContent, 'Add all ✓ (2)');
 
+    // The page stays where the organizer is: adding from the sidebar never scrolls to the groups.
+    let scrolls = 0;
+    tab.window.Element.prototype.scrollIntoView = () => { scrolls += 1; };
     tab.click(addAll);
     await run(world, 20000);
     assert.ok(tab.roster().includes(ava.player_id) && tab.roster().includes(cy.player_id), 'both ✓ players added');
+    assert.equal(scrolls, 0, 'Add all does not scroll the page');
     assert.ok(!tab.roster().includes(ben.player_id), 'a ? is left for the organizer');
     assert.equal(addAll.textContent, 'All ✓ added');
     assert.equal(addAll.disabled, true);
@@ -387,8 +391,11 @@ const cases = {
 
     // Pressed with Google not answering at all: both take effect on the press itself, and nothing shows as waiting.
     device.net.blackhole = true;
+    let scrolls = 0;
+    tab.window.Element.prototype.scrollIntoView = () => { scrolls += 1; };
     tab.click(doc.querySelector('[data-volunteer-rr="' + ray.player_id + '"]'));
     tab.click(doc.querySelector('[data-volunteer-open="' + ron.player_id + '"]'));
+    assert.equal(scrolls, 0, 'the buttons do not scroll the page');
     assert.ok(tab.roster().includes(ray.player_id), 'RR adds to the draft at once');
     assert.ok(doc.querySelector('#open-roster [data-open-remove="' + ron.player_id + '"]'), 'Open adds to Open Play at once');
     assert.deepEqual(rows().map(r => r[2]), ['In RR', 'RR/Open', 'In Open']);

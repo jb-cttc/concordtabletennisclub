@@ -158,6 +158,45 @@ assert.equal(lockHeld, false);
 assert.equal(tables.ZeffyPayments.length, 8, 'messages are recorded once');
 tables.ZeffyPayments.length = 0;
 inbox = [];
+
+// Zeffy changes its wording: a renamed form or a reworded "Payment received" still counts, a play pass email the desk
+// cannot read is counted for the sidebar (never guessed at), and other Zeffy mail is left alone.
+const ZEFFY = '<contact@communication.mailer.zeffy.com>';
+const RENAMED = 'New purchase with automatic renewal for CTTC Monthly Playpass';
+const reworded = purchase('Avery Park', 'a@example.com', ['Avery Park']).replace('payment received!', 'Payment received:');
+assert.equal(context.parseZeffyEmail_(ZEFFY, RENAMED, reworded, date)[0].participant_name, 'Avery Park', 'a renamed form and reworded body');
+assert.equal(context.parseZeffyEmail_(ZEFFY, 'Your payment receipt', reworded, date)[0].kind, 'purchase', 'the order summary names the play pass');
+assert.equal(context.parseZeffyEmail_(ZEFFY, RENAMED + ' - recurring payment', renewal('Avery Park', 'a@example.com'), date)[0].kind, 'renewal');
+assert.equal(context.parseZeffyEmail_(ZEFFY, 'New donation', 'New $20.00 payment received! Kim Tan k@example.com Donation', date).length, 0, 'a donation is not a pass');
+const garbled = 'Thank you for buying the CTTC Monthly Playpass. View payment';
+assert.deepEqual(JSON.parse(JSON.stringify(context.parseZeffyEmail_(ZEFFY, RENAMED, garbled, date).map(row => [row.kind, row.payer_name, row.payer_email]))), [['unreadable', '', '']]);
+
+// A new reader reads the whole mailbox once, so emails the old one skipped are picked up.
+delete properties.CTTC_ZEFFY_READER;
+properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
+inbox = [
+  mail('n1', '2026-09-20', RENAMED, reworded),
+  mail('n2', '2026-09-21', RENAMED, garbled),
+  mail('n3', '2026-09-21', 'New donation', 'New $20.00 payment received! Kim Tan k@example.com Donation')
+];
+assert.equal(names(), 'Avery Park');
+assert.doesNotMatch(searches[searches.length - 1], /newer_than/, 'a new reader reads all Zeffy mail');
+assert.equal(properties.CTTC_ZEFFY_READER, '2');
+assert.equal(context.getPrivatePaymentOverview(date).unreadable, 1, 'the sidebar hears about the unreadable email');
+assert.equal(context.getPrivatePaymentOverview('2027-01-01').unreadable, 0, 'only for 90 days');
+properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
+properties.CTTC_ZEFFY_READER = '1';
+context.getZeffyPlayers(null, date);
+assert.equal(tables.ZeffyPayments.filter(row => row.kind === 'unreadable').length, 1, 'an unreadable email is recorded once');
+// Once a reader can read it, its buyer is listed and the notice goes away.
+inbox[1] = mail('n2', '2026-09-21', RENAMED, purchase('Kim Tan', 'k@example.com', ['Kim Tan']));
+properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
+properties.CTTC_ZEFFY_READER = '1';
+assert.equal(names(), 'Avery Park,Kim Tan');
+assert.equal(context.getPrivatePaymentOverview(date).unreadable, 0);
+assert.equal(tables.ZeffyPayments.length, 3, 'n1, the unreadable n2, and n2 read');
+tables.ZeffyPayments.length = 0;
+inbox = [];
 assert.throws(() => context.setZeffyPass('missing', true), /Unknown/);
 tables.ZeffyPasses.push({ player_id: 'ron', player_name: 'Old Member', active: true }, { player_id: 'ron', player_name: 'Old Member', active: true });
 assert.throws(() => context.getZeffyPlayers(), /Duplicate Zeffy pass/);

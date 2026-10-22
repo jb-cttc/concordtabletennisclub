@@ -169,9 +169,17 @@ Payment, Open Play and membership changes are kept on the device first and sync
 to the Sheet in the background, so they keep working when the connection
 drops. **Zeffy** is an optional monthly
 play pass, tracked from Zeffy's payment emails to the club Gmail. At most every
-10 minutes the desk records new purchase, renewal (`(recurring payment)`) and
-cancellation emails in the private `ZeffyPayments` sheet, one row per person
-covered (a renewal covers everyone the buyer first purchased for). Zeffy names
+10 minutes the desk reads new Zeffy mail and records purchase, renewal
+(`recurring payment` in the subject) and cancellation emails in the private
+`ZeffyPayments` sheet, one row per person covered (a renewal covers everyone the
+buyer first purchased for). An email counts as a play pass when its subject or
+its order summary says "Playpass", so a renamed form still counts; donations and
+other Zeffy mail are left alone. A play pass email whose buyer the desk cannot
+find (Zeffy changed its wording) is recorded as `unreadable`, and for 90 days
+the Zeffy list says how many there are, so the buyer can be looked up in Gmail
+and covered by hand. When the reader learns a new format
+(`ZEFFY_READER_VERSION_` in `apps-script/ZeffyTracking.js`), its first sync
+reads the whole mailbox again and picks up the emails it skipped before. Zeffy names
 match a directory player by display name or a private `Aliases` row; unmatched
 buyers still appear in the list. A payment covers sessions until the next
 charge date: the start day in each following month, or that month's last day

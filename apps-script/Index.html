@@ -2282,7 +2282,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     head.appendChild(th);
   });
   var list = table.createTBody();
-  section.append(heading, table);
+  // A play pass email the desk could not read (Zeffy changed its wording): its buyer is missing from the list.
+  var unreadable = document.createElement('p');
+  unreadable.className = 'hint zeffy-unreadable';
+  unreadable.hidden = true;
+  section.append(heading, table, unreadable);
   sidebar.appendChild(section);
   var initialDate = document.getElementById('date').value;
   function request(name) {
@@ -2304,10 +2308,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         state.title = 'Renews ' + pass.renewsOn;
       }
     });
+    unreadable.hidden = !result.unreadable;
+    unreadable.textContent = result.unreadable === 1 ? '1 Zeffy play pass email could not be read, so its buyer is not listed. Find it in the club Gmail.' :
+      result.unreadable + ' Zeffy play pass emails could not be read, so their buyers are not listed. Find them in the club Gmail.';
   }
   document.addEventListener('cttc:payment-overview', function (event) { showPasses(event.detail); });
   document.addEventListener('cttc:payment-unavailable', function () {
     list.replaceChildren();
+    unreadable.hidden = true;
     heading.textContent = 'Zeffy Players - Monthly Play Pass unavailable';
   });
   window.cttcInitialPaymentOverview.then(function (result) {
@@ -2325,6 +2333,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .zeffy-table th{font-weight:700;background:#f4f4f4}
 .zeffy-table th:last-child,.zeffy-table td:last-child{text-align:right;white-space:nowrap}
 .zeffy-table .zeffy-expired{color:#c62828;font-weight:700}
+.zeffy-unreadable{color:#a43831}
 .directory-actions{display:flex;gap:6px;flex-shrink:0}
 .directory-actions [hidden]{display:none}
 .roster-status{font:13px Arial,sans-serif;color:var(--green);font-weight:700;white-space:nowrap}
@@ -2813,11 +2822,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function addFromVoice(playerId, senderKey) {
     var selectedDate = date.value;
     if (!window.cttcDesk.add(playerId, 'Voice signup')) return false;
+    // Highlighted where it landed, without scrolling: the organizer stays on the list they are working through.
     var added = document.querySelector('#groups [data-move="' + CSS.escape(playerId) + '"]');
-    if (added) {
-      added.closest('li').classList.add('just-added');
-      added.closest('li').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
+    if (added) added.closest('li').classList.add('just-added');
     if (!senderKey) return true;
     setConfirmation(senderKey, navigator.onLine === false ? 'Confirmed will send when online' : 'Sending Confirmed...');
     window.cttcOutbox.enqueue('voice:' + selectedDate + ':' + senderKey, 'sendVoiceConfirmation', [selectedDate, senderKey, playerId]);
