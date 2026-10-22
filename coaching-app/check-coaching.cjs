@@ -18,7 +18,7 @@ assert.equal(manifest.webapp.executeAs, 'USER_DEPLOYING', 'visitors never need G
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), [
-  'checkTexts', 'coachBoard', 'coachList', 'coachPropose', 'doGet', 'joinWaitlist', 'openSlots', 'requestSlot', 'setup', 'studentChange', 'sweep'
+  'checkTexts', 'coachBoard', 'coachList', 'coachPropose', 'doGet', 'doPost', 'joinWaitlist', 'openSlots', 'requestSlot', 'setup', 'studentChange', 'sweep'
 ], 'a public web app exposes every non-private function: only these may exist');
 
 // ---- Fakes ----
@@ -1430,6 +1430,23 @@ let busy = 0;
 for (let index = 0; index < 40; index += 1) if (/Too many/.test(run('coachPropose', 'f'.repeat(16), []).message || '')) busy += 1;
 assert.ok(busy > 0, 'a burst is slowed down');
 
+// ---- The club site's copy of the page calls the app with fetch (doPost), without cookies ----
+{
+  const post = body => { cache = {}; const output = context.doPost({ postData: { contents: body } }); assert.equal(output.type, 'JSON'); return JSON.parse(output.text); };
+  cache = {};
+  assert.deepEqual(post(JSON.stringify({ fn: 'openSlots', args: [] })), run('openSlots'), 'the same answer as google.script.run');
+  cache = {};
+  assert.deepEqual(post(JSON.stringify({ fn: 'coachList', args: [] })), run('coachList'));
+  ['setup', 'sweep', 'checkTexts', 'doGet', 'doPost', 'logView_', 'constructor', '__proto__', 'toString'].forEach(fn => {
+    assert.deepEqual(post(JSON.stringify({ fn, args: [] })), { ok: false, message: 'Unknown request.' }, fn + ' cannot be called from the site');
+  });
+  assert.deepEqual(post('not json'), { ok: false, message: 'Something went wrong. Please try again.' });
+  assert.deepEqual(post(''), { ok: false, message: 'Unknown request.' });
+  assert.deepEqual(post('x'.repeat(100001)), { ok: false, message: 'Unknown request.' }, 'an oversized request is refused');
+  assert.deepEqual(JSON.parse(context.doPost(undefined).text), { ok: false, message: 'Unknown request.' });
+  cache = {};
+}
+
 // ---- doGet and the page ----
 templates.length = 0;
 const served = context.doGet({ parameter: { t: '"><script>alert(1)</script>' } });
@@ -1469,22 +1486,27 @@ assert.match(sitePage, /<button id="coaching-launch"[^>]* hidden>/, 'the button 
 assert.match(sitePage, /<iframe id="coaching-frame"/);
 assert.doesNotMatch(sitePage, /sign-in link/i, 'coaches no longer sign in');
 const siteScript = /<script>\s*\(function \(\) \{\s*\/\/ The coaching app[\s\S]*?<\/script>/.exec(sitePage)[0].replace(/^<script>|<\/script>$/g, '');
-const configured = /var APP_URL = '([^']+)'/.exec(siteScript)[1];
-assert.match(configured, /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/);
-const appUrl = 'https://script.google.com/macros/s/EXAMPLEID/exec';
-const openSite = (search, script = siteScript.replace(configured, appUrl)) => {
+assert.match(siteScript, /var APP_PAGE = 'coaching-app\.html';/, 'the site frames its own copy of the page');
+assert.doesNotMatch(siteScript, /script\.google\.com/, 'never Google\'s page host, which can refuse a browser signed in to several Google accounts');
+const workflow = fs.readFileSync(__dirname + '/../.github/workflows/update-data.yml', 'utf8');
+assert.match(workflow, /cp coaching-app\/Index\.html _site\/coaching-app\.html/, 'the site publishes the page');
+const apiUrl = /var API_URL = '([^']+)';/.exec(page)[1];
+assert.match(apiUrl, /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/, 'the copy calls a released /exec address, never /dev');
+assert.ok(fs.readFileSync(__dirname + '/../docs/coaching-flow.md', 'utf8').includes(apiUrl), 'the address is written down for maintainers');
+const appUrl = 'coaching-app.html';
+const SITE = 'https://concordtabletennisclub.com';
+const openSite = (search, script = siteScript) => {
   const nodes = {};
   const node = id => nodes[id] = nodes[id] || { id, hidden: id === 'coaching-launch', attributes: {}, listeners: {}, opened: false,
     getAttribute(name) { return this.attributes[name] || null; }, setAttribute(name, value) { this.attributes[name] = value; },
     addEventListener(type, handler) { this.listeners[type] = handler; }, showModal() { this.opened = true; }, close() { this.opened = false; } };
   const loaded = [];
   const messages = [];
-  vm.runInNewContext(script, { URLSearchParams, setTimeout: handler => handler(), location: { search }, document: { getElementById: node }, window: { addEventListener: (type, handler) => { if (type === 'load') loaded.push(handler); if (type === 'message') messages.push(handler); } } });
+  vm.runInNewContext(script, { URLSearchParams, setTimeout: handler => handler(), location: { search }, document: { getElementById: node }, window: { location: { origin: SITE }, addEventListener: (type, handler) => { if (type === 'load') loaded.push(handler); if (type === 'message') messages.push(handler); } } });
   nodes.load = () => loaded.forEach(handler => handler());
   nodes.message = event => messages.forEach(handler => handler(event));
   return nodes;
 };
-assert.deepEqual(Object.keys(openSite('', siteScript.replace(configured, 'https://script.google.com/macros/s/PENDING_DEPLOYMENT/exec'))).filter(key => key !== 'load' && key !== 'message'), [], 'with no deployment URL the page never reveals the button');
 let site = openSite('');
 assert.equal(site['coaching-launch'].hidden, false);
 assert.equal(site['coaching-dialog'].opened, false, 'the dialog opens on the click');
@@ -1501,7 +1523,10 @@ site.message({ data: 'cttc-coaching-ready', origin: 'https://evil.example.com' }
 site.message({ data: 'other', origin: 'https://n-abc123-0lu-script.googleusercontent.com' });
 assert.notEqual(site['coaching-loading'].hidden, true, 'only the app can clear the loading note');
 site.message({ data: 'cttc-coaching-ready', origin: 'https://n-abc123-0lu-script.googleusercontent.com' });
-assert.equal(site['coaching-loading'].hidden, true, 'the note goes once the app is drawn');
+assert.equal(site['coaching-loading'].hidden, true, 'the note goes once the app is drawn, also by Google\'s page when the copy hands over to it');
+site = openSite('');
+site.message({ data: 'cttc-coaching-ready', origin: SITE });
+assert.equal(site['coaching-loading'].hidden, true, 'the site\'s own copy clears it');
 site = openSite('');
 site['coaching-frame'].listeners.load();
 assert.equal(site['coaching-loading'].hidden, true, 'and never stays forever');
@@ -1614,4 +1639,51 @@ assert.doesNotMatch(logs.join('\n').replace(/ (ref|to)=\S+/g, ''), /\d{3}\D?\d{3
 logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
   assert.match(line, /^coaching sent (email|text) [a-z_-]+(:[a-z]+)? ref=\S.* to=[0-9A-F]{6}$/, 'each line names the channel, the kind, what it is about and a recipient code');
 });
-console.log('Coaching app checks passed');
+// The club site's copy (coaching-app.html): no google.script, so every call is a fetch to the app, with no cookies. Until the app
+// answers (the site is a release ahead of it), the copy hands over to Google's own page instead of showing an error.
+(async () => {
+  const { JSDOM, VirtualConsole } = require('jsdom');
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const openCopy = answer => {
+    const requests = [];
+    const navigations = [];
+    const messages = [];
+    const virtualConsole = new VirtualConsole();
+    virtualConsole.on('jsdomError', error => { if (/navigation/i.test(error.message)) navigations.push(error.message); else throw error; });
+    const dom = new JSDOM(page, {
+      url: SITE + '/coaching-app.html', runScripts: 'dangerously', pretendToBeVisual: true, virtualConsole,
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        window.top.postMessage = message => messages.push(message);
+        window.fetch = (url, options) => { requests.push({ url, options }); return answer(options); };
+      }
+    });
+    return { dom, requests, navigations, messages };
+  };
+  const viaDoPost = options => {
+    cache = {};
+    const text = context.doPost({ postData: { contents: options.body } }).text;
+    return Promise.resolve({ json: () => Promise.resolve(JSON.parse(text)) });
+  };
+  let copy = openCopy(viaDoPost);
+  await wait(50);
+  assert.ok(copy.requests.length >= 2, 'the first screen is fetched from the app');
+  copy.requests.forEach(request => {
+    assert.equal(request.url, apiUrl);
+    assert.equal(request.options.method, 'POST');
+    assert.equal(request.options.credentials, 'omit', 'no cookies, so Google sign-ins never matter');
+    assert.ok(['openSlots', 'coachList', 'coachBoard'].includes(JSON.parse(request.options.body).fn));
+  });
+  assert.deepEqual(copy.navigations, [], 'a working app keeps the copy');
+  const shown = copy.dom.window.document.getElementById('app').textContent + copy.dom.window.document.getElementById('message').textContent;
+  assert.doesNotMatch(shown, /Something went wrong/);
+  assert.match(shown, /Coaching is on Fridays/, 'the booking view is drawn');
+  assert.deepEqual(copy.messages, ['cttc-coaching-ready']);
+  copy.dom.window.close();
+  // The app before this release answers a POST with Google's HTML error page: the copy goes to Google's page instead.
+  copy = openCopy(() => Promise.resolve({ json: () => Promise.reject(new SyntaxError('Unexpected token <')) }));
+  await wait(50);
+  assert.ok(copy.navigations.length >= 1, 'hands over to Google\'s own page');
+  copy.dom.window.close();
+  console.log('Coaching app checks passed');
+})().catch(error => { console.error(error); process.exit(1); });

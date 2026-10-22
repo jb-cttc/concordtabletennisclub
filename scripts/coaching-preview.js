@@ -109,12 +109,16 @@ const context = {
     newBlob: bytes => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }),
     formatDate: (date) => pacific(date.getTime())
   },
-  HtmlService: {}
+  HtmlService: {},
+  ContentService: {
+    MimeType: { JSON: 'application/json' },
+    createTextOutput: text => { const output = { getContent: () => text, setMimeType: () => output }; return output; }
+  }
 };
 vm.createContext(context);
 const source = fs.readFileSync(path.join(APP, 'Code.js'), 'utf8');
 vm.runInContext(source, context);
-const exposed = new Set([...source.matchAll(/^function ([A-Za-z0-9]+)\(/gm)].map(match => match[1]).filter(name => !name.endsWith('_') && !['doGet', 'setup'].includes(name)));
+const exposed = new Set([...source.matchAll(/^function ([A-Za-z0-9]+)\(/gm)].map(match => match[1]).filter(name => !name.endsWith('_') && !['doGet', 'doPost', 'setup'].includes(name)));
 const call = (name, ...args) => JSON.parse(JSON.stringify(context[name](...args) ?? null));
 
 // Demo data: two coaches with slots and one waiting request, all synthetic.
@@ -199,6 +203,13 @@ function appPage() {
     .replace(/<head>/i, '<head><meta name="viewport" content="width=device-width, initial-scale=1">');
 }
 
+// The club site's copy (coaching-app.html): the real page with no google.script, calling this preview's /exec as it calls the
+// app's /exec on the site.
+function sitePage() {
+  return fs.readFileSync(path.join(APP, 'Index.html'), 'utf8').replace(/var API_URL = '[^']*';/, "var API_URL = '" + LOCAL + "/exec';")
+    .replace(/<head>/i, '<head><meta name="viewport" content="width=device-width, initial-scale=1">');
+}
+
 function mailPage() {
   const items = outbox.map(message => {
     const body = escapeHtml(message.body).replace(/https:\/\/concordtabletennisclub\.com\/coaching\.html/g, '<a href="/coaching.html">' + LOCAL + '/coaching.html</a>');
@@ -237,7 +248,14 @@ const server = http.createServer((request, response) => {
     });
     return;
   }
+  if (request.method === 'POST' && url.pathname === '/exec') {
+    let raw = '';
+    request.on('data', chunk => { raw += chunk; if (raw.length > 200000) request.destroy(); });
+    request.on('end', () => { send(200, 'application/json', context.doPost({ postData: { contents: raw } }).getContent()); });
+    return;
+  }
   if (url.pathname === '/') { response.writeHead(302, { Location: '/coaching.html' }); return response.end(); }
+  if (url.pathname === '/coaching-app.html') return send(200, 'text/html; charset=utf-8', sitePage());
   if (url.pathname === '/app') return send(200, 'text/html; charset=utf-8', appPage());
   if (url.pathname === '/mail') return send(200, 'text/html; charset=utf-8', mailPage());
   if (url.pathname === '/reply') {
@@ -265,7 +283,6 @@ const server = http.createServer((request, response) => {
   const allowed = !relative.startsWith('..') && !/(^|[\\/])(node_modules|\.git|apps-script|coaching-app|subscribe-app|scripts|local)([\\/]|$)/.test(relative) && TYPES[path.extname(file)];
   if (!allowed || !fs.existsSync(file) || !fs.statSync(file).isFile()) return send(404, 'text/plain', 'Not found');
   let body = fs.readFileSync(file);
-  if (relative === 'coaching.html') body = body.toString('utf8').replace(/var APP_URL = '[^']*';/, "var APP_URL = '" + LOCAL + "/app';");
   send(200, TYPES[path.extname(file)], body);
 });
 

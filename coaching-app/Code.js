@@ -110,6 +110,24 @@ var PUBLIC_TABS = {
   Schedule: ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']
 };
 
+// The club site serves its own copy of the page (coaching-app.html, published from Index.html), which calls these with fetch
+// and without cookies: Google's page host can refuse to open ("Sorry, unable to open the file at this time") in a browser
+// signed in to several Google accounts, and a request with no cookies never meets that. Only these can be called this way.
+function doPost(e) {
+  var calls = { openSlots: openSlots, coachList: coachList, coachBoard: coachBoard, coachPropose: coachPropose, requestSlot: requestSlot, joinWaitlist: joinWaitlist, studentChange: studentChange };
+  var result = null;
+  try {
+    var body = e && e.postData ? String(e.postData.contents || '') : '';
+    var request = body.length <= 100000 ? JSON.parse(body || '{}') : {};
+    var name = String(request && request.fn || '');
+    result = Object.prototype.hasOwnProperty.call(calls, name) ? calls[name].apply(null, Array.isArray(request.args) ? request.args.slice(0, 2) : []) : fail_('Unknown request.');
+  } catch (error) {
+    logError_('answer a request from the club site', error);
+    result = fail_('Something went wrong. Please try again.');
+  }
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+}
+
 function doGet(e) {
   if (e && e.parameter && e.parameter.log !== undefined) return logView_(String(e.parameter.log).trim().toUpperCase());
   var output = HtmlService.createTemplateFromFile('Index').evaluate();

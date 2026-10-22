@@ -137,6 +137,8 @@ jobs:
           cp -R assets _site/
           # The volunteer sign-up page, served from the site itself (it calls the staffing app with fetch, no Google sign-in).
           cp staffing-app/Index.html _site/volunteer-app.html
+          # The coaching page, served from the site itself (it calls the coaching app with fetch, no Google sign-in).
+          cp coaching-app/Index.html _site/coaching-app.html
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3.0.1
