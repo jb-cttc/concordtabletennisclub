@@ -164,7 +164,7 @@ Answers are read by the `checkTexts` trigger, which runs every minute.
 - it comes **from the address the question went to** (case, and for Gmail
   dots and `+tags`, do not matter). A reply from another account, alias or
   relay address (for example Apple's *Hide My Email*) does not count, but the
-  sender is told to reply from the right address and the club is alerted;
+  sender is told to reply from the right address (the club is not emailed);
 - the **first line of the person's own words starts with yes or no**, in any
   case, optionally after a greeting or `ok` (`Yes, see you Friday`, `ok yes`,
   `Hi Dee, yes`, `no thanks`, `y`, `yep`, `nope`); a greeting on its own line
@@ -177,7 +177,7 @@ Answers are read by the `checkTexts` trigger, which runs every minute.
   HTML-only reply arrives with lines run together (`YESSent from my
   Galaxy`): when an email has an HTML version, its own line breaks are used.
 Invisible characters are removed first. An unreadable reply to an
-  open question gets one "please reply again" email and the club is told;
+  open question gets one "please reply again" email (the club is not emailed);
 - it arrives within 3 days and after the question was asked, and the
   question is still open.
 
@@ -196,11 +196,15 @@ Invisible characters are removed first. An unreadable reply to an
   only after 10 minutes (`PROPOSE_WAIT_MS`).
 
 An email reply to an open question that cannot be used gets an explanation
-(unreadable, or wrong address) within about 5 hours of arriving, and the club
-is emailed. Text replies with no yes/no are still ignored without a message.
+(unreadable, or wrong address) within about 5 hours of arriving; the club is
+not emailed. Text replies with no yes/no are still ignored without a message.
 Each step of the minute check runs on its own, so a failing step (for
-example Google Voice) does not stop email answers being read; the club is
-emailed about a failing step at most every 6 hours. A student's YES sent
+example Google Voice) does not stop email answers being read. A step that
+fails at every attempt for 30 minutes (`ALERT_AFTER_MS`) is emailed to the club
+once, as *Action needed: the coaching app cannot …*, with what to do; when it
+works again the club gets *Resolved: the coaching app can … again*. A failure
+that clears sooner (Google outages of a few minutes are common) is logged, not
+emailed. A student's YES sent
 before the deadline but read after it still counts if the lesson is still
 offered, free, at least about an hour from its own deadline, and the coach
 is active.

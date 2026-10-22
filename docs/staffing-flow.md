@@ -410,4 +410,5 @@ All of this lives in `canTake_`; tests cover both modes.
 | Someone says the confirmation went to an old address | Their `Emails` row: type the new address as a new `approved` row (`source` owner); the old one becomes `replaced`. |
 | A new email request is stuck | `Emails` row `pending`: answer the *Approve an email* message from `ADMIN_EMAIL`, or set `status` to `approved` / `declined`. After 7 days it is declined. |
 | A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date) or add it to `Closures`. Changes show within an hour. |
+| *Action needed: the staffing app cannot …* | A step of the minute check has failed at every attempt for 30 minutes (`ALERT_AFTER_MS`); the email names what is affected and what to do. Failures that clear sooner are in the `Log` tab, not emailed. When the step works again the club gets *Resolved: the staffing app can … again*. |
 | No texts | The person needs a mobile **on file** (`Emails.phone`) **and** `People.texts = yes` (they texted STAFF from that phone). |
