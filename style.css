@@ -117,6 +117,11 @@ nav a {
   font-size: 0.9rem;
 }
 
+nav a .nav-icon {
+  vertical-align: -2px;
+  margin-right: 1px;
+}
+
 nav a:hover {
   color: var(--red);
 }
@@ -144,7 +149,13 @@ main {
   line-height: 1.5;
 }
 
-.offer h2 {
+.offer .home-lede {
+  margin-top: -16px;
+  margin-bottom: 28px;
+  font-size: 1.05rem;
+}
+
+h2 {
   margin: 0 0 6px;
   font-size: 1.05rem;
   border-bottom: 0;

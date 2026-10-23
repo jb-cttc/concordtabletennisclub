@@ -11,12 +11,18 @@ const ROOT = path.join(__dirname, '..');
 
 const CONTACT_HREF = 'https://docs.google.com/forms/d/e/1FAIpQLSdbpyuHfnAEMRjwcA4fM1cgb75ieaa8xzXpKImt8ljRoC1WZA/viewform';
 
+// A small paddle marks Round Robins, the club's main event, so it stands out from the other links.
+const PADDLE_ICON = '<svg class="nav-icon" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">'
+  + '<line x1="9.8" y1="10.4" x2="13.6" y2="14.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>'
+  + '<circle cx="6" cy="7" r="5.4" fill="var(--red)"/>'
+  + '<circle cx="13.8" cy="2.4" r="1.9" fill="#fff" stroke="currentColor" stroke-width="0.8"/></svg>';
+
 // Edit this list to change navigation across the whole site.
 const NAV_LINKS = [
   { href: 'index.html',        label: 'Home' },
   { href: 'firstvisit.html',   label: 'First Visit' },
   { href: 'about.html',        label: 'About' },
-  { href: 'roundrobins.html',  label: 'Round Robins' },
+  { href: 'roundrobins.html',  label: 'Round Robins', icon: PADDLE_ICON },
   { href: 'leaderboard.html',  label: 'Leaderboard' },
   { href: 'halloffame.html',   label: 'Hall of Fame' },
   { href: 'membership.html',   label: 'Membership' },
@@ -36,7 +42,7 @@ function buildNavBlock(activeHref) {
     var attrs = ['href="' + link.href + '"'];
     if (isActive) attrs.push('class="active"');
     if (link.external) { attrs.push('target="_blank"'); attrs.push('rel="noopener"'); }
-    return '      <a ' + attrs.join(' ') + '>' + link.label + '</a>';
+    return '      <a ' + attrs.join(' ') + '>' + (link.icon ? link.icon + ' ' : '') + link.label + '</a>';
   });
   var toggle = '      <button class="nav-toggle" aria-label="Open navigation" aria-expanded="false">&#9776;</button>';
   return '    <nav>\n' + toggle + '\n' + links.join('\n') + '\n    </nav>';
@@ -62,7 +68,7 @@ htmlFiles.forEach(function (filename) {
     .replace(/(<link rel="stylesheet" href="style\.css">)(\s*<link rel="icon"[^>]*>)?/, '$1\n  <link rel="icon" href="assets/logo.png" type="image/png">')
     .replace(/(\s*<meta property="og:image"[^>]*>)?(\s*<\/head>)/, '\n  <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">$2')
     .replace(/<div class="site-title"><a href="index\.html">(?:Concord Table Tennis Club|<img[^>]*>)<\/a><\/div>/, '<div class="site-title"><a href="index.html"><img src="assets/logo-transparent.png" alt="Concord Table Tennis Club" class="site-logo"></a></div>')
-    .replace(/<nav>[\s\S]*?<\/nav>/, newNav)
+    .replace(/[ \t]*<nav>[\s\S]*?<\/nav>/, newNav)
     .replace(/<footer>[\s\S]*?<\/footer>(\s*<script src="navtoggle\.js"><\/script>)?/, newFooter);
 
   if (result === original) {
