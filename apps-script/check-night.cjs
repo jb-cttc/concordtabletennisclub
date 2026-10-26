@@ -452,6 +452,22 @@ const cases = {
     assert.deepEqual(tab.errors, []);
   },
 
+  // Opening an earlier finalized night from a night with no session yet: the header gives the latest finalized night,
+  // never the date the page was on before.
+  async ratingsDateOnEarlierNight() {
+    const world = sim.createWorld({ seed: 27 });
+    const tab = world.device().open();
+    await run(world, 15000);
+    const meta = () => tab.$('#session-meta').textContent;
+    assert.match(tab.status(), /No session exists/);
+    assert.match(meta(), /ratings current through 2026-10-12/);
+    tab.loadDate('2026-10-12');
+    await run(world, 15000);
+    assert.match(meta(), /Status: finalized/);
+    assert.match(meta(), /ratings current through 2026-10-12/, 'not ' + DATE + ', the night the page was on');
+    assert.deepEqual(tab.errors, []);
+  },
+
   // Group size: 6 by default; choosing 5 or 7 rebuilds by rating in groups of that size (or one smaller). The choice is
   // kept for the night on this device, another device reads it off the groups Google holds, and a new night starts at 6.
   async groupSizePreference() {
