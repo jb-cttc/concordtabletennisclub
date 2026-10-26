@@ -156,6 +156,9 @@
   gap: 0;
   min-height: 0.39in;
 }
+/* A group of 7 has 21 matches, which at the usual spacing runs onto a second page. */
+.tournament-seven .tournament-matches { gap: 0.03in; }
+.tournament-seven .tournament-match { min-height: 0.33in; }
 .tournament-match-names,
 .tournament-match-result {
   display: grid;
@@ -228,7 +231,7 @@
   }
   function tournamentSheets(desk, records) {
     return desk.groups.map(function (group) {
-      var sheet = el('article', 'print-sheet print-score-sheet print-tournament-sheet');
+      var sheet = el('article', 'print-sheet print-score-sheet print-tournament-sheet' + (group.playerIds.length > 6 ? ' tournament-seven' : ''));
       var columns = el('div', 'tournament-sheet-columns');
       var left = el('div', 'tournament-sheet-left');
       var meta = el('div', 'tournament-metadata');

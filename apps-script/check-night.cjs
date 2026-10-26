@@ -449,6 +449,75 @@ const cases = {
     assert.deepEqual(tab.errors, []);
   },
 
+  // Group size: 6 by default; choosing 5 or 7 rebuilds by rating in groups of that size (or one smaller). The choice is
+  // kept for the night on this device, another device reads it off the groups Google holds, and a new night starts at 6.
+  async groupSizePreference() {
+    const world = sim.createWorld({ seed: 26 });
+    const device = world.device();
+    const tab = await deskWith(world, device, 13);
+    const plain = value => JSON.parse(JSON.stringify(value));
+    const sizes = t => plain(t.desk().groups.map(group => group.playerIds.length));
+    const pressed = t => t.$('#group-size [aria-pressed="true"]').textContent;
+    const googleSizes = () => plain(sim.googleSession(world, DATE).groups.map(group => group.players.length));
+    const summary = t => t.$('#group-summary').textContent;
+    assert.equal(pressed(tab), '6', '6 by default');
+    assert.deepEqual(sizes(tab), [5, 4, 4]);
+
+    // 7: asked first (the night's groups are saved), then rebuilt by rating, and saved to Google like any rebuild.
+    tab.click(tab.$('[data-group-size="7"]'));
+    assert.match(tab.confirms.pop(), /groups of 7 \(or 6\)/);
+    assert.deepEqual(sizes(tab), [7, 6]);
+    assert.equal(pressed(tab), '7');
+    assert.match(tab.status(), /Groups rebuilt by rating in groups of 7 \(or 6\)/);
+    assert.doesNotMatch(summary(tab), /rebalance/, 'groups of 7 are not flagged when 7 is chosen');
+    const byRating = [...world.players.slice(0, 13)].sort((a, b) => b.current_rating - a.current_rating).map(p => p.player_id);
+    assert.deepEqual(plain(tab.desk().groups[0].playerIds), byRating.slice(0, 7), 'the strongest seven in group 1');
+    await run(world, 20000);
+    assert.deepEqual(googleSizes(), [7, 6]);
+
+    // Saying no to the question changes nothing.
+    tab.confirmAnswer = () => false;
+    tab.click(tab.$('[data-group-size="5"]'));
+    assert.deepEqual(sizes(tab), [7, 6]);
+    assert.equal(pressed(tab), '7');
+    tab.confirmAnswer = () => true;
+
+    // A reload on this device keeps 7.
+    tab.close();
+    const again = device.open();
+    await run(world, 15000);
+    assert.equal(pressed(again), '7');
+
+    // Another device has no choice stored, so it reads 7 off Google's groups: nothing is flagged, and a late arrival fills
+    // the group of 6 instead of being passed down to a new group.
+    const phone = world.device().open();
+    await run(world, 15000);
+    assert.equal(pressed(phone), '7');
+    assert.doesNotMatch(summary(phone), /rebalance/);
+    phone.addPlayer(world.players[13].player_id);
+    await run(world, 20000);
+    assert.deepEqual(sizes(phone), [7, 7]);
+    assert.deepEqual(googleSizes(), [7, 7]);
+
+    // 5 on the phone: 14 players in groups of 5 (or 4).
+    phone.click(phone.$('[data-group-size="5"]'));
+    assert.deepEqual(sizes(phone), [5, 5, 4]);
+    assert.equal(pressed(phone), '5');
+    await run(world, 20000);
+    assert.deepEqual(googleSizes(), [5, 5, 4]);
+
+    // A new night on the first device starts at 6, and last night's choice is cleared once it is no longer tonight.
+    await world.clock.runUntil(Date.parse('2026-10-15T18:00:00-07:00'));
+    again.loadDate('2026-10-15');
+    await run(world, 15000);
+    assert.equal(pressed(again), '6', 'a new night starts at 6');
+    again.click(again.$('[data-group-size="7"]'));
+    assert.match(again.status(), /Groups will be built in groups of 7 \(or 6\)/, 'with nobody added yet, it only sets the size');
+    assert.deepEqual(Object.keys(JSON.parse(device.store.get('cttc-group-size-v1'))), ['2026-10-15']);
+    assert.deepEqual(again.errors, []);
+    assert.deepEqual(phone.errors, []);
+  },
+
   // Tonight's volunteers: the people signed up to open or close are listed with RR and Open, and a press only adds them
   // (to the draft, or to Open Play), like the directory's buttons. Nothing is texted or emailed.
   async volunteersTonight() {
