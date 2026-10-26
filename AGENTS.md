@@ -23,6 +23,18 @@ not deploy the Google desk.
   version and redeploy the existing `/exec` deployment. Never deploy `/exec`
   from an unmerged branch. See [Prototype at `/dev`](README.md#prototype-at-dev-release-at-exec)
   and [Deploying the desk](README.md#deploying-the-desk).
+- **You can see the real Google desk; do not tell the owner you cannot.** The
+  clasp sign-in in `~/.clasprc.json` (written at session start from
+  `CLASPRC_B64`) is the club Google account, and it opens the Google-hosted
+  `/dev` and `/exec` pages, not just clasp. Run
+  `npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--selector CSS] [--width 390] --out <scratchpad dir>`
+  (`scripts/desk-google-view.js`), then Read the screenshots it prints. Do this
+  after every `/dev` push and after every `/exec` release, at a wide and a
+  phone width, before reporting the change as working. The script only looks:
+  it never clicks or saves, so keep any extra checks read-only too. Screenshots
+  show real member data: keep them outside the repository, delete them when
+  done, and never commit, post, or quote member names from them. For read-only
+  Google API calls (deployments, logs) use `.claude/google-api.py`.
 - These are collaboration instructions, not a technical restriction on a
   person signed in to the shared Google account. Avoid claiming a PR merge
   automatically updates Google.

@@ -28,9 +28,14 @@ numbered deployment. Both URLs use the real club Sheet.
    From `apps-script/`, run `npx --no-install @google/clasp status` to confirm
    the files that would be pushed. Then run `npx --no-install @google/clasp push`.
    This updates shared HEAD only, not `/exec`.
-4. Open the existing `/dev` deployment in a **fresh browser tab**; VS Code's
-   integrated browser sometimes leaves reused Apps Script frames blank. Check
-   the changed UI on narrow and wide viewports. Use read-only operations or
+4. Look at the real `/dev` page yourself. In a cloud session, run
+   `npm run desk:google -- --selector <changed part> --out <scratch dir>` and
+   again with `--width 390`, add `--date YYYY-MM-DD` to read a past night with
+   real data, and Read the screenshots. It signs in with the clasp sign-in, so
+   no browser login is needed. On a desktop, open the existing `/dev`
+   deployment in a **fresh browser tab**; VS Code's integrated browser
+   sometimes leaves reused Apps Script frames blank. Check the changed UI on
+   narrow and wide viewports. Use read-only operations or
    disposable records only; never finalize a real session, change real payments,
    or rely on `/dev` as an isolated database. Recheck Google HEAD if another
    editor may have pushed while you were testing.
@@ -39,7 +44,7 @@ numbered deployment. Both URLs use the real club Sheet.
    A clasp push is not a Git commit or a PR, and a PR merge deploys neither URL.
 6. **Only after approval and merge**, push the merged commit to Google, verify
    `/dev`, create an Apps Script version, and redeploy the *existing* `/exec`
-   deployment. Verify the live URL, record the Git commit and Apps Script
+   deployment. Verify the live URL (`npm run desk:google -- --exec`), record the Git commit and Apps Script
    version, and never deploy `/exec` from an unmerged branch. Follow
    [the maintainer release commands](../../../README.md#deploying-the-desk).
 

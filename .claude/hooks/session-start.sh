@@ -24,7 +24,7 @@ if [ -n "${CLASPRC_B64:-}" ]; then
      node -e 'const t=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).tokens; if(!t||!t.default||!t.default.refresh_token) process.exit(1)' "$tmp" 2>/dev/null; then
     mv "$tmp" "$HOME/.clasprc.json"
     chmod 600 "$HOME/.clasprc.json"
-    echo "clasp sign-in configured from CLASPRC_B64."
+    echo "clasp sign-in configured from CLASPRC_B64. It also opens the real desk: npm run desk:google (see AGENTS.md)."
   else
     rm -f "$tmp"
     echo "CLASPRC_B64 is set but is not a valid clasp sign-in; clasp is not signed in." >&2

@@ -304,7 +304,10 @@ See [round-robin operations](docs/round-robin-operations.md) for details.
 
 **Claude Code cloud sessions:** `.claude/hooks/session-start.sh` installs packages and clasp. If the cloud
 environment's variables include `CLASPRC_B64` (the base64 of a signed-in `~/.clasprc.json`), it also writes that
-file with private permissions, so the session can push to `/dev` without signing in again. Keep the sign-in in
+file with private permissions, so the session can push to `/dev` without signing in again. The same sign-in opens
+the Google-hosted desk: `npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--selector CSS] --out <dir>` loads
+`/dev` (or `/exec`) in headless Chromium without clicking anything and saves screenshots, so an agent can see what
+it pushed. Those screenshots show real member data; keep them outside the repository. Keep the sign-in in
 the environment's settings only, never in this public repository. It stays valid until it is removed under the
 club account's Google Account → Security → third-party access; after that, sign in again with
 `clasp login --no-localhost` and update the variable.
