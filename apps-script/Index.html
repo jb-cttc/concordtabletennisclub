@@ -887,6 +887,39 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     });
   }
 
+  // Check-ins and removals follow Rebuild by rating exactly, until someone is moved by hand or the first score is in.
+  // After a move by hand, a late arrival is slotted in by rating (a full group passes its lowest player down) and a
+  // removal leaves the gap. Once a score is in, a late arrival joins their group and nobody else changes table.
+  // "Moved by hand" is read off the groups themselves (they differ from what Rebuild would make), so it holds after a
+  // reload and on another device.
+  function rebuiltGroups() {
+    var arrays = O.organize(state.roster, player, groupSize());
+    O.applyPromotions(arrays, state.winners, player);
+    return arrays;
+  }
+  function groupsKey(arrays) {
+    return arrays.filter(function (ids) { return ids.length; }).map(function (ids) { return ids.slice().sort().join(','); }).join('|');
+  }
+  function arrangedByHand() {
+    return groupsKey(groupArrays()) !== groupsKey(rebuiltGroups());
+  }
+  function scoringStarted() {
+    return state.matches.some(function (match) {
+      return match.playerOneGames != null || match.playerTwoGames != null || !!match.forfeit || !!match.forfeitedBy || !!match.wonBy;
+    });
+  }
+  function keepArrangement() {
+    return arrangedByHand() || scoringStarted();
+  }
+  // The question before rebuilding, or '' when nothing would be lost.
+  function rebuildQuestion(what) {
+    var byHand = arrangedByHand();
+    var scored = scoringStarted();
+    if (!byHand && !scored) return '';
+    return what + '?' + (byHand ? ' Manual moves are replaced; promotions are reapplied.' : '') +
+      (scored ? ' Scores already entered stay only for players who stay in the same group together.' : '');
+  }
+
   function organize() {
     var arrays = O.organize(state.roster, player, groupSize());
     state.promotions = O.applyPromotions(arrays, state.winners, player);
@@ -914,8 +947,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   function addToRoster(id, source) {
     if (!byId[id] || state.roster.indexOf(id) >= 0 || locked() || pendingRecovery) return false;
+    var keep = keepArrangement();
+    var stay = scoringStarted();
     state.roster.push(id);
-    if (state.customized) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions, groupSize()));
+    if (keep) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions, groupSize(), stay));
     else organize();
     persistDeviceDraft();
     setStatus(player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '.');
@@ -923,9 +958,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
   function removeFromRoster(id) {
     if (state.roster.indexOf(id) < 0 || locked() || pendingRecovery) return false;
+    var keep = keepArrangement();
     state.roster = state.roster.filter(function (other) { return other !== id; });
     delete state.promotions[id];
-    if (state.customized) setGroups(groupArrays().map(function (ids) { return ids.filter(function (other) { return other !== id; }); }));
+    if (keep) setGroups(groupArrays().map(function (ids) { return ids.filter(function (other) { return other !== id; }); }));
     else organize();
     persistDeviceDraft();
     setStatus(player(id).name + ' removed from RR draft.');
@@ -1853,7 +1889,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   date.addEventListener('change', load);
   document.getElementById('rebuild').addEventListener('click', function () {
     if (pendingRecovery) return;
-    if (state.customized && !confirm('Rebuild groups by rating? Manual moves are replaced; promotions are reapplied.')) return;
+    var question = rebuildQuestion('Rebuild groups by rating');
+    if (question && !confirm(question)) return;
     organize();
     persistDeviceDraft();
     setStatus('Groups rebuilt by rating' + (Object.keys(state.promotions).length ? ' with ' + Object.keys(state.promotions).length + ' promotion(s)' : '') + '.');
@@ -1864,7 +1901,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var size = Number(button.getAttribute('data-group-size'));
     if (size === groupSize()) return;
     var range = 'groups of ' + size + ' (or ' + (size - 1) + ')';
-    if (state.roster.length && state.customized && !confirm('Rebuild groups by rating in ' + range + '? Manual moves are replaced; promotions are reapplied.')) return;
+    var question = state.roster.length ? rebuildQuestion('Rebuild groups by rating in ' + range) : '';
+    if (question && !confirm(question)) return;
     setGroupSize(size);
     if (!state.roster.length) {
       render();

@@ -74,10 +74,11 @@
   }
 
   // Adds a late arrival by rating rank without reshuffling anyone already placed; promoted players are never bumped down.
-  // A group pushed past the preferred size passes its lowest-rated player down.
-  function insert(groups, id, allIds, player, keep, preferred) {
+  // A group pushed past the preferred size passes its lowest-rated player down, unless stay is set (play has started):
+  // then the arrival simply joins the group and nobody else moves.
+  function insert(groups, id, allIds, player, keep, preferred, stay) {
     keep = keep || {};
-    var largest = groupSize(preferred);
+    var largest = stay ? Infinity : groupSize(preferred);
     if (!groups.length) return [[id]];
     var ordered = byRating(allIds, player);
     var target = Math.min(groups.length - 1, Math.floor(ordered.indexOf(id) * groups.length / ordered.length));
