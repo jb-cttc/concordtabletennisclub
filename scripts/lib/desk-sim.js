@@ -94,8 +94,9 @@ function createSpreadsheet(DateClass) {
       // Like Sheets, a leading ' keeps the rest as plain text and is not stored.
       if (value[0] === "'") return value.slice(1);
       if (/^-?\d+(\.\d+)?$/.test(value.trim()) && value.trim() !== '') return Number(value);
+      // Like Sheets, a typed date is midnight in the spreadsheet's time zone (Pacific), whatever zone runs the checks.
       const date = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (date) return new DateClass(Number(date[1]), Number(date[2]) - 1, Number(date[3]));
+      if (date) return new DateClass(pacificMidnight(Number(date[1]), Number(date[2]), Number(date[3])));
       return value;
     }
     if (value instanceof Date) return new DateClass(value.getTime());
@@ -333,6 +334,16 @@ function propertyStore(properties) {
     setProperty: (key, value) => { properties[key] = String(value); },
     deleteProperty: key => { delete properties[key]; }
   };
+}
+
+// The instant of midnight on a calendar day in Pacific time (standard or daylight, as on that day).
+function pacificMidnight(year, month, day) {
+  const utc = Date.UTC(year, month - 1, day);
+  const parts = {};
+  new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(utc)).forEach(part => { parts[part.type] = part.value; });
+  const shown = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour) % 24, Number(parts.minute));
+  return utc + (utc - shown);
 }
 
 function formatDate(date, zone, pattern) {

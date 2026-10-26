@@ -17,10 +17,11 @@
 </head>
 <body>
   <iframe id="desk" title="CTTC Round Robin Desk"></iframe>
-  <p class="fallback">Desk not loading? <a id="direct" target="_blank" rel="noopener">Open it directly</a></p>
+  <p class="fallback">Blank? The desk opens only for the club's Google account. <a id="direct" target="_blank" rel="noopener">Open it directly</a> to sign in.</p>
   <script>
     (function () {
-      // The desk is owner-only: this address is not a credential, and visitors without access see Google's sign-in page.
+      // The desk is owner-only: this address is not a credential. Google will not show its sign-in page inside a frame, so a
+      // visitor who is not signed in to the club's account sees a blank frame and the note below it.
       var url = new URL('https://script.google.com/macros/s/AKfycbzXI7Kk4hz3JDF0DXJL_wmF6ibKp_Avz5uvwyRD-84OJJ23LfDf9yAZetS97L4zabvzDw/exec');
       var date = new URLSearchParams(location.search).get('date');
       if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) url.searchParams.set('date', date);

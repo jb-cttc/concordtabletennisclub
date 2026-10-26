@@ -155,6 +155,8 @@ function getAppState(sessionDate) {
     session: session,
     ratingsSyncedThrough: ratingsSyncedThrough_(),
     ratingsCheckedAt: ratingsCheckedAt_(),
+    // Since the desk became the rating authority, its own latest finalized session is what ratings are current through.
+    ratingsFinalizedThrough: latestFinalizedSessionDate_(),
     // Ledger rows for a session that is not finalized: a finalize or reopen stopped partway. The desk says so on load.
     interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; })
   };

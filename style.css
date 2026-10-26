@@ -397,6 +397,11 @@ td {
   vertical-align: top;
 }
 
+/* A long email address breaks across lines rather than widening the page on a phone. */
+.coach-table td {
+  overflow-wrap: anywhere;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

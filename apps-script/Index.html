@@ -1053,7 +1053,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   function render() {
     var isLocked = locked();
     document.querySelector('.workspace').classList.toggle('locked', isLocked);
-    document.getElementById('session-meta').textContent = (state.session ? 'Status: ' + state.session.status + ' · revision ' + state.session.revision : 'New unsaved session') + (state.ratingsSyncedThrough ? ' · ratings current through ' + state.ratingsSyncedThrough : '') + (state.ratingsCheckedAt ? ' (checked ' + new Date(state.ratingsCheckedAt).toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ')' : '');
+    document.getElementById('session-meta').textContent = (state.session ? 'Status: ' + state.session.status + ' · revision ' + state.session.revision : 'New unsaved session') + (ratingsThrough() ? ' · ratings current through ' + ratingsThrough() : '') + (state.ratingsCheckedAt ? ' (checked ' + new Date(state.ratingsCheckedAt).toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ')' : '');
     document.getElementById('empty').hidden = state.roster.length > 0;
     document.getElementById('clear-roster').disabled = !state.roster.length || isLocked;
     document.getElementById('print-sheets').disabled = !state.roster.length;
@@ -1074,6 +1074,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     document.getElementById('load').disabled = !!lockBusy;
     finalizeButton.textContent = lockBusy === 'reopen' ? 'Reopening\u2026' : lockBusy ? 'Finalizing\u2026' : isLocked ? '\uD83D\uDD12 Finalized' : 'Finalize RR Results';
     finalizeButton.title = lockBusy ? 'Waiting for Google Sheets to confirm.' : isLocked ? 'Click to reopen this session and reverse its rating changes.' : '';
+  }
+
+  // The latest of: the club results the site last gave the desk, the desk's own latest finalized session when the page
+  // loaded, and this session once it is finalized here.
+  function ratingsThrough() {
+    var finalizedHere = state.session && state.session.status === 'finalized' ? loadedDate : '';
+    return [state.ratingsSyncedThrough || '', state.ratingsFinalizedThrough || '', finalizedHere || ''].sort().pop();
   }
 
   var ratingsChecked = false;
@@ -1150,6 +1157,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       if (sessionDate !== date.value) return;
       state.session = data.session;
       state.ratingsSyncedThrough = data.ratingsSyncedThrough;
+      state.ratingsFinalizedThrough = data.ratingsFinalizedThrough;
       state.ratingsCheckedAt = data.ratingsCheckedAt;
       state.promotions = {};
       state.matches = [];
