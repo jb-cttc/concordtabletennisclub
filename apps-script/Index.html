@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -38,6 +38,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .date-tools label.request-pending:after{position:absolute;left:-24px;bottom:0;margin-left:0}
 .date-tools button.request-pending:after{position:absolute;right:0;top:-16px;margin-left:0}
 .draft-recovery{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;margin:-6px 0 18px;border-left:4px solid var(--gold);background:#fff3d9;font:14px Arial,sans-serif}.draft-recovery[hidden],.draft-recovery button[hidden]{display:none}.draft-actions{display:flex;gap:8px;flex-wrap:wrap}
+.group-size{display:inline-flex;align-items:center;border:1px solid var(--green);border-radius:4px;overflow:hidden;font:13px Arial,sans-serif}.group-size span{padding:0 8px;color:var(--muted)}.group-size button{border:0;border-left:1px solid var(--green);background:#fff;color:var(--green);padding:9px 12px;font-weight:700}.group-size button[aria-pressed="true"]{background:var(--green);color:#fff}.group-size button:disabled{cursor:default}
 .workspace.draft-pending #groups,.workspace.draft-pending #matches,.workspace.draft-pending .toolbar-actions{pointer-events:none;opacity:.55}
 .workspace.lock-busy #groups,.workspace.lock-busy #matches,.workspace.lock-busy .toolbar-actions{pointer-events:none}.workspace.lock-busy #groups,.workspace.lock-busy #matches,.workspace.lock-busy .toolbar-actions button:not(#finalize){opacity:.55}.workspace.lock-busy #finalize{cursor:progress}
 #save{position:relative}#save.sync-ready::after{content:'';position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:#e8c06a;box-shadow:0 0 0 2px rgba(255,255,255,.45)}
@@ -842,8 +843,52 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     buildMatches();
     render();
   }
+  // The group size preference (5, 6 or 7: groups of that size or one smaller). Chosen per night and kept on this device,
+  // so a new night starts at 6; a night chosen on another device is read off the groups Google holds for it.
+  var GROUP_SIZE_KEY = 'cttc-group-size-v1';
+  // The night the preference is for: set as a session loads, before its groups are drawn (loadedDate changes after).
+  var groupSizeDate = '';
+  // What the groups Google held for this night say (see groupSizeOf), and this page's own choices if storage fails.
+  var savedGroupSize = 0;
+  var chosenGroupSizes = {};
+  function storedGroupSizes() {
+    try { return JSON.parse(localStorage.getItem(GROUP_SIZE_KEY) || '{}') || {}; } catch (error) { return chosenGroupSizes; }
+  }
+  function groupSize() {
+    var sessionDate = groupSizeDate || date.value;
+    return O.groupSize(storedGroupSizes()[sessionDate] || chosenGroupSizes[sessionDate] || savedGroupSize || O.DEFAULT_GROUP_SIZE);
+  }
+  // 7 when every saved group is 7 or 6, 5 when every one is 5 or 4; anything else (or no session yet) leaves the default.
+  function groupSizeOf(arrays) {
+    var sizes = arrays.map(function (ids) { return ids.length; });
+    if (!sizes.length) return 0;
+    var largest = Math.max.apply(null, sizes);
+    return O.GROUP_SIZES.indexOf(largest) >= 0 && !sizes.some(function (size) { return O.outOfRange(size, largest); }) ? largest : 0;
+  }
+  function setGroupSize(size) {
+    var sessionDate = groupSizeDate || date.value;
+    var all = storedGroupSizes();
+    var kept = {};
+    // Only tonight's and this night's choice are kept, so last week's choice never carries over.
+    Object.keys(all).forEach(function (day) { if (day === pacificToday()) kept[day] = all[day]; });
+    kept[sessionDate] = size;
+    chosenGroupSizes[sessionDate] = size;
+    try { localStorage.setItem(GROUP_SIZE_KEY, JSON.stringify(kept)); } catch (error) { /* this page keeps the choice until reload */ }
+  }
+  function pacificToday() {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  }
+  function renderGroupSize() {
+    var size = groupSize();
+    var isLocked = locked();
+    document.querySelectorAll('#group-size [data-group-size]').forEach(function (button) {
+      button.setAttribute('aria-pressed', String(Number(button.getAttribute('data-group-size')) === size));
+      button.disabled = isLocked;
+    });
+  }
+
   function organize() {
-    var arrays = O.organize(state.roster, player);
+    var arrays = O.organize(state.roster, player, groupSize());
     state.promotions = O.applyPromotions(arrays, state.winners, player);
     state.customized = false;
     setGroups(arrays);
@@ -870,7 +915,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   function addToRoster(id, source) {
     if (!byId[id] || state.roster.indexOf(id) >= 0 || locked() || pendingRecovery) return false;
     state.roster.push(id);
-    if (state.customized) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions));
+    if (state.customized) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions, groupSize()));
     else organize();
     persistDeviceDraft();
     setStatus(player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '.');
@@ -960,13 +1005,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   function renderGroups() {
     var sizes = state.groups.map(function (group) { return group.playerIds.length; });
-    var unbalanced = sizes.some(function (size) { return size < 5 || size > 6; });
+    var unbalanced = sizes.some(function (size) { return O.outOfRange(size, groupSize()); });
     summaryRow.hidden = !state.roster.length;
     summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in ' + sizes.length + (sizes.length === 1 ? ' group' : ' groups') + ' · ' + sizes.join(' / ') + (unbalanced ? ' · rebalance recommended' : '');
     summary.classList.toggle('warn', unbalanced);
     groups.innerHTML = state.groups.map(function (group, index) {
       var size = group.playerIds.length;
-      return '<article class="group' + (size < 5 || size > 6 ? ' needs-balance' : '') + '"><div class="group-head"><strong>Group ' + group.groupNumber + '</strong><span class="count">' + size + ' players</span></div><ul class="group-list">' + group.playerIds.map(function (id) {
+      return '<article class="group' + (O.outOfRange(size, groupSize()) ? ' needs-balance' : '') + '"><div class="group-head"><strong>Group ' + group.groupNumber + '</strong><span class="count">' + size + ' players</span></div><ul class="group-list">' + group.playerIds.map(function (id) {
         var p = player(id);
         var promo = state.promotions[id];
         return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span>' +
@@ -1057,6 +1102,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     document.getElementById('empty').hidden = state.roster.length > 0;
     document.getElementById('clear-roster').disabled = !state.roster.length || isLocked;
     document.getElementById('print-sheets').disabled = !state.roster.length;
+    renderGroupSize();
     renderGroups();
     renderMatches();
     renderContext();
@@ -1181,6 +1227,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
           return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null, wonBy: match.wonBy || null });
         });
       }
+      groupSizeDate = sessionDate;
+      savedGroupSize = groupSizeOf(groupsFromSession);
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
@@ -1808,6 +1856,23 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     organize();
     persistDeviceDraft();
     setStatus('Groups rebuilt by rating' + (Object.keys(state.promotions).length ? ' with ' + Object.keys(state.promotions).length + ' promotion(s)' : '') + '.');
+  });
+  document.getElementById('group-size').addEventListener('click', function (event) {
+    var button = event.target.closest('[data-group-size]');
+    if (!button || pendingRecovery || locked()) return;
+    var size = Number(button.getAttribute('data-group-size'));
+    if (size === groupSize()) return;
+    var range = 'groups of ' + size + ' (or ' + (size - 1) + ')';
+    if (state.roster.length && state.customized && !confirm('Rebuild groups by rating in ' + range + '? Manual moves are replaced; promotions are reapplied.')) return;
+    setGroupSize(size);
+    if (!state.roster.length) {
+      render();
+      setStatus('Groups will be built in ' + range + '.');
+      return;
+    }
+    organize();
+    persistDeviceDraft();
+    setStatus('Groups rebuilt by rating in ' + range + (Object.keys(state.promotions).length ? ' with ' + Object.keys(state.promotions).length + ' promotion(s)' : '') + '.');
   });
   document.getElementById('clear-roster').addEventListener('click', function () {
     if (pendingRecovery) return;
@@ -3142,6 +3207,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. Anyone added folds into Added tonight below; press Hide to tuck a text away under Hidden tonight, where Unhide brings it back. Hiding lasts for the night on this device, and a new text from that person brings them back to the top. On Monday and Wednesday nights from 6:45 to 7:30 the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
+    { title: 'Group size', text: 'Groups are built by rating in groups of 6 (or 5 when the numbers do not divide evenly). Choose 5 or 7 to rebuild in groups of 5 (or 4) or 7 (or 6). Like Rebuild by rating, it replaces manual moves and reapplies promotions. The choice is for this night on this device; a new night starts at 6.', target: '#group-size' },
     { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are saved to Google Sheets automatically a moment after you make them, and kept on this device if the connection drops.', target: '#groups .group-list li' },
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change. Coaches and students with a lesson confirmed in the coaching app are listed here automatically, and their texts are left out of Voice signups.', target: '.open-play-section' },
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },

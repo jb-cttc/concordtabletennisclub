@@ -1,9 +1,24 @@
 <script>
 (function (root) {
-  function sizeGroups(count) {
+  // The organizer's group size preference: 5, 6 (the default) or 7. Groups are that size or one smaller, as few groups as
+  // possible; a night too small for that gets smaller groups.
+  var GROUP_SIZES = [5, 6, 7];
+  var DEFAULT_GROUP_SIZE = 6;
+  function groupSize(preferred) {
+    return GROUP_SIZES.indexOf(Number(preferred)) >= 0 ? Number(preferred) : DEFAULT_GROUP_SIZE;
+  }
+
+  // Whether a group of this size is outside the preferred range (the desk flags it for a rebalance).
+  function outOfRange(size, preferred) {
+    preferred = groupSize(preferred);
+    return size < preferred - 1 || size > preferred;
+  }
+
+  function sizeGroups(count, preferred) {
     if (!count) return [];
-    var min = Math.ceil(count / 6);
-    var max = Math.floor(count / 5);
+    preferred = groupSize(preferred);
+    var min = Math.ceil(count / preferred);
+    var max = Math.floor(count / (preferred - 1));
     var groupCount = min <= max ? min : Math.max(1, min);
     var base = Math.floor(count / groupCount);
     var larger = count % groupCount;
@@ -18,10 +33,10 @@
     });
   }
 
-  function organize(ids, player) {
+  function organize(ids, player, preferred) {
     var ordered = byRating(ids, player);
     var offset = 0;
-    return sizeGroups(ordered.length).map(function (size) {
+    return sizeGroups(ordered.length, preferred).map(function (size) {
       var group = ordered.slice(offset, offset + size);
       offset += size;
       return group;
@@ -59,13 +74,15 @@
   }
 
   // Adds a late arrival by rating rank without reshuffling anyone already placed; promoted players are never bumped down.
-  function insert(groups, id, allIds, player, keep) {
+  // A group pushed past the preferred size passes its lowest-rated player down.
+  function insert(groups, id, allIds, player, keep, preferred) {
     keep = keep || {};
+    var largest = groupSize(preferred);
     if (!groups.length) return [[id]];
     var ordered = byRating(allIds, player);
     var target = Math.min(groups.length - 1, Math.floor(ordered.indexOf(id) * groups.length / ordered.length));
     groups[target] = byRating(groups[target].concat(id), player);
-    for (var i = target; i < groups.length && groups[i].length > 6; i += 1) {
+    for (var i = target; i < groups.length && groups[i].length > largest; i += 1) {
       var at = groups[i].length - 1;
       while (at > 0 && keep[groups[i][at]]) at -= 1;
       var bumped = groups[i].splice(at, 1)[0];
@@ -248,6 +265,10 @@
 
   root.CTTCOrganizer = {
     ratingAdjustment: ratingAdjustment,
+    GROUP_SIZES: GROUP_SIZES,
+    DEFAULT_GROUP_SIZE: DEFAULT_GROUP_SIZE,
+    groupSize: groupSize,
+    outOfRange: outOfRange,
     sizeGroups: sizeGroups,
     byRating: byRating,
     organize: organize,

@@ -27,6 +27,33 @@ function roster(count) {
 assert.deepEqual(plain(O.sizeGroups(27)), [6, 6, 5, 5, 5]);
 assert.deepEqual(plain(O.sizeGroups(12)), [6, 6]);
 assert.deepEqual(plain(O.sizeGroups(7)), [4, 3]);
+// The group size preference: groups of that size or one smaller, as few groups as possible. 6 is the default.
+assert.deepEqual(plain(O.GROUP_SIZES), [5, 6, 7]);
+assert.deepEqual(plain(O.sizeGroups(40)), [6, 6, 6, 6, 6, 5, 5], 'last Wednesday\'s 40 players, as before');
+assert.deepEqual(plain(O.sizeGroups(40, 6)), plain(O.sizeGroups(40)));
+assert.deepEqual(plain(O.sizeGroups(40, 5)), [5, 5, 5, 5, 5, 5, 5, 5]);
+assert.deepEqual(plain(O.sizeGroups(40, 7)), [7, 7, 7, 7, 6, 6]);
+assert.deepEqual(plain(O.sizeGroups(42, 5)), [5, 5, 5, 5, 5, 5, 4, 4, 4]);
+assert.deepEqual(plain(O.sizeGroups(27, 7)), [7, 7, 7, 6]);
+assert.deepEqual(plain(O.sizeGroups(7, 7)), [7]);
+assert.deepEqual(plain(O.sizeGroups(7, 5)), [4, 3], 'a night too small for the preference gets smaller groups');
+assert.deepEqual(plain(O.sizeGroups(40, 8)), plain(O.sizeGroups(40)), 'anything else means the default');
+assert.deepEqual(plain(O.sizeGroups(40, '7')), plain(O.sizeGroups(40, 7)), 'a stored "7" is 7');
+for (const preferred of [5, 6, 7]) {
+  for (let count = 1; count <= 60; count += 1) {
+    const sizes = O.sizeGroups(count, preferred);
+    assert.equal(sizes.reduce((a, b) => a + b, 0), count, 'everyone is placed');
+    assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1, 'groups differ by at most one');
+    assert.ok(Math.max(...sizes) <= preferred, 'no group is larger than the preference');
+    if (count >= preferred * (preferred - 1)) assert.ok(!sizes.some(size => O.outOfRange(size, preferred)), count + ' players fit groups of ' + preferred);
+  }
+}
+assert.equal(O.outOfRange(7, 6), true);
+assert.equal(O.outOfRange(7, 7), false);
+assert.equal(O.outOfRange(5, 7), true);
+assert.equal(O.outOfRange(4, 5), false);
+assert.deepEqual(plain(O.organize(roster(14), player, 7).map(g => g.length)), [7, 7]);
+assert.deepEqual(plain(O.organize(roster(14), player, 7)[0]), ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'], 'still by rating');
 const ids = roster(17);
 assert.deepEqual(plain(O.organize(ids, player).map(g => g.length)), [6, 6, 5]);
 
@@ -74,6 +101,15 @@ groups = [['p1', 'p2', 'p3', 'p4', 'p5', 'p10'], ['p6', 'p7', 'p8', 'p9', 'p11',
 O.insert(groups, 'late', ids.slice(0, 12).concat('late'), player, { p10: {} });
 assert.ok(groups[0].includes('p10'), 'a promoted player is not bumped by a late arrival');
 assert.ok(groups[1].includes('p5'), 'the lowest non-promoted player moves down instead');
+
+// With groups of 7 preferred, a late arrival fills a group of 6 to 7 without bumping anyone.
+groups = [['p1', 'p2', 'p3', 'p4', 'p5', 'p6'], ['p7', 'p8', 'p9', 'p10', 'p11', 'p12']];
+O.insert(groups, 'late', ids.slice(0, 12).concat('late'), player, {}, 7);
+assert.deepEqual(plain(groups.map(g => g.length)), [7, 6]);
+// With groups of 5 preferred, the same arrival bumps one player down each group, to a new last group.
+groups = [['p1', 'p2', 'p3', 'p4', 'p5'], ['p6', 'p7', 'p8', 'p9', 'p10']];
+O.insert(groups, 'late', ids.slice(0, 10).concat('late'), player, {}, 5);
+assert.deepEqual(plain(groups.map(g => g.length)), [5, 5, 1]);
 
 const six = roster(6);
 const pairs = O.roundRobinPairs(six);
