@@ -355,6 +355,100 @@ const cases = {
     assert.deepEqual(tab.errors, []);
   },
 
+  // The texts still waiting stay on top, newest first. Anyone added folds into Added tonight; Hide tucks a sender into
+  // Hidden tonight until Unhide, a new text from them, or the next day.
+  async voiceSignupsFoldAndHide() {
+    const world = sim.createWorld({ seed: 25 });
+    const inbox = [];
+    const voiceText = (name, phone, body, when) => {
+      const message = {
+        getId: () => name + phone + when,
+        getFrom: () => '"' + name + ' (SMS)" <19255550100.19255550199.x@txt.voice.google.com>',
+        getReplyTo: () => '"' + name + ' (SMS)" <19255550100.19255550199.x@txt.voice.google.com>',
+        getSubject: () => 'New text message from ' + name + ' ' + phone,
+        getPlainBody: () => body + '\nTo respond to this text message, reply to this email or visit Google Voice.\nYOUR ACCOUNT',
+        getDate: () => new Date(when),
+        getThread: () => ({ getMessages: () => [message] }),
+        reply: () => {}
+      };
+      return message;
+    };
+    const pacific = (time, day) => Date.parse((day || DATE) + 'T' + time + ':00-07:00');
+    const [ava, ben, cy, dee] = world.players;
+    inbox.push(voiceText(dee.display_name, '(925) 555-0104', 'count me in', pacific('18:20')));
+    inbox.push(voiceText(ava.display_name, '(925) 555-0101', 'I\'ll join CTTC\'s RR tonight', pacific('18:30')));
+    inbox.push(voiceText(ben.display_name, '(925) 555-0102', 'Is RR on tonight?', pacific('18:35')));
+    inbox.push(voiceText(cy.display_name, '(925) 555-0103', 'can\'t make it tonight', pacific('18:40')));
+    world.server.gmail.threads = [{ getMessages: () => inbox }];
+
+    const device = world.device();
+    let tab = device.open();
+    await run(world, 15000);
+    let doc = tab.window.document;
+    const namesIn = selector => [...doc.querySelectorAll(selector + ' > li')].map(li => li.querySelector('.voice-sender span').textContent);
+    const waiting = () => namesIn('.voice-suggestions > ul');
+    const added = () => doc.querySelector('.voice-added-group');
+    const hidden = () => doc.querySelector('.voice-hidden-group');
+    const press = (name, selector) => tab.click([...doc.querySelectorAll('.voice-suggestions li')]
+      .find(li => li.querySelector('.voice-sender span').textContent === name).querySelector(selector));
+    assert.deepEqual(waiting(), [cy, ben, ava, dee].map(p => p.display_name), 'newest text first');
+    assert.ok(added().hidden && hidden().hidden, 'no folds until someone is added or hidden');
+
+    // RR moves the sender into Added tonight, folded shut.
+    press(ava.display_name, '[data-voice-add]');
+    assert.deepEqual(waiting(), [cy, ben, dee].map(p => p.display_name));
+    assert.ok(!added().hidden && !added().open, 'Added tonight shows, folded');
+    assert.equal(added().querySelector('summary').textContent, 'Added tonight (1)');
+    assert.deepEqual(namesIn('.voice-added-group ul'), [ava.display_name]);
+    added().open = true;
+    tab.click(doc.querySelector('.voice-suggestions > button.secondary'));
+    await run(world, 15000);
+    assert.ok(added().open, 'an opened fold stays open when the list refreshes');
+
+    // Hide moves the sender below, out of Add all; Unhide brings them back to their place by time.
+    press(dee.display_name, '[data-voice-hide]');
+    press(cy.display_name, '[data-voice-hide]');
+    assert.deepEqual(waiting(), [ben.display_name]);
+    assert.ok(!hidden().hidden && !hidden().open, 'Hidden tonight shows, folded');
+    assert.equal(hidden().querySelector('summary').textContent, 'Hidden tonight (2)');
+    assert.deepEqual(namesIn('.voice-hidden-group ul'), [cy, dee].map(p => p.display_name));
+    assert.ok(doc.querySelector('.voice-suggestions').lastElementChild.previousElementSibling === hidden() && hidden().previousElementSibling === added(), 'Hidden sits below Added');
+    assert.equal(doc.querySelector('.voice-add-all').disabled, true, 'a hidden ✓ is not added by Add all');
+    assert.equal(doc.querySelectorAll('.voice-hidden-group [data-voice-add]').length, 0, 'no RR buttons while hidden');
+    press(dee.display_name, '[data-voice-unhide]');
+    assert.deepEqual(waiting(), [ben, dee].map(p => p.display_name));
+    assert.equal(doc.querySelector('.voice-add-all').textContent, 'Add all ✓ (1)');
+
+    // Hidden survives a reload on this device; a new text from a hidden sender brings them back to the top.
+    tab.close();
+    tab = device.open();
+    await run(world, 15000);
+    doc = tab.window.document;
+    assert.deepEqual(namesIn('.voice-hidden-group ul'), [cy.display_name], 'still hidden after a reload');
+    inbox.push(voiceText(cy.display_name, '(925) 555-0103', 'actually I can come after all', pacific('18:55')));
+    await world.clock.runUntil(pacific('18:56') + 5000);
+    assert.equal(waiting()[0], cy.display_name, 'a new text brings them back, on top');
+    assert.ok(hidden().hidden);
+    press(cy.display_name, '[data-voice-hide]');
+    assert.deepEqual(namesIn('.voice-hidden-group ul'), [cy.display_name]);
+
+    // The next day starts with nothing hidden, and the night before is forgotten.
+    tab.close();
+    const nextDay = '2026-10-15';
+    inbox.push(voiceText(cy.display_name, '(925) 555-0103', 'can\'t make it tonight either', pacific('18:10', nextDay)));
+    await world.clock.runUntil(pacific('18:30', nextDay));
+    tab = device.open();
+    await run(world, 15000);
+    doc = tab.window.document;
+    doc.getElementById('date').value = nextDay;
+    doc.getElementById('date').dispatchEvent(new tab.window.Event('change'));
+    await run(world, 15000);
+    assert.deepEqual(waiting(), [cy.display_name], 'not hidden on a new day');
+    press(cy.display_name, '[data-voice-hide]');
+    assert.deepEqual(Object.keys(JSON.parse(device.store.get('cttc-voice-hidden-v1'))), [nextDay], 'last night\'s hidden list is cleared');
+    assert.deepEqual(tab.errors, []);
+  },
+
   // Tonight's volunteers: the people signed up to open or close are listed with RR and Open, and a press only adds them
   // (to the draft, or to Open Play), like the directory's buttons. Nothing is texted or emailed.
   async volunteersTonight() {
