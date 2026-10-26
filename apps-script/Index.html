@@ -1123,9 +1123,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
 
   // The latest of: the club results the site last gave the desk, the desk's own latest finalized session when the page
-  // loaded, and this session once it is finalized here.
+  // loaded, and this session once it is finalized here. The session's own date, not loadedDate: a session is drawn
+  // before loadedDate moves to it.
   function ratingsThrough() {
-    var finalizedHere = state.session && state.session.status === 'finalized' ? loadedDate : '';
+    var finalizedHere = state.session && state.session.status === 'finalized' ? state.session.sessionDate : '';
     return [state.ratingsSyncedThrough || '', state.ratingsFinalizedThrough || '', finalizedHere || ''].sort().pop();
   }
 
