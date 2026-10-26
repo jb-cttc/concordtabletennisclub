@@ -39,9 +39,12 @@ const cases = {
     await run(world, 20000);
     inStep(world, tab, 'ordinary night');
     assert.equal(googleScored(world), 25);
+    const meta = () => tab.window.document.getElementById('session-meta').textContent;
+    assert.match(meta(), /ratings current through 2026-10-12/, 'ratings are current through the desk\'s last finalized night');
     tab.finalize();
     await run(world, 60000);
     assert.equal(sim.googleSession(world, DATE).status, 'finalized');
+    assert.match(meta(), /ratings current through 2026-10-14/, 'and through tonight once it is finalized, with no reload');
     assert.equal(world.server.problems().length, 0, 'nothing was reported as a problem');
     assert.equal(world.server.rows('RatingLedger').filter(r => r.session_id === 'session-' + DATE).length, 11);
   },
