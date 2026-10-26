@@ -106,6 +106,11 @@ assert.ok(groups[1].includes('p5'), 'the lowest non-promoted player moves down i
 groups = [['p1', 'p2', 'p3', 'p4', 'p5', 'p6'], ['p7', 'p8', 'p9', 'p10', 'p11', 'p12']];
 O.insert(groups, 'late', ids.slice(0, 12).concat('late'), player, {}, 7);
 assert.deepEqual(plain(groups.map(g => g.length)), [7, 6]);
+// Once play has started (stay), a late arrival joins the group and nobody is passed down.
+groups = [['p1', 'p2', 'p3', 'p4', 'p5', 'p6'], ['p7', 'p8', 'p9', 'p10', 'p11', 'p12']];
+O.insert(groups, 'late', ids.slice(0, 12).concat('late'), player, {}, 6, true);
+assert.deepEqual(plain(groups.map(g => g.length)), [7, 6]);
+assert.deepEqual(plain(groups[1]), ['p7', 'p8', 'p9', 'p10', 'p11', 'p12'], 'nobody else changes group');
 // With groups of 5 preferred, the same arrival bumps one player down each group, to a new last group.
 groups = [['p1', 'p2', 'p3', 'p4', 'p5'], ['p6', 'p7', 'p8', 'p9', 'p10']];
 O.insert(groups, 'late', ids.slice(0, 10).concat('late'), player, {}, 5);

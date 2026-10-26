@@ -468,6 +468,99 @@ const cases = {
     assert.deepEqual(tab.errors, []);
   },
 
+  // Checking players in one at a time gives exactly the groups Rebuild by rating gives, promotions included, until
+  // someone is moved by hand (then arrivals are slotted in around that) or the first score is in (then a late arrival
+  // joins their group and nobody else changes table).
+  async checkInMatchesRebuild() {
+    const plain = value => JSON.parse(JSON.stringify(value));
+    const sets = groups => plain(groups).map(ids => ids.slice().sort().join(','));
+    const groupsOf = t => plain(t.desk().groups.map(group => group.playerIds));
+    const groupOf = (t, id) => groupsOf(t).findIndex(ids => ids.includes(id)) + 1;
+    // Last Wednesday's results: the 12th-rated player tonight won Group 2 there.
+    let lastWeek = null;
+    const site = url => {
+      if (/sessions\.json/.test(url)) return [{ date: '2026-10-07' }];
+      if (/session-details-2026\.json/.test(url)) return [lastWeek];
+      if (/players\.json/.test(url)) return { latestSessionDate: '2026-09-28', players: [] };
+      return undefined;
+    };
+    const world = sim.createWorld({ seed: 28, players: 30, site });
+    const tonight = world.players.slice(0, 20);
+    const winner = tonight[11];
+    const result = (p, wins) => ({ name: p.display_name, wins, losses: 4 - wins, matches: [] });
+    lastWeek = { date: '2026-10-07', groups: [
+      { name: 'Group 1', players: tonight.slice(0, 5).map((p, i) => result(p, 4 - i)) },
+      { name: 'Group 2', players: [result(winner, 4)].concat(tonight.slice(5, 9).map((p, i) => result(p, 3 - i))) }
+    ] };
+    const device = world.device();
+    const tab = device.open();
+    await run(world, 15000);
+
+    // Everyone but the winner, in an order that is not rating order, a little apart as at the desk; the winner last.
+    const order = tonight.filter(p => p !== winner).map((p, i) => [(i * 7919) % 101, p]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+    for (const p of order.concat(winner)) {
+      assert.ok(tab.addPlayer(p.player_id), p.display_name + ' checked in');
+      await run(world, 20000);
+    }
+    const checkedIn = groupsOf(tab);
+    assert.deepEqual(checkedIn.map(ids => ids.length), [5, 5, 5, 5]);
+    assert.equal(groupOf(tab, winner.player_id), 1, 'last week\'s Group 2 winner is promoted, though they came in last');
+    assert.doesNotMatch(tab.$('#group-summary').textContent, /rebalance/);
+    tab.click(tab.$('#rebuild'));
+    assert.equal(tab.confirms.length, 0, 'Rebuild has nothing to replace, so it does not ask');
+    assert.deepEqual(sets(groupsOf(tab)), sets(checkedIn), 'Rebuild by rating gives the same groups');
+    await run(world, 20000);
+    assert.deepEqual(sets(sim.googleSession(world, DATE).groups.map(g => g.players.map(e => e.playerId))), sets(checkedIn), 'and Google has them');
+
+    // Taking someone off rebuilds too, as Rebuild would.
+    tab.removePlayer(tonight[3].player_id);
+    await run(world, 20000);
+    const afterRemoval = groupsOf(tab);
+    assert.deepEqual(afterRemoval.map(ids => ids.length), [5, 5, 5, 4]);
+    tab.click(tab.$('#rebuild'));
+    assert.equal(tab.confirms.length, 0);
+    assert.deepEqual(sets(groupsOf(tab)), sets(afterRemoval));
+
+    // A move by hand is kept: later arrivals are slotted in around it, on this device and on another one after a reload.
+    const moved = tonight[4].player_id;
+    const before = groupOf(tab, moved);
+    tab.movePlayer(moved, '1');
+    assert.equal(groupOf(tab, moved), before + 1);
+    await run(world, 20000);
+    tab.addPlayer(world.players[20].player_id);
+    await run(world, 20000);
+    assert.equal(groupOf(tab, moved), before + 1, 'the move by hand stays after a check-in');
+    const phone = world.device().open();
+    await run(world, 15000);
+    phone.addPlayer(world.players[21].player_id);
+    await run(world, 20000);
+    assert.equal(groupOf(phone, moved), before + 1, 'and on another device, which reads the move off the saved groups');
+    tab.confirmAnswer = () => false;
+    tab.click(tab.$('#rebuild'));
+    assert.match(tab.confirms.pop(), /Manual moves are replaced/, 'Rebuild asks before undoing a move by hand');
+    assert.deepEqual(tab.errors, []);
+    assert.deepEqual(phone.errors, []);
+
+    // Once a score is in, a late arrival joins their group and nobody else changes table.
+    const night2 = sim.createWorld({ seed: 29 });
+    const desk = await deskWith(night2, night2.device(), 12);
+    assert.deepEqual(groupsOf(desk).map(ids => ids.length), [6, 6]);
+    desk.scoreMatch(0, 'one', 1);
+    await run(night2, 20000);
+    const playing = groupsOf(desk);
+    const late = night2.players[12];
+    desk.addPlayer(late.player_id);
+    await run(night2, 20000);
+    const withLate = groupsOf(desk);
+    assert.equal(withLate.length, 2, 'no new group');
+    playing.forEach((ids, index) => ids.forEach(id => assert.ok(withLate[index].includes(id), 'nobody else changes table')));
+    assert.equal(scored(sim.googleSession(night2, DATE).matches), 1, 'the score is kept');
+    desk.confirmAnswer = () => false;
+    desk.click(desk.$('#rebuild'));
+    assert.match(desk.confirms.pop(), /Scores already entered stay only for players who stay in the same group together/);
+    assert.deepEqual(desk.errors, []);
+  },
+
   // Group size: 6 by default; choosing 5 or 7 rebuilds by rating in groups of that size (or one smaller). The choice is
   // kept for the night on this device, another device reads it off the groups Google holds, and a new night starts at 6.
   async groupSizePreference() {
@@ -482,9 +575,10 @@ const cases = {
     assert.equal(pressed(tab), '6', '6 by default');
     assert.deepEqual(sizes(tab), [5, 4, 4]);
 
-    // 7: asked first (the night's groups are saved), then rebuilt by rating, and saved to Google like any rebuild.
+    // 7: the groups are as Rebuild made them, so nothing is lost and nothing is asked; rebuilt by rating and saved to
+    // Google like any rebuild.
     tab.click(tab.$('[data-group-size="7"]'));
-    assert.match(tab.confirms.pop(), /groups of 7 \(or 6\)/);
+    assert.equal(tab.confirms.length, 0, 'no question when there is nothing to lose');
     assert.deepEqual(sizes(tab), [7, 6]);
     assert.equal(pressed(tab), '7');
     assert.match(tab.status(), /Groups rebuilt by rating in groups of 7 \(or 6\)/);
@@ -494,12 +588,18 @@ const cases = {
     await run(world, 20000);
     assert.deepEqual(googleSizes(), [7, 6]);
 
-    // Saying no to the question changes nothing.
+    // After a move by hand it asks first, and saying no changes nothing. (Moved back, the groups are Rebuild's again.)
+    const mover = byRating[6];
+    tab.movePlayer(mover, '1');
     tab.confirmAnswer = () => false;
     tab.click(tab.$('[data-group-size="5"]'));
-    assert.deepEqual(sizes(tab), [7, 6]);
+    assert.match(tab.confirms.pop(), /groups of 5 \(or 4\)\? Manual moves are replaced/);
+    assert.deepEqual(sizes(tab), [6, 7]);
     assert.equal(pressed(tab), '7');
     tab.confirmAnswer = () => true;
+    tab.movePlayer(mover, '-1');
+    assert.deepEqual(sizes(tab), [7, 6]);
+    await run(world, 20000);
 
     // A reload on this device keeps 7.
     tab.close();
