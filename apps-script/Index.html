@@ -2598,6 +2598,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .voice-preview:hover .voice-preview-text,.voice-preview:focus-within .voice-preview-text,.voice-preview.open .voice-preview-text{display:block}
 .voice-preview-text time{display:block;margin-bottom:3px;color:var(--muted);font:11px Arial,sans-serif}
 .voice-preview-text p{margin:0 0 12px}.voice-preview-text p:last-child{margin:0}
+.voice-hide{margin-left:auto;padding:2px 7px;font:12px Arial,sans-serif}
+.voice-group{margin:4px 0 8px}
+.voice-group summary{cursor:pointer;padding:6px 0;font:700 13px Arial,sans-serif;color:var(--muted)}
+.voice-group ul{margin:0 0 0 4px}
+.voice-group.voice-hidden-group li{padding:5px 0}
 @keyframes cttc-added{from{background:#fff3c4}to{background:transparent}}
 .just-added{animation:cttc-added 2.5s ease-out}
 </style>
@@ -2622,7 +2627,20 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   addAll.type = 'button';
   addAll.className = 'small voice-add-all';
   addAll.hidden = true;
-  section.append(heading, message, addAll, list, refresh);
+  // Senders already on tonight's RR (or Open Play), and senders hidden for the night, each fold away below the texts still
+  // waiting on the organizer. They stay folded until opened, and stay open or shut while the list refreshes.
+  function group(className) {
+    var details = document.createElement('details');
+    details.className = 'voice-group ' + className;
+    details.hidden = true;
+    var summary = document.createElement('summary');
+    var items = document.createElement('ul');
+    details.append(summary, items);
+    return { details: details, summary: summary, list: items };
+  }
+  var added = group('voice-added-group');
+  var hiddenGroup = group('voice-hidden-group');
+  section.append(heading, message, addAll, list, added.details, hiddenGroup.details, refresh);
   document.getElementById('new-player').closest('.section').after(section);
   var suggestions = [];
   var names = {};
@@ -2638,6 +2656,52 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var POLL_MS = 60000;
   var pollingShown = false;
   var TIME_FORMAT = { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+  // Who the organizer hid, per date, on this device: { 'yyyy-MM-dd': { sender: time of their latest text when hidden } }.
+  // Only tonight's and the open date's lists are kept, so hiding lasts for the night and a new day starts with none.
+  // A sender who texts again after being hidden comes back to the top.
+  var HIDDEN_KEY = 'cttc-voice-hidden-v1';
+  var hiddenFallback = {};
+
+  function readHidden() {
+    try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') || {}; } catch (error) { return hiddenFallback; }
+  }
+
+  function hiddenOn(sessionDate) {
+    return readHidden()[sessionDate] || {};
+  }
+
+  function writeHidden(sessionDate, senders) {
+    var all = readHidden();
+    var today = pacificNow().date;
+    var kept = {};
+    Object.keys(all).forEach(function (day) { if (day === today) kept[day] = all[day]; });
+    if (Object.keys(senders).length) kept[sessionDate] = senders;
+    else delete kept[sessionDate];
+    hiddenFallback = kept;
+    try {
+      if (Object.keys(kept).length) localStorage.setItem(HIDDEN_KEY, JSON.stringify(kept));
+      else localStorage.removeItem(HIDDEN_KEY);
+    } catch (error) { /* without storage, hiding lasts until the page reloads */ }
+  }
+
+  function latestAt(suggestion) {
+    return suggestion.messages.length ? suggestion.messages[suggestion.messages.length - 1].receivedAt : 0;
+  }
+
+  function isHidden(suggestion, hidden) {
+    var id = senderId(suggestion);
+    return Object.prototype.hasOwnProperty.call(hidden, id) && hidden[id] >= latestAt(suggestion);
+  }
+
+  function setHidden(id, hide) {
+    var sessionDate = date.value;
+    var hidden = hiddenOn(sessionDate);
+    var suggestion = suggestions.filter(function (entry) { return senderId(entry) === id; })[0];
+    if (hide && suggestion) hidden[id] = latestAt(suggestion);
+    else delete hidden[id];
+    writeHidden(sessionDate, hidden);
+    render();
+  }
 
   function messagePreview(suggestion) {
     var preview = document.createElement('div');
@@ -2730,40 +2794,74 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return suggestion.playerIds.filter(function (id) { return !!names[id]; });
   }
 
-  // ✓ senders whose player is not in RR, Open Play or Coaching yet.
+  // A sender is added once one of their players is in RR, Open Play or Coaching.
+  function placedSender(suggestion) {
+    return candidatesOf(suggestion).concat(suggestion.linkedPlayerId ? [suggestion.linkedPlayerId] : []).some(rostered);
+  }
+
+  // ✓ senders whose player is not in RR, Open Play or Coaching yet, and who are not hidden.
   function readyToAdd() {
+    var hidden = hiddenOn(date.value);
     return suggestions.filter(function (suggestion) {
-      return suggestion.validated && names[suggestion.linkedPlayerId] && !candidatesOf(suggestion).concat([suggestion.linkedPlayerId]).some(rostered);
+      return suggestion.validated && names[suggestion.linkedPlayerId] && !placedSender(suggestion) && !isHidden(suggestion, hidden);
     });
   }
 
+  function senderButton(label, attribute, suggestion, title) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'small voice-hide';
+    button.textContent = label;
+    button.title = title;
+    button.setAttribute(attribute, senderId(suggestion));
+    return button;
+  }
+
+  // One sender: who texted and their messages, then (unless hidden) the players they might be. kind: waiting, added, hidden.
+  function senderItem(suggestion, kind) {
+    var item = document.createElement('li');
+    if (fresh[senderId(suggestion)]) item.classList.add('just-added');
+    var sender = document.createElement('div');
+    sender.className = 'voice-sender';
+    var name = document.createElement('span');
+    name.textContent = suggestion.senderName;
+    sender.append(name, messagePreview(suggestion));
+    if (confirmations[suggestion.senderKey]) {
+      var confirmation = document.createElement('span');
+      confirmation.className = 'roster-status';
+      confirmation.textContent = confirmations[suggestion.senderKey];
+      sender.appendChild(confirmation);
+    }
+    if (kind === 'waiting') sender.appendChild(senderButton('Hide', 'data-voice-hide', suggestion, 'Hide ' + suggestion.senderName + ' for tonight'));
+    if (kind === 'hidden') sender.appendChild(senderButton('Unhide', 'data-voice-unhide', suggestion, 'Show ' + suggestion.senderName + ' in the list again'));
+    item.appendChild(sender);
+    if (kind === 'hidden') return item;
+    var candidates = candidatesOf(suggestion);
+    if (!candidates.length) {
+      var none = document.createElement('p');
+      none.className = 'hint';
+      none.textContent = 'No directory match. Add them under Add a player if they are new.';
+      item.appendChild(none);
+    }
+    candidates.forEach(function (id) { item.appendChild(candidateRow(id, candidates.some(rostered), suggestion.senderKey)); });
+    return item;
+  }
+
+  // Newest text first in each list, as the server sends them.
   function render() {
-    list.replaceChildren();
+    var hidden = hiddenOn(date.value);
+    var lists = { waiting: [], added: [], hidden: [] };
     suggestions.forEach(function (suggestion) {
-      var item = document.createElement('li');
-      if (fresh[senderId(suggestion)]) item.classList.add('just-added');
-      var sender = document.createElement('div');
-      sender.className = 'voice-sender';
-      var name = document.createElement('span');
-      name.textContent = suggestion.senderName;
-      sender.append(name, messagePreview(suggestion));
-      if (confirmations[suggestion.senderKey]) {
-        var confirmation = document.createElement('span');
-        confirmation.className = 'roster-status';
-        confirmation.textContent = confirmations[suggestion.senderKey];
-        sender.appendChild(confirmation);
-      }
-      item.appendChild(sender);
-      var candidates = candidatesOf(suggestion);
-      if (!candidates.length) {
-        var none = document.createElement('p');
-        none.className = 'hint';
-        none.textContent = 'No directory match. Add them under Add a player if they are new.';
-        item.appendChild(none);
-      }
-      candidates.forEach(function (id) { item.appendChild(candidateRow(id, candidates.some(rostered), suggestion.senderKey)); });
-      list.appendChild(item);
+      var kind = placedSender(suggestion) ? 'added' : isHidden(suggestion, hidden) ? 'hidden' : 'waiting';
+      lists[kind].push(senderItem(suggestion, kind));
     });
+    list.replaceChildren.apply(list, lists.waiting);
+    added.list.replaceChildren.apply(added.list, lists.added);
+    added.summary.textContent = 'Added tonight (' + lists.added.length + ')';
+    added.details.hidden = !lists.added.length;
+    hiddenGroup.list.replaceChildren.apply(hiddenGroup.list, lists.hidden);
+    hiddenGroup.summary.textContent = 'Hidden tonight (' + lists.hidden.length + ')';
+    hiddenGroup.details.hidden = !lists.hidden.length;
     var ready = readyToAdd();
     addAll.hidden = !loaded || !suggestions.some(function (suggestion) { return suggestion.validated; });
     addAll.disabled = !ready.length;
@@ -2771,7 +2869,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     addAll.title = ready.length ? 'Add ' + ready.map(function (suggestion) { return names[suggestion.linkedPlayerId]; }).join(', ') + ' to the RR draft' : '';
     pollingShown = polling();
     if (loaded) {
-      message.textContent = (suggestions.length ? 'Texts received on this date. Choose who to add to RR.' : 'No texts received on this date.') +
+      message.textContent = (!suggestions.length ? 'No texts received on this date.' : lists.waiting.length ? 'Texts received on this date. Choose who to add to RR.' : 'Everyone who texted is added or hidden.') +
         (polling() ? ' New texts appear here every minute until 7:30 PM.' : '');
     }
   }
@@ -2810,6 +2908,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       fresh = {};
       loaded = false;
       list.replaceChildren();
+      added.details.hidden = true;
+      hiddenGroup.details.hidden = true;
       message.textContent = 'Checking forwarded texts...';
     }
     try {
@@ -2848,10 +2948,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return true;
   }
 
-  list.addEventListener('click', function (event) {
-    var button = event.target.closest('[data-voice-add]');
+  section.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-voice-add], [data-voice-hide], [data-voice-unhide]');
     if (!button) return;
-    addFromVoice(button.getAttribute('data-voice-add'), button.getAttribute('data-voice-sender'));
+    if (button.hasAttribute('data-voice-add')) addFromVoice(button.getAttribute('data-voice-add'), button.getAttribute('data-voice-sender'));
+    else if (button.hasAttribute('data-voice-hide')) setHidden(button.getAttribute('data-voice-hide'), true);
+    else setHidden(button.getAttribute('data-voice-unhide'), false);
   });
   addAll.addEventListener('click', function () {
     readyToAdd().forEach(function (suggestion) { addFromVoice(suggestion.linkedPlayerId, suggestion.senderKey); });
@@ -3030,7 +3132,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. When a search also matches archived players, press Show archived players to include them until the page reloads.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
-    { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. On Monday and Wednesday nights from 6:45 to 7:30 the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
+    { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. Anyone added folds into Added tonight below; press Hide to tuck a text away under Hidden tonight, where Unhide brings it back. Hiding lasts for the night on this device, and a new text from that person brings them back to the top. On Monday and Wednesday nights from 6:45 to 7:30 the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
     { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are saved to Google Sheets automatically a moment after you make them, and kept on this device if the connection drops.', target: '#groups .group-list li' },
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change. Coaches and students with a lesson confirmed in the coaching app are listed here automatically, and their texts are left out of Voice signups.', target: '.open-play-section' },
