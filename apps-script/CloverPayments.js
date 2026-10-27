@@ -504,23 +504,35 @@ function getCloverReport(fromDate, toDate) {
     (hands[date] || (hands[date] = {}))[String(row.player_id)] = String(row.method);
     if (String(row.method) === 'credit') mark(date, String(row.player_id), row.updated_at);
   });
+  var auditMarks = 0;
   cashRows_('AuditLog').forEach(function (row) {
     if (row.action !== 'session_payment_updated') return;
     var date = dateOfSession(row.entity_id);
     if (!inRange(date)) return;
     var details;
     try { details = JSON.parse(row.details_json || '{}'); } catch (error) { return; }
-    if (details && details.method === 'credit' && details.playerId) mark(date, String(details.playerId), row.event_time);
+    if (details && details.method === 'credit' && details.playerId) { mark(date, String(details.playerId), row.event_time); auditMarks += 1; }
   });
   var byDate = {};
   payments.forEach(function (payment) { (byDate[payment.date] || (byDate[payment.date] = [])).push(payment); });
   var dates = Object.keys(rosters).concat(Object.keys(byDate)).filter(function (date, i, all) { return all.indexOf(date) === i; }).sort();
 
   var totals = { cardPayments: 0, matched: 0, agrees: 0, conflict: 0, missing: 0, notCheckedIn: 0, needsAction: 0, unmatched: 0, learnedByTime: 0, learned: 0, ignored: 0, creditWithoutPayment: 0, withName: 0, withCustomer: 0, withCard: 0 };
+  var gaps = { within2: 0, within5: 0, within15: 0, within60: 0, over60: 0, none: 0 };
   var nights = dates.map(function (date) {
     var context = { index: index, links: links, paysFor: paysFor, statuses: statuses, covered: coveredOn(date), roster: rosters[date] || {}, hand: hands[date] || {}, marks: marks[date] || {} };
     var rows = cloverMatchNight_(byDate[date] || [], context);
     var creditWithoutPayment = cloverReviewNight_(rows, context, links);
+    // How far each payment left over is from the nearest Credit mark that night, whoever it was for.
+    var times = [];
+    Object.keys(context.marks).forEach(function (id) { if (context.hand[id] === 'credit') times = times.concat(context.marks[id]); });
+    rows.forEach(function (row) {
+      if (row.state !== 'unmatched' || row.learnedPlayerIds) return;
+      var nearest = times.reduce(function (best, at) { return Math.min(best, Math.abs(at - row.payment.time)); }, Infinity);
+      var minutes = nearest / 60000;
+      gaps[minutes <= 2 ? 'within2' : minutes <= 5 ? 'within5' : minutes <= 15 ? 'within15' : minutes <= 60 ? 'within60' : isFinite(minutes) ? 'over60' : 'none'] += 1;
+      row.nearestMarkMinutes = isFinite(minutes) ? Math.round(minutes) : '';
+    });
     rows.forEach(function (row) {
       if (row.state === 'ignored') { totals.ignored += 1; return; }
       totals.cardPayments += 1;
@@ -547,6 +559,8 @@ function getCloverReport(fromDate, toDate) {
     fees: CLOVER_FEES_,
     totals: totals,
     storedLinks: storedLinks,
+    gaps: gaps,
+    auditMarks: auditMarks,
     linksAfter: learned,
     nights: nights.reverse()
   };
@@ -576,6 +590,7 @@ function cloverReportRow_(row) {
     verdicts: row.verdicts || [],
     learnedPlayerIds: row.learnedPlayerIds || [],
     learnedBy: row.learnedBy || '',
-    learnedMinutes: row.learnedMinutes === undefined ? '' : row.learnedMinutes
+    learnedMinutes: row.learnedMinutes === undefined ? '' : row.learnedMinutes,
+    nearestMarkMinutes: row.nearestMarkMinutes === undefined ? '' : row.nearestMarkMinutes
   };
 }

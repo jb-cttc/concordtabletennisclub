@@ -218,7 +218,9 @@ tr.conflict td{background:#fdf5f3}
       tile('Credit without a payment', t.creditWithoutPayment, 'Credit by hand, no Clover match', t.creditWithoutPayment ? 'ask' : '')
     ].forEach(function (node) { tiles.appendChild(node); });
     document.getElementById('diagnostics').textContent = 'Of the ' + t.cardPayments + ' card payments, ' + t.withName + ' carried a name on the card, ' + t.withCustomer + ' a Clover customer, and ' + t.withCard + ' card digits the desk can remember. ' +
-      t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Cards and customers linked: ' + data.storedLinks + ' saved, ' + data.linksAfter + ' after this look back.';
+      t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Cards and customers linked: ' + data.storedLinks + ' saved, ' + data.linksAfter + ' after this look back. ' +
+      'Unmatched payments by distance to the nearest Credit marked that night (' + data.auditMarks + ' Credit marks in the AuditLog): ' + data.gaps.within2 + ' within 2 min, ' + data.gaps.within5 + ' within 5, ' + data.gaps.within15 + ' within 15, ' +
+      data.gaps.within60 + ' within an hour, ' + data.gaps.over60 + ' further, ' + data.gaps.none + ' on nights with no Credit marked.';
     summary.hidden = false;
     if (!data.nights.length) {
       nights.appendChild(el('div', { className: 'empty', text: 'No round robin nights or Clover payments in this range.' }));
@@ -272,6 +274,7 @@ tr.conflict td{background:#fdf5f3}
     } else if (row.state === 'unmatched') {
       would.appendChild(el('span', { className: 'small', text: row.note }));
       if (row.suggestions.length) would.appendChild(el('span', { className: 'small', text: 'Fits: ' + row.suggestions.map(name).join(', ') }));
+      if (row.nearestMarkMinutes !== '') would.appendChild(el('span', { className: 'small', text: 'Nearest Credit marked by hand: ' + row.nearestMarkMinutes + ' min away' }));
     } else {
       would.appendChild(el('span', { className: 'small', text: row.note }));
     }
