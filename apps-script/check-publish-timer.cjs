@@ -237,6 +237,9 @@ assert.equal(workflow.split(emailGate).length - 1, 2, 'both the email step and t
 assert.ok(!/github\.event_name == 'push'/.test(workflow), 'a push never emails');
 assert.ok(!/cron: "30 [56] \* \* 2,4"/.test(workflow), 'no 10:30 PM run that could publish inside the hold');
 assert.match(workflow, /cron: "45 6 \* \* 2,4"/);
-assert.match(workflow, /cron: "0 15 \* \* 2,4"/);
+assert.match(workflow, /cron: "0 15 \* \* 0,2,4"/, 'the next morning after Monday, Wednesday and Saturday');
+// The Saturday afternoon pilot (the gym closes at 6 PM): 8:45 PM Pacific, in both offsets.
+assert.match(workflow, /cron: "45 3 \* \* 0"/);
+assert.match(workflow, /cron: "45 4 \* \* 0"/);
 
 console.log('Publish timer checks passed');

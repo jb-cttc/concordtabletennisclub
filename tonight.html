@@ -7,7 +7,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Concord Table Tennis Club">
   <meta property="og:title" content="Who's playing tonight - Concord Table Tennis Club">
-  <meta property="og:description" content="See how many players are coming to the next Monday or Wednesday round robin, by rating, as they sign in.">
+  <meta property="og:description" content="See how many players are coming to the next Monday, Wednesday or Saturday round robin, by rating, as they sign in.">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
@@ -76,8 +76,8 @@
     <div id="gym-floor" class="gym-floor"></div>
     <p id="tonight-ticker" class="tonight-ticker" role="status" aria-live="polite"></p>
     <ul class="gym-legend" aria-label="Key">
-      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-here"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle></g></svg>Playing tonight: signed in at the desk</li>
-      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-texted"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle><circle class="bubble" r="3.4" cx="8" cy="-9"></circle></g></svg>Playing tonight: texted the club</li>
+      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-here"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle></g></svg>Playing: signed in at the desk</li>
+      <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-texted"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle><circle class="bubble" r="3.4" cx="8" cy="-9"></circle></g></svg>Playing: texted the club that day</li>
       <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><g class="body is-likely"><ellipse rx="9" ry="5.5" cy="2"></ellipse><circle r="4.6" cy="-1"></circle></g></svg>Likely: a regular who comes 9 nights in 10</li>
       <li><svg viewBox="-12 -14 24 26" aria-hidden="true"><circle class="open-spot" r="8"></circle></svg>Expected: a spot our forecast says will fill</li>
     </ul>
@@ -86,10 +86,10 @@
   <h2>How this works</h2>
   <ul class="tonight-notes">
     <li>Players are grouped by rating, the way the round robin groups them. Each zone shows two tables; groups are 5 or 6 players.</li>
-    <li><strong>Playing tonight</strong> counts everyone signed in at the front desk and everyone who texted the club today to say they are coming.</li>
-    <li><strong>Likely</strong> marks regulars who, going by their recent Mondays and Wednesdays, come about 9 nights in 10. <strong>Expected</strong> is our forecast: about as many as usually come on this night of the week, shared out by rating according to who has been coming lately.</li>
+    <li><strong>Playing</strong> counts everyone signed in at the front desk and everyone who texted the club that day to say they are coming.</li>
+    <li><strong>Likely</strong> marks regulars who, going by their recent round robins on the same day of the week, come about 9 nights in 10. <strong>Expected</strong> is our forecast: about as many as usually come on this day of the week, shared out by rating according to who has been coming lately. Saturday round robins are new (a pilot from October 31), so until there is a Saturday to go by, the Saturday forecast is a head count without ratings.</li>
     <li>Only counts are shown here, never names.</li>
-    <li>Sign up in person between 6:45 and 7:15&nbsp;PM; play starts at 7:30. Running late? Text <a href="sms:9252383505">(925) 238-3505</a> before 7&nbsp;PM and your spot will be held.</li>
+    <li>Monday and Wednesday: sign up in person between 6:45 and 7:15&nbsp;PM; play starts at 7:30. Saturday: sign up between 2:45 and 3:15&nbsp;PM; play starts at 3:30. Running late? Text <a href="sms:9252383505">(925) 238-3505</a> before the gym opens (7&nbsp;PM, or 3&nbsp;PM on Saturday) and your spot will be held.</li>
   </ul>
 
 </main>
@@ -117,9 +117,9 @@
 
   var shown = null;
 
-  // The club's Google Voice number, and the text a tap fills in on the night itself.
+  // The club's Google Voice number, and the text a tap fills in on the day itself, ending "tonight" (or "today" on Saturday).
   var CLUB_TEXT_NUMBER = "+19252383505";
-  var JOIN_TEXT = "I'll join CTTC's RR tonight";
+  var JOIN_TEXT = "I'll join CTTC's RR ";
 
   // iPhone, iPad and Mac Messages take the text after "&body="; Android and others after "?body=".
   function textLink(body) {
@@ -145,6 +145,23 @@
   }
 
   function plural(count, one, many) { return count + " " + (count === 1 ? one : many); }
+
+  // 1110 -> "6:30 PM"; bare leaves off the AM or PM.
+  function clockTime(minutes, bare) {
+    var hour = Math.floor(minutes / 60);
+    var text = (hour % 12 || 12) + ":" + String(minutes % 60).padStart(2, "0");
+    return bare ? text : text + (hour < 12 ? " AM" : " PM");
+  }
+
+  // A day's sign-up, "6:45–7:15 PM".
+  function signupTimes(hours) {
+    return clockTime(hours.opens, (hours.opens < 720) === (hours.closes < 720)) + "–" + clockTime(hours.closes);
+  }
+
+  // "tonight", or "today" for a day round robin (T.NIGHTS).
+  function dayWord(date) {
+    return T.night(date).word;
+  }
 
   function longDate(date) {
     var parts = date.split("-");
@@ -193,8 +210,14 @@
       });
   }
 
+  // Everyone with no rating in the forecast: those playing, plus a new round robin day's head count (unrated.expected,
+  // which an older app answer does not have).
+  function unratedExpected(view) {
+    return Math.max(view.unrated.here + view.unrated.texted, Number(view.unrated.expected) || 0);
+  }
+
   function totals(view) {
-    var sum = { here: view.unrated.here, texted: view.unrated.texted, likely: 0, expected: view.unrated.here + view.unrated.texted };
+    var sum = { here: view.unrated.here, texted: view.unrated.texted, likely: 0, expected: unratedExpected(view) };
     view.brackets.forEach(function (bracket) {
       sum.here += bracket.here;
       sum.texted += bracket.texted;
@@ -209,8 +232,13 @@
 
   function renderHeader(view, sum) {
     var day = DAYS[T.weekday(view.date)];
-    byId("tonight-when").textContent = (view.today ? "Tonight" : "Next round robin") + " · " + longDate(view.date);
-    byId("tonight-title").textContent = view.today ? "Who’s playing tonight" : "Who’s playing " + day;
+    var hours = T.night(view.date);
+    var word = dayWord(view.date);
+    var playingWhen = view.today ? word : "so far";
+    var times = "Sign up at the desk " + signupTimes(hours) + "; play starts at " + clockTime(hours.starts, true) + ".";
+    byId("tonight-when").textContent = (view.today ? word.charAt(0).toUpperCase() + word.slice(1) : "Next round robin") + " · " + longDate(view.date);
+    byId("tonight-title").textContent = "Who’s playing " + (view.today ? word : day);
+    byId("stat-playing-label").textContent = "playing " + playingWhen;
     byId("tonight-live").hidden = !view.live;
     byId("tonight-stats").hidden = false;
     byId("stat-expected").textContent = sum.expected;
@@ -219,25 +247,29 @@
     byId("stat-likely-box").hidden = view.phase === "underway";
     var lede;
     if (view.phase === "underway") {
-      lede = "Sign-up has closed: " + plural(sum.playing, "player is", "players are") + " on the floor tonight. Come watch, or join open play.";
+      lede = "Sign-up has closed: " + plural(sum.playing, "player is", "players are") + " on the floor " + word + ". Come watch, or join open play.";
     } else if (view.today) {
-      lede = "About " + plural(sum.expected, "player", "players") + " expected tonight" +
+      lede = "About " + plural(sum.expected, "player", "players") + " expected " + word +
         (sum.playing ? ", and " + sum.playing + " already in: " + sum.here + " signed in at the desk, " + sum.texted + " texted." : ". Be one of the first in.") +
-        " Sign up at the desk from 6:45 to 7:15 PM; play starts at 7:30.";
+        " " + times;
     } else {
-      lede = "About " + plural(sum.expected, "player", "players") + " expected on " + day + ". Players who sign in at the desk or text the club that day appear here as they come in.";
+      lede = "About " + plural(sum.expected, "player", "players") + " expected on " + day + ". Players who sign in at the desk or text the club that day appear here as they come in. " + times;
+    }
+    // A new round robin day has no history to forecast ratings from, so its expected players wait at the front desk.
+    if (view.phase !== "underway" && unratedExpected(view) > view.unrated.here + view.unrated.texted) {
+      lede += " " + day + " round robins are new, so this forecast is a head count: ratings show as players sign in.";
     }
     byId("tonight-lede").textContent = lede;
     // A text counts on the night itself, so ahead of time the note names the day; once sign-up closes it goes.
     byId("tonight-text-us").hidden = view.phase === "underway";
     byId("text-us-when").textContent = view.today ? "any time today" : "any time on " + day;
-    byId("text-us-link").href = textLink(view.today ? JOIN_TEXT : "");
+    byId("text-us-link").href = textLink(view.today ? JOIN_TEXT + word : "");
 
     // The same numbers twice: zones across for a wide screen, zones down for a phone (style.css shows one).
-    var rows = [["Playing tonight", "is-playing", function (b) { return b.here + b.texted; }]];
+    var rows = [["Playing " + playingWhen, "is-playing", function (b) { return b.here + b.texted; }]];
     if (view.phase !== "underway") rows.push(["Likely", "is-likely", function (b) { return b.likely; }]);
     rows.push(["Expected", "is-expected", function (b) { return b.expected; }]);
-    var newFaces = view.unrated.here + view.unrated.texted;
+    var newFaces = unratedExpected(view);
     var zones = view.brackets.map(function (bracket) { return { label: bracket.label, bracket: bracket }; });
     if (newFaces) zones.push({ label: "New faces", bracket: { here: view.unrated.here, texted: view.unrated.texted, likely: 0, expected: newFaces } });
     zones.push({ label: "All", bracket: { here: sum.here, texted: sum.texted, likely: sum.likely, expected: sum.expected }, total: true });
@@ -326,7 +358,7 @@
     return floor;
   }
 
-  function court(bracket, before) {
+  function court(bracket, before, playingWhen) {
     var playing = bracket.here + bracket.texted;
     var kinds = [];
     var i;
@@ -344,7 +376,7 @@
     head.appendChild(name);
     head.appendChild(scoreboard(playing, before && was !== playing));
     tile.appendChild(head);
-    var said = bracket.label + ": " + plural(playing, "player", "players") + " playing tonight" +
+    var said = bracket.label + ": " + plural(playing, "player", "players") + " playing " + playingWhen +
       (bracket.likely ? ", " + bracket.likely + " likely" : "") + ", expect about " + bracket.expected + ".";
     tile.appendChild(courtFloor(kinds, was, said));
     return tile;
@@ -357,13 +389,17 @@
     var head = el("div", "court-head");
     var name = el("div", "court-name");
     name.appendChild(el("span", "court-label", "Front desk"));
-    var note = view.phase === "underway" ? "sign-up closed" : view.today ? "sign up 6:45–7:15 PM" : "opens 6:45 PM " + DAYS[T.weekday(view.date)];
+    var hours = T.night(view.date);
+    var note = view.phase === "underway" ? "sign-up closed" : view.today ? "sign up " + signupTimes(hours) : "opens " + clockTime(hours.opens) + " " + DAYS[T.weekday(view.date)];
     name.appendChild(el("span", "court-sub", note));
     head.appendChild(name);
     head.appendChild(scoreboard(count, before && was !== count));
     tile.appendChild(head);
+    // A new round robin day's head count, as chalk spots: expected, rating not known.
+    var expected = unratedExpected(view) - count;
     var floor = svg("svg", { "class": "court-floor", viewBox: "0 0 200 212", role: "img",
-      "aria-label": count ? plural(count, "new face", "new faces") + " at the front desk, rating to come." : "The front desk. Your spot is open." });
+      "aria-label": (count ? plural(count, "new face", "new faces") + " at the front desk, rating to come." : "The front desk. Your spot is open.") +
+        (expected > 0 ? " Expect about " + expected + " more, ratings not known yet." : "") });
     var group = svg("g", {}, floor);
     svg("rect", { "class": "desk", x: 40, y: 22, width: 120, height: 26, rx: 3 }, group);
     svg("rect", { "class": "desk-sheet", x: 88, y: 28, width: 24, height: 14, rx: 1 }, group);
@@ -371,8 +407,12 @@
     var kinds = [];
     for (var i = 0; i < view.unrated.here; i++) kinds.push("here");
     for (i = 0; i < view.unrated.texted; i++) kinds.push("texted");
+    for (i = 0; i < expected; i++) kinds.push("open");
     kinds.slice(0, 12).forEach(function (kind, index) {
-      body(group, index % 2 ? 118 : 82, 66 + Math.floor(index / 2) * 22, kind, false, index >= was);
+      var x = index % 2 ? 118 : 82;
+      var y = 66 + Math.floor(index / 2) * 22;
+      if (kind === "open") svg("circle", { "class": "open-spot", cx: x, cy: y, r: 8 }, group);
+      else body(group, x, y, kind, false, index >= was);
     });
     if (kinds.length > 12) {
       var more = svg("text", { "class": "more", x: 100, y: 200, "text-anchor": "middle" }, group);
@@ -391,7 +431,7 @@
     floor.textContent = "";
     floor.appendChild(frontDesk(view, before && before.unrated));
     view.brackets.forEach(function (bracket, index) {
-      floor.appendChild(court(bracket, before && before.brackets[index]));
+      floor.appendChild(court(bracket, before && before.brackets[index], view.today ? dayWord(view.date) : "so far"));
     });
   }
 

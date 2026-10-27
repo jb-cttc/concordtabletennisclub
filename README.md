@@ -2,7 +2,8 @@
 
 Website and round-robin tools for the Concord Table Tennis Club (CTTC):
 the public site at [concordtabletennisclub.com](https://concordtabletennisclub.com)
-and the owner-only Google desk used to run Monday and Wednesday round robins.
+and the owner-only Google desk used to run Monday and Wednesday round robins
+(and, from October 31, 2026, a weekly Saturday afternoon pilot).
 
 > [!IMPORTANT]
 > **Hand-off in progress.** This project is moving from
@@ -359,7 +360,7 @@ that has not been upgraded yet.
 ## Session data
 
 Until go-live, the scheduled workflow (after each Monday and Wednesday
-session, 11:45 PM Pacific with an 8 AM fallback) reads the club's Google
+session, 11:45 PM Pacific with an 8 AM fallback; 8:45 PM after a Saturday) reads the club's Google
 Drive session reports, rebuilds `data/`, deploys the site, and emails
 subscribers. `npm run refresh:data` does the same import locally.
 

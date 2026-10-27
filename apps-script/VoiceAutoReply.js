@@ -12,12 +12,17 @@
 var VOICE_AUTO_REPLY_KEY = 'CTTC_VOICE_AUTO_REPLY';
 var VOICE_AUTO_REPLIED_KEY = 'CTTC_VOICE_AUTO_REPLIED';
 var VOICE_AUTO_REPLY_HANDLER = 'answerVoiceSignups';
-var VOICE_LINKED_REPLY = 'Received - you\'re on the list, {name}! See you tonight.';
+var VOICE_LINKED_REPLY = 'Received - you\'re on the list, {name}! See you {when}.';
 var VOICE_UNLINKED_REPLY = 'We\'re glad to have you! This number isn\'t linked to anyone in our club directory yet. Reply with your name and we\'ll add you.';
-// Monday and Wednesday, from 6 AM until sign-up closes at 7:15 PM, Pacific. A text before 6 AM is answered at 6.
-var VOICE_REPLY_DAYS = [1, 3];
+// Round robin days (0 is Sunday), from 6 AM until sign-up closes, Pacific: 7:15 PM on Monday and Wednesday nights, 3:15 PM
+// for the Saturday afternoon pilot (from October 31, 2026), whose linked answer says "today". The same days and times as
+// the Tonight page (NIGHTS in turnout.js). A text before 6 AM is answered at 6.
+var VOICE_REPLY_DAYS = {
+  1: { until: 19 * 60 + 15, when: 'tonight' },
+  3: { until: 19 * 60 + 15, when: 'tonight' },
+  6: { until: 15 * 60 + 15, when: 'today', from: '2026-10-31' }
+};
 var VOICE_REPLY_FROM = 6 * 60;
-var VOICE_REPLY_UNTIL = 19 * 60 + 15;
 var VOICE_REPLIES_PER_RUN = 20;
 var VOICE_CLOSURES_URL = 'https://concordtabletennisclub.com/data/closures.json';
 
@@ -32,8 +37,8 @@ function answerVoiceSignups_(now) {
   var zone = Session.getScriptTimeZone();
   var date = Utilities.formatDate(now, zone, 'yyyy-MM-dd');
   var minutes = Number(Utilities.formatDate(now, zone, 'H')) * 60 + Number(Utilities.formatDate(now, zone, 'm'));
-  var weekday = new Date(date + 'T12:00:00Z').getUTCDay();
-  if (VOICE_REPLY_DAYS.indexOf(weekday) < 0 || minutes < VOICE_REPLY_FROM || minutes >= VOICE_REPLY_UNTIL) return { skipped: 'not now' };
+  var day = VOICE_REPLY_DAYS[new Date(date + 'T12:00:00Z').getUTCDay()];
+  if (!day || (day.from && date < day.from) || minutes < VOICE_REPLY_FROM || minutes >= day.until) return { skipped: 'not now' };
   if (voiceClubClosed_(date)) return { skipped: 'closed' };
   // The document lock, like sendVoiceConfirmation: score saves wait on the script lock and must not wait on Gmail.
   var lock = LockService.getDocumentLock() || LockService.getScriptLock();
@@ -69,7 +74,7 @@ function answerVoiceSignups_(now) {
       properties.setProperty(VOICE_AUTO_REPLIED_KEY, JSON.stringify(done));
       if (replied) return;
       var player = check.player;
-      latest.message.reply(player ? VOICE_LINKED_REPLY.replace('{name}', player.name) : VOICE_UNLINKED_REPLY);
+      latest.message.reply(player ? VOICE_LINKED_REPLY.replace('{name}', player.name).replace('{when}', day.when) : VOICE_UNLINKED_REPLY);
       appendAudit_('voice_auto_reply', 'player', player ? player.playerId : '', { sessionDate: date, linked: !!player });
       sent.push(player ? 'linked' : 'unlinked');
     });

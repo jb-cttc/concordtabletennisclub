@@ -29,7 +29,19 @@ assert.deepEqual(T.sessionNight({ date: '2026-10-21', minutes: 9 * 60 }, closure
 assert.deepEqual(T.sessionNight({ date: '2026-10-21', minutes: 19 * 60 + 14 }, closures), { date: '2026-10-21', phase: 'signup' });
 assert.deepEqual(T.sessionNight({ date: '2026-10-21', minutes: 19 * 60 + 15 }, closures), { date: '2026-10-21', phase: 'underway' }, 'sign-up closes at 7:15');
 assert.deepEqual(T.sessionNight({ date: '2026-10-21', minutes: 22 * 60 }, closures), { date: '2026-10-28', phase: 'ahead' }, 'after 10 PM: the next open night, past a closed Monday; a partial day still plays');
-assert.deepEqual(T.sessionNight({ date: '2026-10-23', minutes: 600 }, {}), { date: '2026-10-26', phase: 'ahead' }, 'Friday looks to Monday');
+assert.deepEqual(T.sessionNight({ date: '2026-10-23', minutes: 600 }, {}), { date: '2026-10-26', phase: 'ahead' }, 'Friday looks to Monday before the Saturday pilot');
+
+// ---- The Saturday pilot, from October 31, 2026: sign-up 2:45-3:15 PM, the gym closes at 6 ----
+assert.equal(T.night('2026-10-24'), null, 'no Saturday round robin before the pilot');
+assert.equal(T.night('2026-10-31').word, 'today');
+assert.equal(T.night('2026-10-26').word, 'tonight');
+assert.equal(T.night('2026-10-30'), null, 'Friday is open play only');
+assert.deepEqual(T.sessionNight({ date: '2026-10-28', minutes: 22 * 60 }, {}), { date: '2026-10-31', phase: 'ahead' }, 'after Wednesday: Saturday');
+assert.deepEqual(T.sessionNight({ date: '2026-10-30', minutes: 600 }, {}), { date: '2026-10-31', phase: 'ahead' }, 'Friday looks to Saturday');
+assert.deepEqual(T.sessionNight({ date: '2026-10-31', minutes: 15 * 60 + 14 }, {}), { date: '2026-10-31', phase: 'signup' });
+assert.deepEqual(T.sessionNight({ date: '2026-10-31', minutes: 15 * 60 + 15 }, {}), { date: '2026-10-31', phase: 'underway' }, 'Saturday sign-up closes at 3:15');
+assert.deepEqual(T.sessionNight({ date: '2026-10-31', minutes: 18 * 60 }, {}), { date: '2026-11-02', phase: 'ahead' }, 'after 6 PM Saturday: Monday');
+assert.deepEqual(T.sessionNight({ date: '2026-12-11', minutes: 600 }, { days: { '2026-12-12': 'full' } }), { date: '2026-12-14', phase: 'ahead' }, 'a closed Saturday is skipped');
 assert.equal(T.sessionNight({ date: '2026-10-21', minutes: 600 }, { days: Object.fromEntries(Array.from({ length: 28 }, (_, i) => [T.addDays('2026-10-21', i), 'full'])) }), null);
 
 // ---- Likelihood: recent same-weekday nights count most ----
@@ -50,6 +62,13 @@ assert.ok(chance['Di Gone'] < 0.35, 'stopped coming a month ago');
 assert.equal(chance['Old Timer'], undefined, 'only the last eight nights of each weekday count');
 assert.equal(chance['From The Future'], undefined, 'nothing on or after the night itself');
 assert.equal(chance['Sunday Only'], undefined, 'only Monday and Wednesday nights');
+// Saturday reads only Saturdays: its crowd is not Monday's or Wednesday's.
+assert.deepEqual(T.likelihood(roster, '2026-10-31'), {}, 'no Saturday yet: nobody is likely, whoever comes on weeknights');
+assert.equal(T.expectedTotal(roster, '2026-10-31'), 20, 'the first Saturday expects the show of hands');
+const withSaturday = Object.assign({ '2026-10-31': Array.from({ length: 14 }, (_, k) => 'S' + k) }, roster);
+assert.equal(T.expectedTotal(withSaturday, '2026-11-07'), 14, 'after that, the Saturdays it has had');
+assert.ok(T.likelihood(withSaturday, '2026-11-07').S0 > 0, 'and who came on them');
+assert.equal(T.likelihood(withSaturday, '2026-11-07')['Ada Every'], undefined);
 assert.deepEqual(T.likelyNames(roster, '2026-10-26'), ['Ada Every']);
 assert.equal(T.LIKELY_AT, 0.9);
 
@@ -73,7 +92,7 @@ assert.deepEqual(tally.brackets[3], { label: '1000–1199', min: 1000, max: 1200
 assert.deepEqual(tally.brackets[6], { label: '1600+', min: 1600, max: null, here: 0, texted: 0, likely: 1, expected: 2 }, '0.92 + 0.6 + 0.3 rounds to 2');
 assert.equal(tally.brackets[0].expected, 0, 'a 0.2 chance rounds to nobody');
 assert.equal(tally.brackets[2].here, 0, 'no key or an unknown status is not counted');
-assert.deepEqual(tally.unrated, { here: 1, texted: 1 }, 'a likely player with no rating is left out');
+assert.deepEqual(tally.unrated, { here: 1, texted: 1, expected: 2 }, 'a likely player with no rating is left out');
 assert.equal(T.tally([{ key: 'a', rating: 700, status: 'likely', chance: 0.4 }]).brackets[1].expected, 1, 'expected is never below those shown');
 
 // ---- The night's total: recent turnout on the same weekday, shared out by chance ----
@@ -94,6 +113,7 @@ const crowd = [
   { key: 'u1', rating: null, status: 'maybe', chance: 0.5 }
 ];
 const sumOf = t => t.brackets.reduce((sum, b) => sum + b.expected, 0) + t.unrated.here + t.unrated.texted;
+const allOf = t => t.brackets.reduce((sum, b) => sum + b.expected, 0) + t.unrated.expected;
 let split = T.tally(crowd, 9.5);
 // 2 playing; 7.5 more shared by chance (2.5 in all, 0.5 of it with no rating): x3.
 assert.deepEqual(split.brackets.map(b => b.expected), [2, 0, 0, 2, 0, 0, 3], 'under 600: 1.5; 1000-1199: 1 + 1.5; 1600+: 3; 7 in all, and the tied half goes to the lower zone');
@@ -123,6 +143,21 @@ const crowded = [{ key: 'a', rating: 1700, status: 'likely', chance: 0.9 }, { ke
 split = T.tally(crowded, 10);
 assert.equal(split.brackets[6].expected, 3);
 assert.equal(sumOf(split), 10);
+
+// A new round robin day: a total but nobody to share it by. The rest waits at the front desk with no rating, and people
+// who sign in or text move out of it, into their zone or the front desk, so the total holds.
+split = T.tally([], 20);
+assert.deepEqual(split.brackets.map(b => b.expected), [0, 0, 0, 0, 0, 0, 0]);
+assert.deepEqual(split.unrated, { here: 0, texted: 0, expected: 20 });
+split = T.tally([{ key: 'a', rating: 1100, status: 'here' }, { key: 'b', rating: null, status: 'texted' }, { key: 'c', rating: 700, status: 'texted' }], 20);
+assert.equal(split.brackets[3].expected, 1);
+assert.equal(split.brackets[1].expected, 1);
+assert.deepEqual(split.unrated, { here: 0, texted: 1, expected: 18 });
+assert.equal(allOf(split), 20);
+split = T.tally(Array.from({ length: 23 }, (_, k) => ({ key: 'p' + k, rating: 600 + k * 50, status: 'here' })), 20);
+assert.equal(allOf(split), 23, 'more than expected: only who is playing');
+assert.equal(split.unrated.expected, 0);
+assert.equal(T.tally([{ key: 'a', rating: 700, status: 'maybe', chance: 0.5 }], 20).unrated.expected, 0, 'with a forecast to share it by, nothing waits at the front desk');
 
 // ---- The page ----
 const html = read('tonight.html');
@@ -264,6 +299,49 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   assert.equal(friday.$('tonight-when').textContent, 'Next round robin · Monday, October 26');
   assert.equal(friday.$('text-us-when').textContent, 'any time on Monday', 'a Friday text does not count for Monday');
   assert.equal(friday.$('text-us-link').getAttribute('href'), 'sms:+19252383505', 'and nothing is filled in ahead of the night');
+
+  // The first Saturday round robin: an afternoon, so "today", and a head count of 20 with no ratings yet.
+  const saturday = page({ now: Date.parse('2026-10-31T17:00:00Z'), url: '' });
+  await settle();
+  assert.equal(saturday.$('tonight-title').textContent, 'Who’s playing today');
+  assert.equal(saturday.$('tonight-when').textContent, 'Today · Saturday, October 31');
+  assert.equal(saturday.$('stat-expected').textContent, '20');
+  assert.equal(saturday.$('stat-likely').textContent, '0', 'weeknight regulars are not Saturday regulars');
+  assert.equal(saturday.$('stat-playing-label').textContent, 'playing today');
+  assert.match(saturday.$('tonight-lede').textContent, /^About 20 players expected today\. Be one of the first in\. Sign up at the desk 2:45–3:15 PM; play starts at 3:30\. Saturday round robins are new, so this forecast is a head count/);
+  assert.equal(saturday.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + encodeURIComponent('I\'ll join CTTC\'s RR today'));
+  let desk = saturday.window.document.querySelector('#gym-floor .front-desk');
+  assert.equal(desk.querySelector('.court-sub').textContent, 'sign up 2:45–3:15 PM');
+  assert.equal(desk.querySelectorAll('.open-spot').length, 12, 'the head count waits at the front desk');
+  assert.equal(desk.querySelector('.more').textContent, '+8');
+  assert.equal(desk.querySelector('.desk-open'), null);
+  assert.deepEqual([...saturday.window.document.querySelectorAll('#summary-head th')].map(th => th.textContent).slice(-2), ['New faces', 'All']);
+  assert.equal([...saturday.window.document.querySelectorAll('#summary-body th')].map(th => th.textContent).join('|'), 'Playing today|Likely|Expected');
+
+  // Live on Saturday: three in, so 17 still expected at the front desk.
+  const saturdayAnswer = { ok: true, date: '2026-10-31', phase: 'signup', today: true, updatedAt: Date.parse('2026-10-31T21:50:00Z'),
+    brackets: zones({ 3: { here: 2, expected: 2 } }), unrated: { here: 0, texted: 1, expected: 18 } };
+  const saturdayLive = page({ now: Date.parse('2026-10-31T21:50:00Z'), url, answers: [saturdayAnswer] });
+  await settle();
+  assert.equal(saturdayLive.$('stat-expected').textContent, '20');
+  assert.equal(saturdayLive.$('stat-playing').textContent, '3');
+  desk = saturdayLive.window.document.querySelector('#gym-floor .front-desk');
+  assert.equal(desk.querySelectorAll('.body.is-texted').length, 1);
+  assert.equal(desk.querySelectorAll('.open-spot').length, 11);
+  // An answer from an app released before Saturday round robins has no unrated.expected: the page still adds up.
+  const older = page({ now: MONDAY_10AM, url, answers: [first] });
+  await settle();
+  assert.equal(older.$('stat-expected').textContent, '7');
+
+  // After 3:15 PM Saturday, sign-up has closed.
+  const saturdayLate = page({ now: Date.parse('2026-10-31T22:20:00Z'), url: '' });
+  await settle();
+  assert.match(saturdayLate.$('tonight-lede').textContent, /^Sign-up has closed: 0 players are on the floor today/);
+  // A Wednesday after 10 PM: the next one is Saturday afternoon.
+  const thursday = page({ now: Date.parse('2026-10-29T17:00:00Z'), url: '' });
+  await settle();
+  assert.equal(thursday.$('tonight-title').textContent, 'Who’s playing Saturday');
+  assert.equal(thursday.window.document.querySelector('#gym-floor .front-desk .court-sub').textContent, 'opens 2:45 PM Saturday');
 
   console.log('Turnout checks passed');
 }()).catch(error => { console.error(error); process.exit(1); });

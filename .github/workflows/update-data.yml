@@ -18,7 +18,8 @@ on:
     # These scheduled runs publish and email, and are the fallback for when
     # that does not happen (no GitHub token, desk tab closed, late entry): 11:45 PM
     # Pacific after Monday and Wednesday sessions (later than any 2-minute hold that
-    # started by 11:30 PM), and 8:00 AM Pacific the next morning. A run that finds
+    # started by 11:30 PM), 8:45 PM Pacific after the Saturday afternoon pilot (the
+    # gym closes at 6), and 8:00 AM Pacific the next morning. A run that finds
     # nothing new is a safe no-op (send-session-email.js has its own already-sent
     # guard), so these never double-send.
     #
@@ -34,8 +35,10 @@ on:
     # new, and emailing is blocked by the already-sent marker.
     - cron: "45 6 * * 2,4"  # 11:45 PM PDT (UTC-7)
     - cron: "45 7 * * 2,4"  # 11:45 PM PST (UTC-8)
-    - cron: "0 15 * * 2,4"  # 8:00 AM PDT (UTC-7)
-    - cron: "0 16 * * 2,4"  # 8:00 AM PST (UTC-8)
+    - cron: "45 3 * * 0"    # Saturday 8:45 PM PDT (UTC-7)
+    - cron: "45 4 * * 0"    # Saturday 8:45 PM PST (UTC-8)
+    - cron: "0 15 * * 0,2,4"  # 8:00 AM PDT (UTC-7)
+    - cron: "0 16 * * 0,2,4"  # 8:00 AM PST (UTC-8)
   push:
     branches:
       - main

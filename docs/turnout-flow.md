@@ -1,7 +1,7 @@
 # Tonight page and turnout app
 
 The Tonight page (`tonight.html`, linked from Home and Round Robins) shows
-how many people to expect at the next Monday or Wednesday round robin,
+how many people to expect at the next Monday, Wednesday or Saturday round robin,
 grouped by rating, as a gym floor: a front desk and one court per rating
 zone, each with two tables, a flip-scoreboard tally and a body for each
 player. The plain table above the floor carries the same numbers.
@@ -43,10 +43,23 @@ or when the sender's latest text that day says they are not coming
 signs in at the desk is counted twice (once at the front desk, once in
 their zone) until the next day.
 
-Which night: today while it is a Monday or Wednesday before 10 PM Pacific
-and the gym is not closed (`data/closures.json`), otherwise the next such
-night. After sign-up closes at 7:15 PM the forecast is dropped and only
-people playing are shown.
+Which night: today while it is a round robin day and the round robin is
+still on (before 10 PM Pacific on a Monday or Wednesday, 6 PM on a
+Saturday) and the gym is not closed (`data/closures.json`), otherwise the
+next such day. After sign-up closes (7:15 PM, or 3:15 PM on Saturday) the
+forecast is dropped and only people playing are shown. The days and times
+are `NIGHTS` in `turnout.js`; the desk's automatic answers
+(`VOICE_REPLY_DAYS`) and Voice signups refresh (`POLL_DAYS` in
+`apps-script/Index.html`) keep their own copies, so change all three together.
+
+**The Saturday pilot** (weekly from October 31, 2026) is an afternoon, so the
+page says "today" where it says "tonight" on weeknights, and the tap-to-text
+fills in "I'll join CTTC's RR today". Saturday's forecast reads only earlier
+Saturdays, not Mondays or Wednesdays. Until the first Saturday is published
+it has none, so it expects the club's show of hands, 20 players
+(`firstExpected`), with no ratings: they wait at the front desk as chalk
+spots ("New faces") and move into their zone as they sign in. From the
+second Saturday on, the forecast works like any other day's.
 
 **Privacy.** The page is public and says who will be at the gym tonight, so
 it shows counts only. The app's answer never contains a name, phone number,
