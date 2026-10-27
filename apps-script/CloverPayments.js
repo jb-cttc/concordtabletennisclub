@@ -1015,7 +1015,8 @@ function cloverReportRow_(row) {
     kind: payment.kind,
     state: row.state,
     card: payment.kind === 'card' ? cloverCardLabel_(payment) : '',
-    cardholder: payment.cardholder,
+    // Clover's stand-ins for a missing name ("VISA CARDHOLDER") are not shown as names.
+    cardholder: cloverNameKey_(payment.cardholder) ? payment.cardholder : '',
     customer: customer ? [customer.name].concat(customer.phones, customer.emails).filter(Boolean).join(' · ') || 'no name or contact saved' : '',
     reason: row.reason,
     payerId: row.payerId,

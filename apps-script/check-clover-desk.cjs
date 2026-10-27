@@ -94,7 +94,7 @@ properties.CLOVER_MERCHANT_ID = 'ABC123DEF4567';
 // Dry run: the desk shows what it would do and writes nothing.
 clover.payments = [
   payment('A', DATE, 1, 10, { cardholderName: 'PARK/AVERY', last4: '1111' }),
-  payment('B', DATE, 4, 15, { last4: '2222' }),
+  payment('B', DATE, 4, 15, { last4: '2222', cardholderName: 'VISA CARDHOLDER' }),
   payment('C', DATE, 6, 10, { cardholderName: 'DREW LANE', last4: '3333' }, { refunds: { elements: [{ amount: 1000 }] } }),
   payment('D', DATE, 8, 10, { last4: '4444' }),
   payment('E', DATE, 9, 10, { cardholderName: 'GRAY ITO', last4: '5555' })
@@ -104,6 +104,7 @@ assert.equal(state.enabled, false);
 assert.deepEqual(state.items.map(entry => entry.id), ['E', 'D', 'C', 'B', 'A'], 'newest first');
 assert.deepEqual([item(state, 'A').state, item(state, 'A').recorded, item(state, 'A').playerIds], ['matched', false, ['p1']], 'would match, not recorded');
 assert.equal(item(state, 'C').state, 'ignored', 'a refund is left alone');
+assert.equal(item(state, 'B').cardholder, '', 'no name on the card');
 assert.equal(item(state, 'E').state, 'needs-action', 'a Zeffy pass holder paying is asked about');
 assert.equal(state.names.p3, 'Casey Stone', 'names for every checked-in player, for choosing by hand');
 assert.equal(state.fees.p3, 5, 'Casey is a junior');
