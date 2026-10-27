@@ -111,7 +111,10 @@ after setting aside players whose own card paid that night. If another card
 that paid the same night could also only be that player, the records can't
 say which card is theirs, and neither is proposed. Such cards appear under
 **Cards to check**, along with cards that fit one player on every night but
-one. The result never depends on the order cards are looked at.
+one. The result never depends on the order cards are looked at. A card
+already matched at the desk with **Remember this card**, or saved here, counts
+as settled from the start. Matching one card of such a pair at the desk
+therefore often settles the other, and the cards that depended on it.
 
 **Why** under each card lists every night it paid, who was marked Credit at
 that amount, and why each other player was ruled out. A card learned from a

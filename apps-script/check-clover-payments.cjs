@@ -226,6 +226,19 @@ for (const order of [['4002', '4003'], ['4003', '4002']]) {
   assert.deepEqual([linkOf('4002'), linkOf('4003')], [undefined, undefined], 'both other cards point only to p3: neither is linked');
   assert.deepEqual([cardOf('4002').conflict.playerId, cardOf('4002').conflict.cards], ['p3', ['card:VISA|411111|4003']]);
 }
+// A card matched at the desk (or saved) is settled from the start, and settles the rest: 4003 is p3's, so 4002 is not.
+learnt = plain(context.cloverLearnCards_([
+  ['2026-10-14', [card('2026-10-14', 10, '4001'), card('2026-10-14', 10, '4002'), card('2026-10-14', 10, '4003')], ['p1', 'p3', 'p4']],
+  ['2026-10-19', [card('2026-10-19', 10, '4001'), card('2026-10-19', 10, '4002')], ['p1', 'p4']]
+].map(([date, payments, credit]) => ({ date, payments, credit })), statuses, { 'card:VISA|411111|4003': 'p3' }));
+assert.deepEqual([linkOf('4003'), linkOf('4001'), linkOf('4002')], ['p3', undefined, undefined], 'p1 and p4 still both fit 4001 and 4002');
+learnt = plain(context.cloverLearnCards_([
+  ['2026-10-14', [card('2026-10-14', 10, '4001'), card('2026-10-14', 10, '4002')], ['p1', 'p3']],
+  ['2026-10-19', [card('2026-10-19', 10, '4001')], ['p1', 'p3']]
+].map(([date, payments, credit]) => ({ date, payments, credit })), statuses, { 'card:VISA|411111|4002': 'p3' }));
+assert.deepEqual([linkOf('4002'), linkOf('4001')], ['p3', 'p1'], 'with 4002 known to be p3, 4001 can only be p1');
+assert.equal(cardOf('4002').why, undefined, 'a card matched by hand needs no explanation');
+assert.deepEqual(cardOf('4001').why.ruledOut, [{ playerId: 'p3', reason: 'other-card', date: '2026-10-14', card: 'card:VISA|411111|4002' }]);
 learnt = learn([
   ['2026-10-05', [card('2026-10-05', 10, '3001')], ['p1', 'p3']],
   ['2026-10-07', [card('2026-10-07', 10, '3001')], ['p1', 'p4']],

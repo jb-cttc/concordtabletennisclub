@@ -403,8 +403,9 @@ function cloverPaysFor_(players, linkRows) {
 // changes, so the result never depends on which card is looked at first. A card no player fits on every night (a
 // Credit record missing, or a shared card) is never linked, and neither is one several players still fit. Timing is
 // not used to decide: people arrive together.
+// known: cards already linked (matched at the desk or saved), which count as settled from the start.
 // Returns { links: { key: playerId }, cards: [ { key, payments, nights, candidates, why, conflict, almost } ] }.
-function cloverLearnCards_(nights, statuses) {
+function cloverLearnCards_(nights, statuses, known) {
   var fee = function (id) { return CLOVER_FEES_[statuses[id]] || CLOVER_FEES_.visitor; };
   var cards = {};
   nights.forEach(function (night) {
@@ -425,6 +426,12 @@ function cloverLearnCards_(nights, statuses) {
   var links = {};
   var takenOn = {};
   var list = Object.keys(cards).map(function (key) { return cards[key]; });
+  list.forEach(function (card) {
+    if (!known || !known[card.key]) return;
+    links[card.key] = known[card.key];
+    card.known = true;
+    card.clues.forEach(function (clue) { (takenOn[clue.date] || (takenOn[clue.date] = {}))[known[card.key]] = card.key; });
+  });
   var fitting = function (card) {
     if (!card.clues.length) return null;
     return card.clues.reduce(function (left, clue) {
@@ -460,7 +467,7 @@ function cloverLearnCards_(nights, statuses) {
     // Why a learned card is that player: each night's Credit players at the card's amount, and why every other one of
     // them is not the payer (not marked Credit at that amount on another of the card's nights, or their own card paid
     // that night).
-    if (links[card.key]) {
+    if (links[card.key] && !card.known) {
       var chosen = links[card.key];
       var others = [];
       card.clues.forEach(function (clue) { clue.options.forEach(function (id) { if (id !== chosen && others.indexOf(id) < 0) others.push(id); }); });
@@ -964,10 +971,12 @@ function getCloverReport(fromDate, toDate) {
   payments.forEach(function (payment) { (byDate[payment.date] || (byDate[payment.date] = [])).push(payment); });
   var dates = Object.keys(rosters).concat(Object.keys(byDate)).filter(function (date, i, all) { return all.indexOf(date) === i; }).sort();
 
+  var known = {};
+  Object.keys(stored).forEach(function (key) { if (stored[key]) known[key] = stored[key]; });
   var learned = cloverLearnCards_(dates.map(function (date) {
     var hand = hands[date] || {};
     return { date: date, payments: byDate[date] || [], credit: Object.keys(hand).filter(function (id) { return hand[id] === 'credit'; }) };
-  }), statuses);
+  }), statuses, known);
   var links = {};
   Object.keys(learned.links).forEach(function (key) { links[key] = learned.links[key]; });
   Object.keys(stored).forEach(function (key) { links[key] = stored[key]; });
