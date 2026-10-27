@@ -103,13 +103,23 @@ every night in a date range: each Clover payment, what the desk does with it,
 and how that compares with the method chosen by hand.
 
 **Cards learned from your records** proposes cards from the hand records made
-before Clover matching started. A card is proposed only when exactly one
-player was marked Credit at the card's amount on *every* night it paid, after
-setting aside players already linked to another card that night. A missing
-record or a shared card means no proposal. "Marked Credit" shows how far from
-each payment that player was marked, for checking only: timing never decides.
-Check the list, untick any that look wrong, and **Save ticked cards** (this
-needs `CLOVER_ENABLED`). Saved cards match by themselves from then on.
+before Clover matching started. Clover sends no name for a tapped card, so
+this uses only the payments chosen at the desk. Each night a card paid once,
+the payer must be one of the players marked Credit at the card's amount that
+night. A card is proposed when exactly one player fits every night it paid,
+after setting aside players whose own card paid that night. If another card
+that paid the same night could also only be that player, the records can't
+say which card is theirs, and neither is proposed. Such cards appear under
+**Cards to check**, along with cards that fit one player on every night but
+one. The result never depends on the order cards are looked at.
+
+**Why** under each card lists every night it paid, who was marked Credit at
+that amount, and why each other player was ruled out. A card learned from a
+single night is the weakest evidence, so it starts unticked. "Marked Credit"
+shows how far from each payment that player was marked, for checking only:
+timing never decides. Check the list, tick the cards that look right, and
+**Save ticked cards** (this needs `CLOVER_ENABLED`). Saved cards match by
+themselves from then on. On a phone, each card is shown as its own block.
 
 ## 5. Where it is kept
 

@@ -211,7 +211,21 @@ assert.equal(cardOf('1005').candidates.length, 0);
 assert.equal(cardOf('1005').nights, 2, 'Oct 19 had nothing marked Credit, so it is no clue');
 assert.equal(linkOf('1006'), undefined, 'nobody was marked Credit at $10 on Oct 14');
 assert.equal(linkOf('1007'), 'p5', 'a single night with one player at that fee');
+assert.deepEqual(cardOf('1002').why.ruledOut, [{ playerId: 'p1', reason: 'other-card', date: '2026-10-05', card: 'card:VISA|411111|1001' }], 'why: p1\'s own card paid that night');
+assert.deepEqual(cardOf('1001').why.nights.map(night => [night.date, night.amount, night.credit.join()]), [['2026-10-05', 10, 'p1,p3'], ['2026-10-07', 10, 'p1,p4'], ['2026-10-12', 10, 'p1,p4']]);
+assert.deepEqual(cardOf('1001').why.ruledOut, [{ playerId: 'p3', reason: 'not-credit', date: '2026-10-07' }, { playerId: 'p4', reason: 'not-credit', date: '2026-10-05' }]);
 assert.equal(cardOf('1008').nights, 0, 'only paid on a night with no Credit recorded');
+// Two cards the same night both left with only one player: the records cannot say which is theirs, so neither is
+// linked, whichever card is looked at first.
+for (const order of [['4002', '4003'], ['4003', '4002']]) {
+  learnt = learn([
+    ['2026-10-14', [card('2026-10-14', 10, '4001')].concat(order.map(last4 => card('2026-10-14', 10, last4))), ['p1', 'p3']],
+    ['2026-10-19', [card('2026-10-19', 10, '4001')], ['p1']]
+  ]);
+  assert.equal(linkOf('4001'), 'p1', 'p1 is the only $10 Credit player on both of its nights');
+  assert.deepEqual([linkOf('4002'), linkOf('4003')], [undefined, undefined], 'both other cards point only to p3: neither is linked');
+  assert.deepEqual([cardOf('4002').conflict.playerId, cardOf('4002').conflict.cards], ['p3', ['card:VISA|411111|4003']]);
+}
 learnt = learn([
   ['2026-10-05', [card('2026-10-05', 10, '3001')], ['p1', 'p3']],
   ['2026-10-07', [card('2026-10-07', 10, '3001')], ['p1', 'p4']],

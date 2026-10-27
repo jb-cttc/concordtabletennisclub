@@ -398,9 +398,12 @@ function cloverPaysFor_(players, linkRows) {
 //     that fee that night (nights where nothing was marked Credit, or the card paid twice, say nothing);
 //   - the payer is a player who fits every clue for that card;
 //   - a player already linked to another card that paid the same night is not this card's payer.
-// This repeats until nothing changes. A card no player fits on every night (a Credit record missing or the card shared)
-// is never linked, and neither is one several players still fit. Timing is not used to decide: people arrive together.
-// Returns { links: { key: playerId }, cards: [ { key, payments, nights, candidates } ] }.
+// A card is linked when one player is left, unless another card that paid on one of the same nights is also left with
+// only that player: then the records cannot say which card is theirs, and neither is linked. This repeats until nothing
+// changes, so the result never depends on which card is looked at first. A card no player fits on every night (a
+// Credit record missing, or a shared card) is never linked, and neither is one several players still fit. Timing is
+// not used to decide: people arrive together.
+// Returns { links: { key: playerId }, cards: [ { key, payments, nights, candidates, why, conflict, almost } ] }.
 function cloverLearnCards_(nights, statuses) {
   var fee = function (id) { return CLOVER_FEES_[statuses[id]] || CLOVER_FEES_.visitor; };
   var cards = {};
@@ -428,14 +431,24 @@ function cloverLearnCards_(nights, statuses) {
       return left.filter(function (id) { return clue.options.indexOf(id) >= 0 && !(takenOn[clue.date] && takenOn[clue.date][id] && takenOn[clue.date][id] !== card.key); });
     }, card.clues[0].options.slice());
   };
+  var sharesNight = function (one, two) {
+    return one.clues.some(function (clue) { return two.clues.some(function (other) { return other.date === clue.date; }); });
+  };
   for (var changed = true; changed;) {
     changed = false;
-    list.forEach(function (card) {
-      if (links[card.key]) return;
+    var forced = list.filter(function (card) {
+      if (links[card.key]) return false;
       var left = fitting(card);
-      if (!left || left.length !== 1) return;
-      links[card.key] = left[0];
-      card.clues.forEach(function (clue) { (takenOn[clue.date] || (takenOn[clue.date] = {}))[left[0]] = card.key; });
+      card.only = left && left.length === 1 ? left[0] : '';
+      return !!card.only;
+    });
+    forced.forEach(function (card) {
+      var rivals = forced.filter(function (other) { return other !== card && other.only === card.only && sharesNight(card, other); });
+      card.conflict = rivals.length ? { playerId: card.only, cards: rivals.map(function (other) { return other.key; }) } : null;
+    });
+    forced.filter(function (card) { return !card.conflict; }).forEach(function (card) {
+      links[card.key] = card.only;
+      card.clues.forEach(function (clue) { (takenOn[clue.date] || (takenOn[clue.date] = {}))[card.only] = card.key; });
       changed = true;
     });
   }
@@ -443,6 +456,24 @@ function cloverLearnCards_(nights, statuses) {
     var left = fitting(card);
     card.nights = card.clues.length;
     card.candidates = links[card.key] ? [links[card.key]] : left || [];
+    if (links[card.key]) card.conflict = null;
+    // Why a learned card is that player: each night's Credit players at the card's amount, and why every other one of
+    // them is not the payer (not marked Credit at that amount on another of the card's nights, or their own card paid
+    // that night).
+    if (links[card.key]) {
+      var chosen = links[card.key];
+      var others = [];
+      card.clues.forEach(function (clue) { clue.options.forEach(function (id) { if (id !== chosen && others.indexOf(id) < 0) others.push(id); }); });
+      card.why = {
+        nights: card.clues.map(function (clue) { return { date: clue.date, amount: clue.payment.net / 100, credit: clue.options.slice() }; }),
+        ruledOut: others.map(function (id) {
+          var missing = card.clues.filter(function (clue) { return clue.options.indexOf(id) < 0; })[0];
+          if (missing) return { playerId: id, reason: 'not-credit', date: missing.date };
+          var taken = card.clues.filter(function (clue) { return takenOn[clue.date] && takenOn[clue.date][id] && takenOn[clue.date][id] !== card.key; })[0];
+          return { playerId: id, reason: 'other-card', date: taken.date, card: takenOn[taken.date][id] };
+        })
+      };
+    }
     // Not learned, but one player fits every night but one: a record to check (a payment marked another way, or the card
     // paying for someone else that night), never a link.
     if (links[card.key] || card.clues.length < 3) return;
@@ -946,9 +977,16 @@ function getCloverReport(fromDate, toDate) {
       return at.length ? Math.round(Math.min.apply(null, at.map(function (time) { return Math.abs(time - clue.payment.time); })) / 60000) : null;
     }).filter(function (value) { return value !== null; });
     var sample = card.clues.length ? card.clues[0].payment : null;
+    var labelOf = function (key) {
+      var other = learned.cards.filter(function (entry) { return entry.key === key; })[0];
+      return other && other.clues.length ? cloverCardLabel_(other.clues[0].payment) : key.split('|').pop();
+    };
     return {
       key: card.key,
       card: sample ? cloverCardLabel_(sample) : card.key.split('|').pop(),
+      why: card.why ? { nights: card.why.nights, ruledOut: card.why.ruledOut.map(function (out) { return out.card ? Object.assign({}, out, { card: labelOf(out.card) }) : out; }) } : null,
+      // Not learned because another card that paid on one of the same nights also points only to this player.
+      conflict: card.conflict ? { playerId: card.conflict.playerId, cards: card.conflict.cards.map(labelOf) } : null,
       playerId: learned.links[card.key] || '',
       saved: !!learned.links[card.key] && stored[card.key] === learned.links[card.key],
       // The night the record disagrees: what was chosen by hand for that player, and whether they were checked in.
