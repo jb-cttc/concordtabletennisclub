@@ -41,6 +41,8 @@ body.reloading #summary,body.reloading #nights{opacity:.55}
 .tile.ask{border-top-color:var(--gold)}
 .tile.good{background:#eef7f1}
 #cards .diagnostics{margin:0 0 10px}
+/* On a phone the card tables stack, one card per block, so nothing needs a sideways scroll (a trackpad in iPhone Mirroring cannot do one). */
+@media(max-width:640px){table.stack thead{display:none}table.stack tr{display:grid;grid-template-columns:minmax(0,1fr);gap:3px 12px;padding:11px 0;border-bottom:1px solid var(--line)}table.stack.with-keep tr{grid-template-columns:58px minmax(0,1fr)}table.stack td{border:0;padding:0;text-align:left}table.stack td.keep{grid-row:1/span 5;padding-top:1px}table.stack.with-keep td:not(.keep){grid-column:2}table.stack td.card{font-weight:700}table.stack td[data-label]::before{content:attr(data-label) ": ";color:var(--muted)}table.stack .tag{white-space:nowrap}}
 .card-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
 .save-note{font:13px Arial,sans-serif;color:var(--muted)}
 .diagnostics{margin:12px 0 0;font:13px/1.5 Arial,sans-serif;color:var(--muted)}
@@ -258,11 +260,11 @@ tr.conflict td{background:#fdf5f3}
     body.textContent = '';
     section.hidden = !linked.length;
     if (!linked.length) return;
-    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Save', 'Card', 'Player', 'Payments', 'Nights', 'Marked Credit'].map(function (label, index) { return el('th', { className: index === 3 || index === 4 ? 'num' : '', text: label }); }))])]);
+    var table = el('table', { className: 'stack with-keep' }, [el('thead', {}, [el('tr', {}, ['Save', 'Card', 'Player', 'Payments', 'Nights', 'Marked Credit'].map(function (label, index) { return el('th', { className: index === 3 || index === 4 ? 'num' : '', text: label }); }))])]);
     var tbody = el('tbody');
     var boxes = [];
     linked.sort(function (a, b) { return name(a.playerId).localeCompare(name(b.playerId)); }).forEach(function (card) {
-      var keep = el('td');
+      var keep = el('td', { className: 'keep' });
       if (card.saved) keep.appendChild(el('span', { className: 'tag agrees', text: 'Saved' }));
       else {
         var box = el('input', { type: 'checkbox', 'aria-label': 'Save ' + card.card + ' for ' + name(card.playerId) });
@@ -274,8 +276,8 @@ tr.conflict td{background:#fdf5f3}
       }
       tbody.appendChild(el('tr', {}, [
         keep, el('td', { className: 'card', text: card.card }), el('td', { className: 'who', text: name(card.playerId) }),
-        el('td', { className: 'num', text: String(card.payments) }), el('td', { className: 'num', text: String(card.nights) }),
-        el('td', { text: card.minutes.length ? card.minutes.map(function (m) { return m + ' min'; }).join(', ') + ' from paying' : '-' })
+        el('td', { className: 'num', 'data-label': 'Payments', text: String(card.payments) }), el('td', { className: 'num', 'data-label': 'Nights', text: String(card.nights) }),
+        el('td', { 'data-label': 'Marked Credit', text: card.minutes.length ? card.minutes.map(function (m) { return m + ' min'; }).join(', ') + ' from paying' : '-' })
       ]));
     });
     table.appendChild(tbody);
@@ -306,7 +308,7 @@ tr.conflict td{background:#fdf5f3}
     body.textContent = '';
     section.hidden = !cards.length;
     if (!cards.length) return;
-    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Card', 'Points to', 'Credit on', 'The night that does not fit'].map(function (label, index) { return el('th', { className: index === 2 ? 'num' : '', text: label }); }))])]);
+    var table = el('table', { className: 'stack' }, [el('thead', {}, [el('tr', {}, ['Card', 'Points to', 'Credit on', 'The night that does not fit'].map(function (label, index) { return el('th', { className: index === 2 ? 'num' : '', text: label }); }))])]);
     var tbody = el('tbody');
     cards.forEach(function (card) {
       var odd = card.almost.odd.map(function (night) {
@@ -314,8 +316,8 @@ tr.conflict td{background:#fdf5f3}
         return longDate(night.date).replace(/, \d{4}$/, '') + ', ' + night.clock + ', ' + money(night.amount) + ': ' + record;
       }).join('; ');
       tbody.appendChild(el('tr', {}, [
-        el('td', { className: 'card', text: card.card }), el('td', { text: name(card.almost.playerId) }),
-        el('td', { className: 'num', text: card.almost.nights + ' of ' + card.nights + ' nights' }), el('td', { text: odd })
+        el('td', { className: 'card', text: card.card }), el('td', { className: 'who', 'data-label': 'Points to', text: name(card.almost.playerId) }),
+        el('td', { className: 'num', 'data-label': 'Credit on', text: card.almost.nights + ' of ' + card.nights + ' nights' }), el('td', { 'data-label': 'Does not fit', text: odd })
       ]));
     });
     table.appendChild(tbody);
