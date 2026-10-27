@@ -6,6 +6,8 @@ Usage: python3 -I .claude/google-api.py <https://*.googleapis.com/... URL>
 
 Only GET requests to *.googleapis.com, plus the one read-only Logging query, are possible.
 The access token is never printed or written to disk.
+Not for the round-robin Sheet: this sign-in's Google project has the Sheets API switched off. Read the Sheet with
+npm run sheet:read -- <Tab> (the environment's service account; see AGENTS.md).
 """
 import json
 import os

@@ -30,3 +30,8 @@ if [ -n "${CLASPRC_B64:-}" ]; then
     echo "CLASPRC_B64 is set but is not a valid clasp sign-in; clasp is not signed in." >&2
   fi
 fi
+
+# The private Sheet is readable with the service account the environment provides (scripts/lib/google-sheets.js).
+if [ -n "${GOOGLE_SERVICE_ACCOUNT_EMAIL:-}" ] && [ -n "${GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:-}" ] && [ -n "${GOOGLE_ROUND_ROBIN_DATABASE_ID:-}" ]; then
+  echo "Google Sheet read access configured (service account). Read a tab with npm run sheet:read -- <Tab> (see AGENTS.md)."
+fi

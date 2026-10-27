@@ -35,6 +35,16 @@ not deploy the Google desk.
   show real member data: keep them outside the repository, delete them when
   done, and never commit, post, or quote member names from them. For read-only
   Google API calls (deployments, logs) use `.claude/google-api.py`.
+- **You can read the private Google Sheet too; do not tell the owner you cannot.**
+  The environment provides a read-only service account
+  (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`) and the
+  Sheet's ID (`GOOGLE_ROUND_ROBIN_DATABASE_ID`). `npm run sheet:read -- <Tab>`
+  prints a tab's columns and row count (`--rows` for the rows), and
+  `scripts/lib/google-sheets.js` (`fetchSheetRows`) reads any range from a
+  script. Do not use the clasp sign-in or `.claude/google-api.py` for the
+  Sheet: that Google project has the Sheets API switched off, and the 403 it
+  returns does not mean the Sheet is out of reach. The rows are real member
+  data: report totals where you can, and never commit, post, or quote them.
 - These are collaboration instructions, not a technical restriction on a
   person signed in to the shared Google account. Avoid claiming a PR merge
   automatically updates Google.

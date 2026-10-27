@@ -47,7 +47,8 @@
     "check:coach-certs": "node scripts/check-usatt-coaches-test.js",
     "check:usatt-coaches": "node scripts/check-usatt-coaches.js",
     "check:nights": "node scripts/check-desk-nights.js",
-    "desk:google": "node scripts/desk-google-view.js"
+    "desk:google": "node scripts/desk-google-view.js",
+    "sheet:read": "node scripts/sheet-read.js"
   },
   "dependencies": {
     "nodemailer": "^9.0.5"
