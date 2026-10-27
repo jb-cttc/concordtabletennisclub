@@ -16,10 +16,13 @@ const properties = {};
 const fetched = [];
 let clover = { payments: [], orders: [], customers: {} };
 let status = 200;
+let throttle = 0;
+const slept = [];
 const respond = (body, code) => ({ getResponseCode: () => code || status, getContentText: () => JSON.stringify(body) });
 const route = request => {
   const url = new URL(request.url);
   fetched.push({ url: request.url, auth: request.headers.Authorization });
+  if (throttle > 0) { throttle -= 1; return respond({}, 429); }
   const path = url.pathname.replace(/^\/v3\/merchants\/[^/]+/, '');
   if (path === '/payments') return respond({ elements: clover.payments });
   if (path === '/orders') return respond({ elements: clover.orders });
@@ -45,7 +48,7 @@ const context = {
   TABLES: {},
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] === undefined ? null : properties[key] }) },
   UrlFetchApp: { fetch: (url, options) => route({ url, ...options }), fetchAll: requests => requests.map(route) },
-  Utilities: { formatDate },
+  Utilities: { formatDate, sleep: ms => slept.push(ms) },
   Session: { getScriptTimeZone: () => tz },
   SpreadsheetApp: { getActive: () => ({ getSheetByName: name => sheets[name] ? {} : null }) },
   rows_: name => sheets[name].map((row, index) => ({ ...row, __row: index + 2 })),
@@ -202,6 +205,9 @@ assert.equal(reviewed.rows[0].state, 'needs-action');
 assert.match(context.cloverConfigProblem_({ token: '', merchant: '' }), /CLOVER_API_TOKEN and CLOVER_MERCHANT_ID/);
 assert.match(context.cloverConfigProblem_({ token: 'x', merchant: 'bad/id' }), /does not look like/);
 assert.equal(context.cloverConfigProblem_({ token: 'x', merchant: 'ABC123DEF4567' }), '');
+throttle = 10;
+assert.throws(() => context.cloverFetchAll_([{ url: 'https://api.clover.com/v3/merchants/M/payments', headers: {} }]), /slow down \(429\)/, 'it gives up after a few tries');
+throttle = 0;
 for (const code of [401, 403, 404, 429, 500]) {
   assert.throws(() => context.cloverResponse_(respond({ message: 'secret-token-value' }, code)), error => !/secret-token-value/.test(error.message));
 }
@@ -235,12 +241,21 @@ clover = {
   orders: [],
   customers: {}
 };
+clover.orders = [{ id: 'ORD-C', customers: { elements: [{ id: 'C9' }] } }];
+clover.customers = { C9: { firstName: 'Robert', lastName: 'Lee', phoneNumbers: { elements: [{ phoneNumber: '925-555-0199' }] }, emailAddresses: { elements: [] } } };
+clover.payments[1].order = { id: 'ORD-C' };
+throttle = 2;
+slept.length = 0;
+fetched.length = 0;
 report = plain(context.getCloverReport('2026-10-05', '2026-10-07'));
+assert.equal(slept.length, 2, 'Clover asking to slow down is waited out and tried again');
+assert.equal(fetched.filter(call => /\/customers\//.test(call.url)).length, 1, 'each customer is read once');
 assert.ok(fetched.every(call => call.auth === 'Bearer test-token'));
 const paymentsCall = fetched.find(call => /\/payments\?/.test(call.url));
 assert.match(paymentsCall.url, /^https:\/\/api\.clover\.com\/v3\/merchants\/ABC123DEF4567\/payments\?filter=createdTime%3E%3D\d+&filter=createdTime%3C\d+&expand=cardTransaction%2Crefunds&limit=1000&offset=0$/);
 assert.deepEqual(report.nights.map(n => n.date), ['2026-10-07', '2026-10-05'], 'newest night first; a payment after the range is left out');
 const oct5 = report.nights[1];
+assert.equal(oct5.rows[1].customer, 'Robert Lee \u00b7 925-555-0199', 'the Clover customer is shown');
 assert.deepEqual(oct5.rows.map(row => [row.state, row.verdicts.map(v => v.verdict).join()]), [['matched', 'agrees'], ['needs-action', '']], 'the Zeffy holder paying is asked about');
 const oct7 = report.nights[0];
 assert.deepEqual(oct7.rows.map(row => row.state), ['needs-action', 'unmatched', 'ignored'], 'the learned card meets a hand-chosen Cash; the refund is left alone');

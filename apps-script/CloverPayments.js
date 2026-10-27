@@ -21,6 +21,11 @@ var CLOVER_ENABLED_KEY_ = 'CLOVER_ENABLED';
 var CLOVER_PAGE_SIZE_ = 1000;
 var CLOVER_MAX_PAGES_ = 10;
 var CLOVER_CUSTOMER_LOOKUPS_ = 80;
+// Clover limits how many requests a token may have open at once, and answers 429 when there are too many: requests go a
+// few at a time, and a 429 is tried again after a pause.
+var CLOVER_AT_ONCE_ = 3;
+var CLOVER_RETRIES_ = 4;
+var CLOVER_RETRY_PAUSE_MS_ = 1500;
 // Clover answers at most 90 days of payments per request; the report asks for a little either side of the range.
 var CLOVER_REPORT_MAX_DAYS_ = 85;
 var CLOVER_FEES_ = { junior: 5, member: 10, visitor: 15 };
@@ -66,14 +71,32 @@ function cloverResponse_(response) {
   throw new Error('Clover did not answer as expected (' + code + '). Try again in a minute.');
 }
 
+// Sends the requests a few at a time and returns each one's parsed answer, in order.
+function cloverFetchAll_(requests) {
+  var answers = [];
+  for (var start = 0; start < requests.length; start += CLOVER_AT_ONCE_) {
+    var batch = requests.slice(start, start + CLOVER_AT_ONCE_);
+    var responses = UrlFetchApp.fetchAll(batch);
+    for (var attempt = 1; attempt < CLOVER_RETRIES_; attempt += 1) {
+      var waiting = [];
+      responses.forEach(function (response, index) { if (response.getResponseCode() === 429) waiting.push(index); });
+      if (!waiting.length) break;
+      Utilities.sleep(CLOVER_RETRY_PAUSE_MS_ * attempt);
+      var retried = UrlFetchApp.fetchAll(waiting.map(function (index) { return batch[index]; }));
+      waiting.forEach(function (index, position) { responses[index] = retried[position]; });
+    }
+    responses.forEach(function (response) { answers.push(cloverResponse_(response)); });
+  }
+  return answers;
+}
+
 function cloverList_(config, path, filters, expand) {
   var elements = [];
   for (var page = 0; page < CLOVER_MAX_PAGES_; page += 1) {
     var query = filters.map(function (filter) { return 'filter=' + encodeURIComponent(filter); });
     if (expand) query.push('expand=' + encodeURIComponent(expand));
     query.push('limit=' + CLOVER_PAGE_SIZE_, 'offset=' + page * CLOVER_PAGE_SIZE_);
-    var request = cloverRequest_(config, path, query);
-    var batch = cloverResponse_(UrlFetchApp.fetch(request.url, request)).elements || [];
+    var batch = cloverFetchAll_([cloverRequest_(config, path, query)])[0].elements || [];
     elements = elements.concat(batch);
     if (batch.length < CLOVER_PAGE_SIZE_) return elements;
   }
@@ -97,8 +120,7 @@ function cloverCustomersByOrder_(config, fromMs, toMs) {
   var customers = {};
   if (ids.length) {
     var requests = ids.map(function (id) { return cloverRequest_(config, '/customers/' + encodeURIComponent(id), ['expand=' + encodeURIComponent('phoneNumbers,emailAddresses')]); });
-    UrlFetchApp.fetchAll(requests).forEach(function (response, index) {
-      var customer = cloverResponse_(response);
+    cloverFetchAll_(requests).forEach(function (customer, index) {
       customers[ids[index]] = {
         id: ids[index],
         name: normalizeName_([customer.firstName, customer.lastName].filter(Boolean).join(' ')),
