@@ -1304,6 +1304,60 @@ footer {
   }
 }
 
+/* Recent results on the Round Robins page: one collapsible panel per round robin day. */
+.pilot-note {
+  border-left: 3px solid var(--red);
+  padding-left: 12px;
+}
+
+.recent-day {
+  border-bottom: 1px solid var(--border);
+}
+
+.recent-day > summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 12px 0;
+  list-style: none;
+}
+
+.recent-day > summary::-webkit-details-marker {
+  display: none;
+}
+
+.recent-day > summary::before {
+  content: "+";
+  width: 14px;
+  color: var(--muted);
+}
+
+.recent-day[open] > summary::before {
+  content: "-";
+}
+
+.recent-day-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.recent-day-date {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.recent-day-body {
+  padding: 0 0 12px 26px;
+}
+
+@media (max-width: 640px) {
+  .recent-day-body {
+    padding-left: 0;
+  }
+}
+
 .latest-results-link {
   font-size: 0.9rem;
   margin-top: 8px;

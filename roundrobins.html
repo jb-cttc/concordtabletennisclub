@@ -9,7 +9,7 @@
   <meta property="og:title" content="Round Robin Archive - Concord Table Tennis Club">
   <meta property="og:description" content="Browse results from 240+ round robin sessions at Concord Table Tennis Club, going back to January 2024.">
   <meta property="og:url" content="https://latkecrszy.github.io/concordtabletennisclub/roundrobins.html">
-  <link rel="stylesheet" href="style.css?v=20261023">
+  <link rel="stylesheet" href="style.css?v=20261027">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
 </head>
@@ -60,6 +60,8 @@
 
   <p>Every Monday and Wednesday night, players are divided into groups of 5 or 6 by rating and play a round robin against everyone in their group. Results are posted after each session. Ratings are updated based on wins and losses within the group.</p>
 
+  <p class="pilot-note"><strong>New:</strong> we&rsquo;re piloting a weekly Saturday round robin starting October 31, and will post updates here on how it&rsquo;s going.</p>
+
   <h2>Recent results</h2>
 
   <div id="recent-results-loading" style="color:var(--muted);font-size:0.9rem">Loading...</div>
@@ -75,6 +77,7 @@
         <button class="archive-filter-btn active" data-day="">All</button>
         <button class="archive-filter-btn" data-day="Monday">Monday</button>
         <button class="archive-filter-btn" data-day="Wednesday">Wednesday</button>
+        <button class="archive-filter-btn" data-day="Saturday">Saturday</button>
       </div>
     </div>
     <div class="archive-filter-row">
@@ -672,11 +675,6 @@
   }
 
   function renderRecentSession(session, container) {
-    var h3 = document.createElement("h3");
-    h3.textContent = formatDateRR(session.date);
-    h3.style.marginTop = "1.5rem";
-    container.appendChild(h3);
-
     var archiveLink = document.createElement("p");
     archiveLink.style.fontSize = "0.85rem";
     archiveLink.style.marginBottom = "8px";
@@ -698,15 +696,53 @@
     container.appendChild(grid);
   }
 
+  // One collapsible panel per round robin day, with that day's latest session; the most recent session starts open.
+  // A day with no session yet (the Saturday pilot, until its first one is finalized) says when it starts.
+  var RECENT_DAYS = [
+    { day: 1, name: "Monday" },
+    { day: 3, name: "Wednesday" },
+    { day: 6, name: "Saturday", waiting: "The Saturday round robin pilot starts October 31. Its results will appear here once the first one is finalized." }
+  ];
+
+  function recentDayPanel(container, day, session, open) {
+    var details = document.createElement("details");
+    details.className = "recent-day";
+    details.open = open;
+    var summary = document.createElement("summary");
+    var name = document.createElement("span");
+    name.className = "recent-day-name";
+    name.textContent = day.name;
+    var when = document.createElement("span");
+    when.className = "recent-day-date";
+    if (session) {
+      var players = session.groups.reduce(function (sum, group) { return sum + group.players.length; }, 0);
+      when.textContent = formatDateRR(session.date).replace(/ \(.*\)$/, "") + " · " + players + " players";
+    } else {
+      when.textContent = "Starts October 31";
+    }
+    summary.append(name, when);
+    details.appendChild(summary);
+    var body = document.createElement("div");
+    body.className = "recent-day-body";
+    if (session) {
+      renderRecentSession(session, body);
+    } else {
+      var note = document.createElement("p");
+      note.className = "session-source";
+      note.textContent = day.waiting;
+      body.appendChild(note);
+    }
+    details.appendChild(body);
+    container.appendChild(details);
+  }
+
   fetch("data/sessions.json", { cache: "no-cache" })
     .then(function (r) { return r.json(); })
     .then(function (sessions) {
-      var latestMon = null, latestWed = null;
+      var latest = {};
       for (var i = 0; i < sessions.length; i++) {
         var d = dayOfWeekRR(sessions[i].date);
-        if (!latestMon && d === 1) latestMon = sessions[i];
-        if (!latestWed && d === 3) latestWed = sessions[i];
-        if (latestMon && latestWed) break;
+        if (!latest[d]) latest[d] = sessions[i];
       }
 
       var yearCache = {};
@@ -715,19 +751,26 @@
         return yearCache[year];
       }
 
-      var toLoad = [latestMon, latestWed].filter(Boolean);
       var container = document.getElementById("recent-results");
       document.getElementById("recent-results-loading").hidden = true;
 
-      Promise.all(toLoad.map(function (s) {
+      Promise.all(RECENT_DAYS.map(function (day) {
+        var s = latest[day.day];
+        if (!s) return null;
         return loadYear(s.date.split("-")[0]).then(function (details) {
-          return details.find(function (d) { return d.date === s.date; });
+          return details.find(function (d) { return d.date === s.date; }) || null;
         });
       })).then(function (resolved) {
-        resolved.forEach(function (session) {
-          if (session && session.groups && session.groups.length) {
-            renderRecentSession(session, container);
-          }
+        var shown = resolved.map(function (session) {
+          return session && session.groups && session.groups.length ? session : null;
+        });
+        var newest = shown.reduce(function (best, session) {
+          return session && (!best || session.date > best) ? session.date : best;
+        }, null);
+        RECENT_DAYS.forEach(function (day, index) {
+          // A weekday with no session at all and no pilot note (a night the club no longer runs) is left out.
+          if (!shown[index] && !day.waiting) return;
+          recentDayPanel(container, day, shown[index], !!shown[index] && shown[index].date === newest);
         });
       }).catch(function () {
         document.getElementById("recent-results-loading").hidden = false;

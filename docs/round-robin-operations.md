@@ -221,7 +221,8 @@ one player", ...). These are the same checks as the
 not already in RR, Open Play or Coaching, exactly as pressing **RR** on each
 would, including the **Confirmed.** text. A **?** is never added by it.
 
-On Monday and Wednesday nights from 6:45 to 7:30 PM Pacific, while tonight's
+On Monday and Wednesday nights from 6:45 to 7:30 PM Pacific, and on
+Saturdays from 2:45 to 3:30 PM (the [Saturday pilot](#saturday-pilot)), while today's
 date is open and the tab is in view, the list checks for new texts every
 minute by itself and briefly highlights anyone new. It skips a minute while
 a message preview is open or the device is offline. **Refresh** still works
@@ -255,19 +256,20 @@ here they count as playing tonight like anyone signed in.
 
 When switched on, the desk answers round robin texts by itself
 (`apps-script/VoiceAutoReply.js`). A trigger checks every minute on Mondays
-and Wednesdays from 6 AM until sign-up closes at 7:15 PM Pacific, except on
-nights the club site lists as closed. Each person gets at most one automatic
+and Wednesdays from 6 AM until sign-up closes at 7:15 PM Pacific, and on
+Saturdays from 6 AM until 3:15 PM, except on days the club site lists as
+closed. Each person gets at most one automatic
 answer a day:
 
 | The Voice contact name is | The answer |
 | --- | --- |
-| exactly one active player, or an `Aliases` name of one | "Received - you're on the list, *directory name*! See you tonight." |
+| exactly one active player, or an `Aliases` name of one | "Received - you're on the list, *directory name*! See you tonight." ("today" on a Saturday) |
 | anything else: no contact name, several players, part of a name, someone not in the directory | "We're glad to have you! This number isn't linked to anyone in our club directory yet. Reply with your name and we'll add you." |
 
 Only texts that plainly say the person is coming are answered (the Tonight
 page's tap-to-text fills in "I'll join CTTC's RR tonight"). Questions, "can't
 make it", commands for the coaching and volunteer apps, and anyone with a
-coaching lesson that day are left for a person, as is everything after 7:15.
+coaching lesson that day are left for a person, as is everything after sign-up closes.
 A name sent back after the second answer is not read automatically: match
 the sender in **Voice signups** as usual, and save their name as the contact
 in Google Voice (or add an `Aliases` row) so their next text links. An
@@ -283,6 +285,28 @@ the minute trigger and sets `CTTC_VOICE_AUTO_REPLY` to `on`).
 The minute trigger stops at once outside the hours above, so most runs cost
 almost nothing.
 
+## Saturday pilot
+
+From October 31, 2026 the club is piloting a weekly Saturday afternoon round
+robin. The gym is open 3 to 6 PM, so sign-up is 2:45 to 3:15 PM and play
+starts at 3:30. It runs on the same desk, Sheet, publication and results
+email as Monday and Wednesday; only the clock differs:
+
+- **Desk.** Open the Saturday date and run it like any night. Promotions
+  look at the previous *Saturday*, so the first one has none. Most players'
+  ratings are known from weeknights; give anyone new a rating as usual.
+- **Voice.** Automatic answers run until 3:15 PM and say "See you today."
+  Voice signups refresh by themselves from 2:45 to 3:30 PM.
+- **Publishing and email.** Finalizing starts the same 2-minute publish and
+  results email. The scheduled fallback runs at 8:45 PM Saturday and 8 AM
+  Sunday, Pacific.
+- **Site.** The Round Robins page has a collapsible panel per day; the
+  Saturday panel fills in once the first Saturday is published. The archive
+  has a Saturday filter.
+- **Tonight page.** Says "today" on Saturday, and until the first Saturday is
+  published it expects 20 players with no ratings (see
+  [Tonight page and turnout app](turnout-flow.md)).
+
 ## Finalizing and reopening
 
 **Finalize RR Results** checks that every match is complete, updates every
@@ -294,8 +318,8 @@ now** in the banner skips the wait (after publishing, a session can no longer
 be reopened here). The countdown is stored on the server, so it survives a
 reload, and a backup trigger covers a closed tab. If publishing is not
 connected (see below) or GitHub refuses the request, the banner says so and the
-workflow's own fallback runs (11:45 PM and 8:00 AM Pacific on Mon/Wed nights)
-publish the session instead.
+workflow's own fallback runs (11:45 PM and 8:00 AM Pacific after Mon/Wed nights,
+8:45 PM and 8:00 AM after a Saturday) publish the session instead.
 
 **Results email.** When the desk sees the club site list the session, the banner
 starts a second 2-minute countdown. At zero (or with **Send now**) the desk

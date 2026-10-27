@@ -174,7 +174,7 @@ assert.equal(zone('1600+').texted, 1, 'Dee texted');
 assert.equal(zone('800–999').texted, 1, 'Fay texted under her alias');
 assert.equal(zone('600–799').likely, 0, 'Bo comes Mondays only: probable, not likely');
 assert.equal(zone('600–799').expected, 1, 'but Bo is in the forecast');
-assert.deepEqual(answer.unrated, { here: 0, texted: 3 }, 'two Eli Twins, Ivy (no player) and a number with no contact name');
+assert.deepEqual(answer.unrated, { here: 0, texted: 3, expected: 3 }, 'two Eli Twins, Ivy (no player) and a number with no contact name');
 assert.equal(answer.brackets.reduce((sum, b) => sum + b.here + b.texted, 0), 4);
 
 const said = JSON.stringify(answer);

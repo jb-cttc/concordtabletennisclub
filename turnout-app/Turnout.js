@@ -21,16 +21,26 @@
     { min: 1600, max: null, label: "1600+" }
   ];
 
-  // Round robin nights (Monday, Wednesday) and their clock, Pacific: sign-up closes at 7:15 PM, the gym at 10 PM.
-  var RR_DAYS = [1, 3];
-  var SIGNUP_CLOSES = 19 * 60 + 15;
-  var NIGHT_ENDS = 22 * 60;
+  // Round robin days by weekday (0 is Sunday) and their clock, in Pacific minutes after midnight: sign-up opens and
+  // closes, play starts, the gym closes. Monday and Wednesday nights sign up 6:45-7:15 PM, play at 7:30, close at 10.
+  // The Saturday pilot (weekly from October 31, 2026) signs up 2:45-3:15 PM, plays at 3:30 and closes at 6, so the page
+  // says "today" for it. from: the first round robin on that weekday. pair: the other weekday likelihood() also reads.
+  // firstExpected: the day's total until it has a published night of its own (the club's show of hands for the pilot),
+  // with no ratings known.
+  var NIGHTS = {
+    1: { opens: 18 * 60 + 45, closes: 19 * 60 + 15, starts: 19 * 60 + 30, ends: 22 * 60, pair: 3, word: "tonight" },
+    3: { opens: 18 * 60 + 45, closes: 19 * 60 + 15, starts: 19 * 60 + 30, ends: 22 * 60, pair: 1, word: "tonight" },
+    6: { opens: 14 * 60 + 45, closes: 15 * 60 + 15, starts: 15 * 60 + 30, ends: 18 * 60, pair: null, word: "today", from: "2026-10-31", firstExpected: 20 }
+  };
+  // Monday and Wednesday's sign-up close and gym close.
+  var SIGNUP_CLOSES = NIGHTS[1].closes;
+  var NIGHT_ENDS = NIGHTS[1].ends;
 
   // A player is "likely" when likelihood() reaches this. The score is calibrated on the club's own history: of the
   // players it gave 0.9 or more, about 9 in 10 came (npm run turnout:backtest prints the current figures).
   var LIKELY_AT = 0.9;
-  // likelihood() looks at this many recent nights of the same weekday and of the other round robin weekday. Each night
-  // back counts DECAY times the one after it, and the other weekday counts OTHER_WEEKDAY as much as the same one.
+  // likelihood() looks at this many recent nights of the same weekday and of its pair (Monday and Wednesday). Each night
+  // back counts DECAY times the one after it, and the pair counts OTHER_WEEKDAY as much as the same weekday.
   var LOOKBACK = 8;
   var DECAY = 0.9;
   var OTHER_WEEKDAY = 0.5;
@@ -55,30 +65,38 @@
     return new Date(date + "T12:00:00Z").getUTCDay();
   }
 
+  // The round robin schedule for date's weekday (NIGHTS), or null on a day without one.
+  function night(date) {
+    var hours = NIGHTS[weekday(date)];
+    return hours && !(hours.from && date < hours.from) ? hours : null;
+  }
+
   function addDays(date, days) {
     return new Date(Date.parse(date + "T12:00:00Z") + days * 86400000).toISOString().slice(0, 10);
   }
 
   // The night the page is about, from the Pacific clock ({date: "2026-10-21", minutes: 1140}) and the site's
-  // closures.json. Today while a round robin night is still open, otherwise the next one the gym is open for.
+  // closures.json. Today while a round robin is still on, otherwise the next one the gym is open for.
   // phase: "ahead" (a later day), "signup" (today, before sign-up closes), "underway" (today, sign-up closed).
   function sessionNight(clock, closures) {
     var days = (closures && closures.days) || {};
     for (var offset = 0; offset < 28; offset++) {
       var date = addDays(clock.date, offset);
-      if (RR_DAYS.indexOf(weekday(date)) < 0 || days[date] === "full") continue;
-      if (offset === 0 && clock.minutes >= NIGHT_ENDS) continue;
-      var phase = offset > 0 ? "ahead" : clock.minutes < SIGNUP_CLOSES ? "signup" : "underway";
+      var hours = night(date);
+      if (!hours || days[date] === "full") continue;
+      if (offset === 0 && clock.minutes >= hours.ends) continue;
+      var phase = offset > 0 ? "ahead" : clock.minutes < hours.closes ? "signup" : "underway";
       return { date: date, phase: phase };
     }
     return null;
   }
 
   // Chance each recent player comes on date, from the published roster ({date: [names]}) before it. A smoothed,
-  // recency-weighted share of the last LOOKBACK same-weekday nights plus, at OTHER_WEEKDAY weight, the other weekday's.
+  // recency-weighted share of the last LOOKBACK same-weekday nights plus, at OTHER_WEEKDAY weight, its pair's. Saturday
+  // has no pair: its crowd is not Monday's or Wednesday's.
   function likelihood(roster, date) {
     var day = weekday(date);
-    var other = day === 1 ? 3 : 1;
+    var other = night(date) ? night(date).pair : null;
     var earlier = Object.keys(roster || {}).filter(function (d) { return d < date; }).sort().reverse();
     var same = earlier.filter(function (d) { return weekday(d) === day; }).slice(0, LOOKBACK);
     var others = earlier.filter(function (d) { return weekday(d) === other; }).slice(0, LOOKBACK);
@@ -104,6 +122,7 @@
   // How many to expect on date in all: the recency-weighted average turnout of the last LOOKBACK nights on the same
   // weekday. Summing every player's chance instead ran about 2 high on Wednesdays (Monday's bigger crowd and many
   // once-in-a-while players each add a little), and a same-time-last-year adjustment made it worse, not better.
+  // A weekday with no night yet expects its firstExpected, if it has one.
   function expectedTotal(roster, date) {
     var day = weekday(date);
     var same = Object.keys(roster || {}).filter(function (d) { return d < date && weekday(d) === day; }).sort().reverse().slice(0, LOOKBACK);
@@ -113,7 +132,8 @@
       weight += Math.pow(DECAY, i);
       players += Math.pow(DECAY, i) * (roster[d] || []).length;
     });
-    return weight ? players / weight : null;
+    if (weight) return players / weight;
+    return night(date) && night(date).firstExpected !== undefined ? night(date).firstExpected : null;
   }
 
   function likelyNames(roster, date) {
@@ -125,7 +145,9 @@
   // "likely" (chance of LIKELY_AT or more) or "maybe" (any other recent player, who only adds their chance to expected).
   // A person is counted once, at their firmest status. Returns counts only, per bracket, plus the people with no rating.
   // expected is the forecast: everyone playing tonight, plus the rest of total (expectedTotal) shared out between the
-  // zones by the other players' chances. Without total, each chance counts as it is.
+  // zones by the other players' chances. Without total, each chance counts as it is. When nobody has a chance to share
+  // it by (a new round robin day, with no history), the rest of total waits at the front desk: unrated.expected counts
+  // those with no rating who are playing plus that rest.
   function tally(people, total) {
     var rank = { here: 4, texted: 3, likely: 2, maybe: 1 };
     var best = {};
@@ -177,6 +199,8 @@
       left -= 1;
     }
     brackets.forEach(function (bracket, i) { bracket.expected = whole[i]; });
+    var unknown = typeof total === "number" && isFinite(total) && !mass ? Math.max(0, Math.round(total) - target - unrated.here - unrated.texted) : 0;
+    unrated.expected = unrated.here + unrated.texted + unknown;
     return { brackets: brackets, unrated: unrated };
   }
 
@@ -192,11 +216,13 @@
   return {
     BRACKETS: BRACKETS,
     LIKELY_AT: LIKELY_AT,
+    NIGHTS: NIGHTS,
     SIGNUP_CLOSES: SIGNUP_CLOSES,
     NIGHT_ENDS: NIGHT_ENDS,
     bracketIndex: bracketIndex,
     nameKey: nameKey,
     weekday: weekday,
+    night: night,
     addDays: addDays,
     sessionNight: sessionNight,
     likelihood: likelihood,

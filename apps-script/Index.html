@@ -3260,10 +3260,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var loaded = false;
   // Senders whose texts came in with the last automatic check, highlighted for a moment.
   var fresh = {};
-  // On a round robin night the list checks for new texts every minute from 6:45 until 7:30 PM, Pacific, while
-  // tonight's date is open and the tab is in view.
-  var POLL_FROM = 18 * 60 + 45;
-  var POLL_UNTIL = 19 * 60 + 30;
+  // On a round robin day the list checks for new texts every minute around sign-up, Pacific, while today's date is open
+  // and the tab is in view: 6:45 until 7:30 PM on Monday and Wednesday nights, 2:45 until 3:30 PM for the Saturday
+  // afternoon pilot (from October 31, 2026). [from, until, first date].
+  var POLL_DAYS = { Mon: [18 * 60 + 45, 19 * 60 + 30], Wed: [18 * 60 + 45, 19 * 60 + 30], Sat: [14 * 60 + 45, 15 * 60 + 30, '2026-10-31'] };
   var POLL_MS = 60000;
   var pollingShown = false;
   var TIME_FORMAT = { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
@@ -3481,7 +3481,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     pollingShown = polling();
     if (loaded) {
       message.textContent = (!suggestions.length ? 'No texts received on this date.' : lists.waiting.length ? 'Texts received on this date. Choose who to add to RR.' : 'Everyone who texted is added or hidden.') +
-        (polling() ? ' New texts appear here every minute until 7:30 PM.' : '');
+        (polling() ? ' New texts appear here every minute until ' + (pacificNow().weekday === 'Sat' ? '3:30' : '7:30') + ' PM.' : '');
     }
   }
 
@@ -3494,7 +3494,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 
   function polling() {
     var now = pacificNow();
-    return (now.weekday === 'Mon' || now.weekday === 'Wed') && date.value === now.date && now.minutes >= POLL_FROM && now.minutes < POLL_UNTIL;
+    var hours = POLL_DAYS[now.weekday];
+    return !!hours && !(hours[2] && now.date < hours[2]) && date.value === now.date && now.minutes >= hours[0] && now.minutes < hours[1];
   }
 
   // The directory: the players the page loaded at startup the first time, then a fresh list.
@@ -3743,7 +3744,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. When a search also matches archived players, press Show archived players to include them until the page reloads.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
     { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
-    { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. Anyone added folds into Added tonight below; press Hide to tuck a text away under Hidden tonight, where Unhide brings it back. Hiding lasts for the night on this device, and a new text from that person brings them back to the top. On Monday and Wednesday nights from 6:45 to 7:30 the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
+    { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. Anyone added folds into Added tonight below; press Hide to tuck a text away under Hidden tonight, where Unhide brings it back. Hiding lasts for the night on this device, and a new text from that person brings them back to the top. On Monday and Wednesday nights from 6:45 to 7:30, and Saturdays from 2:45 to 3:30, the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
     { title: 'Group size', text: 'Groups are built by rating in groups of 6 (or 5 when the numbers do not divide evenly). Choose 5 or 7 to rebuild in groups of 5 (or 4) or 7 (or 6). Like Rebuild by rating, it replaces manual moves and reapplies promotions. The choice is for this night on this device; a new night starts at 6.', target: '#group-size' },
     { title: 'Arrange the groups', text: 'Use the arrows to move players between groups, or X to remove them from the round robin draft. Changes are saved to Google Sheets automatically a moment after you make them, and kept on this device if the connection drops.', target: '#groups .group-list li' },

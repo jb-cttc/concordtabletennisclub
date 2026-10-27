@@ -159,6 +159,20 @@ run();
 assert.equal(replies[replies.length - 1].reply, 'Received - you\'re on the list, Ada Every! See you tonight.', 'answered again on a new night');
 assert.equal(JSON.parse(properties.CTTC_VOICE_AUTO_REPLIED).date, '2026-11-02');
 
+// The Saturday afternoon pilot, from October 31: answered "today" until sign-up closes at 3:15 PM.
+clock = Date.parse('2026-10-24T17:00:00Z');
+assert.deepEqual(run(), { skipped: 'not now' }, 'no Saturday round robin before the pilot');
+inbox = [text('Ada Every', '(925) 555-0101', 'I\'ll join CTTC\'s RR today', Date.parse('2026-10-31T16:00:00Z'))];
+clock = Date.parse('2026-10-31T17:00:00Z');
+run();
+assert.equal(replies[replies.length - 1].reply, 'Received - you\'re on the list, Ada Every! See you today.', 'Saturday is an afternoon');
+inbox.push(text('Pat Late', '(925) 555-0114', 'coming', Date.parse('2026-10-31T22:14:00Z')));
+clock = Date.parse('2026-10-31T22:14:30Z');
+run();
+assert.equal(replies[replies.length - 1].to, 'Pat Late', 'answered at 3:14 PM');
+clock = Date.parse('2026-10-31T22:15:00Z');
+assert.deepEqual(run(), { skipped: 'not now' }, 'Saturday sign-up closes at 3:15 PM');
+
 // Off again.
 assert.deepEqual(JSON.parse(JSON.stringify(context.disableVoiceAutoReply())), { on: false, triggers: 0 });
 inbox.push(text('Rae New', '(925) 555-0116', 'coming', Date.parse('2026-11-02T16:30:00Z')));
