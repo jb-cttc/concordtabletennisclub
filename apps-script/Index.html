@@ -2706,7 +2706,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return ids;
   }
   function pickFor(item) {
-    if (!picks[item.id]) picks[item.id] = { ids: item.state === 'needs-action' && item.payerId ? [item.payerId] : [], remember: true };
+    // Waiting with a likely answer: that payer (or the players they paid for) is ticked to start with.
+    if (!picks[item.id]) picks[item.id] = { ids: item.state !== 'needs-action' ? [] : item.playerIds.length ? item.playerIds.slice() : item.payerId ? [item.payerId] : [], remember: true };
     return picks[item.id];
   }
 

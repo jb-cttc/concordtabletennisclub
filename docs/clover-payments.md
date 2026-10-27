@@ -87,6 +87,10 @@ passes. Its count is the number of payments waiting for the organizer.
 - If Clover refunds or voids a payment after it was matched, the desk takes the
   Credit back and lists the payment under **Refunds and set aside**.
 
+Matches are recorded by themselves only on tonight's date (or last night's,
+for a desk still open after midnight). Opening an earlier night never changes
+it: a match there waits in the list, already ticked, for **Match** to confirm.
+
 On the player's payment button, a Clover match is the usual **Credit ✓**.
 Hovering it shows "Clover 7:02 PM, $10". Matching, undoing and setting aside go
 through the desk's queue like payment choices: they are kept on the device

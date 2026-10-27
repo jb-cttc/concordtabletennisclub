@@ -45,6 +45,12 @@ const context = {
   ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/TEST/dev' }) },
   HtmlService: {}
 };
+// The desk's clock: matches are recorded by themselves only on tonight's date (or last night's).
+let clock = Date.parse('2026-11-03T04:00:00Z');
+context.Date = class extends Date {
+  constructor(...args) { if (args.length) super(...args); else super(clock); }
+  static now() { return clock; }
+};
 vm.createContext(context);
 for (const file of ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js', 'CloverPayments.js']) {
   vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context, { filename: file });
@@ -171,6 +177,18 @@ assert.equal(item(state, 'E').state, 'unmatched', 'undoing a set-aside brings th
 
 // Next night: the card matched by hand matches by itself, even with no name and the player paying before check-in.
 context.matchCloverPayment(DATE, 'D', ['p4'], true);
+// An earlier night is never changed by itself: a match there waits, ticked, for the organizer to confirm.
+const OLD = '2026-10-26';
+tables.SessionPlayers.push({ session_id: 'session-' + OLD, player_id: 'p4' });
+clover.payments = [payment('H', OLD, 1, 10, { last4: '4444' })];
+clock = Date.parse('2026-11-05T04:00:00Z');
+state = desk(OLD);
+assert.deepEqual([item(state, 'H').state, item(state, 'H').playerIds], ['needs-action', ['p4']]);
+assert.match(item(state, 'H').note, /^Matched by a card used before\. On an earlier night, confirm with Match\./);
+assert.equal(method(OLD, 'p4'), undefined, 'nothing recorded on an earlier night');
+assert.ok(!tables.CloverMatches.some(row => row.session_id === 'session-' + OLD));
+
+clock = Date.parse('2026-11-05T04:00:00Z');
 clover.payments = [payment('F', NEXT, 1, 10, { last4: '4444' }), payment('G', NEXT, 2, 10, { last4: '7777' })];
 tables.SessionPlayers = tables.SessionPlayers.filter(row => !(row.session_id === 'session-' + NEXT && row.player_id === 'p4'));
 state = desk(NEXT);

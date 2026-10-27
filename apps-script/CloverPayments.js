@@ -620,6 +620,15 @@ function cloverClearPayment_(sessionId, paymentId) {
   .forEach(function (row) { sheet.deleteRow(row); });
 }
 
+// Matches are recorded by themselves only on tonight's date, or last night's (a desk still open after midnight).
+function cloverRecent_(sessionDate) {
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var yesterday = Utilities.formatDate(new Date(Date.now() - 86400000), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return sessionDate === today || sessionDate === yesterday;
+}
+var CLOVER_REASON_WORDS_ = { card: 'a card used before', customer: 'a Clover customer seen before', phone: 'a phone used before', email: 'an email used before', name: 'the name on the card',
+  initial: 'the initial and last name on the card', 'customer-name': 'the Clover customer name', 'customer-initial': 'the Clover customer\'s initial and last name', 'pays-for': 'a pays_for link' };
+
 // What the Clover section shows for the night, newest payment first. Each item's state:
 //   matched     recorded as Credit (or, before CLOVER_ENABLED, would be); changed lists players since marked otherwise;
 //   needs-action / unmatched   waiting for the organizer, with the likely players;
@@ -653,9 +662,14 @@ function cloverDeskState_(sessionDate, payments, config) {
     if (row.state === 'matched' || row.state === 'needs-action') row.suggestions = row.playerIds.concat(row.suggestions.filter(function (id) { return row.playerIds.indexOf(id) < 0; }));
     if (row.state !== 'ignored') Object.assign(row, { state: 'unmatched', note: 'Undone at the desk: choose who it is for', playerIds: [], notCheckedIn: [] });
   });
-  if (config.enabled) {
+  if (config.enabled && cloverRecent_(sessionDate)) {
     var fresh = rows.filter(function (row) { return row.state === 'matched'; });
     if (fresh.length) cloverRecord_(sessionDate, fresh);
+  } else if (config.enabled) {
+    // An earlier night is never changed by itself: its matches wait, ticked, for the organizer to confirm.
+    rows.forEach(function (row) {
+      if (row.state === 'matched') Object.assign(row, { state: 'needs-action', note: 'Matched by ' + (CLOVER_REASON_WORDS_[row.reason] || row.reason) + '. On an earlier night, confirm with Match.' });
+    });
   }
   var byPayment = {};
   rows.forEach(function (row) { byPayment[row.payment.id] = row; });
