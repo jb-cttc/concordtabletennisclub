@@ -2832,7 +2832,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     li.append(line(item));
     if (item.state === 'matched') li.appendChild(resultRow(item));
     else {
-      li.appendChild(small('clover-who', item.note + (item.playerIds.length ? ': ' + item.playerIds.map(nameOf).join(', ') : '')));
+      li.appendChild(small('clover-who', item.note + (item.playerIds.length ? ' from ' + item.playerIds.map(nameOf).join(' and ') : '')));
       if (item.state === 'set-aside' && live()) {
         var row = document.createElement('div');
         row.className = 'clover-result';

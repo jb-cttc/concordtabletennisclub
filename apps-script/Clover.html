@@ -41,6 +41,10 @@ body.reloading #summary,body.reloading #nights{opacity:.55}
 .tile.ask{border-top-color:var(--gold)}
 .tile.good{background:#eef7f1}
 #cards .diagnostics{margin:0 0 10px}
+/* On a phone the card tables stack, one card per block, so nothing needs a sideways scroll (a trackpad in iPhone Mirroring cannot do one). */
+@media(max-width:640px){table.stack thead{display:none}table.stack tr{display:grid;grid-template-columns:minmax(0,1fr);gap:3px 12px;padding:11px 0;border-bottom:1px solid var(--line)}table.stack.with-keep tr{grid-template-columns:58px minmax(0,1fr)}table.stack td{border:0;padding:0;text-align:left}table.stack td.keep{grid-row:1/span 5;padding-top:1px}table.stack.with-keep td:not(.keep){grid-column:2}table.stack td.card{font-weight:700}table.stack td[data-label]::before{content:attr(data-label) ": ";color:var(--muted)}table.stack .tag{white-space:nowrap}}
+.why{font:14px/1.5 Arial,sans-serif;margin:0 0 4px}.why summary{cursor:pointer;color:var(--green2);font-weight:700}.why ul{margin:2px 0 6px;padding-left:20px}.why-head{margin:6px 0 0;color:var(--muted)}.why-end{margin:4px 0 0;font-weight:700}
+tr.why-row td{padding-top:0}
 .card-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
 .save-note{font:13px Arial,sans-serif;color:var(--muted)}
 .diagnostics{margin:12px 0 0;font:13px/1.5 Arial,sans-serif;color:var(--muted)}
@@ -106,12 +110,12 @@ tr.conflict td{background:#fdf5f3}
 </section>
 <section id="cards" class="panel" hidden aria-labelledby="cards-title">
   <div class="summary-head"><h2 id="cards-title">Cards learned from your records</h2></div>
-  <p class="diagnostics">Each card is linked to the one player marked Credit at that card's amount on every night it paid ("Nights"), after setting aside players already linked to another card that night. "Marked Credit" is how far from each payment you marked them, for checking only. Check these before they are saved: a wrong one would mark the wrong person paid.</p>
+  <p class="diagnostics">Clover sends no name for a tapped card, so these come only from the payments recorded at the desk. A card is linked to a player when they are the one person marked Credit at the card's amount on every night it paid ("Nights"), after setting aside players whose own card paid that night. If another card paying the same night could only be the same person, neither is linked. Open <b>Why</b> to see each night's evidence. "Marked Credit" is how far from each payment you marked them, for checking only. A wrong card would mark the wrong person paid, so check before saving.</p>
   <div id="card-list"></div>
 </section>
 <section id="almost" class="panel" hidden aria-labelledby="almost-title">
   <div class="summary-head"><h2 id="almost-title">Cards to check in your records</h2></div>
-  <p class="diagnostics">Each of these cards points to one player on every night it paid but one, so it is not learned. Either that night's record is off (fix the payment at the desk and the card can be learned), or the card paid for someone else that night: a shared card, or a payer covering someone (a NameLinks pays_for row).</p>
+  <p class="diagnostics">These cards are not learned. Some point to one player on every night they paid but one: either that night's record is off (fix the payment at the desk and the card can be learned), or the card paid for someone else that night (a shared card, or a payer covering someone, which a NameLinks pays_for row handles). Others point only to a player that another card paying the same night also points to: the records cannot say which is theirs, so match the right one at the desk.</p>
   <div id="almost-list"></div>
 </section>
 <div id="nights" class="nights"></div>
@@ -240,7 +244,7 @@ tr.conflict td{background:#fdf5f3}
       t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Of the cards not learned, ' + several + ' still fit more than one player, ' + none + ' fit nobody on every night (a Credit record missing, or a shared card), and ' +
       clueless + ' paid only on nights with no Credit recorded by hand. Cards linked by hand so far: ' + data.storedLinks + '.';
     renderCards(linked, name, data.enabled);
-    renderAlmost(data.cards.filter(function (card) { return card.almost; }), name);
+    renderAlmost(data.cards.filter(function (card) { return card.almost || card.conflict; }), name);
     summary.hidden = false;
     if (!data.nights.length) {
       nights.appendChild(el('div', { className: 'empty', text: 'No round robin nights or Clover payments in this range.' }));
@@ -258,15 +262,16 @@ tr.conflict td{background:#fdf5f3}
     body.textContent = '';
     section.hidden = !linked.length;
     if (!linked.length) return;
-    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Save', 'Card', 'Player', 'Payments', 'Nights', 'Marked Credit'].map(function (label, index) { return el('th', { className: index === 3 || index === 4 ? 'num' : '', text: label }); }))])]);
+    var table = el('table', { className: 'stack with-keep' }, [el('thead', {}, [el('tr', {}, ['Save', 'Card', 'Player', 'Payments', 'Nights', 'Marked Credit'].map(function (label, index) { return el('th', { className: index === 3 || index === 4 ? 'num' : '', text: label }); }))])]);
     var tbody = el('tbody');
     var boxes = [];
     linked.sort(function (a, b) { return name(a.playerId).localeCompare(name(b.playerId)); }).forEach(function (card) {
-      var keep = el('td');
+      var keep = el('td', { className: 'keep' });
       if (card.saved) keep.appendChild(el('span', { className: 'tag agrees', text: 'Saved' }));
       else {
         var box = el('input', { type: 'checkbox', 'aria-label': 'Save ' + card.card + ' for ' + name(card.playerId) });
-        box.checked = true;
+        // A card learned from a single night is the weakest evidence: it starts unticked.
+        box.checked = card.nights >= 2;
         box.disabled = !enabled;
         box.card = card;
         boxes.push(box);
@@ -274,15 +279,16 @@ tr.conflict td{background:#fdf5f3}
       }
       tbody.appendChild(el('tr', {}, [
         keep, el('td', { className: 'card', text: card.card }), el('td', { className: 'who', text: name(card.playerId) }),
-        el('td', { className: 'num', text: String(card.payments) }), el('td', { className: 'num', text: String(card.nights) }),
-        el('td', { text: card.minutes.length ? card.minutes.map(function (m) { return m + ' min'; }).join(', ') + ' from paying' : '-' })
+        el('td', { className: 'num', 'data-label': 'Payments', text: String(card.payments) }), el('td', { className: 'num', 'data-label': 'Nights', text: String(card.nights) }),
+        el('td', { 'data-label': 'Marked Credit', text: card.minutes.length ? card.minutes.map(function (m) { return m + ' min'; }).join(', ') + ' from paying' : '-' })
       ]));
+      if (card.why) tbody.appendChild(el('tr', { className: 'why-row' }, [el('td', { colspan: '6' }, [explain(card, name)])]));
     });
     table.appendChild(tbody);
     body.appendChild(el('div', { className: 'scroll' }, [table]));
     if (!boxes.length) return;
     var save = el('button', { className: 'primary', type: 'button', text: 'Save ticked cards' });
-    var note = el('span', { className: 'save-note', text: enabled ? '' : 'Saving turns on with CLOVER_ENABLED.' });
+    var note = el('span', { className: 'save-note', text: enabled ? 'Cards learned from a single night start unticked: open Why and tick them only if they look right.' : 'Saving turns on with CLOVER_ENABLED.' });
     save.disabled = !enabled;
     save.addEventListener('click', function () {
       var chosen = boxes.filter(function (box) { return box.checked; }).map(function (box) { return { key: box.card.key, playerId: box.card.playerId }; });
@@ -300,22 +306,46 @@ tr.conflict td{background:#fdf5f3}
     body.appendChild(el('div', { className: 'card-actions' }, [save, note]));
   }
 
+  // Why a learned card is its player, night by night, in the records' own terms.
+  function shortDate(value) { return longDate(value).replace(/, \d{4}$/, ''); }
+  function explain(card, name) {
+    var player = name(card.playerId);
+    var lines = card.why.nights.map(function (night) {
+      return el('li', { text: shortDate(night.date) + ', ' + money(night.amount) + ': marked Credit at ' + money(night.amount) + ': ' + night.credit.map(name).join(', ') + '.' });
+    });
+    var out = card.why.ruledOut.map(function (entry) {
+      return el('li', { text: name(entry.playerId) + ': ' + (entry.reason === 'not-credit' ? 'not marked Credit at ' + money(card.why.nights[0].amount) + ' on ' + shortDate(entry.date) : 'their own card ' + entry.card + ' paid on ' + shortDate(entry.date)) + '.' });
+    });
+    var children = [el('summary', { text: 'Why ' + player }), el('p', { className: 'why-head', text: 'Nights this card paid:' }), el('ul', {}, lines)];
+    if (out.length) children.push(el('p', { className: 'why-head', text: 'Everyone else ruled out:' }), el('ul', {}, out));
+    children.push(el('p', { className: 'why-end', text: 'Only ' + player + ' fits every night.' + (card.nights === 1 ? ' This rests on one night, so check it before saving.' : '') }));
+    return el('details', { className: 'why' }, children);
+  }
+
   function renderAlmost(cards, name) {
     var section = document.getElementById('almost');
     var body = document.getElementById('almost-list');
     body.textContent = '';
     section.hidden = !cards.length;
     if (!cards.length) return;
-    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Card', 'Points to', 'Credit on', 'The night that does not fit'].map(function (label, index) { return el('th', { className: index === 2 ? 'num' : '', text: label }); }))])]);
+    var table = el('table', { className: 'stack' }, [el('thead', {}, [el('tr', {}, ['Card', 'Points to', 'Credit on', 'Why it isn\u2019t learned'].map(function (label, index) { return el('th', { className: index === 2 ? 'num' : '', text: label }); }))])]);
     var tbody = el('tbody');
     cards.forEach(function (card) {
+      if (card.conflict) {
+        tbody.appendChild(el('tr', {}, [
+          el('td', { className: 'card', text: card.card }), el('td', { className: 'who', 'data-label': 'Points to', text: name(card.conflict.playerId) }),
+          el('td', { className: 'num', 'data-label': 'Credit on', text: card.nights + ' of ' + card.nights + ' nights' }),
+          el('td', { 'data-label': 'Why not', text: card.conflict.cards.join(', ') + ' paid on the same night and also points only to ' + name(card.conflict.playerId) + '. Match the right one at the desk.' })
+        ]));
+        return;
+      }
       var odd = card.almost.odd.map(function (night) {
         var record = night.method ? 'marked ' + (METHODS[night.method] || night.method) : night.checkedIn ? 'checked in, no payment chosen' : 'not checked in';
         return longDate(night.date).replace(/, \d{4}$/, '') + ', ' + night.clock + ', ' + money(night.amount) + ': ' + record;
       }).join('; ');
       tbody.appendChild(el('tr', {}, [
-        el('td', { className: 'card', text: card.card }), el('td', { text: name(card.almost.playerId) }),
-        el('td', { className: 'num', text: card.almost.nights + ' of ' + card.nights + ' nights' }), el('td', { text: odd })
+        el('td', { className: 'card', text: card.card }), el('td', { className: 'who', 'data-label': 'Points to', text: name(card.almost.playerId) }),
+        el('td', { className: 'num', 'data-label': 'Credit on', text: card.almost.nights + ' of ' + card.nights + ' nights' }), el('td', { 'data-label': 'Why not', text: odd })
       ]));
     });
     table.appendChild(tbody);

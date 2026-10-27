@@ -29,7 +29,8 @@ const tonight = enabled => night(enabled, [
   item('A', { state: 'matched', reason: 'card', playerIds: ['p1'], recorded: enabled, clock: '7:02 PM' }),
   item('B', { net: 15, amount: 15, state: 'needs-action', payerId: 'p2', playerIds: ['p2'], reason: 'card', note: 'Paid $15, fee is $10: $5 more. Who else does it cover?', suggestions: ['p3'] }),
   item('C', { note: 'No player found', suggestions: ['p4'] }),
-  item('D', { state: 'ignored', note: 'Refunded' })
+  item('D', { state: 'ignored', note: 'Refunded' }),
+  item('R', { state: 'ignored', note: 'Refunded on Clover after it was matched: Credit taken back', playerIds: ['p4'] })
 ]);
 
 // Each page's minute check is a timer: the pages are closed at the end so the check can finish.
@@ -72,7 +73,8 @@ function boot(desk) {
   assert.deepEqual(plain(page.$$('.clover-payments > ul > li').map(li => li.getAttribute('data-clover-payment'))), ['B', 'C']);
   assert.match(page.$('.clover-payments > p.hint').textContent, /1 matched, 2 to match by hand\. Checked/);
   assert.equal(page.$('.clover-matched-group').hidden, false);
-  assert.equal(page.$('.clover-aside-group summary').textContent, 'Refunds and set aside (1)');
+  assert.equal(page.$('.clover-aside-group summary').textContent, 'Refunds and set aside (2)');
+  assert.equal(page.$('.clover-aside-group li[data-clover-payment="R"] .clover-who').textContent, 'Refunded on Clover after it was matched: Credit taken back from Drew Lane');
   assert.equal(page.$('.clover-footer a').href, 'https://script.google.com/macros/s/X/dev?view=clover');
 
   // A recorded match is Credit ✓ on the player's own button, with when and how much.
