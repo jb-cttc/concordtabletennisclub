@@ -311,7 +311,9 @@ the Google-hosted desk: `npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--
 it pushed. Those screenshots show real member data; keep them outside the repository. Keep the sign-in in
 the environment's settings only, never in this public repository. It stays valid until it is removed under the
 club account's Google Account → Security → third-party access; after that, sign in again with
-`clasp login --no-localhost` and update the variable.
+`clasp login --no-localhost` and update the variable. The hook then prints what the session can reach (the desk,
+the private Sheet through the read-only service account, clasp, read-only Google APIs); the same list, with the
+commands, is in [AGENTS.md](AGENTS.md#what-this-session-can-access).
 
 **Daily cash flow:** `cash.html` (served at `/cash`, linked from the Membership page) frames the same released desk
 `/exec` address with `?view=cash`, so like the desk it opens only for the club's Google account. It totals each club day
