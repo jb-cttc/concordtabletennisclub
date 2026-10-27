@@ -109,6 +109,11 @@ tr.conflict td{background:#fdf5f3}
   <p class="diagnostics">Each card is linked to the one player marked Credit at that card's amount on every night it paid ("Nights"), after setting aside players already linked to another card that night. "Marked Credit" is how far from each payment you marked them, for checking only. Check these before they are saved: a wrong one would mark the wrong person paid.</p>
   <div id="card-list"></div>
 </section>
+<section id="almost" class="panel" hidden aria-labelledby="almost-title">
+  <div class="summary-head"><h2 id="almost-title">Cards to check in your records</h2></div>
+  <p class="diagnostics">Each of these cards points to one player on every night it paid but one, so it is not learned. Either that night's record is off (fix the payment at the desk and the card can be learned), or the card paid for someone else that night: a shared card, or a payer covering someone (a NameLinks pays_for row).</p>
+  <div id="almost-list"></div>
+</section>
 <div id="nights" class="nights"></div>
 <div class="footnote">
   <p>Each completed card payment on Clover is matched to a player only when the evidence points to exactly one: a card or Clover customer matched before, the name on the card (or Clover customer) exactly matching one player or saved alias, or the same last name with a first name or initial only one active player fits. The amount must then be that player's fee (Junior $5, Member $10, Visitor $15), or the fees of a payer and the players a NameLinks "pays_for" row says they pay for.</p>
@@ -235,6 +240,7 @@ tr.conflict td{background:#fdf5f3}
       t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Of the cards not learned, ' + several + ' still fit more than one player, ' + none + ' fit nobody on every night (a Credit record missing, or a shared card), and ' +
       clueless + ' paid only on nights with no Credit recorded by hand. Cards linked by hand so far: ' + data.storedLinks + '.';
     renderCards(linked, name, data.enabled);
+    renderAlmost(data.cards.filter(function (card) { return card.almost; }), name);
     summary.hidden = false;
     if (!data.nights.length) {
       nights.appendChild(el('div', { className: 'empty', text: 'No round robin nights or Clover payments in this range.' }));
@@ -292,6 +298,28 @@ tr.conflict td{background:#fdf5f3}
       });
     });
     body.appendChild(el('div', { className: 'card-actions' }, [save, note]));
+  }
+
+  function renderAlmost(cards, name) {
+    var section = document.getElementById('almost');
+    var body = document.getElementById('almost-list');
+    body.textContent = '';
+    section.hidden = !cards.length;
+    if (!cards.length) return;
+    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Card', 'Points to', 'Credit on', 'The night that does not fit'].map(function (label, index) { return el('th', { className: index === 2 ? 'num' : '', text: label }); }))])]);
+    var tbody = el('tbody');
+    cards.forEach(function (card) {
+      var odd = card.almost.odd.map(function (night) {
+        var record = night.method ? 'marked ' + (METHODS[night.method] || night.method) : night.checkedIn ? 'checked in, no payment chosen' : 'not checked in';
+        return longDate(night.date).replace(/, \d{4}$/, '') + ', ' + night.clock + ', ' + money(night.amount) + ': ' + record;
+      }).join('; ');
+      tbody.appendChild(el('tr', {}, [
+        el('td', { className: 'card', text: card.card }), el('td', { text: name(card.almost.playerId) }),
+        el('td', { className: 'num', text: card.almost.nights + ' of ' + card.nights + ' nights' }), el('td', { text: odd })
+      ]));
+    });
+    table.appendChild(tbody);
+    body.appendChild(el('div', { className: 'scroll' }, [table]));
   }
 
   function renderNight(night, name) {

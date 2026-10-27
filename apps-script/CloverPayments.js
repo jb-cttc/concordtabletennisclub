@@ -443,6 +443,13 @@ function cloverLearnCards_(nights, statuses) {
     var left = fitting(card);
     card.nights = card.clues.length;
     card.candidates = links[card.key] ? [links[card.key]] : left || [];
+    // Not learned, but one player fits every night but one: a record to check (a payment marked another way, or the card
+    // paying for someone else that night), never a link.
+    if (links[card.key] || card.clues.length < 3) return;
+    var counts = {};
+    card.clues.forEach(function (clue) { clue.options.forEach(function (id) { counts[id] = (counts[id] || 0) + 1; }); });
+    var close = Object.keys(counts).filter(function (id) { return counts[id] === card.clues.length - 1; });
+    if (close.length === 1) card.almost = { playerId: close[0], dates: card.clues.filter(function (clue) { return clue.options.indexOf(close[0]) < 0; }).map(function (clue) { return clue.date; }) };
   });
   return { links: links, cards: list };
 }
@@ -930,6 +937,11 @@ function getCloverReport(fromDate, toDate) {
       card: sample ? cloverCardLabel_(sample) : card.key.split('|').pop(),
       playerId: learned.links[card.key] || '',
       saved: !!learned.links[card.key] && stored[card.key] === learned.links[card.key],
+      // The night the record disagrees: what was chosen by hand for that player, and whether they were checked in.
+      almost: card.almost ? { playerId: card.almost.playerId, nights: card.nights - card.almost.dates.length, odd: card.almost.dates.map(function (date) {
+        var payment = card.clues.filter(function (clue) { return clue.date === date; })[0].payment;
+        return { date: date, clock: payment.clock, amount: payment.net / 100, method: (hands[date] || {})[card.almost.playerId] || '', checkedIn: !!(rosters[date] || {})[card.almost.playerId] };
+      }) } : null,
       payments: card.payments,
       nights: card.nights,
       candidates: card.candidates.length,

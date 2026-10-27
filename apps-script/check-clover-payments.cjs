@@ -212,6 +212,14 @@ assert.equal(cardOf('1005').nights, 2, 'Oct 19 had nothing marked Credit, so it 
 assert.equal(linkOf('1006'), undefined, 'nobody was marked Credit at $10 on Oct 14');
 assert.equal(linkOf('1007'), 'p5', 'a single night with one player at that fee');
 assert.equal(cardOf('1008').nights, 0, 'only paid on a night with no Credit recorded');
+learnt = learn([
+  ['2026-10-05', [card('2026-10-05', 10, '3001')], ['p1', 'p3']],
+  ['2026-10-07', [card('2026-10-07', 10, '3001')], ['p1', 'p4']],
+  ['2026-10-12', [card('2026-10-12', 10, '3001')], ['p3', 'p4']],
+  ['2026-10-14', [card('2026-10-14', 10, '3001')], ['p1']]
+]);
+assert.equal(linkOf('3001'), undefined);
+assert.deepEqual(cardOf('3001').almost, { playerId: 'p1', dates: ['2026-10-12'] }, 'p1 fits three of four nights: the odd night is shown to check, never linked');
 learnt = learn([['2026-10-05', [card('2026-10-05', 10, '2001'), card('2026-10-05', 10, '2002')], ['p1', 'p3']]]);
 assert.deepEqual([linkOf('2001'), linkOf('2002')], [undefined, undefined], 'two cards and two players at one amount are never guessed');
 assert.equal(cardOf('2001').candidates.length, 2);
