@@ -133,6 +133,9 @@ reads it on every load. `LinkedNames.js` rejects any other `kind`.
   to. Juniors show a **J** badge whose tooltip names the member.
 - `junior` with a blank `linked_name`: a junior member with no linked adult
   account (J badge, "Junior member").
+- `pays_for`: `name` regularly pays `linked_name`'s fee on the same Clover
+  card payment. The desk then matches one payment to both when their fees add
+  up to it (see [Clover card payments](clover-payments.md)).
 
 A link applies only when each name matches exactly one active player;
 otherwise it is listed as needing a directory match. Other players default to

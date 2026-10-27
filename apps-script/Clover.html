@@ -41,6 +41,8 @@ body.reloading #summary,body.reloading #nights{opacity:.55}
 .tile.ask{border-top-color:var(--gold)}
 .tile.good{background:#eef7f1}
 #cards .diagnostics{margin:0 0 10px}
+.card-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
+.save-note{font:13px Arial,sans-serif;color:var(--muted)}
 .diagnostics{margin:12px 0 0;font:13px/1.5 Arial,sans-serif;color:var(--muted)}
 .nights{display:grid;gap:16px}
 .night{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:hidden}
@@ -232,7 +234,7 @@ tr.conflict td{background:#fdf5f3}
     document.getElementById('diagnostics').textContent = 'Of the ' + t.cardPayments + ' card payments, ' + t.withName + ' carried a name on the card and ' + t.withCustomer + ' a Clover customer record. ' +
       t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Of the cards not learned, ' + several + ' still fit more than one player, ' + none + ' fit nobody on every night (a Credit record missing, or a shared card), and ' +
       clueless + ' paid only on nights with no Credit recorded by hand. Cards linked by hand so far: ' + data.storedLinks + '.';
-    renderCards(linked, name);
+    renderCards(linked, name, data.enabled);
     summary.hidden = false;
     if (!data.nights.length) {
       nights.appendChild(el('div', { className: 'empty', text: 'No round robin nights or Clover payments in this range.' }));
@@ -243,23 +245,53 @@ tr.conflict td{background:#fdf5f3}
     setStatus('Read Clover from ' + longDate(data.from) + ' to ' + longDate(data.to) + '.');
   }
 
-  function renderCards(linked, name) {
+  // The learned cards, each ticked to save unless already saved. Saving needs CLOVER_ENABLED, like every desk change.
+  function renderCards(linked, name, enabled) {
     var section = document.getElementById('cards');
     var body = document.getElementById('card-list');
     body.textContent = '';
     section.hidden = !linked.length;
     if (!linked.length) return;
-    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Card', 'Player', 'Payments', 'Nights', 'Marked Credit'].map(function (label, index) { return el('th', { className: index === 2 || index === 3 ? 'num' : '', text: label }); }))])]);
+    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Save', 'Card', 'Player', 'Payments', 'Nights', 'Marked Credit'].map(function (label, index) { return el('th', { className: index === 3 || index === 4 ? 'num' : '', text: label }); }))])]);
     var tbody = el('tbody');
+    var boxes = [];
     linked.sort(function (a, b) { return name(a.playerId).localeCompare(name(b.playerId)); }).forEach(function (card) {
+      var keep = el('td');
+      if (card.saved) keep.appendChild(el('span', { className: 'tag agrees', text: 'Saved' }));
+      else {
+        var box = el('input', { type: 'checkbox', 'aria-label': 'Save ' + card.card + ' for ' + name(card.playerId) });
+        box.checked = true;
+        box.disabled = !enabled;
+        box.card = card;
+        boxes.push(box);
+        keep.appendChild(box);
+      }
       tbody.appendChild(el('tr', {}, [
-        el('td', { className: 'card', text: card.card }), el('td', { className: 'who', text: name(card.playerId) }),
+        keep, el('td', { className: 'card', text: card.card }), el('td', { className: 'who', text: name(card.playerId) }),
         el('td', { className: 'num', text: String(card.payments) }), el('td', { className: 'num', text: String(card.nights) }),
         el('td', { text: card.minutes.length ? card.minutes.map(function (m) { return m + ' min'; }).join(', ') + ' from paying' : '-' })
       ]));
     });
     table.appendChild(tbody);
     body.appendChild(el('div', { className: 'scroll' }, [table]));
+    if (!boxes.length) return;
+    var save = el('button', { className: 'primary', type: 'button', text: 'Save ticked cards' });
+    var note = el('span', { className: 'save-note', text: enabled ? '' : 'Saving turns on with CLOVER_ENABLED.' });
+    save.disabled = !enabled;
+    save.addEventListener('click', function () {
+      var chosen = boxes.filter(function (box) { return box.checked; }).map(function (box) { return { key: box.card.key, playerId: box.card.playerId }; });
+      if (!chosen.length) { note.textContent = 'Tick the cards to save.'; return; }
+      save.disabled = true;
+      note.textContent = 'Saving…';
+      request('saveCloverCards', chosen).then(function (count) {
+        note.textContent = count + (count === 1 ? ' card saved.' : ' cards saved.') + ' The desk now matches them by itself.';
+        load();
+      }, function (error) {
+        save.disabled = false;
+        note.textContent = 'Not saved: ' + message(error);
+      });
+    });
+    body.appendChild(el('div', { className: 'card-actions' }, [save, note]));
   }
 
   function renderNight(night, name) {

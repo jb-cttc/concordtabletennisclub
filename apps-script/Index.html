@@ -61,7 +61,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
   var READ_TIMEOUT_MS = 30000;
-  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1 };
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1, getCloverDesk: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -2127,6 +2127,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var dateField = document.getElementById('date');
   var methods = {};
   var covered = {};
+  // Payments recorded elsewhere on the desk (a Clover card payment): a note for the button, and the players whose
+  // payment is still on its way to Google.
+  var notes = {};
+  var waitingElsewhere = {};
   var requestNumber = 0;
   var CACHE_PREFIX = 'cttc-payment-overview-v1:';
   var METHODS = [['venmo', 'Venmo'], ['zelle', 'Zelle'], ['cash', 'Cash'], ['credit', 'Credit'], ['zeffy', 'Zeffy'], ['', 'Unpaid']];
@@ -2178,7 +2182,25 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     syncPayment(playerId);
     outbox.enqueue(paymentKey(selectedDate, playerId), 'setSessionPayment', [selectedDate, playerId, method]);
   }
-  window.cttcPayments = { choose: choose };
+  // A payment recorded by another part of the desk: shown at once, unless this device is still sending its own choice
+  // for the player. waiting marks it as not yet confirmed by Google.
+  function recorded(date, playerId, method, waiting) {
+    if (date !== dateField.value) return;
+    if (waiting) waitingElsewhere[playerId] = true;
+    else delete waitingElsewhere[playerId];
+    if (!queued(date, playerId) && !covered[playerId] && (methods[playerId] || '') !== method) {
+      methods[playerId] = method;
+      if (!waiting) rememberMethod(date, playerId, method);
+    }
+    syncPayment(playerId);
+  }
+  function describe(date, byPlayer) {
+    if (date !== dateField.value) return;
+    var changed = Object.keys(notes).concat(Object.keys(byPlayer)).filter(function (id) { return notes[id] !== byPlayer[id]; });
+    notes = Object.assign({}, byPlayer);
+    changed.forEach(syncPayment);
+  }
+  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function () { refreshPayments(); } };
   var initialPayment = window.cttcRequest('getPrivatePaymentOverview', dateField.value);
   window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
@@ -2232,14 +2254,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     var method = methods[playerId] || '';
     document.querySelectorAll('.payment-control').forEach(function (control) {
       if (control.getAttribute('data-payment-player') !== playerId) return;
-      var waiting = !!queued(dateField.value, playerId);
+      var waiting = !!queued(dateField.value, playerId) || !!waitingElsewhere[playerId];
       control.classList.toggle('paid', !!method);
       control.classList.toggle('pass', !!covered[playerId]);
       control.classList.toggle('unsynced', waiting);
       var trigger = control.querySelector('.payment-trigger');
       var label = method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : 'Payment';
       if (trigger.textContent !== label) trigger.textContent = label;
-      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : waiting ? 'Saved on this device; syncing to Google' : method ? 'Paid by ' + method + '; change method on hover' : 'Choose payment method';
+      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : waiting ? 'Saved on this device; syncing to Google' : method ? 'Paid by ' + method + (method === 'credit' && notes[playerId] ? ' (' + notes[playerId] + ')' : '') + '; change method on hover' : 'Choose payment method';
       trigger.setAttribute('aria-label', 'Payment for ' + control.parentNode.querySelector('.identity strong').textContent + ': ' + (method || 'unpaid'));
       trigger.disabled = !!covered[playerId];
       var unpaid = control.querySelector('.unpaid');
@@ -2249,6 +2271,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function refreshPayments() {
     var selectedDate = dateField.value;
     var currentRequest = ++requestNumber;
+    waitingElsewhere = {};
     var cached = readJson(CACHE_PREFIX + selectedDate, null);
     if (cached && cached.methods && Array.isArray(cached.coveredIds)) {
       applyOverview(cached, selectedDate);
@@ -2492,6 +2515,481 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 }
 @media(prefers-reduced-motion:reduce){.workspace,.sidebar,.sidebar>.section,.side-label{transition:none!important}}
 </style>
+<style>
+.clover-payments h2 .count[hidden]{display:none}
+.clover-payments ul{list-style:none;padding:0;margin:8px 0}
+.clover-payments li{padding:9px 0;border-bottom:1px solid #dce3df}
+.clover-payments li:last-child{border-bottom:0}
+.clover-payments .hint{margin:4px 0}
+.clover-payments .clover-off{padding:7px 9px;border-left:3px solid var(--gold);background:#fff7e3;color:#5f4300}
+.clover-payments .clover-problem{color:#a43831}
+.clover-line{display:flex;align-items:baseline;gap:8px;font:13px Arial,sans-serif}
+.clover-line strong{font:700 14px Arial,sans-serif;font-variant-numeric:tabular-nums}
+.clover-line .clover-card{color:var(--muted)}
+.clover-line time{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+.clover-who,.clover-note{margin:3px 0 0;font:12px Arial,sans-serif;color:var(--muted)}
+.clover-note{color:#8a5a00}
+.clover-result{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin-top:3px;font:13px Arial,sans-serif}
+.clover-result .roster-status{font-size:12px}
+.clover-result .roster-status.muted{color:var(--muted);font-weight:400}
+.clover-payments .clover-undo{margin-left:auto;padding:2px 7px;font:12px Arial,sans-serif}
+.clover-pick{display:grid;gap:2px;margin-top:6px}
+.clover-option{display:flex;align-items:center;gap:7px;padding:3px 0;font:13px Arial,sans-serif;cursor:pointer}
+.clover-option input{margin:0}
+.clover-option .clover-fee{margin-left:auto;color:var(--muted);font-size:12px}
+.clover-pick select{width:100%;margin:2px 0;padding:6px;border:1px solid #aeb7b1;border-radius:4px;background:#fff;color:var(--ink);font:13px Arial,sans-serif}
+.clover-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-top:4px}
+.clover-actions .small{padding:4px 9px;font:12px Arial,sans-serif}
+.clover-actions label{display:inline-flex;align-items:center;gap:4px;font:12px Arial,sans-serif;color:var(--muted)}
+.clover-actions .clover-aside{margin-left:auto}
+.clover-sum{font:12px Arial,sans-serif;color:var(--muted)}.clover-sum.off{color:#8a5a00;font-weight:700}
+.clover-payments li.saving{opacity:.7}
+.clover-group{margin:4px 0 8px}
+.clover-group summary{cursor:pointer;padding:6px 0;font:700 13px Arial,sans-serif;color:var(--muted)}
+.clover-group ul{margin:0 0 0 4px}
+.clover-group li{padding:6px 0}
+.clover-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;font:12px Arial,sans-serif}
+.clover-footer a{color:var(--green)}
+/* A finalized night locks the workspace, but a card payment can still come in late: like Open Play, it stays usable. */
+.locked .clover-payments{pointer-events:auto;opacity:1}
+</style>
+<script>
+// Clover card payments (CloverPayments.js). Card payments the club's Clover takes are matched to players the way Zeffy
+// play passes are: a player who already paid shows Credit ✓ as soon as they are checked in, and one who pays after
+// checking in turns Credit ✓ at the next check, about once a minute while tonight is open. This list holds only what
+// the desk could not match with confidence: the organizer ticks who a payment is for (one payment can cover several
+// players), and the card is remembered for next time. Matches can be undone, and a payment that is not a desk fee set
+// aside. Every change goes through the desk's queue, so it is kept on this device until Google confirms it. Until
+// CLOVER_ENABLED is on, the section only shows what it would do.
+(function () {
+  var date = document.getElementById('date');
+  var groups = document.getElementById('groups');
+  var open = document.getElementById('open-roster');
+  var outbox = window.cttcOutbox;
+  var section = document.createElement('section');
+  section.className = 'section clover-payments';
+  var heading = document.createElement('h2');
+  heading.textContent = 'Clover card payments ';
+  var badge = document.createElement('span');
+  badge.className = 'count';
+  badge.hidden = true;
+  heading.appendChild(badge);
+  var message = document.createElement('p');
+  message.className = 'hint';
+  message.setAttribute('aria-live', 'polite');
+  var list = document.createElement('ul');
+  function group(className) {
+    var details = document.createElement('details');
+    details.className = 'clover-group ' + className;
+    details.hidden = true;
+    var summary = document.createElement('summary');
+    var items = document.createElement('ul');
+    details.append(summary, items);
+    return { details: details, summary: summary, list: items };
+  }
+  var matched = group('clover-matched-group');
+  var aside = group('clover-aside-group');
+  var footer = document.createElement('div');
+  footer.className = 'clover-footer';
+  var refresh = document.createElement('button');
+  refresh.type = 'button';
+  refresh.className = 'small secondary';
+  refresh.textContent = 'Refresh';
+  var allNights = document.createElement('a');
+  allNights.target = '_blank';
+  allNights.rel = 'noopener';
+  allNights.textContent = 'Every night';
+  allNights.title = 'The Clover payments page: every night, and the cards learned from your records';
+  allNights.hidden = true;
+  footer.append(refresh, allNights);
+  section.append(heading, message, list, matched.details, aside.details, footer);
+  var sidebar = document.querySelector('.sidebar');
+  sidebar.insertBefore(section, document.querySelector('.zeffy-passes'));
+
+  var POLL_MS = 60000;
+  var REASONS = {
+    card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
+    name: 'name on card', initial: 'initial and last name on card', 'customer-name': 'Clover customer name',
+    'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays for', hand: 'matched at the desk'
+  };
+  var REJECTED = /Clover matching is off|already matched|Already has a Clover payment|Not a completed card payment|no such payment|undo the match first|Choose who this Clover payment|Unknown or inactive player|Zeffy play pass covers|CLOVER_|Session date must/;
+  var state = null;
+  var requestNumber = 0;
+  // What the organizer has ticked so far, per payment, kept while the list refreshes: { ids: [...], remember: bool }.
+  var picks = {};
+  // Matched players already put on their payment buttons, so a new match is shown there once.
+  var shown = {};
+
+  function money(dollars) { return '$' + (dollars % 1 ? dollars.toFixed(2) : String(dollars)); }
+  function nameOf(id) { return state && state.names[id] || rosterName(id) || 'a player'; }
+  function feeOf(id) { return state && state.fees[id] != null ? state.fees[id] : null; }
+  function actionKey(paymentId) { return 'clover:' + date.value + ':' + paymentId; }
+  function pending(paymentId) { return outbox.find(actionKey(paymentId)); }
+  function live() { return !!(state && state.connected && state.enabled); }
+
+  function pacificToday() {
+    var parts = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(new Date()).forEach(function (part) { parts[part.type] = part.value; });
+    return parts.year + '-' + parts.month + '-' + parts.day;
+  }
+  function polling() { return date.value === pacificToday(); }
+
+  // Tonight's players as the desk shows them (the draft may be ahead of what Google has saved), with whether their
+  // payment button already shows a payment.
+  function rosterRows() {
+    var rows = [];
+    document.querySelectorAll('#groups .group-list li, #open-roster .roster-row').forEach(function (row) {
+      var action = row.querySelector('[data-move], [data-open-remove]');
+      var id = action ? action.getAttribute('data-move') || action.getAttribute('data-open-remove') : row.getAttribute('data-coaching');
+      var strong = row.querySelector('.identity strong');
+      if (!id || !strong || rows.some(function (entry) { return entry.id === id; })) return;
+      var control = row.querySelector('.payment-control');
+      rows.push({ id: id, name: strong.textContent, paid: !!(control && control.classList.contains('paid')) });
+    });
+    return rows.sort(function (left, right) { return left.name.localeCompare(right.name); });
+  }
+  function rosterName(id) {
+    var row = rosterRows().filter(function (entry) { return entry.id === id; })[0];
+    return row ? row.name : '';
+  }
+
+  function line(item) {
+    var row = document.createElement('div');
+    row.className = 'clover-line';
+    var amount = document.createElement('strong');
+    amount.textContent = money(item.net);
+    var card = document.createElement('span');
+    card.className = 'clover-card';
+    card.textContent = item.card;
+    var time = document.createElement('time');
+    time.dateTime = new Date(item.time).toISOString();
+    time.textContent = item.clock;
+    row.append(amount, card, time);
+    return row;
+  }
+  function small(className, text) {
+    var node = document.createElement('p');
+    node.className = className;
+    node.textContent = text;
+    return node;
+  }
+  function who(item) {
+    var parts = [];
+    if (item.cardholder) parts.push('Name on card: ' + item.cardholder);
+    if (item.customer && item.customer !== 'no name or contact saved') parts.push('Clover customer: ' + item.customer);
+    return parts.length ? small('clover-who', parts.join(' \u00b7 ')) : null;
+  }
+  function button(label, className, title, onClick) {
+    var node = document.createElement('button');
+    node.type = 'button';
+    node.className = className;
+    node.textContent = label;
+    if (title) node.title = title;
+    node.addEventListener('click', onClick);
+    return node;
+  }
+  function status(text, muted) {
+    var node = document.createElement('span');
+    node.className = 'roster-status' + (muted ? ' muted' : '');
+    node.textContent = text;
+    return node;
+  }
+
+  // The players to offer for a payment: the likely ones first (the payer, then whoever else fits), then anyone the
+  // organizer added from the list of tonight's players.
+  function offered(item) {
+    var ids = [];
+    [item.payerId].concat(item.playerIds, item.suggestions, (picks[item.id] || {}).ids || []).forEach(function (id) {
+      if (id && ids.indexOf(id) < 0) ids.push(id);
+    });
+    return ids;
+  }
+  function pickFor(item) {
+    if (!picks[item.id]) picks[item.id] = { ids: item.state === 'needs-action' && item.payerId ? [item.payerId] : [], remember: true };
+    return picks[item.id];
+  }
+
+  // Ticking redraws only this payment's choices, keeping focus on what was used.
+  function picker(item) {
+    var pick = pickFor(item);
+    var box = document.createElement('div');
+    box.className = 'clover-pick';
+    function redraw(focusId) {
+      var next = picker(item);
+      box.replaceWith(next);
+      var target = next.querySelector('input[data-player="' + CSS.escape(focusId) + '"]');
+      if (target) target.focus();
+    }
+    offered(item).forEach(function (id) {
+      var label = document.createElement('label');
+      label.className = 'clover-option';
+      var tick = document.createElement('input');
+      tick.type = 'checkbox';
+      tick.setAttribute('data-player', id);
+      tick.checked = pick.ids.indexOf(id) >= 0;
+      tick.addEventListener('change', function () {
+        pick.ids = pick.ids.filter(function (other) { return other !== id; });
+        if (tick.checked) pick.ids.push(id);
+        redraw(id);
+      });
+      var name = document.createElement('span');
+      name.textContent = nameOf(id);
+      label.append(tick, name);
+      if (feeOf(id) != null) {
+        var fee = document.createElement('span');
+        fee.className = 'clover-fee';
+        fee.textContent = money(feeOf(id));
+        label.appendChild(fee);
+      }
+      box.appendChild(label);
+    });
+    var others = rosterRows().filter(function (row) { return !row.paid && offered(item).indexOf(row.id) < 0; });
+    if (others.length) {
+      var choose = document.createElement('select');
+      choose.setAttribute('aria-label', 'Someone else checked in tonight');
+      var prompt = document.createElement('option');
+      prompt.value = '';
+      prompt.textContent = item.payerId || offered(item).length ? 'Someone else checked in\u2026' : 'Who paid? Tonight\u2019s players\u2026';
+      choose.appendChild(prompt);
+      others.forEach(function (row) {
+        var option = document.createElement('option');
+        option.value = row.id;
+        option.textContent = row.name;
+        choose.appendChild(option);
+      });
+      choose.addEventListener('change', function () {
+        if (!choose.value) return;
+        pick.ids.push(choose.value);
+        redraw(choose.value);
+      });
+      box.appendChild(choose);
+    }
+    var actions = document.createElement('div');
+    actions.className = 'clover-actions';
+    var match = button('Match', 'small', '', function () { send('matchCloverPayment', item, pick.ids.slice(), pick.remember && pick.ids.length === 1); });
+    match.disabled = !pick.ids.length;
+    match.title = pick.ids.length ? 'Record Credit for ' + pick.ids.map(nameOf).join(' and ') : 'Tick who this payment is for';
+    actions.appendChild(match);
+    // The fees of who is ticked against the amount, so a payment for two people adds up before it is matched.
+    var fees = pick.ids.map(feeOf);
+    if (pick.ids.length && fees.every(function (fee) { return fee != null; })) {
+      var total = fees.reduce(function (sum, fee) { return sum + fee; }, 0);
+      var sum = document.createElement('span');
+      sum.className = 'clover-sum' + (total === item.net ? '' : ' off');
+      sum.textContent = 'Fees ' + money(total) + ' of ' + money(item.net);
+      actions.appendChild(sum);
+    }
+    if (pick.ids.length === 1 && item.card) {
+      var remember = document.createElement('label');
+      var tick = document.createElement('input');
+      tick.type = 'checkbox';
+      tick.checked = pick.remember;
+      tick.addEventListener('change', function () { pick.remember = tick.checked; });
+      remember.append(tick, document.createTextNode('Remember this card'));
+      remember.title = 'Next time this card pays, ' + nameOf(pick.ids[0]) + ' is marked Credit without asking';
+      actions.appendChild(remember);
+    }
+    actions.appendChild(button('Not a desk fee', 'small clover-aside', 'Set this payment aside: it is not for a night at the club', function () { send('setAsideCloverPayment', item); }));
+    box.appendChild(actions);
+    return box;
+  }
+
+  function waitingItem(item) {
+    var li = document.createElement('li');
+    li.setAttribute('data-clover-payment', item.id);
+    li.append(line(item));
+    var about = who(item);
+    if (about) li.appendChild(about);
+    if (item.changed.length) {
+      li.appendChild(small('clover-note', item.changed.map(function (change) { return nameOf(change.playerId) + ' was matched to this payment, then marked ' + change.method + ' by hand.'; }).join(' ')));
+      if (live()) li.appendChild(resultRow(item));
+      return li;
+    }
+    if (item.note) li.appendChild(small('clover-note', item.note.replace('{player}', nameOf(item.notePlayerId))));
+    if (live()) li.appendChild(picker(item));
+    else if (item.payerId) li.appendChild(small('clover-who', 'Likely ' + nameOf(item.payerId) + ' (' + (REASONS[item.reason] || item.reason) + ')'));
+    else if (item.suggestions.length) li.appendChild(small('clover-who', 'Checked in at this amount: ' + item.suggestions.map(nameOf).join(', ')));
+    return li;
+  }
+
+  function resultRow(item) {
+    var row = document.createElement('div');
+    row.className = 'clover-result';
+    var players = document.createElement('span');
+    players.textContent = item.playerIds.map(nameOf).join(' + ');
+    row.appendChild(players);
+    if (item.state === 'matched') row.appendChild(status(item.recorded ? REASONS[item.reason] || item.reason : 'would be Credit, by ' + (REASONS[item.reason] || item.reason), !item.recorded));
+    if (item.notCheckedIn.length) row.appendChild(status('not checked in yet', true));
+    if (live()) row.appendChild(button('Undo', 'small clover-undo', 'Undo this match: Credit goes back to unpaid and the card is forgotten', function () { send('unmatchCloverPayment', item); }));
+    return row;
+  }
+
+  function doneItem(item) {
+    var li = document.createElement('li');
+    li.setAttribute('data-clover-payment', item.id);
+    li.append(line(item));
+    if (item.state === 'matched') li.appendChild(resultRow(item));
+    else {
+      li.appendChild(small('clover-who', item.note + (item.playerIds.length ? ': ' + item.playerIds.map(nameOf).join(', ') : '')));
+      if (item.state === 'set-aside' && live()) {
+        var row = document.createElement('div');
+        row.className = 'clover-result';
+        row.appendChild(button('Undo', 'small clover-undo', 'Bring this payment back to the list', function () { send('unmatchCloverPayment', item); }));
+        li.appendChild(row);
+      }
+    }
+    return li;
+  }
+
+  function savingItem(item, entry) {
+    var li = document.createElement('li');
+    li.className = 'saving';
+    li.setAttribute('data-clover-payment', item.id);
+    var text = entry.fn === 'matchCloverPayment' ? 'Matching ' + entry.args[2].map(nameOf).join(' + ') : entry.fn === 'setAsideCloverPayment' ? 'Setting aside' : 'Undoing';
+    li.append(line(item), small('clover-who', text + (navigator.onLine === false ? '; sends when online' : '\u2026')));
+    return li;
+  }
+
+  function render() {
+    if (!state) return;
+    allNights.hidden = !state.pageUrl;
+    if (state.pageUrl) allNights.href = state.pageUrl;
+    if (!state.connected) {
+      badge.hidden = true;
+      list.replaceChildren();
+      matched.details.hidden = true;
+      aside.details.hidden = true;
+      message.className = 'hint clover-problem';
+      message.textContent = 'Clover is not connected: ' + state.problem;
+      return;
+    }
+    var lists = { waiting: [], matched: [], aside: [] };
+    state.items.forEach(function (item) {
+      var entry = pending(item.id);
+      if (entry) lists.matched.push(savingItem(item, entry));
+      else if (item.state === 'matched' && !item.changed.length) lists.matched.push(doneItem(item));
+      else if (item.state === 'matched' || item.state === 'needs-action' || item.state === 'unmatched') lists.waiting.push(waitingItem(item));
+      else lists.aside.push(doneItem(item));
+    });
+    list.replaceChildren.apply(list, lists.waiting);
+    badge.hidden = !lists.waiting.length;
+    badge.textContent = String(lists.waiting.length);
+    badge.title = lists.waiting.length + ' to match by hand';
+    matched.list.replaceChildren.apply(matched.list, lists.matched);
+    matched.summary.textContent = (live() ? 'Matched (' : 'Would match (') + lists.matched.length + ')';
+    matched.details.hidden = !lists.matched.length;
+    aside.list.replaceChildren.apply(aside.list, lists.aside);
+    aside.summary.textContent = 'Refunds and set aside (' + lists.aside.length + ')';
+    aside.details.hidden = !lists.aside.length;
+    var checked = new Date(state.checkedAt).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
+    var summary = !state.items.length ? 'No Clover payments on this date.' : lists.matched.length + ' matched' + (lists.waiting.length ? ', ' + lists.waiting.length + ' to match by hand.' : '.');
+    if (!live()) {
+      message.className = 'hint clover-off';
+      message.textContent = 'Dry run: the desk shows what it would match and records nothing until CLOVER_ENABLED is on. ' + (state.items.length ? state.items.length + ' Clover payments on this date.' : 'No Clover payments on this date.');
+    } else {
+      message.className = 'hint';
+      message.textContent = summary + ' Checked ' + checked + (polling() ? '; checks every minute while tonight is open.' : '.');
+    }
+    // Clover's matches on the payment buttons: Credit ✓ with when and how much, and the ones still being sent.
+    var notes = {};
+    state.items.forEach(function (item) {
+      if (item.state !== 'matched' || !item.recorded || item.changed.length || pending(item.id)) return;
+      item.playerIds.forEach(function (id) {
+        notes[id] = 'Clover ' + item.clock + ', ' + money(item.net) + (item.playerIds.length > 1 ? ' for ' + item.playerIds.length : '');
+        // Put on the button once: a method chosen by hand later is the button's own business.
+        if (!shown[id]) window.cttcPayments.recorded(state.date, id, 'credit');
+        shown[id] = true;
+      });
+    });
+    window.cttcPayments.describe(state.date, notes);
+    outbox.entries().forEach(function (entry) {
+      if (!/^(match|unmatch|setAside)CloverPayment$/.test(entry.fn) || entry.args[0] !== date.value) return;
+      if (entry.fn === 'matchCloverPayment') entry.args[2].forEach(function (id) { window.cttcPayments.recorded(entry.args[0], id, 'credit', true); });
+    });
+  }
+
+  function apply(result) {
+    if (!result || result.date !== date.value) return;
+    state = result;
+    render();
+  }
+
+  // quiet: the minute's check, keeping the list as it is while Google answers.
+  function load(quiet) {
+    var selectedDate = date.value;
+    var current = ++requestNumber;
+    if (quiet !== true) {
+      state = null;
+      picks = {};
+      shown = {};
+      badge.hidden = true;
+      list.replaceChildren();
+      matched.details.hidden = true;
+      aside.details.hidden = true;
+      message.className = 'hint';
+      message.textContent = 'Checking Clover\u2026';
+    }
+    window.cttcRequest('getCloverDesk', selectedDate).then(function (result) {
+      if (current !== requestNumber || date.value !== selectedDate) return;
+      apply(result);
+    }).catch(function (error) {
+      if (current !== requestNumber) return;
+      message.className = 'hint clover-problem';
+      message.textContent = quiet === true && state ? 'Could not check Clover just now; trying again in a minute.' : 'Clover payments unavailable: ' + (error.message || error);
+    });
+  }
+
+  function send(fn, item, ids, remember) {
+    var args = fn === 'matchCloverPayment' ? [date.value, item.id, ids, remember] : [date.value, item.id];
+    if (fn === 'unmatchCloverPayment') item.playerIds.forEach(function (id) { if (!item.changed.some(function (change) { return change.playerId === id; })) window.cttcPayments.recorded(date.value, id, '', true); });
+    delete picks[item.id];
+    outbox.enqueue(actionKey(item.id), fn, args);
+    render();
+  }
+
+  ['matchCloverPayment', 'unmatchCloverPayment', 'setAsideCloverPayment'].forEach(function (fn) {
+    outbox.register(fn, {
+      rejected: REJECTED,
+      describe: function () { return fn === 'matchCloverPayment' ? 'A Clover match' : fn === 'unmatchCloverPayment' ? 'Undoing a Clover match' : 'Setting a Clover payment aside'; },
+      done: function (entry, result, current) {
+        shown = {};
+        if (current) apply(result);
+        window.cttcPayments.refresh();
+      },
+      rejectedFn: function () {
+        window.cttcPayments.refresh();
+        load(true);
+      }
+    });
+  });
+  outbox.onChange(function () { if (state) render(); });
+  // The payments' own refresh shows Google's saved methods; a match still being sent goes back on top of them.
+  document.addEventListener('cttc:payment-overview', function () { setTimeout(function () { if (state) render(); }, 0); });
+  // Players checked in or removed change who can be chosen; redrawn at most once a frame.
+  var redraw = 0;
+  function rosterChanged() {
+    if (redraw || !state) return;
+    redraw = requestAnimationFrame(function () {
+      redraw = 0;
+      // Not while the organizer is choosing in the list: their pointer or focus stays where it is.
+      if (!section.contains(document.activeElement)) render();
+    });
+  }
+  new MutationObserver(rosterChanged).observe(groups, { childList: true, subtree: true });
+  new MutationObserver(rosterChanged).observe(open, { childList: true, subtree: true });
+  document.getElementById('load').addEventListener('click', load);
+  date.addEventListener('change', load);
+  refresh.addEventListener('click', load);
+  window.addEventListener('online', function () { if (state) load(true); });
+  // Every minute while tonight's date is open and in view, except while the organizer is choosing in the list.
+  setInterval(function () {
+    if (!state || !state.connected || document.hidden || navigator.onLine === false || !polling() || section.contains(document.activeElement)) return;
+    load(true);
+  }, POLL_MS);
+  load();
+})();
+</script>
 <script>
 (function () {
   var list = document.getElementById('open-roster');

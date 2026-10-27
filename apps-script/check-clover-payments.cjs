@@ -131,7 +131,7 @@ assert.equal(rows[0].state, 'unmatched');
 assert.deepEqual(rows[0].suggestions.sort(), ['p1', 'p3', 'p4'], 'checked-in players owing $10');
 rows = night([payment('2026-10-07', 10, { cardholderName: 'AVERY PARK' })], { hand: { p1: 'cash' } });
 assert.equal(rows[0].state, 'needs-action', 'a method chosen by hand always wins');
-assert.match(rows[0].note, /\{player\} is already marked cash/);
+assert.match(rows[0].note, /\{player\} is already marked Cash \(paid twice\?\)/);
 assert.equal(night([payment('2026-10-07', 10, { cardholderName: 'AVERY PARK' })], { hand: { p1: 'credit' } })[0].state, 'matched', 'Credit by hand agrees');
 rows = night([payment('2026-10-07', 10, { cardholderName: 'AVERY PARK' }), payment('2026-10-07', 10, { cardholderName: 'AVERY PARK', last4: '9999' })]);
 assert.deepEqual(rows.map(row => row.state), ['matched', 'needs-action'], 'one player is matched to one payment a night');
