@@ -1,10 +1,11 @@
-// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
+// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
 // Opens the real Google-hosted desk (/dev by default, /exec with --exec) in headless Chromium, signed in with the
 // club's clasp sign-in (~/.clasprc.json), so an agent can see what it pushed. It looks, it does not touch: the script
 // never clicks, types or saves. It only loads the page, optionally switches the date picker (which only reads), waits
 // for the page to settle, prints a short summary and saves screenshots: desk.png is the browser window (Google keeps the
 // desk in a frame the window's height, so raise --height to see further down), and --selector saves one part of the
-// page in full however long it is.
+// page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover) instead, and waits
+// for it to finish loading.
 //
 // Both URLs run against the real club Sheet, Gmail and member data. Screenshots therefore show real names: keep them
 // in a scratch directory outside the repository, look at them, delete them, and never commit or post them.
@@ -56,12 +57,15 @@ async function deployment(token, live) {
 (async () => {
   const live = process.argv.includes('--exec');
   const date = option('date', '');
+  const view = option('view', '');
   const selector = option('selector', '');
   const width = Number(option('width', '1280'));
   const height = Number(option('height', '1800'));
   const out = path.resolve(option('out', path.join(os.tmpdir(), 'cttc-desk-view')));
   if (out.startsWith(ROOT + path.sep)) throw new Error('Screenshots show real member data: choose an --out directory outside the repository.');
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('--date must be YYYY-MM-DD');
+  if (view && !/^(cash|clover)$/.test(view)) throw new Error('--view must be cash or clover');
+  if (view && date) throw new Error('--date is for the desk; leave it out with --view');
   fs.mkdirSync(out, { recursive: true, mode: 0o700 });
 
   const token = await accessToken();
@@ -75,12 +79,14 @@ async function deployment(token, live) {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(String(error.message || error).slice(0, 300)));
-    await page.goto(target.url, { waitUntil: 'load' });
+    await page.goto(target.url + (view ? '?view=' + view : ''), { waitUntil: 'load' });
 
-    // The desk runs two frames deep inside Google's sandbox; find the one holding the session date picker.
+    // The desk runs two frames deep inside Google's sandbox; find the one holding the session date picker (or, for
+    // another page, its status bar).
+    const marker = view ? '#status' : '#date';
     let desk = null;
     for (let second = 0; second < 90 && !desk; second += 1) {
-      for (const frame of page.frames()) if (await frame.$('#date').catch(() => null)) desk = frame;
+      for (const frame of page.frames()) if (await frame.$(marker).catch(() => null)) desk = frame;
       if (!desk) await page.waitForTimeout(1000);
     }
     if (!desk) {
@@ -88,13 +94,15 @@ async function deployment(token, live) {
       throw new Error('The desk did not appear within 90 seconds; see ' + path.join(out, 'desk-not-found.png'));
     }
     await page.waitForTimeout(10000);
+    // The other pages load their data after opening; wait while their status bar says they are busy.
+    for (let second = 0; view && second < 150 && await desk.$('#status.busy'); second += 1) await page.waitForTimeout(1000);
     if (date) {
       await desk.evaluate(value => { const input = document.getElementById('date'); input.value = value; input.dispatchEvent(new Event('change')); }, date);
       await page.waitForTimeout(20000);
     }
 
     const summary = await desk.evaluate(() => ({
-      date: document.getElementById('date').value,
+      date: document.getElementById('date') ? document.getElementById('date').value : '',
       status: (document.getElementById('status').textContent || '').slice(0, 200),
       statusClass: document.getElementById('status').className,
       sections: [...document.querySelectorAll('h2')].filter(heading => heading.getClientRects().length).map(heading => heading.textContent)

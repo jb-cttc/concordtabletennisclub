@@ -61,5 +61,8 @@ assert.doesNotMatch(page, /body\[data-mode=live\]/);
 assert.match(read('Code.js'), /\.setXFrameOptionsMode\(HtmlService\.XFrameOptionsMode\.ALLOWALL\)/);
 assert.match(page, /ALLOWALL framing lets any site embed this signed-in app/);
 assert.doesNotMatch(read('Code.js'), /PropertiesService.*CTTC_DESK_URL|deskLinks_/, 'no deployment addresses are stored anywhere');
+// The Clover payments page shows payer details, so it carries the desk's own guard, word for word.
+assert.equal(read('Clover.html').match(/<body>\s*<script>([\s\S]*?)<\/script>/)[1], guard, 'the Clover page has the same framing guard');
+assert.match(read('Clover.html'), /<span id="mode-pill" class="mode-pill" data-mode="<\?= deskMode \?>"><\/span>/);
 
 console.log('Framing guard and version pill checks passed');

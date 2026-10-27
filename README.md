@@ -31,6 +31,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins.
 | `staffing-app/`, `docs/staffing-flow.md` | Public volunteer sign-ups to open and close the club (its own Apps Script project, shown on the home page in place of the closures calendar), and the guide to setting it up, importing the existing open/close list, and where a sign-up can get stuck. |
 | `tonight.html`, `turnout.js`, `turnout-app/`, `docs/turnout-flow.md` | The Tonight page: who to expect at the next round robin by rating, drawn as a gym floor; the forecast it shares with the public turnout app (its own Apps Script project), which counts desk sign-ins and today's Voice texts without ever returning names; and the guide to setting it up. |
 | `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
+| `apps-script/CloverPayments.js`, `docs/clover-payments.md` | Clover card payments: the desk reads the club's Clover payments and marks the player Credit ✓, with a sidebar list of the few it cannot match and the `?view=clover` page for checking every night and saving cards learned from the records. |
 
 ## Request an app or website change
 
@@ -153,8 +154,8 @@ sending again (a write that did arrive is not repeated, and a version made
 elsewhere is never overwritten), retries on its own for a few minutes, and
 sends as soon as the connection returns. After repeated failures it stops and asks you to
 click **Save to Sheets**. **Save on device** still confirms a local copy even
-if Wi-Fi appears connected but Google is unreachable. Payments, Open Play,
-membership badges and Voice confirmations use a separate queue that also syncs
+if Wi-Fi appears connected but Google is unreachable. Payments, Clover matches,
+Open Play, membership badges and Voice confirmations use a separate queue that also syncs
 by itself. The yellow notice distinguishes a device copy from a
 confirmed Google Sheets save. Round-robin sheets can be previewed and printed
 offline, but club/year record figures show `--/--` when Google cannot supply

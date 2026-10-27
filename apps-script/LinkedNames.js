@@ -1,8 +1,9 @@
 // Name links live in the private NameLinks sheet, never in code (the repo is public).
 // kind 'same_person': name = record they play under, linked_name = their other directory name.
 // kind 'junior': name = junior, linked_name = member account they belong to (blank if none).
+// kind 'pays_for': name = a payer, linked_name = a player whose fee they often pay on the same Clover payment (CloverPayments.js).
 var NAME_LINK_HEADERS = ['kind', 'name', 'linked_name', 'updated_at'];
-var NAME_LINK_KINDS = ['same_person', 'junior'];
+var NAME_LINK_KINDS = ['same_person', 'junior', 'pays_for'];
 
 function nameLinkRows_() {
   TABLES.NameLinks = NAME_LINK_HEADERS;

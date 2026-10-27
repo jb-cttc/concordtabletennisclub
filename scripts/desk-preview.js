@@ -1,4 +1,5 @@
 // Run: npm run preview:desk   then open http://localhost:3100/?date=2026-09-28
+// (PREVIEW_CLOVER_DRY_RUN=1 shows the Clover list as it is before CLOVER_ENABLED is on.)
 // The daily cash flow page: http://localhost:3100/?view=cash (synthetic players and payments, see cashPreview below).
 // Dev only. Serves the real desk page (apps-script/Index.html and its includes) with a small in-memory
 // stand-in for the Google Sheet back end, so the screen can be seen and clicked without Google.
@@ -80,6 +81,39 @@ function publishPayload() {
 }
 
 const payments = {};
+const cloverNights = {};
+// A night's made-up Clover payments: one matched by a card used before, one overpaid (a member covering a second
+// player), one with no name to go on, and a refund. Players are the saved roster's, when the date has one.
+function cloverPreview(date) {
+  const session = sessions['session-' + date];
+  const roster = session ? [].concat.apply([], session.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); })) : [];
+  const ids = roster.length >= 5 ? roster : players.slice(0, 5).map(function (player) { return player.playerId; });
+  if (!cloverNights[date]) {
+    const seven = Date.parse(date + 'T02:00:00Z') + 86400000;
+    const item = function (id, minutes, net, card, extra) {
+      const time = seven + minutes * 60000;
+      const clock = new Date(time).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
+      return Object.assign({ id: id, time: time, clock: clock, amount: net, net: net, kind: 'card', card: card, cardholder: '', customer: '', state: 'unmatched', reason: '', payerId: '',
+        playerIds: [], note: '', notePlayerId: '', suggestions: [], notCheckedIn: [], verdicts: [], recorded: false, changed: [] }, extra);
+    };
+    cloverNights[date] = [
+      item('cv4', 14, 10, 'AMEX \u2022\u20223005', { state: 'ignored', note: 'Refunded' }),
+      item('cv3', 9, 10, 'VISA \u2022\u20227702', { note: 'No player found', suggestions: [ids[3], ids[4]] }),
+      item('cv2', 6, 15, 'MC \u2022\u20221190', { state: 'needs-action', payerId: ids[1], playerIds: [ids[1]], reason: 'card', note: 'Paid $15, fee is $10: $5 more. Who else does it cover?', suggestions: [ids[2]] }),
+      item('cv1', 2, 10, 'VISA \u2022\u20224821', { cardholder: 'SAMPLE/AVERY', state: 'matched', reason: 'card', playerIds: [ids[0]], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN })
+    ];
+    if (!process.env.PREVIEW_CLOVER_DRY_RUN) (payments[date] = payments[date] || {})[ids[0]] = 'credit';
+  }
+  const names = {};
+  const fees = {};
+  players.forEach(function (player) { names[player.playerId] = player.name; fees[player.playerId] = 10; });
+  return { connected: true, enabled: !process.env.PREVIEW_CLOVER_DRY_RUN, date: date, checkedAt: Date.now(), items: cloverNights[date], names: names, fees: fees, pageUrl: '' };
+}
+function cloverPreviewItem(date, id) {
+  const item = cloverPreview(date).items.find(function (entry) { return entry.id === id; });
+  if (!item) throw new Error('Clover has no such payment on this date.');
+  return item;
+}
 const emails = {};
 const openPlay = {};
 const rpc = {
@@ -167,6 +201,26 @@ const rpc = {
   },
   setMemberStatus: function () { return { statuses: {}, notes: {} }; },
   getPrivatePaymentOverview: function (date) { return { methods: payments[date] || {}, coveredIds: [], passes: [] }; },
+  // Made-up Clover card payments for any date, so the sidebar's Clover list can be seen and used here. The rules that
+  // decide matches are apps-script/CloverPayments.js; this only keeps what was pressed.
+  getCloverDesk: function (date) { return cloverPreview(date); },
+  matchCloverPayment: function (date, id, playerIds) {
+    const item = cloverPreviewItem(date, id);
+    if (item.state === 'matched') throw new Error('This Clover payment is already matched.');
+    Object.assign(item, { state: 'matched', reason: 'hand', playerIds: playerIds, note: '', recorded: true, changed: [] });
+    playerIds.forEach(function (playerId) { (payments[date] = payments[date] || {})[playerId] = 'credit'; });
+    return cloverPreview(date);
+  },
+  unmatchCloverPayment: function (date, id) {
+    const item = cloverPreviewItem(date, id);
+    item.playerIds.forEach(function (playerId) { if ((payments[date] || {})[playerId] === 'credit') payments[date][playerId] = ''; });
+    Object.assign(item, { state: 'unmatched', note: 'Undone at the desk: choose who it is for', suggestions: item.playerIds, playerIds: [], payerId: '', recorded: false });
+    return cloverPreview(date);
+  },
+  setAsideCloverPayment: function (date, id) {
+    Object.assign(cloverPreviewItem(date, id), { state: 'set-aside', note: 'Not a desk fee', playerIds: [] });
+    return cloverPreview(date);
+  },
   setSessionPayment: function (date, playerId, method) {
     (payments[date] = payments[date] || {})[playerId] = method;
     return method;
