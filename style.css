@@ -65,12 +65,14 @@ html {
 }
 
 .header-inner {
-  max-width: 880px;
+  /* Wider than main (880px): the logo and every nav link fit on one row from about 1080px. Narrower, the links wrap
+     beside the logo, right-aligned, rather than dropping below it. */
+  max-width: 1040px;
   margin: 0 auto;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 20px 32px;
-  flex-wrap: wrap;
 }
 
 .site-title {
@@ -95,6 +97,7 @@ html {
 nav {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px 18px;
   align-items: center;
 }
@@ -1182,9 +1185,11 @@ footer {
     overflow-y: auto;
   }
 
+  /* The open menu takes its own full-width row under the logo. */
   .header-inner {
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
   }
 
   .session-detail-body {
