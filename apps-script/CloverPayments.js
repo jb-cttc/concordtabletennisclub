@@ -1,5 +1,5 @@
-// Clover card payments (issue #87). The club's Clover POS takes only round robin desk fees ($5 Junior, $10 Member,
-// $15 Visitor), so each card payment there is one night's fee for someone. The desk reads those payments with a
+// Clover card payments (issue #87). The club's Clover POS takes only nightly desk fees, round robin or Open Play ($5
+// Junior, $10 Member, $15 Visitor), so each card payment there is one night's fee for someone (or two). The desk reads those payments with a
 // read-only Clover API token and works out who each one is for, so the organizer only handles the exceptions.
 //
 // The token and merchant ID are Script Properties (CLOVER_API_TOKEN, CLOVER_MERCHANT_ID), never in code: the repo is
@@ -377,8 +377,14 @@ function cloverPaysFor_(players, linkRows) {
 }
 
 // The night as recorded by hand, compared with what the desk would have done. Matching runs night by night, oldest
-// first, and learns as the organizer would have taught it: each match links its card, and when a night leaves exactly
-// one unmatched payment and one Credit player (recorded by hand) at the same amount, that pair is learned too.
+// first, and learns as the organizer would have taught it. Each match links its card. Then the payments left over are
+// paired with the players marked Credit by hand (context.marks: when each was marked, from the AuditLog) when the pair
+// is the only one that fits: a player, or two whose fees add up to the amount, marked within a few minutes of the
+// payment, and nobody else's payment could be theirs. A pairing settles the next, so it repeats until nothing changes.
+// Last, a night left with exactly one payment and one Credit player at the same amount is paired too. A pairing of two
+// players links no card: which of them paid is not known.
+var CLOVER_MARK_WINDOW_MS_ = 5 * 60000;
+
 function cloverReviewNight_(rows, context, links) {
   var claimed = {};
   rows.forEach(function (row) {
@@ -390,27 +396,51 @@ function cloverReviewNight_(rows, context, links) {
     });
     if (row.payerId && row.payerId === row.playerIds[0]) cloverRemember_(links, cloverPaymentKeys_(row.payment), row.payerId);
   });
-  var leftPayments = {};
-  rows.forEach(function (row) {
-    if (row.state !== 'unmatched') return;
-    var amount = row.payment.net / 100;
-    (leftPayments[amount] || (leftPayments[amount] = [])).push(row);
+  var credit = Object.keys(context.hand).filter(function (id) { return context.hand[id] === 'credit' && !claimed[id]; });
+  var marks = context.marks || {};
+  var gap = function (row, id) {
+    return (marks[id] || []).reduce(function (best, at) { return Math.min(best, Math.abs(at - row.payment.time)); }, Infinity);
+  };
+  var learn = function (row, group, by) {
+    row.learnedPlayerIds = group;
+    row.learnedBy = by;
+    if (by === 'time') row.learnedMinutes = Math.round(Math.max.apply(null, group.map(function (id) { return gap(row, id); })) / 6000) / 10;
+    group.forEach(function (id) { claimed[id] = true; });
+    if (group.length === 1) cloverRemember_(links, cloverPaymentKeys_(row.payment), group[0]);
+  };
+  var groupsNear = function (row) {
+    var dollars = row.payment.net / 100;
+    var near = credit.filter(function (id) { return !claimed[id] && gap(row, id) <= CLOVER_MARK_WINDOW_MS_; });
+    var groups = near.filter(function (id) { return cloverFee_(id, context) === dollars; }).map(function (id) { return [id]; });
+    near.forEach(function (left, i) {
+      near.slice(i + 1).forEach(function (right) { if (cloverFee_(left, context) + cloverFee_(right, context) === dollars) groups.push([left, right]); });
+    });
+    return groups;
+  };
+  var open = function () { return rows.filter(function (row) { return row.state === 'unmatched' && !row.learnedPlayerIds; }); };
+  for (var changed = true; changed;) {
+    changed = false;
+    var waiting = open();
+    var options = waiting.map(groupsNear);
+    for (var i = 0; i < waiting.length && !changed; i += 1) {
+      if (options[i].length !== 1) continue;
+      var group = options[i][0];
+      var contested = options.some(function (other, j) {
+        return j !== i && other.some(function (candidate) { return candidate.some(function (id) { return group.indexOf(id) >= 0; }); });
+      });
+      if (contested) continue;
+      learn(waiting[i], group, 'time');
+      changed = true;
+    }
+  }
+  var byAmount = {};
+  open().forEach(function (row) { var amount = row.payment.net / 100; (byAmount[amount] || (byAmount[amount] = [])).push(row); });
+  var byFee = {};
+  credit.forEach(function (id) { if (!claimed[id]) { var fee = cloverFee_(id, context); (byFee[fee] || (byFee[fee] = [])).push(id); } });
+  Object.keys(byAmount).forEach(function (amount) {
+    if (byAmount[amount].length === 1 && (byFee[amount] || []).length === 1) learn(byAmount[amount][0], byFee[amount], 'only-one');
   });
-  var leftCredit = {};
-  Object.keys(context.hand).forEach(function (id) {
-    if (context.hand[id] !== 'credit' || claimed[id]) return;
-    var fee = cloverFee_(id, context);
-    (leftCredit[fee] || (leftCredit[fee] = [])).push(id);
-  });
-  Object.keys(leftPayments).forEach(function (amount) {
-    var people = leftCredit[amount] || [];
-    if (leftPayments[amount].length !== 1 || people.length !== 1) return;
-    var row = leftPayments[amount][0];
-    row.learnedPlayerId = people[0];
-    claimed[people[0]] = true;
-    cloverRemember_(links, cloverPaymentKeys_(row.payment), people[0]);
-  });
-  return Object.keys(context.hand).filter(function (id) { return context.hand[id] === 'credit' && !claimed[id]; });
+  return credit.filter(function (id) { return !claimed[id]; });
 }
 
 function cloverPage_(event) {
@@ -456,17 +486,39 @@ function getCloverReport(fromDate, toDate) {
     var date = dateOfSession(row.session_id);
     if (inRange(date)) (rosters[date] || (rosters[date] = {}))[String(row.player_id)] = true;
   });
+  cashRows_('OpenPlay').forEach(function (row) {
+    var date = displayDate_(row.session_date).slice(0, 10);
+    if (inRange(date)) (rosters[date] || (rosters[date] = {}))[String(row.player_id)] = true;
+  });
+  // When each player was marked Credit: every such change in the AuditLog, and the payment row's own last update.
+  var marks = {};
+  var mark = function (date, playerId, at) {
+    var time = at instanceof Date ? at.getTime() : Date.parse(at);
+    if (!isFinite(time)) return;
+    var night = marks[date] || (marks[date] = {});
+    (night[playerId] || (night[playerId] = [])).push(time);
+  };
   cashRows_('SessionPayments').forEach(function (row) {
     var date = dateOfSession(row.session_id);
-    if (inRange(date) && row.method) (hands[date] || (hands[date] = {}))[String(row.player_id)] = String(row.method);
+    if (!inRange(date) || !row.method) return;
+    (hands[date] || (hands[date] = {}))[String(row.player_id)] = String(row.method);
+    if (String(row.method) === 'credit') mark(date, String(row.player_id), row.updated_at);
+  });
+  cashRows_('AuditLog').forEach(function (row) {
+    if (row.action !== 'session_payment_updated') return;
+    var date = dateOfSession(row.entity_id);
+    if (!inRange(date)) return;
+    var details;
+    try { details = JSON.parse(row.details_json || '{}'); } catch (error) { return; }
+    if (details && details.method === 'credit' && details.playerId) mark(date, String(details.playerId), row.event_time);
   });
   var byDate = {};
   payments.forEach(function (payment) { (byDate[payment.date] || (byDate[payment.date] = [])).push(payment); });
   var dates = Object.keys(rosters).concat(Object.keys(byDate)).filter(function (date, i, all) { return all.indexOf(date) === i; }).sort();
 
-  var totals = { cardPayments: 0, matched: 0, agrees: 0, conflict: 0, missing: 0, notCheckedIn: 0, needsAction: 0, unmatched: 0, learned: 0, ignored: 0, creditWithoutPayment: 0, withName: 0, withCustomer: 0, withCard: 0 };
+  var totals = { cardPayments: 0, matched: 0, agrees: 0, conflict: 0, missing: 0, notCheckedIn: 0, needsAction: 0, unmatched: 0, learnedByTime: 0, learned: 0, ignored: 0, creditWithoutPayment: 0, withName: 0, withCustomer: 0, withCard: 0 };
   var nights = dates.map(function (date) {
-    var context = { index: index, links: links, paysFor: paysFor, statuses: statuses, covered: coveredOn(date), roster: rosters[date] || {}, hand: hands[date] || {} };
+    var context = { index: index, links: links, paysFor: paysFor, statuses: statuses, covered: coveredOn(date), roster: rosters[date] || {}, hand: hands[date] || {}, marks: marks[date] || {} };
     var rows = cloverMatchNight_(byDate[date] || [], context);
     var creditWithoutPayment = cloverReviewNight_(rows, context, links);
     rows.forEach(function (row) {
@@ -480,7 +532,7 @@ function getCloverReport(fromDate, toDate) {
         row.verdicts.forEach(function (verdict) { totals[{ agrees: 'agrees', conflict: 'conflict', missing: 'missing', 'not-checked-in': 'notCheckedIn' }[verdict.verdict]] += 1; });
       } else if (row.state === 'needs-action') totals.needsAction += 1;
       else totals.unmatched += 1;
-      if (row.learnedPlayerId) totals.learned += 1;
+      if (row.learnedPlayerIds) totals[row.learnedBy === 'time' ? 'learnedByTime' : 'learned'] += 1;
     });
     totals.creditWithoutPayment += creditWithoutPayment.length;
     return { date: date, rosterCount: Object.keys(context.roster).length, rows: rows.map(cloverReportRow_), creditWithoutPayment: creditWithoutPayment };
@@ -513,7 +565,7 @@ function cloverReportRow_(row) {
     state: row.state,
     card: payment.kind === 'card' ? [payment.brand, payment.last4 ? '••' + payment.last4 : ''].filter(Boolean).join(' ') : '',
     cardholder: payment.cardholder,
-    customer: customer ? [customer.name].concat(customer.phones, customer.emails).filter(Boolean).join(' · ') : '',
+    customer: customer ? [customer.name].concat(customer.phones, customer.emails).filter(Boolean).join(' · ') || 'no name or contact saved' : '',
     reason: row.reason,
     payerId: row.payerId,
     playerIds: row.playerIds,
@@ -522,6 +574,8 @@ function cloverReportRow_(row) {
     suggestions: row.suggestions,
     notCheckedIn: row.notCheckedIn,
     verdicts: row.verdicts || [],
-    learnedPlayerId: row.learnedPlayerId || ''
+    learnedPlayerIds: row.learnedPlayerIds || [],
+    learnedBy: row.learnedBy || '',
+    learnedMinutes: row.learnedMinutes === undefined ? '' : row.learnedMinutes
   };
 }

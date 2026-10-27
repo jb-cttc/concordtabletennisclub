@@ -39,6 +39,7 @@ body.reloading #summary,body.reloading #nights{opacity:.55}
 .tile .sub{font:12px Arial,sans-serif;color:var(--muted)}
 .tile.alert{border-top-color:var(--red);background:#fbf1ef}
 .tile.ask{border-top-color:var(--gold)}
+.tile.good{background:#eef7f1}
 .diagnostics{margin:12px 0 0;font:13px/1.5 Arial,sans-serif;color:var(--muted)}
 .nights{display:grid;gap:16px}
 .night{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:hidden}
@@ -103,7 +104,7 @@ tr.conflict td{background:#fdf5f3}
 <div id="nights" class="nights"></div>
 <div class="footnote">
   <p>Each completed card payment on Clover is matched to a player only when the evidence points to exactly one: a card or Clover customer matched before, the name on the card (or Clover customer) exactly matching one player or saved alias, or the same last name with a first name or initial only one active player fits. The amount must then be that player's fee (Junior $5, Member $10, Visitor $15), or the fees of a payer and the players a NameLinks "pays_for" row says they pay for.</p>
-  <p>"Your record" compares with the payment chosen by hand at the desk that night. Nights are worked through oldest first, and the desk learns as you would have taught it: a matched card is remembered, and a night left with one unmatched payment and one Credit player at the same amount links that card to that player.</p>
+  <p>"Your record" compares with the payment chosen by hand at the desk that night. Nights are worked through oldest first, and the desk learns as you would have taught it: a matched card is remembered. A payment left over is paired with a player marked Credit by hand within 5 minutes of it (or two players whose fees add up to it) only when that is the one pairing that fits and nobody else's payment could be theirs; a night left with one payment and one Credit player at the same amount is paired too. Each such pairing links the card, except a two-player one.</p>
   <p>Refunds, voids, declines and cash entered on Clover are listed but never matched. Card details are the brand and last four digits only.</p>
 </div>
 </main>
@@ -212,7 +213,8 @@ tr.conflict td{background:#fdf5f3}
       tile('Differs from your record', t.conflict, 'Another method chosen by hand', t.conflict ? 'alert' : ''),
       tile('Nothing recorded by hand', t.missing, 'The desk would add Credit', t.missing ? 'ask' : ''),
       tile('Needs you', t.needsAction, 'Wrong amount, Zeffy, paid twice', t.needsAction ? 'ask' : ''),
-      tile('Unmatched', t.unmatched, t.learned + ' learned from your records'),
+      tile('Unmatched', t.unmatched, 'No single player fits'),
+      tile('Paired with your records', t.learnedByTime + t.learned, t.learnedByTime + ' by the time you marked Credit, ' + t.learned + ' as the only one at that amount', 'good'),
       tile('Credit without a payment', t.creditWithoutPayment, 'Credit by hand, no Clover match', t.creditWithoutPayment ? 'ask' : '')
     ].forEach(function (node) { tiles.appendChild(node); });
     document.getElementById('diagnostics').textContent = 'Of the ' + t.cardPayments + ' card payments, ' + t.withName + ' carried a name on the card, ' + t.withCustomer + ' a Clover customer, and ' + t.withCard + ' card digits the desk can remember. ' +
@@ -278,10 +280,11 @@ tr.conflict td{background:#fdf5f3}
       record.appendChild(el('span', { className: 'tag ' + verdict.verdict, text: VERDICTS[verdict.verdict] }));
       if (verdict.verdict === 'conflict') record.appendChild(document.createTextNode(name(verdict.playerId) + ': ' + (METHODS[verdict.hand] || verdict.hand) + ' '));
     });
-    if (row.learnedPlayerId) {
+    if (row.learnedPlayerIds.length) {
       record.appendChild(el('span', { className: 'tag agrees', text: 'Credit by hand' }));
-      record.appendChild(document.createTextNode(name(row.learnedPlayerId)));
-      record.appendChild(el('span', { className: 'small', text: 'Only payment and Credit player at this amount: card learned' }));
+      record.appendChild(document.createTextNode(row.learnedPlayerIds.map(name).join(' + ')));
+      var how = row.learnedBy === 'time' ? 'Marked Credit within ' + row.learnedMinutes + ' min of this payment' : 'The only payment and Credit player at this amount';
+      record.appendChild(el('span', { className: 'small', text: how + (row.learnedPlayerIds.length === 1 ? ': card learned' : ': two players, so no card is linked') }));
     }
     var conflict = row.verdicts.some(function (verdict) { return verdict.verdict === 'conflict'; });
     return el('tr', { className: row.state === 'ignored' ? 'ignored' : conflict ? 'conflict' : '' }, [
