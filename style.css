@@ -578,6 +578,19 @@ td {
   text-align: right;
 }
 
+/* The smallest phones (320px) leave about 280px: closer columns keep a group table inside it, and a page title's
+   buttons (Subscribe, Organize) go under the title instead of past the screen's edge. */
+@media (max-width: 360px) {
+  .session-group-table th,
+  .session-group-table td {
+    padding-right: 6px;
+  }
+
+  .page-title-row {
+    flex-wrap: wrap;
+  }
+}
+
 .group-winner-row td {
   font-weight: bold;
 }
@@ -1299,17 +1312,13 @@ footer {
   margin-left: 0.5rem;
 }
 
+/* Group tables side by side only when each column has room for one (the widest is about 300px); otherwise one column,
+   so a narrow window or an indented panel never scrolls sideways. */
 .latest-results-groups {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 24px 40px;
   margin: 16px 0;
-}
-
-@media (min-width: 641px) {
-  .latest-results-groups {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 /* Recent results on the Round Robins page: one collapsible panel per round robin day. */
