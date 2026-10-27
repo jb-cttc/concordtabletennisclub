@@ -65,14 +65,14 @@ html {
 }
 
 .header-inner {
-  /* Wider than main (880px): the logo and every nav link fit on one row from about 1080px. Narrower, the links wrap
-     beside the logo, right-aligned, rather than dropping below it. */
+  /* The logo and the nav links are one group, centered over the page. The group (about 990px) is a little wider than
+     main (880px); below 1100px the menu button takes over (Responsive, below). */
   max-width: 1040px;
   margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px 32px;
+  justify-content: center;
+  gap: 20px 28px;
 }
 
 .site-title {
@@ -97,7 +97,6 @@ html {
 nav {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 4px 18px;
   align-items: center;
 }
@@ -1130,6 +1129,48 @@ footer {
 
 /* ---- Responsive ---- */
 
+/* Too narrow for the logo and every link on one row (they need about 1030px): the menu button, with the logo and the
+   button over the page text's edges (main is 880px with 20px padding). */
+@media (max-width: 1099px) {
+  .header-inner {
+    max-width: 840px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .nav-toggle {
+    display: block;
+  }
+
+  nav a {
+    display: none;
+    width: 100%;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 1rem;
+  }
+
+  /* The open menu takes its own full-width row under the logo. */
+  nav.nav-open {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    padding-top: 8px;
+  }
+
+  nav.nav-open a {
+    display: block;
+  }
+
+  /* An open menu taller than the screen scrolls inside the header. */
+  header:has(nav.nav-open) {
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+  }
+}
+
 @media (max-width: 640px) {
   h1 {
     font-size: 1.5rem;
@@ -1152,44 +1193,6 @@ footer {
 
   .photo-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .nav-toggle {
-    display: block;
-  }
-
-  nav a {
-    display: none;
-    width: 100%;
-    padding: 9px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 1rem;
-  }
-
-  nav.nav-open {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-    width: 100%;
-    padding-top: 8px;
-  }
-
-  nav.nav-open a {
-    display: block;
-  }
-
-  /* An open menu taller than the screen scrolls inside the header. */
-  header:has(nav.nav-open) {
-    max-height: 100vh;
-    max-height: 100dvh;
-    overflow-y: auto;
-  }
-
-  /* The open menu takes its own full-width row under the logo. */
-  .header-inner {
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
   }
 
   .session-detail-body {
