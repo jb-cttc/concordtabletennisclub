@@ -40,6 +40,7 @@ body.reloading #summary,body.reloading #nights{opacity:.55}
 .tile.alert{border-top-color:var(--red);background:#fbf1ef}
 .tile.ask{border-top-color:var(--gold)}
 .tile.good{background:#eef7f1}
+#cards .diagnostics{margin:0 0 10px}
 .diagnostics{margin:12px 0 0;font:13px/1.5 Arial,sans-serif;color:var(--muted)}
 .nights{display:grid;gap:16px}
 .night{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:hidden}
@@ -97,14 +98,19 @@ tr.conflict td{background:#fdf5f3}
 </form>
 <div id="status" class="statusbar busy" role="status" aria-live="polite">Reading Clover...</div>
 <section id="summary" class="panel" hidden aria-labelledby="summary-title">
-  <div class="summary-head"><h2 id="summary-title">What the desk would have done</h2></div>
+  <div class="summary-head"><h2 id="summary-title">What the desk would do</h2></div>
   <div id="tiles" class="tiles"></div>
   <p id="diagnostics" class="diagnostics"></p>
+</section>
+<section id="cards" class="panel" hidden aria-labelledby="cards-title">
+  <div class="summary-head"><h2 id="cards-title">Cards learned from your records</h2></div>
+  <p class="diagnostics">Each card is linked to the one player marked Credit at that card's amount on every night it paid ("Nights"), after setting aside players already linked to another card that night. "Marked Credit" is how far from each payment you marked them, for checking only. Check these before they are saved: a wrong one would mark the wrong person paid.</p>
+  <div id="card-list"></div>
 </section>
 <div id="nights" class="nights"></div>
 <div class="footnote">
   <p>Each completed card payment on Clover is matched to a player only when the evidence points to exactly one: a card or Clover customer matched before, the name on the card (or Clover customer) exactly matching one player or saved alias, or the same last name with a first name or initial only one active player fits. The amount must then be that player's fee (Junior $5, Member $10, Visitor $15), or the fees of a payer and the players a NameLinks "pays_for" row says they pay for.</p>
-  <p>"Your record" compares with the payment chosen by hand at the desk that night. Nights are worked through oldest first, and the desk learns as you would have taught it: a matched card is remembered. A payment left over is paired with a player marked Credit by hand within 15 minutes of it, at their fee, only when every way of pairing up that night's payments and Credit marks uses that pair (two players whose fees add up to the payment only when they are the one pair that fits); a night left with one payment and one Credit player at the same amount is paired too. Each such pairing links the card, except a two-player one. "Card seen on an earlier night" counts the payments that would match by themselves once each card had been matched once.</p>
+  <p>Clover rarely has a name for a tap-to-pay card, so the desk learns cards from your records (see "Cards learned from your records") and, once switched on, from each payment you match by hand at the desk. The nights below show what the desk would do with the cards learned so far; "Your record" compares that with the method chosen by hand that night.</p>
   <p>Refunds, voids, declines and cash entered on Clover are listed but never matched. Card details are the brand and last four digits only.</p>
 </div>
 </main>
@@ -204,24 +210,29 @@ tr.conflict td{background:#fdf5f3}
     }
     var name = function (id) { return data.names[id] || 'Unknown player'; };
     var t = data.totals;
+    var linked = data.cards.filter(function (card) { return card.playerId; });
     var tiles = document.getElementById('tiles');
     tiles.textContent = '';
     [
-      tile('Card payments', t.cardPayments, data.nights.length + (data.nights.length === 1 ? ' night' : ' nights')),
-      tile('Matched automatically', t.matched, percent(t.matched, t.cardPayments) + ' of card payments'),
+      tile('Card payments', t.cardPayments, data.nights.length + (data.nights.length === 1 ? ' night' : ' nights') + ', ' + data.cards.length + ' different cards'),
+      tile('Cards learned', linked.length, 'From your Credit records', linked.length ? 'good' : ''),
+      tile('Would match', t.matched, percent(t.matched, t.cardPayments) + ' of card payments, with those cards'),
       tile('Agrees with your record', t.agrees, 'Credit chosen by hand too'),
       tile('Differs from your record', t.conflict, 'Another method chosen by hand', t.conflict ? 'alert' : ''),
-      tile('Nothing recorded by hand', t.missing, 'The desk would add Credit', t.missing ? 'ask' : ''),
+      tile('Not on the roster', t.notCheckedIn, 'Matched someone not checked in', t.notCheckedIn ? 'alert' : ''),
+      tile('Nothing recorded by hand', t.missing, 'Checked in, no method chosen'),
       tile('Needs you', t.needsAction, 'Wrong amount, Zeffy, paid twice', t.needsAction ? 'ask' : ''),
       tile('Unmatched', t.unmatched, 'No single player fits'),
-      tile('Paired with your records', t.learnedByTime + t.learned, t.learnedByTime + ' by the time you marked Credit, ' + t.learned + ' as the only one at that amount', 'good'),
-      tile('Credit without a payment', t.creditWithoutPayment, 'Credit by hand, no Clover match', t.creditWithoutPayment ? 'ask' : ''),
-      tile('Card seen on an earlier night', data.repeat.payments, percent(data.repeat.payments, t.cardPayments) + ' of payments, from ' + data.repeat.cards + ' different cards', 'good')
+      tile('Credit without a payment', t.creditWithoutPayment, 'Credit by hand, no Clover match'),
+      tile('Card seen on an earlier night', data.repeat.payments, percent(data.repeat.payments, t.cardPayments) + ' of payments: these match by themselves once each card is matched once', 'good')
     ].forEach(function (node) { tiles.appendChild(node); });
-    document.getElementById('diagnostics').textContent = 'Of the ' + t.cardPayments + ' card payments, ' + t.withName + ' carried a name on the card, ' + t.withCustomer + ' a Clover customer, and ' + t.withCard + ' card digits the desk can remember. ' +
-      t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Cards and customers linked: ' + data.storedLinks + ' saved, ' + data.linksAfter + ' after this look back. ' +
-      'Unmatched payments by distance to the nearest Credit marked that night (' + data.auditMarks + ' Credit marks in the AuditLog): ' + data.gaps.within2 + ' within 2 min, ' + data.gaps.within5 + ' within 5, ' + data.gaps.within15 + ' within 15, ' +
-      data.gaps.within60 + ' within an hour, ' + data.gaps.over60 + ' further, ' + data.gaps.none + ' on nights with no Credit marked.';
+    var several = data.cards.filter(function (card) { return !card.playerId && card.candidates > 1; }).length;
+    var none = data.cards.filter(function (card) { return !card.playerId && card.nights && !card.candidates; }).length;
+    var clueless = data.cards.filter(function (card) { return !card.nights; }).length;
+    document.getElementById('diagnostics').textContent = 'Of the ' + t.cardPayments + ' card payments, ' + t.withName + ' carried a name on the card and ' + t.withCustomer + ' a Clover customer record. ' +
+      t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Of the cards not learned, ' + several + ' still fit more than one player, ' + none + ' fit nobody on every night (a Credit record missing, or a shared card), and ' +
+      clueless + ' paid only on nights with no Credit recorded by hand. Cards linked by hand so far: ' + data.storedLinks + '.';
+    renderCards(linked, name);
     summary.hidden = false;
     if (!data.nights.length) {
       nights.appendChild(el('div', { className: 'empty', text: 'No round robin nights or Clover payments in this range.' }));
@@ -230,6 +241,25 @@ tr.conflict td{background:#fdf5f3}
     }
     data.nights.forEach(function (night) { nights.appendChild(renderNight(night, name)); });
     setStatus('Read Clover from ' + longDate(data.from) + ' to ' + longDate(data.to) + '.');
+  }
+
+  function renderCards(linked, name) {
+    var section = document.getElementById('cards');
+    var body = document.getElementById('card-list');
+    body.textContent = '';
+    section.hidden = !linked.length;
+    if (!linked.length) return;
+    var table = el('table', {}, [el('thead', {}, [el('tr', {}, ['Card', 'Player', 'Payments', 'Nights', 'Marked Credit'].map(function (label, index) { return el('th', { className: index === 2 || index === 3 ? 'num' : '', text: label }); }))])]);
+    var tbody = el('tbody');
+    linked.sort(function (a, b) { return name(a.playerId).localeCompare(name(b.playerId)); }).forEach(function (card) {
+      tbody.appendChild(el('tr', {}, [
+        el('td', { className: 'card', text: card.card }), el('td', { className: 'who', text: name(card.playerId) }),
+        el('td', { className: 'num', text: String(card.payments) }), el('td', { className: 'num', text: String(card.nights) }),
+        el('td', { text: card.minutes.length ? card.minutes.map(function (m) { return m + ' min'; }).join(', ') + ' from paying' : '-' })
+      ]));
+    });
+    table.appendChild(tbody);
+    body.appendChild(el('div', { className: 'scroll' }, [table]));
   }
 
   function renderNight(night, name) {
@@ -275,7 +305,6 @@ tr.conflict td{background:#fdf5f3}
     } else if (row.state === 'unmatched') {
       would.appendChild(el('span', { className: 'small', text: row.note }));
       if (row.suggestions.length) would.appendChild(el('span', { className: 'small', text: 'Fits: ' + row.suggestions.map(name).join(', ') }));
-      if (row.nearestMarkMinutes !== '') would.appendChild(el('span', { className: 'small', text: 'Nearest Credit marked by hand: ' + row.nearestMarkMinutes + ' min away' }));
     } else {
       would.appendChild(el('span', { className: 'small', text: row.note }));
     }
@@ -284,12 +313,6 @@ tr.conflict td{background:#fdf5f3}
       record.appendChild(el('span', { className: 'tag ' + verdict.verdict, text: VERDICTS[verdict.verdict] }));
       if (verdict.verdict === 'conflict') record.appendChild(document.createTextNode(name(verdict.playerId) + ': ' + (METHODS[verdict.hand] || verdict.hand) + ' '));
     });
-    if (row.learnedPlayerIds.length) {
-      record.appendChild(el('span', { className: 'tag agrees', text: 'Credit by hand' }));
-      record.appendChild(document.createTextNode(row.learnedPlayerIds.map(name).join(' + ')));
-      var how = row.learnedBy === 'time' ? 'Marked Credit within ' + row.learnedMinutes + ' min of this payment' : 'The only payment and Credit player at this amount';
-      record.appendChild(el('span', { className: 'small', text: how + (row.learnedPlayerIds.length === 1 ? ': card learned' : ': two players, so no card is linked') }));
-    }
     var conflict = row.verdicts.some(function (verdict) { return verdict.verdict === 'conflict'; });
     return el('tr', { className: row.state === 'ignored' ? 'ignored' : conflict ? 'conflict' : '' }, [
       el('td', { className: 'when', text: row.clock }), amount, el('td', { className: 'card', text: row.card }), who, would, record

@@ -181,50 +181,42 @@ sheets.NameLinks = [{ kind: 'pays_for', name: 'Avery Park', linked_name: 'Kai Pa
 assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), paysFor, 'NameLinks pays_for rows, by name; an unknown name is skipped');
 sheets.NameLinks = [];
 
-// Learning from the record by hand.
-const review = (payments, hand, linkStore, marks) => {
-  const ctx = { index, links: linkStore, paysFor: {}, statuses: context.getMemberStatuses().statuses, covered: {}, roster: { p1: true, p3: true, p4: true, p6: true }, hand, marks: marks || {} };
-  const result = context.cloverMatchNight_(payments.map(raw => normal(raw)), ctx);
-  const left = context.cloverReviewNight_(result, ctx, linkStore);
-  return { rows: plain(result), left: plain(left) };
-};
-let store = {};
-let reviewed = review([payment('2026-10-07', 10, { cardholderName: 'AVERY PARK', last4: '1111' }), payment('2026-10-07', 5, { cardholderName: '', last4: '2222' })], { p1: 'credit', p6: 'credit', p3: 'credit' }, store);
-assert.equal(reviewed.rows[0].verdicts[0].verdict, 'agrees');
-assert.deepEqual([reviewed.rows[1].learnedPlayerIds, reviewed.rows[1].learnedBy], [['p6'], 'only-one'], 'the only $5 payment and the only $5 Credit player are paired');
-assert.deepEqual(reviewed.left, ['p3'], 'Credit by hand with no Clover payment is reported');
-assert.equal(store['card:VISA|411111|1111'], 'p1', 'a matched card is remembered');
-assert.equal(store['card:VISA|411111|2222'], 'p6');
-reviewed = review([payment('2026-10-14', 5, { cardholderName: '', last4: '2222' })], { p6: 'credit' }, store);
-assert.deepEqual([reviewed.rows[0].state, reviewed.rows[0].reason], ['matched', 'card'], 'the next week the learned card matches on its own');
-reviewed = review([payment('2026-10-07', 10, { cardholderName: '', last4: '3333' }), payment('2026-10-07', 10, { cardholderName: '', last4: '4444' })], { p3: 'credit', p4: 'credit' }, {});
-assert.ok(reviewed.rows.every(row => !row.learnedPlayerIds), 'two payments and two players at one amount are never guessed');
-// Pairing by when the player was marked Credit by hand.
-const pay = (minute, dollars, last4) => { const raw = payment('2026-10-07', dollars, { cardholderName: '', last4 }); raw.createdTime = at('2026-10-07', 19, minute); return raw; };
-const marked = minute => [at('2026-10-07', 19, minute)];
-store = {};
-reviewed = review([pay(10, 10, '3333'), pay(30, 10, '4444')], { p3: 'credit', p4: 'credit' }, store, { p3: marked(11), p4: marked(28) });
-assert.deepEqual(reviewed.rows.map(row => [row.learnedPlayerIds, row.learnedBy, row.learnedMinutes]), [[['p3'], 'time', 1], [['p4'], 'time', 2]], 'each payment pairs with the player marked Credit minutes from it');
-assert.deepEqual([store['card:VISA|411111|3333'], store['card:VISA|411111|4444']], ['p3', 'p4']);
-reviewed = review([pay(10, 10, '3333'), pay(11, 10, '4444')], { p3: 'credit', p4: 'credit' }, {}, { p3: marked(10), p4: marked(11) });
-assert.ok(reviewed.rows.every(row => !row.learnedPlayerIds), 'two payments a minute apart with two players marked then: never guessed');
-reviewed = review([pay(10, 10, '3333'), pay(12, 10, '4444')], { p3: 'credit', p4: 'credit' }, {}, { p3: marked(10), p4: marked(40) });
-assert.ok(reviewed.rows.every(row => !row.learnedPlayerIds), 'one player near two payments is contested, and the other is too far from either');
-reviewed = review([pay(10, 10, '3333'), pay(40, 10, '4444')], { p3: 'credit', p4: 'credit', p1: 'credit' }, {}, { p3: marked(10), p4: marked(38), p1: marked(41) });
-assert.deepEqual(reviewed.rows.map(row => row.learnedPlayerIds), [['p3'], undefined], 'the 7:10 payment pairs; two players near 7:40 stay open');
-reviewed = review([pay(10, 10, '3333'), pay(20, 10, '4444')], { p3: 'credit', p4: 'credit', p1: 'credit' }, {}, { p3: marked(10), p4: marked(18), p1: marked(21) });
-assert.ok(reviewed.rows.every(row => !row.learnedPlayerIds), 'three players near two payments: no pair is certain');
-reviewed = review([pay(10, 10, '3333'), pay(12, 10, '4444'), pay(13, 10, '5555')], { p3: 'credit', p4: 'credit', p1: 'credit' }, {}, { p3: marked(10), p4: marked(30), p1: marked(11) });
-assert.deepEqual(reviewed.rows.map(row => row.learnedPlayerIds), [undefined, undefined, undefined], 'three payments and two players near all of them (p4 is too far): nothing is forced');
-reviewed = review([pay(10, 10, '3333'), pay(12, 10, '4444'), pay(28, 10, '5555')], { p3: 'credit', p4: 'credit', p1: 'credit' }, {}, { p3: marked(10), p4: marked(40), p1: marked(11) });
-assert.deepEqual(reviewed.rows.map(row => row.learnedPlayerIds), [undefined, undefined, ['p4']], 'only p4 is near 7:28; the two at 7:10 and 7:12 are still a toss-up');
-store = {};
-reviewed = review([pay(10, 20, '5555')], { p3: 'credit', p4: 'credit' }, store, { p3: marked(9), p4: marked(11) });
-assert.deepEqual(reviewed.rows[0].learnedPlayerIds, ['p3', 'p4'], 'a $20 payment fits two $10 players marked then');
-assert.deepEqual(reviewed.left, []);
-assert.equal(store['card:VISA|411111|5555'], undefined, 'which of the two paid is unknown, so the card is not linked');
-reviewed = review([payment('2026-10-07', 10, { cardholderName: 'AVERY PARK' })], { p1: 'venmo' }, {});
-assert.equal(reviewed.rows[0].state, 'needs-action');
+// Comparing a night with the record by hand.
+const ctx7 = { index, links: {}, paysFor: {}, statuses: context.getMemberStatuses().statuses, covered: {}, roster: { p1: true, p3: true, p4: true, p6: true }, hand: { p1: 'credit', p3: 'credit', p4: 'venmo' } };
+let reviewedRows = context.cloverMatchNight_([normal(payment('2026-10-07', 10, { cardholderName: 'AVERY PARK' })), normal(payment('2026-10-07', 10, { cardholderName: 'J SMITH' }))], ctx7);
+let left = plain(context.cloverReviewNight_(reviewedRows, ctx7));
+assert.equal(plain(reviewedRows)[0].verdicts[0].verdict, 'agrees');
+assert.deepEqual(left, ['p3'], 'Credit by hand with no Clover payment is reported');
+
+// Learning cards from the record by hand, across nights.
+const statuses = context.getMemberStatuses().statuses;
+const card = (date, dollars, last4) => normal(payment(date, dollars, { cardholderName: '', last4 }));
+const learn = nights => plain(context.cloverLearnCards_(nights.map(([date, payments, credit]) => ({ date, payments, credit })), statuses));
+let learnt = learn([
+  ['2026-10-05', [card('2026-10-05', 10, '1001'), card('2026-10-05', 10, '1002')], ['p1', 'p3']],
+  ['2026-10-07', [card('2026-10-07', 10, '1001'), card('2026-10-07', 10, '1004'), card('2026-10-07', 10, '1004')], ['p1', 'p4', 'p6']],
+  ['2026-10-12', [card('2026-10-12', 10, '1001'), card('2026-10-12', 10, '1004')], ['p1', 'p4']],
+  ['2026-10-14', [card('2026-10-14', 5, '1005'), card('2026-10-14', 10, '1006')], ['p6']],
+  ['2026-10-19', [card('2026-10-19', 5, '1005')], []],
+  ['2026-10-21', [card('2026-10-21', 5, '1005'), card('2026-10-21', 10, '1007')], ['p5']],
+  ['2026-10-23', [card('2026-10-23', 10, '1008')], []]
+]);
+const linkOf = last4 => learnt.links['card:VISA|411111|' + last4];
+const cardOf = last4 => learnt.cards.find(c => c.key === 'card:VISA|411111|' + last4);
+assert.equal(linkOf('1001'), 'p1', 'the one player marked Credit at $10 on all three nights the card paid');
+assert.equal(linkOf('1002'), 'p3', 'p1 is taken by the other card that night, which leaves p3');
+assert.equal(linkOf('1004'), 'p4', 'the night it paid twice says nothing; on Oct 12 p1 is taken by the other card, which leaves p4');
+assert.equal(linkOf('1005'), undefined, 'the $5 card fits p6 on Oct 14 but nobody on Oct 21: a record is missing or the card is shared, so no link');
+assert.equal(cardOf('1005').candidates.length, 0);
+assert.equal(cardOf('1005').nights, 2, 'Oct 19 had nothing marked Credit, so it is no clue');
+assert.equal(linkOf('1006'), undefined, 'nobody was marked Credit at $10 on Oct 14');
+assert.equal(linkOf('1007'), 'p5', 'a single night with one player at that fee');
+assert.equal(cardOf('1008').nights, 0, 'only paid on a night with no Credit recorded');
+learnt = learn([['2026-10-05', [card('2026-10-05', 10, '2001'), card('2026-10-05', 10, '2002')], ['p1', 'p3']]]);
+assert.deepEqual([linkOf('2001'), linkOf('2002')], [undefined, undefined], 'two cards and two players at one amount are never guessed');
+assert.equal(cardOf('2001').candidates.length, 2);
+learnt = learn([['2026-10-05', [card('2026-10-05', 20, '2003')], ['p1', 'p3']]]);
+assert.equal(linkOf('2003'), undefined, 'a payment for two people links no card');
 
 // Configuration and errors never show the token.
 assert.match(context.cloverConfigProblem_({ token: '', merchant: '' }), /CLOVER_API_TOKEN and CLOVER_MERCHANT_ID/);
@@ -289,22 +281,20 @@ const paymentsCall = fetched.find(call => /\/payments\?/.test(call.url));
 assert.match(paymentsCall.url, /^https:\/\/api\.clover\.com\/v3\/merchants\/ABC123DEF4567\/payments\?filter=createdTime%3E%3D\d+&filter=createdTime%3C\d+&expand=cardTransaction%2Crefunds&limit=1000&offset=0$/);
 assert.deepEqual(report.nights.map(n => n.date), ['2026-10-07', '2026-10-05'], 'newest night first; a payment after the range is left out');
 const oct5 = report.nights[1];
-assert.equal(oct5.rows[1].customer, 'Robert Lee \u00b7 925-555-0199', 'the Clover customer is shown');
-assert.deepEqual(oct5.rows.map(row => [row.state, row.verdicts.map(v => v.verdict).join()]), [['matched', 'agrees'], ['needs-action', '']], 'the Zeffy holder paying is asked about');
+assert.equal(oct5.rows[1].customer, 'Robert Lee · 925-555-0199', 'the Clover customer is shown');
+assert.deepEqual(oct5.rows.map(row => [row.state, row.verdicts.map(v => v.verdict).join()]), [['matched', 'agrees'], ['needs-action', '']], 'matched by the name on the card; the Zeffy holder paying is asked about');
 const oct7 = report.nights[0];
-assert.deepEqual(oct7.rows.map(row => row.state), ['needs-action', 'unmatched', 'ignored', 'unmatched'], 'the learned card meets a hand-chosen Cash; the refund is left alone');
-assert.deepEqual([oct7.rows[3].learnedPlayerIds, oct7.rows[3].learnedBy, oct7.rows[3].learnedMinutes], [['p4'], 'time', 1], 'an Open Play player marked Credit (AuditLog) a minute after paying');
+assert.deepEqual(oct7.rows.map(row => [row.state, row.reason, row.playerIds.join()]), [['unmatched', '', ''], ['matched', 'card', 'p6'], ['ignored', '', ''], ['matched', 'card', 'p4']],
+  'the card Avery used on Oct 5 is not linked: Oct 7 records Cash for Avery; the learned cards match; the refund is left alone');
 assert.equal(oct7.rosterCount, 4, 'Open Play players count as checked in');
-assert.equal(oct7.rows[0].reason, 'card', 'the card learned on Oct 5 is recognised on Oct 7');
-assert.deepEqual(oct7.rows[1].learnedPlayerIds, ['p6']);
-assert.equal(oct7.rows[0].card, 'VISA ••1111');
-assert.equal(report.totals.cardPayments, 5);
-assert.equal(report.totals.matched, 1);
-assert.equal(report.totals.agrees, 1);
-assert.equal(report.totals.needsAction, 2);
-assert.deepEqual([report.totals.learned, report.totals.learnedByTime], [1, 1]);
+assert.equal(oct7.rows[1].card, 'VISA ••6666');
+const learnedCards = Object.fromEntries(report.cards.map(c => [c.card, c]));
+assert.deepEqual([learnedCards['VISA ••8888'].playerId, learnedCards['VISA ••8888'].minutes], ['p4', [1]], 'an Open Play player, marked Credit (AuditLog) a minute from paying');
+assert.equal(learnedCards['VISA ••6666'].playerId, 'p6');
+assert.equal(learnedCards['VISA ••1111'].playerId, '');
+assert.equal(report.cards.filter(c => c.playerId).length, 2);
+assert.deepEqual([report.totals.cardPayments, report.totals.matched, report.totals.agrees, report.totals.needsAction, report.totals.unmatched, report.totals.ignored], [5, 3, 3, 1, 1, 1]);
 assert.deepEqual(report.repeat, { cards: 4, payments: 1 }, 'one payment came from a card seen on an earlier night');
-assert.equal(report.totals.ignored, 1);
 assert.equal(report.names.p1, 'Avery Park');
 assert.equal(report.enabled, false);
 assert.ok(!('CloverLinks' in sheets), 'the report never adds a tab');
