@@ -377,13 +377,30 @@ function cloverPaysFor_(players, linkRows) {
 }
 
 // The night as recorded by hand, compared with what the desk would have done. Matching runs night by night, oldest
-// first, and learns as the organizer would have taught it. Each match links its card. Then the payments left over are
-// paired with the players marked Credit by hand (context.marks: when each was marked, from the AuditLog) when the pair
-// is the only one that fits: a player, or two whose fees add up to the amount, marked within a few minutes of the
-// payment, and nobody else's payment could be theirs. A pairing settles the next, so it repeats until nothing changes.
-// Last, a night left with exactly one payment and one Credit player at the same amount is paired too. A pairing of two
-// players links no card: which of them paid is not known.
-var CLOVER_MARK_WINDOW_MS_ = 5 * 60000;
+// first, and learns as the organizer would have taught it. Each match links its card. The payments left over are then
+// paired with the players marked Credit by hand that night (context.marks: when each was marked, from the AuditLog),
+// where a payment and a player can only pair if the fee is the amount and the mark is within 15 minutes of the payment.
+// A pair is learned only when every way of pairing up the night uses it, so nothing rests on a guess between people who
+// arrived together. A $20-style payment is paired with two players only when they are the one pair that fits. Last, a
+// night left with exactly one payment and one Credit player at the same amount is paired too. A pairing of two players
+// links no card: which of them paid is not known.
+var CLOVER_MARK_WINDOW_MS_ = 15 * 60000;
+
+// The size of the largest pairing of payments (left) with players (right), leaving out one edge if asked.
+function cloverMaxPairs_(left, edges, skip) {
+  var owner = {};
+  var tryPay = function (payment, seen) {
+    var targets = edges[payment] || [];
+    for (var i = 0; i < targets.length; i += 1) {
+      var player = targets[i];
+      if ((skip && skip[0] === payment && skip[1] === player) || seen[player]) continue;
+      seen[player] = true;
+      if (owner[player] === undefined || tryPay(owner[player], seen)) { owner[player] = payment; return true; }
+    }
+    return false;
+  };
+  return left.reduce(function (count, payment) { return count + (tryPay(payment, {}) ? 1 : 0); }, 0);
+}
 
 function cloverReviewNight_(rows, context, links) {
   var claimed = {};
@@ -408,31 +425,40 @@ function cloverReviewNight_(rows, context, links) {
     group.forEach(function (id) { claimed[id] = true; });
     if (group.length === 1) cloverRemember_(links, cloverPaymentKeys_(row.payment), group[0]);
   };
-  var groupsNear = function (row) {
-    var dollars = row.payment.net / 100;
-    var near = credit.filter(function (id) { return !claimed[id] && gap(row, id) <= CLOVER_MARK_WINDOW_MS_; });
-    var groups = near.filter(function (id) { return cloverFee_(id, context) === dollars; }).map(function (id) { return [id]; });
-    near.forEach(function (left, i) {
-      near.slice(i + 1).forEach(function (right) { if (cloverFee_(left, context) + cloverFee_(right, context) === dollars) groups.push([left, right]); });
-    });
-    return groups;
-  };
   var open = function () { return rows.filter(function (row) { return row.state === 'unmatched' && !row.learnedPlayerIds; }); };
-  for (var changed = true; changed;) {
-    changed = false;
-    var waiting = open();
-    var options = waiting.map(groupsNear);
-    for (var i = 0; i < waiting.length && !changed; i += 1) {
-      if (options[i].length !== 1) continue;
-      var group = options[i][0];
-      var contested = options.some(function (other, j) {
-        return j !== i && other.some(function (candidate) { return candidate.some(function (id) { return group.indexOf(id) >= 0; }); });
-      });
-      if (contested) continue;
-      learn(waiting[i], group, 'time');
-      changed = true;
-    }
-  }
+  var near = function (row) { return credit.filter(function (id) { return !claimed[id] && gap(row, id) <= CLOVER_MARK_WINDOW_MS_; }); };
+
+  // One payment, one player: the pairs every largest pairing uses.
+  var waiting = open();
+  var edges = {};
+  waiting.forEach(function (row, index) {
+    edges[index] = near(row).filter(function (id) { return cloverFee_(id, context) === row.payment.net / 100; });
+  });
+  var left = waiting.map(function (row, index) { return index; });
+  var best = cloverMaxPairs_(left, edges);
+  var forced = [];
+  left.forEach(function (index) {
+    edges[index].forEach(function (id) { if (cloverMaxPairs_(left, edges, [index, id]) < best) forced.push([index, id]); });
+  });
+  forced.forEach(function (pair) { learn(waiting[pair[0]], [pair[1]], 'time'); });
+
+  // One payment, two players whose fees add up to it, when they are the only pair near it and near no other payment.
+  waiting = open();
+  var pairs = waiting.map(function (row) {
+    var people = near(row);
+    var found = [];
+    people.forEach(function (first, i) {
+      people.slice(i + 1).forEach(function (second) { if (cloverFee_(first, context) + cloverFee_(second, context) === row.payment.net / 100) found.push([first, second]); });
+    });
+    return found;
+  });
+  waiting.forEach(function (row, i) {
+    if (pairs[i].length !== 1) return;
+    var group = pairs[i][0];
+    var contested = waiting.some(function (other, j) { return j !== i && near(other).some(function (id) { return group.indexOf(id) >= 0; }); });
+    if (!contested && group.every(function (id) { return !claimed[id]; })) learn(row, group, 'time');
+  });
+
   var byAmount = {};
   open().forEach(function (row) { var amount = row.payment.net / 100; (byAmount[amount] || (byAmount[amount] = [])).push(row); });
   var byFee = {};
@@ -519,10 +545,18 @@ function getCloverReport(fromDate, toDate) {
 
   var totals = { cardPayments: 0, matched: 0, agrees: 0, conflict: 0, missing: 0, notCheckedIn: 0, needsAction: 0, unmatched: 0, learnedByTime: 0, learned: 0, ignored: 0, creditWithoutPayment: 0, withName: 0, withCustomer: 0, withCard: 0 };
   var gaps = { within2: 0, within5: 0, within15: 0, within60: 0, over60: 0, none: 0 };
+  // Cards seen on an earlier night: once matched by hand the first time, these would match by themselves.
+  var cardNights = {};
+  var repeat = { cards: 0, payments: 0 };
   var nights = dates.map(function (date) {
     var context = { index: index, links: links, paysFor: paysFor, statuses: statuses, covered: coveredOn(date), roster: rosters[date] || {}, hand: hands[date] || {}, marks: marks[date] || {} };
     var rows = cloverMatchNight_(byDate[date] || [], context);
     var creditWithoutPayment = cloverReviewNight_(rows, context, links);
+    rows.forEach(function (row) {
+      var key = cloverPaymentKeys_(row.payment)[0];
+      if (row.state === 'ignored' || !key || key.indexOf('card:') !== 0) return;
+      if (!cardNights[key]) { cardNights[key] = date; repeat.cards += 1; } else if (cardNights[key] < date) repeat.payments += 1;
+    });
     // How far each payment left over is from the nearest Credit mark that night, whoever it was for.
     var times = [];
     Object.keys(context.marks).forEach(function (id) { if (context.hand[id] === 'credit') times = times.concat(context.marks[id]); });
@@ -560,6 +594,7 @@ function getCloverReport(fromDate, toDate) {
     totals: totals,
     storedLinks: storedLinks,
     gaps: gaps,
+    repeat: repeat,
     auditMarks: auditMarks,
     linksAfter: learned,
     nights: nights.reverse()

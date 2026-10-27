@@ -104,7 +104,7 @@ tr.conflict td{background:#fdf5f3}
 <div id="nights" class="nights"></div>
 <div class="footnote">
   <p>Each completed card payment on Clover is matched to a player only when the evidence points to exactly one: a card or Clover customer matched before, the name on the card (or Clover customer) exactly matching one player or saved alias, or the same last name with a first name or initial only one active player fits. The amount must then be that player's fee (Junior $5, Member $10, Visitor $15), or the fees of a payer and the players a NameLinks "pays_for" row says they pay for.</p>
-  <p>"Your record" compares with the payment chosen by hand at the desk that night. Nights are worked through oldest first, and the desk learns as you would have taught it: a matched card is remembered. A payment left over is paired with a player marked Credit by hand within 5 minutes of it (or two players whose fees add up to it) only when that is the one pairing that fits and nobody else's payment could be theirs; a night left with one payment and one Credit player at the same amount is paired too. Each such pairing links the card, except a two-player one.</p>
+  <p>"Your record" compares with the payment chosen by hand at the desk that night. Nights are worked through oldest first, and the desk learns as you would have taught it: a matched card is remembered. A payment left over is paired with a player marked Credit by hand within 15 minutes of it, at their fee, only when every way of pairing up that night's payments and Credit marks uses that pair (two players whose fees add up to the payment only when they are the one pair that fits); a night left with one payment and one Credit player at the same amount is paired too. Each such pairing links the card, except a two-player one. "Card seen on an earlier night" counts the payments that would match by themselves once each card had been matched once.</p>
   <p>Refunds, voids, declines and cash entered on Clover are listed but never matched. Card details are the brand and last four digits only.</p>
 </div>
 </main>
@@ -215,7 +215,8 @@ tr.conflict td{background:#fdf5f3}
       tile('Needs you', t.needsAction, 'Wrong amount, Zeffy, paid twice', t.needsAction ? 'ask' : ''),
       tile('Unmatched', t.unmatched, 'No single player fits'),
       tile('Paired with your records', t.learnedByTime + t.learned, t.learnedByTime + ' by the time you marked Credit, ' + t.learned + ' as the only one at that amount', 'good'),
-      tile('Credit without a payment', t.creditWithoutPayment, 'Credit by hand, no Clover match', t.creditWithoutPayment ? 'ask' : '')
+      tile('Credit without a payment', t.creditWithoutPayment, 'Credit by hand, no Clover match', t.creditWithoutPayment ? 'ask' : ''),
+      tile('Card seen on an earlier night', data.repeat.payments, percent(data.repeat.payments, t.cardPayments) + ' of payments, from ' + data.repeat.cards + ' different cards', 'good')
     ].forEach(function (node) { tiles.appendChild(node); });
     document.getElementById('diagnostics').textContent = 'Of the ' + t.cardPayments + ' card payments, ' + t.withName + ' carried a name on the card, ' + t.withCustomer + ' a Clover customer, and ' + t.withCard + ' card digits the desk can remember. ' +
       t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Cards and customers linked: ' + data.storedLinks + ' saved, ' + data.linksAfter + ' after this look back. ' +
