@@ -134,11 +134,12 @@ function appendAudit_(action, entityType, entityId, details) {
   return eventId;
 }
 
-// ?view=cash opens the daily cash flow page (CashFlow.js); every other request opens the desk.
+// ?view=cash opens the daily cash flow page (CashFlow.js), ?view=clover the Clover payments page (CloverPayments.js);
+// every other request opens the desk.
 function doGet(event) {
   return guardDesk_('page_load', function () {
     var view = event && event.parameter && event.parameter.view;
-    return view === 'cash' ? cashPage_(event) : deskPage_(event);
+    return view === 'cash' ? cashPage_(event) : view === 'clover' ? cloverPage_(event) : deskPage_(event);
   });
 }
 

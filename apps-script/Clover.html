@@ -1,0 +1,317 @@
+<!-- App source and change requests: https://github.com/jb-cttc/concordtabletennisclub. Review in GitHub; deploy to Google separately. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<style>
+:root{--ink:#17211b;--muted:#657069;--line:#d8ddd9;--paper:#f5f7f4;--panel:#fff;--green:#176b45;--green2:#0f5235;--gold:#c99934;--red:#a43831}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(135deg,#eef2ed,#f8f7f1 48%,#edf2f3);color:var(--ink);font-family:Georgia,"Times New Roman",serif;letter-spacing:0}
+button,input{font:inherit}button{cursor:pointer}
+h1,h2,h3,p{margin-top:0}
+.top{background:#123f2b;color:#fff;border-bottom:5px solid var(--gold)}
+.top-inner{max-width:1180px;margin:auto;padding:18px 28px;display:flex;align-items:center;gap:18px}
+.top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}
+.brand{font-size:24px;font-weight:700;min-width:0}.brand small{display:block;margin-top:3px;color:#dce9e1;font:12px Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.top-links{margin-left:auto;display:flex;align-items:center;gap:14px;font:13px Arial,sans-serif}
+.top-links a{color:#dce9e1;white-space:nowrap}.top-links a:hover{color:#fff}
+.mode-pill{font:600 11px Arial,sans-serif;letter-spacing:.04em;padding:3px 9px;border:1px solid currentColor;border-radius:999px;color:#c9d3cd}
+.mode-pill[data-mode=dev]{color:#e8c06a}.mode-pill[data-mode=live]{color:#9fd6b0}
+body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
+body.reloading #summary,body.reloading #nights{opacity:.55}
+.shell{max-width:1180px;margin:auto;padding:22px 28px 48px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px;margin-bottom:18px}
+.range{display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+.range label{font:12px Arial,sans-serif;color:var(--muted)}
+.range input{display:block;margin-top:4px;border:1px solid #aeb7b1;background:#fff;color:var(--ink);padding:8px 10px;border-radius:4px}
+.primary{border:0;background:var(--green);color:#fff;border-radius:4px;padding:9px 15px;font-weight:700}.primary:hover{background:var(--green2)}
+.primary:disabled{opacity:.55;cursor:default}
+.mode-note{margin:0 0 18px;padding:10px 14px;border-left:4px solid var(--gold);background:#fff7e3;font:14px/1.45 Arial,sans-serif}
+.mode-note.live{border-color:var(--green);background:#e4f3e9}
+.statusbar{min-height:42px;padding:11px 14px;background:#e7eee9;border-left:4px solid var(--green);font:14px Arial,sans-serif;margin-bottom:18px}
+.statusbar.error{background:#f6e8e6;border-color:var(--red);color:#6f241f}.statusbar.busy{border-color:var(--gold)}
+.summary-head h2{margin:0 0 12px;font-size:20px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:#f7f9f7;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;padding:10px 12px;min-width:0}
+.tile .label{display:block;font:12px Arial,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile strong{display:block;font-size:22px;margin:4px 0 2px;font-variant-numeric:tabular-nums}
+.tile .sub{font:12px Arial,sans-serif;color:var(--muted)}
+.tile.alert{border-top-color:var(--red);background:#fbf1ef}
+.tile.ask{border-top-color:var(--gold)}
+.diagnostics{margin:12px 0 0;font:13px/1.5 Arial,sans-serif;color:var(--muted)}
+.nights{display:grid;gap:16px}
+.night{background:#fff;border:1px solid var(--line);border-top:4px solid var(--green);border-radius:6px;overflow:hidden}
+.night-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 16px;background:#f7f9f7;border-bottom:1px solid var(--line)}
+.night-head h3{margin:0;font-size:18px}
+.night-head span{font:13px Arial,sans-serif;color:var(--muted)}
+.night-body{padding:6px 16px 14px}
+.scroll{overflow-x:auto;max-width:100%}
+table{width:100%;border-collapse:collapse;font:14px Arial,sans-serif}
+th,td{padding:6px;border-bottom:1px solid #edf0ed;text-align:left;vertical-align:top}
+th{font-weight:700;background:#f4f6f4;white-space:nowrap}
+.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.when,td.card{white-space:nowrap}
+.small{display:block;font-size:12px;color:var(--muted)}
+.tag{display:inline-block;margin:0 4px 2px 0;padding:1px 7px;border:1px solid #c8d1cb;border-radius:999px;font-size:12px;white-space:nowrap}
+.tag.matched,.tag.agrees{border-color:#82be99;background:#e4f3e9;color:#125436;font-weight:700}
+.tag.needs-action,.tag.missing,.tag.not-checked-in{border-color:#d9b25c;background:#fff7e3;color:#6b4b0c}
+.tag.conflict{border-color:#c98f84;background:#fbf1ef;color:#7a2f22;font-weight:700}
+.tag.unmatched{border-color:#aeb7b1;background:#f4f6f4}
+.tag.ignored{color:var(--muted)}
+tr.ignored td{color:var(--muted)}
+tr.conflict td{background:#fdf5f3}
+.leftover{margin:10px 0 0;font:13px/1.5 Arial,sans-serif;color:#6b4b0c}
+.empty{padding:40px 20px;text-align:center;border:1px dashed #aab5ae;background:rgba(255,255,255,.6);color:var(--muted);font:15px Arial,sans-serif}
+.footnote{font:12px/1.5 Arial,sans-serif;color:var(--muted);margin-top:22px}
+.footnote p{margin:0 0 6px}
+[hidden]{display:none!important}
+@media(max-width:640px){table.payments thead{display:none}table.payments tr{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;padding:9px 0;border-bottom:1px solid var(--line)}table.payments td{border:0;padding:0}table.payments td.when{grid-row:1;grid-column:1}table.payments td.card{grid-row:1;grid-column:2;color:var(--muted)}table.payments td.num{grid-row:1;grid-column:3}table.payments td.who,table.payments td.would,table.payments td.record{grid-column:1/-1}table.payments td.record:empty{display:none}table.payments tr.conflict{background:#fdf5f3}table.payments tr.conflict td{background:none}}
+@media(max-width:760px){.top-inner{flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.brand{font-size:20px;flex:1}.top-links{width:100%;margin-left:0;justify-content:space-between}.shell{padding:16px}.range label{flex:1 1 130px}.range input{width:100%}.tile strong{font-size:19px}.night-body{padding:6px 10px 12px}}
+</style>
+</head>
+<body>
+<script>
+// ALLOWALL framing lets any site embed this signed-in app, so only the club site (or localhost for testing) may; anyone else gets an opaque cover.
+(function () {
+  var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : null;
+  var sandbox = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+  var trusted = /^(https:\/\/concordtabletennisclub\.com|http:\/\/(localhost|127\.0\.0\.1):\d+)$/;
+  var direct = !!ancestors && ancestors.length === 2 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com';
+  var embedded = !!ancestors && ancestors.length === 3 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com' && trusted.test(ancestors[2]);
+  if (!ancestors || direct || embedded) return;
+  var cover = document.createElement('div');
+  cover.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483647;background:#fff;color:#17211b;font:16px Arial,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px';
+  cover.textContent = 'The CTTC desk can only be opened directly or from the club website.';
+  document.body.appendChild(cover);
+})();
+</script>
+<header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">Clover payments<small>Concord Table Tennis Club</small></div><div class="top-links"><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><a id="desk-link" href="<?= deskUrl ?>">&larr; Back to the desk</a><a href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
+<main class="shell">
+<p id="mode-note" class="mode-note" hidden></p>
+<form id="range" class="panel range" novalidate>
+  <label>From<input id="from" type="date" required></label>
+  <label>To<input id="to" type="date" required></label>
+  <button id="show" class="primary" type="submit">Show</button>
+</form>
+<div id="status" class="statusbar busy" role="status" aria-live="polite">Reading Clover...</div>
+<section id="summary" class="panel" hidden aria-labelledby="summary-title">
+  <div class="summary-head"><h2 id="summary-title">What the desk would have done</h2></div>
+  <div id="tiles" class="tiles"></div>
+  <p id="diagnostics" class="diagnostics"></p>
+</section>
+<div id="nights" class="nights"></div>
+<div class="footnote">
+  <p>Each completed card payment on Clover is matched to a player only when the evidence points to exactly one: a card or Clover customer matched before, the name on the card (or Clover customer) exactly matching one player or saved alias, or the same last name with a first name or initial only one active player fits. The amount must then be that player's fee (Junior $5, Member $10, Visitor $15), or the fees of a payer and the players a NameLinks "pays_for" row says they pay for.</p>
+  <p>"Your record" compares with the payment chosen by hand at the desk that night. Nights are worked through oldest first, and the desk learns as you would have taught it: a matched card is remembered, and a night left with one unmatched payment and one Credit player at the same amount links that card to that player.</p>
+  <p>Refunds, voids, declines and cash entered on Clover are listed but never matched. Card details are the brand and last four digits only.</p>
+</div>
+</main>
+<script>
+(function () {
+  var pill = document.getElementById('mode-pill');
+  var names = { dev: '/dev', live: '/exec' };
+  var mode = pill.getAttribute('data-mode');
+  document.body.setAttribute('data-mode', mode);
+  pill.textContent = names[mode] || 'unknown';
+  pill.title = names[mode] ? 'Running ' + names[mode] + '.' : 'Could not tell which deployment this is.';
+  // Inside the club site's frame, go back to the site's desk page rather than the bare Google address.
+  var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : [];
+  var site = ancestors.length === 3 ? ancestors[2] : '';
+  if (/^(https:\/\/concordtabletennisclub\.com|http:\/\/(localhost|127\.0\.0\.1):\d+)$/.test(site)) document.getElementById('desk-link').href = site + '/desk.html';
+})();
+</script>
+<script>
+(function () {
+  // Clover reads take longer than Sheet reads: the report fetches payments, orders and customers.
+  var READ_TIMEOUT_MS = 120000;
+  // The desk has been the record since this night; the report starts there by default.
+  var DESK_START = '2026-09-30';
+  var MAX_DAYS = 85;
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var REASONS = {
+    card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
+    name: 'name on card', initial: 'initial and last name on card', 'customer-name': 'Clover customer name',
+    'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays_for link'
+  };
+  var STATES = { matched: 'Credit ✓', 'needs-action': 'Needs you', unmatched: 'Unmatched', ignored: 'Ignored' };
+  var VERDICTS = { agrees: 'Agrees', conflict: 'Differs', missing: 'Nothing recorded', 'not-checked-in': 'Not on the roster' };
+  var METHODS = { cash: 'Cash', venmo: 'Venmo', zelle: 'Zelle', credit: 'Credit', zeffy: 'Zeffy' };
+  var fromField = document.getElementById('from');
+  var toField = document.getElementById('to');
+  var statusBar = document.getElementById('status');
+  var showButton = document.getElementById('show');
+  var requestNumber = 0;
+
+  function request(name) {
+    var args = [].slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { reject(new Error('Google did not respond in ' + READ_TIMEOUT_MS / 1000 + ' seconds. Check the connection.')); }, READ_TIMEOUT_MS);
+      var runner = google.script.run.withSuccessHandler(function (result) { clearTimeout(timer); resolve(result); }).withFailureHandler(function (error) { clearTimeout(timer); reject(error); });
+      runner[name].apply(runner, args);
+    });
+  }
+  function message(error) { return error && error.message || String(error || 'Unknown error'); }
+  function setStatus(text, kind) {
+    statusBar.textContent = text;
+    statusBar.className = 'statusbar' + (kind ? ' ' + kind : '');
+    statusBar.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  }
+  function money(value) {
+    var amount = Number(value) || 0;
+    return '$' + (amount % 1 ? amount.toFixed(2) : String(amount));
+  }
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      if (key === 'text') node.textContent = attrs[key];
+      else if (key === 'className') node.className = attrs[key];
+      else node.setAttribute(key, attrs[key]);
+    });
+    (children || []).forEach(function (child) { if (child) node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child); });
+    return node;
+  }
+  function iso(date) {
+    return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
+  }
+  function longDate(value) {
+    var parts = value.split('-').map(Number);
+    var weekday = WEEKDAYS[new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).getUTCDay()];
+    return weekday + ', ' + MONTHS[parts[1] - 1] + ' ' + parts[2] + ', ' + parts[0];
+  }
+
+  function tile(label, value, sub, kind) {
+    return el('div', { className: 'tile' + (kind ? ' ' + kind : '') }, [el('span', { className: 'label', text: label }), el('strong', { text: String(value) }), sub ? el('span', { className: 'sub', text: sub }) : null]);
+  }
+  function percent(part, whole) { return whole ? Math.round(part / whole * 100) + '%' : '-'; }
+
+  function render(data) {
+    var note = document.getElementById('mode-note');
+    note.hidden = false;
+    note.className = 'mode-note' + (data.enabled ? ' live' : '');
+    note.textContent = data.enabled
+      ? 'CLOVER_ENABLED is on. This page still only reads; the desk records the matches.'
+      : 'Dry run: this page only reads Clover and the Sheet. Nothing is recorded until CLOVER_ENABLED is turned on.';
+    var summary = document.getElementById('summary');
+    var nights = document.getElementById('nights');
+    nights.textContent = '';
+    if (!data.connected) {
+      summary.hidden = true;
+      setStatus('Clover is not connected yet. ' + data.problem, 'error');
+      return;
+    }
+    var name = function (id) { return data.names[id] || 'Unknown player'; };
+    var t = data.totals;
+    var tiles = document.getElementById('tiles');
+    tiles.textContent = '';
+    [
+      tile('Card payments', t.cardPayments, data.nights.length + (data.nights.length === 1 ? ' night' : ' nights')),
+      tile('Matched automatically', t.matched, percent(t.matched, t.cardPayments) + ' of card payments'),
+      tile('Agrees with your record', t.agrees, 'Credit chosen by hand too'),
+      tile('Differs from your record', t.conflict, 'Another method chosen by hand', t.conflict ? 'alert' : ''),
+      tile('Nothing recorded by hand', t.missing, 'The desk would add Credit', t.missing ? 'ask' : ''),
+      tile('Needs you', t.needsAction, 'Wrong amount, Zeffy, paid twice', t.needsAction ? 'ask' : ''),
+      tile('Unmatched', t.unmatched, t.learned + ' learned from your records'),
+      tile('Credit without a payment', t.creditWithoutPayment, 'Credit by hand, no Clover match', t.creditWithoutPayment ? 'ask' : '')
+    ].forEach(function (node) { tiles.appendChild(node); });
+    document.getElementById('diagnostics').textContent = 'Of the ' + t.cardPayments + ' card payments, ' + t.withName + ' carried a name on the card, ' + t.withCustomer + ' a Clover customer, and ' + t.withCard + ' card digits the desk can remember. ' +
+      t.ignored + ' other Clover records (refunds, voids, declines, cash) were left alone. Cards and customers linked: ' + data.storedLinks + ' saved, ' + data.linksAfter + ' after this look back.';
+    summary.hidden = false;
+    if (!data.nights.length) {
+      nights.appendChild(el('div', { className: 'empty', text: 'No round robin nights or Clover payments in this range.' }));
+      setStatus('Read Clover from ' + longDate(data.from) + ' to ' + longDate(data.to) + '.');
+      return;
+    }
+    data.nights.forEach(function (night) { nights.appendChild(renderNight(night, name)); });
+    setStatus('Read Clover from ' + longDate(data.from) + ' to ' + longDate(data.to) + '.');
+  }
+
+  function renderNight(night, name) {
+    var rows = night.rows;
+    var cards = rows.filter(function (row) { return row.state !== 'ignored'; });
+    var matched = rows.filter(function (row) { return row.state === 'matched'; }).length;
+    var head = el('div', { className: 'night-head' }, [
+      el('h3', { text: longDate(night.date) }),
+      el('span', { text: night.rosterCount + ' checked in · ' + cards.length + ' card payments · ' + matched + ' matched' })
+    ]);
+    var body = el('div', { className: 'night-body' });
+    if (rows.length) {
+      var table = el('table', { className: 'payments' }, [el('thead', {}, [el('tr', {}, ['Time', 'Amount', 'Card', 'Name on card / Clover customer', 'Desk would', 'Your record'].map(function (label, index) {
+        return el('th', { className: index === 1 ? 'num' : '', text: label });
+      }))])]);
+      var tbody = el('tbody');
+      rows.forEach(function (row) { tbody.appendChild(renderRow(row, name)); });
+      table.appendChild(tbody);
+      body.appendChild(el('div', { className: 'scroll' }, [table]));
+    } else {
+      body.appendChild(el('p', { className: 'leftover', text: 'No Clover payments this night.' }));
+    }
+    if (night.creditWithoutPayment.length) {
+      body.appendChild(el('p', { className: 'leftover', text: 'Credit chosen by hand, but no Clover payment matched: ' + night.creditWithoutPayment.map(name).join(', ') + '.' }));
+    }
+    return el('section', { className: 'night' }, [head, body]);
+  }
+
+  function renderRow(row, name) {
+    var amount = el('td', { className: 'num' }, [money(row.net)]);
+    if (row.net !== row.amount) amount.appendChild(el('span', { className: 'small', text: 'of ' + money(row.amount) }));
+    var who = el('td', { className: 'who' });
+    who.appendChild(document.createTextNode(row.cardholder || (row.kind === 'card' ? '(no name on card)' : '')));
+    if (row.customer) who.appendChild(el('span', { className: 'small', text: 'Clover customer: ' + row.customer }));
+    var would = el('td', { className: 'would' }, [el('span', { className: 'tag ' + row.state, text: STATES[row.state] || row.state })]);
+    if (row.state === 'matched') {
+      would.appendChild(document.createTextNode(row.playerIds.map(name).join(' + ')));
+      would.appendChild(el('span', { className: 'small', text: 'by ' + (REASONS[row.reason] || row.reason) + (row.reason === 'pays-for' ? ', paid by ' + name(row.payerId) : '') }));
+      if (row.notCheckedIn.length) would.appendChild(el('span', { className: 'small', text: 'Not checked in: ' + row.notCheckedIn.map(name).join(', ') }));
+    } else if (row.state === 'needs-action') {
+      would.appendChild(document.createTextNode('Likely ' + name(row.payerId)));
+      would.appendChild(el('span', { className: 'small', text: row.note.replace('{player}', name(row.notePlayerId)) + ' (by ' + (REASONS[row.reason] || row.reason) + ')' }));
+    } else if (row.state === 'unmatched') {
+      would.appendChild(el('span', { className: 'small', text: row.note }));
+      if (row.suggestions.length) would.appendChild(el('span', { className: 'small', text: 'Fits: ' + row.suggestions.map(name).join(', ') }));
+    } else {
+      would.appendChild(el('span', { className: 'small', text: row.note }));
+    }
+    var record = el('td', { className: 'record' });
+    row.verdicts.forEach(function (verdict) {
+      record.appendChild(el('span', { className: 'tag ' + verdict.verdict, text: VERDICTS[verdict.verdict] }));
+      if (verdict.verdict === 'conflict') record.appendChild(document.createTextNode(name(verdict.playerId) + ': ' + (METHODS[verdict.hand] || verdict.hand) + ' '));
+    });
+    if (row.learnedPlayerId) {
+      record.appendChild(el('span', { className: 'tag agrees', text: 'Credit by hand' }));
+      record.appendChild(document.createTextNode(name(row.learnedPlayerId)));
+      record.appendChild(el('span', { className: 'small', text: 'Only payment and Credit player at this amount: card learned' }));
+    }
+    var conflict = row.verdicts.some(function (verdict) { return verdict.verdict === 'conflict'; });
+    return el('tr', { className: row.state === 'ignored' ? 'ignored' : conflict ? 'conflict' : '' }, [
+      el('td', { className: 'when', text: row.clock }), amount, el('td', { className: 'card', text: row.card }), who, would, record
+    ]);
+  }
+
+  function load() {
+    var from = fromField.value;
+    var to = toField.value;
+    if (!from || !to) { setStatus('Choose a start and end date.', 'error'); return; }
+    if (from > to) { setStatus('The start date must be on or before the end date.', 'error'); return; }
+    var mine = ++requestNumber;
+    showButton.disabled = true;
+    document.body.classList.add('reloading');
+    setStatus('Reading Clover payments and the desk records...', 'busy');
+    request('getCloverReport', from, to).then(function (data) {
+      if (mine === requestNumber) render(data);
+    }, function (error) {
+      if (mine === requestNumber) setStatus('Could not read Clover: ' + message(error), 'error');
+    }).then(function () { if (mine === requestNumber) { showButton.disabled = false; document.body.classList.remove('reloading'); } });
+  }
+
+  document.getElementById('range').addEventListener('submit', function (event) { event.preventDefault(); load(); });
+  var today = new Date();
+  var earliest = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (MAX_DAYS - 1));
+  toField.value = iso(today);
+  fromField.value = iso(earliest) > DESK_START ? iso(earliest) : DESK_START;
+  load();
+})();
+</script>
+</body>
+</html>
