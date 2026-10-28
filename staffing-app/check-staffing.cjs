@@ -24,7 +24,7 @@ assert.equal(fs.readFileSync(__dirname + '/.claspignore', 'utf8').trim(), 'check
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), [
-  'checkReplies', 'doGet', 'doPost', 'findPlayers', 'importMemberEmails', 'importSeedSheet', 'myNights', 'playerAccess', 'requestDrop', 'saveMyNights', 'setup', 'signUp', 'staffBoard', 'sweep'
+  'checkReplies', 'checkRepliesWatch', 'doGet', 'doPost', 'findPlayers', 'importMemberEmails', 'importSeedSheet', 'myNights', 'playerAccess', 'requestDrop', 'saveMyNights', 'setup', 'signUp', 'staffBoard', 'sweep'
 ], 'a public web app exposes every non-private function: only these may exist');
 assert.doesNotMatch(source, /=>|`|^\s*(let|const|class)\s/m, 'Code.js is ES5 style, like the other Apps Script projects');
 
@@ -47,7 +47,9 @@ let cache = {};
 let held = 0;
 let userHeld = false;
 let activeEmail = '';
-const triggers = [];
+// Timers as Google keeps them: { handler, every } repeats, { handler, after } fires once.
+let triggers = [];
+const timers = () => triggers.map(trigger => trigger.handler + (trigger.every ? ' every ' + trigger.every : ' after ' + trigger.after / 60000)).sort();
 let opened = [];
 const makeSheet = (name, bookId) => {
   const key = bookId + '/' + name;
@@ -125,6 +127,7 @@ makeBook('desk-sheet-id').insertSheet('Players');
 // The desk's one mail reader records every forwarded text in its VoiceTexts tab (apps-script/MailReader.js): the app reads
 // texts there, never by searching Gmail. Here the tab simply holds the inbox; readerStopped is a desk that stopped collecting.
 let readerStopped = false;
+let runtimeGrid = null;
 let textReads = 0;
 {
   const deskSheet = books['desk-sheet-id'].getSheetByName;
@@ -135,7 +138,13 @@ let textReads = 0;
         return [['message_id', 'received_at', 'from', 'subject', 'text']].concat(inbox.map(message => [message.getId(), String(message.getDate().getTime()), message.getFrom(), message.getSubject(), message.getPlainBody()]));
       } })
     },
-    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) }
+    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
+    // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
+    JobRuntime: runtimeGrid && {
+      getDataRange: () => ({ getValues: () => runtimeGrid.map(line => line.slice()) }),
+      getRange: row => ({ setValues: values => { runtimeGrid[row - 1] = values[0].map(value => String(value).replace(/^'/, '')); } }),
+      appendRow: values => { runtimeGrid.push(values.map(value => String(value).replace(/^'/, ''))); }
+    }
   }[name] || deskSheet(name));
 }
 grids.Players.push(['display_name', 'current_rating', 'player_id', 'created_at', 'active', 'updated_at']);
@@ -177,8 +186,13 @@ const context = {
   Session: { getActiveUser: () => ({ getEmail: () => activeEmail }), getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
   ScriptApp: {
     getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/staffing-test/dev' }),
-    getProjectTriggers: () => triggers.map(handler => ({ getHandlerFunction: () => handler })),
-    newTrigger: handler => ({ timeBased: () => ({ everyHours: () => ({ create: () => { triggers.push(handler); } }), everyMinutes: () => ({ create: () => { triggers.push(handler); } }) }) })
+    getProjectTriggers: () => triggers.map(trigger => ({ getHandlerFunction: () => trigger.handler, trigger })),
+    deleteTrigger: handle => { triggers = triggers.filter(trigger => trigger !== handle.trigger); },
+    newTrigger: handler => ({ timeBased: () => ({
+      everyHours: hours => ({ create: () => { triggers.push({ handler, every: hours * 60 }); } }),
+      everyMinutes: every => ({ create: () => { triggers.push({ handler, every }); } }),
+      after: after => ({ create: () => { triggers.push({ handler, after }); } })
+    }) })
   },
   LockService: {
     getScriptLock: () => ({ waitLock: () => { assert.equal(held, 0, 'locks are never nested'); held += 1; }, releaseLock: () => { held -= 1; } }),
@@ -292,10 +306,11 @@ assert.deepEqual(grids.Training[0], ['player_id', 'name', 'keys', 'open', 'front
 // The owner's training list: everyone in these checks may open and run the Front Desk, except Cal (tables and closing only)
 // and Dee (keys but no opening training).
 PLAYERS.forEach(([id, name]) => { if (name !== 'Cal Diaz' && name !== 'Ron Tate' && name !== 'Susan Lake') grids.Training.push([id, name, name === 'Dee Nguyen' ? 'Yes' : 'yes', name === 'Dee Nguyen' ? 'No' : 'yes', name === 'Dee Nguyen' ? 'N/A' : 'Yes', '']); });
-assert.deepEqual(triggers, ['sweep', 'checkReplies'], 'an hourly sweep and a minute-by-minute reply check are installed');
+assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkRepliesWatch every 30', 'sweep every 60'], 'an hourly sweep and a 30-minute reply check are installed');
+assert.equal(triggers.filter(trigger => trigger.handler === 'checkReplies').length <= 1, true, 'and at most one next check');
 context.setup();
 assert.equal(created.length, 1, 'setup is safe to run again');
-assert.deepEqual(triggers, ['sweep', 'checkReplies']);
+assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkRepliesWatch every 30', 'sweep every 60']);
 activeEmail = '';
 assert.equal(properties.STAFFING_DB_ID, 'private-book-id');
 
@@ -1382,7 +1397,7 @@ seedCheck();
   const viaPost = post(JSON.stringify({ fn: 'staffBoard', args: [] }));
   assert.deepEqual(viaPost, board(), 'the same calendar as google.script.run');
   assert.deepEqual(post(JSON.stringify({ fn: 'findPlayers', args: ['ada'] })), run('findPlayers', 'ada'));
-  ['setup', 'importSeedSheet', 'sweep', 'checkReplies', 'doGet', 'importMemberEmails', 'clubFix_', 'constructor', '__proto__', 'toString'].forEach(fn => {
+  ['setup', 'importSeedSheet', 'sweep', 'checkReplies', 'checkRepliesWatch', 'doGet', 'importMemberEmails', 'clubFix_', 'constructor', '__proto__', 'toString'].forEach(fn => {
     assert.deepEqual(post(JSON.stringify({ fn, args: [] })), { ok: false, message: 'Unknown request.' }, fn + ' cannot be called from the site');
   });
   assert.deepEqual(post('not json'), { ok: false, message: 'Something went wrong. Please try again.' });
@@ -1417,7 +1432,7 @@ seedCheck();
   minutes(1);
   assert.deepEqual(club().map(message => message.subject), ['Action needed: the staffing app cannot apply the club\'s email decisions'], '30 minutes without a break');
   const alert = club()[0];
-  assert.match(alert.body, new RegExp('^The staffing app has failed to apply the club\'s email decisions at every attempt since ' + context.momentLabel_(since) + '\\. It retries every minute\\.'));
+  assert.match(alert.body, new RegExp('^The staffing app has failed to apply the club\'s email decisions at every attempt since ' + context.momentLabel_(since) + '\\. It retries every few minutes\\.'));
   assert.match(alert.body, /Approvals and declines entered in the Emails tab are not being applied\./, 'what is affected');
   assert.match(alert.body, /\n\nError: Exception: Service Spreadsheets failed while accessing document with id x/);
   assert.match(alert.body, /WHAT TO DO\n\n1\. Check https:\/\/www\.google\.com\/appsstatus\/dashboard\/ for a Google Sheets or Gmail outage\. If Google lists one, no action is needed: the app resumes by itself when Google recovers\.\n2\. If Google lists no outage, forward this email to JB\./);
@@ -1727,6 +1742,46 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
     site.window.close();
   }
   assert.ok(textReads > 0, 'texts come from the desk Sheet');
+  // ---- When the check runs (90 minutes a day of timer run time are shared by every club app) ----
+  {
+    const at = (date, time) => { clock = Date.parse(date + 'T' + time + ':00Z') + 8 * 3600000; }; // Pacific wall clock (PST in December)
+    const next = () => triggers.filter(trigger => trigger.handler === 'checkReplies').map(trigger => trigger.after / 60000);
+    const run = () => { delete cache['check-replies']; delete cache['opt-ins']; context.checkReplies({ triggerUid: 'timer' }); };
+    // An app updated from the every-minute timer: its first run takes that timer away.
+    triggers = [{ handler: 'checkReplies', every: 1 }, { handler: 'sweep', every: 60 }];
+    delete properties.CHECK_SCHEDULE;
+    at('2026-12-01', '12:00');
+    run();
+    assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkRepliesWatch every 30', 'sweep every 60'], 'the every-minute timer is gone');
+    const owed = context.CHECK_WAITING_;
+    assert.deepEqual(next(), [owed ? 2 : 15], 'the next check: 2 minutes while an answer is owed, else 15');
+    at('2026-12-01', '23:30');
+    run();
+    assert.deepEqual(next(), [], 'no one-off timer at night');
+    at('2026-12-02', '09:00');
+    run();
+    if (!context.CHECK_WAITING_) {
+      assert.deepEqual(next(), [15]);
+      context.wakeCheck_();
+      assert.deepEqual(next(), [2], 'woken when a question is sent');
+    } else {
+      assert.deepEqual(next(), [2]);
+    }
+    // Each timer run is counted (a page call is not) and reported to the desk's JobRuntime tab.
+    runtimeGrid = [['app', 'day', 'runs', 'seconds', 'updated_at'], ['desk', '2026-12-02', '400', '3700', '']];
+    properties.JOB_RUNTIME = JSON.stringify(Object.assign(JSON.parse(properties.JOB_RUNTIME || '{}'), { reportedAt: 0 }));
+    clock += 15 * 60000;
+    run();
+    const counted = JSON.parse(properties.JOB_RUNTIME);
+    assert.equal(counted.day, '2026-12-02');
+    assert.deepEqual(JSON.parse(JSON.stringify(runtimeGrid.find(line => line[0] === 'staffing').slice(0, 2))), ['staffing', '2026-12-02'], 'reported to the desk');
+    assert.equal(counted.slow, true, 'every app together passed an hour');
+    clock += 15 * 60000;
+    run();
+    assert.deepEqual(next(), [context.CHECK_WAITING_ ? 6 : 45], 'checks a third as often for the rest of the day');
+    runtimeGrid = null;
+    delete properties.JOB_RUNTIME;
+  }
   readerStopped = true;
   assert.throws(() => context.storedTexts_(0), /desk has not collected texts since .*: its mail reader is not running/, 'a desk that stopped collecting texts is a failing step, so the club hears');
   readerStopped = false;

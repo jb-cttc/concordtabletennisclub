@@ -3,15 +3,19 @@
 // re-reading each person's whole text history (Voice keeps all of a person's texts in one thread). The allowance ran out
 // on round robin nights.
 //
-// Now a minute trigger here reads only mail that arrived since its last read, once, and records it:
+// Now one job here reads only mail that arrived since its last read, once, and records it:
 //   - forwarded Google Voice texts in the VoiceTexts tab, which every app reads instead of Gmail (the coaching, staffing
 //     and turnout apps open this Sheet by DESK_SHEET_ID);
 //   - Zeffy play pass emails in ZeffyPayments (ZeffyTracking.js).
 // A quiet read costs one search. Gmail is otherwise opened only to send a reply, by message id.
 //
-// The trigger fires every minute but reads Gmail only as often as texts matter (mailReadEvery_): every minute on a round
-// robin day until sign-up closes, every 5 minutes otherwise, and every 30 minutes overnight. A desk with Voice signups
-// open still reads within the minute.
+// The job wakes only as often as texts matter (mailReadEvery_): every minute on a round robin day from 6 AM until sign-up
+// closes, every 5 minutes otherwise, every 30 minutes from 11 PM to 7 AM. Waking costs scheduled-job run time (Google allows
+// 90 minutes a day across every club app, JobRuntime.js), so the job never wakes just to find nothing due: a 30-minute
+// timer (readMailWatch) always runs, covers the night and restarts the chain if a run ever fails, and each run sets a
+// one-off timer (readMail) for when the next read is due, if that is sooner. After a read that brought new texts, the
+// job answers round robin texts (VoiceAutoReply.js), which has no timer of its own. A desk with Voice signups open still
+// reads within the minute.
 //
 // The MailReader tab holds when it last read, so the other apps can tell when texts stopped being collected, and how many
 // Gmail calls it made today. Past MAIL_SLOW_AFTER_CALLS_ in a day it reads at most every 5 minutes.
@@ -20,6 +24,13 @@ var MAIL_TEXTS_HEADERS = ['message_id', 'received_at', 'from', 'subject', 'text'
 var MAIL_READER_TAB = 'MailReader';
 var MAIL_READER_HEADERS = ['read_at', 'cursor', 'day', 'gmail_calls'];
 var MAIL_READER_HANDLER = 'readMail';
+var MAIL_WATCH_HANDLER = 'readMailWatch';
+// Raised when the job's timers change: the next run removes the old ones (an every-minute readMail until October 2026,
+// and the automatic answers' own timer) and sets the new ones.
+var MAIL_SCHEDULE_KEY_ = 'CTTC_MAIL_SCHEDULE';
+var MAIL_SCHEDULE_VERSION_ = '2';
+var MAIL_LAST_TEXT_KEY_ = 'CTTC_MAIL_LAST_TEXT_AT';
+var MAIL_NEXT_KEY_ = 'CTTC_MAIL_NEXT_AT';
 var MAIL_QUERY_ = 'in:anywhere (from:txt.voice.google.com OR from:communication.mailer.zeffy.com)';
 // Each search reaches back this far before the last read, so mail Gmail is slow to make searchable is not missed.
 var MAIL_OVERLAP_MS_ = 3 * 60000;
@@ -36,53 +47,113 @@ var MAIL_SLOW_AFTER_CALLS_ = 6000;
 var MAIL_SLOW_MS_ = 5 * 60000;
 var MAIL_VOICE_FOOTER_ = /^(To respond to this text message|YOUR ACCOUNT|HELP CENTER|HELP FORUM|Google LLC)/i;
 
-// The minute trigger. A failure (Gmail down, or its daily allowance spent) is logged at most every 10 minutes, not every
-// minute; the run still fails, so the execution log shows each one.
-function readMail() {
-  try {
-    // Triggers fire a few seconds early or late, so a read due now is not put off to the next minute.
-    return readMail_(mailReadEvery_(new Date()) - 30000);
-  } catch (error) {
-    var cache = CacheService.getScriptCache();
-    if (!cache.get('mail-reader-failed')) {
-      cache.put('mail-reader-failed', '1', 600);
-      safeAudit_('mail_reader_failed', 'database', MAIL_READER_HANDLER, { message: error && error.message || String(error) });
+// The one-off timer and the 30-minute timer run the same job.
+function readMail(event) { return mailJob_(event); }
+function readMailWatch(event) { return mailJob_(event); }
+
+// Sets the next timer first, so a run that fails still leaves the chain going; then reads, then answers new texts. A
+// failure (Gmail down, or its daily allowance spent) is logged at most every 10 minutes; the run still fails, so the
+// execution log shows each one.
+function mailJob_(event) {
+  return timedJob_(event, function () {
+    var now = new Date();
+    ensureMailJob_();
+    armMailJob_(now);
+    var result;
+    try {
+      // Timers fire a little early or late, so a read due now is not put off to the next one.
+      result = readMail_(mailReadEvery_(now) - 30000);
+    } catch (error) {
+      var cache = CacheService.getScriptCache();
+      if (!cache.get('mail-reader-failed')) {
+        cache.put('mail-reader-failed', '1', 600);
+        safeAudit_('mail_reader_failed', 'database', MAIL_READER_HANDLER, { message: error && error.message || String(error) });
+      }
+      throw error;
     }
-    throw error;
-  }
+    result.answered = answerNewTexts_(now);
+    return result;
+  });
 }
 
-// For the desk's own reads (Voice signups, Zeffy passes): reads Gmail only when the trigger has not just done so, and
-// installs the trigger the first time. If Gmail fails, the desk carries on with the mail already recorded.
+// For the desk's own reads (Voice signups, Zeffy passes): reads Gmail only when the job has not just done so, and sets
+// up the job's timers the first time. If Gmail fails, the desk carries on with the mail already recorded.
 function readMailIfStale_(maxAgeMs) {
-  ensureMailReaderTrigger_();
+  var cache = CacheService.getScriptCache();
+  if (!cache.get('mail-job-checked')) {
+    ensureMailJob_();
+    cache.put('mail-job-checked', '1', 21600);
+  }
   return readMail_(maxAgeMs, true);
 }
 
-// How often the trigger reads Gmail at this moment: every minute on a round robin day from 6 AM until sign-up closes (the
-// days and times of the desk's automatic answers, VOICE_REPLY_DAYS), every 30 minutes overnight, otherwise every 5 minutes.
+// How often Gmail is read at this moment: every minute on a round robin day from 6 AM until sign-up closes (the days and
+// times of the desk's automatic answers, VOICE_REPLY_DAYS), every 30 minutes from 11 PM to 7 AM, otherwise every 5
+// minutes. A third as often (not at night) once every app's timers together have run a lot today (JobRuntime.js).
 function mailReadEvery_(now) {
+  return mailSlowed_(mailCadence_(now), jobsSlowed_());
+}
+
+function mailCadence_(now) {
   var zone = Session.getScriptTimeZone();
   var date = Utilities.formatDate(now, zone, 'yyyy-MM-dd');
   var minutes = Number(Utilities.formatDate(now, zone, 'H')) * 60 + Number(Utilities.formatDate(now, zone, 'm'));
-  if (minutes >= MAIL_NIGHT_FROM_ || minutes < MAIL_NIGHT_UNTIL_) return MAIL_NIGHT_EVERY_MS_;
   var day = VOICE_REPLY_DAYS[new Date(date + 'T12:00:00Z').getUTCDay()];
-  if (day && !(day.from && date < day.from) && minutes >= VOICE_REPLY_FROM && minutes < day.until) return MAIL_FRESH_MS_;
-  return MAIL_DAY_EVERY_MS_;
+  return day && !(day.from && date < day.from) && minutes >= VOICE_REPLY_FROM && minutes < day.until ? MAIL_FRESH_MS_ :
+    minutes >= MAIL_NIGHT_FROM_ || minutes < MAIL_NIGHT_UNTIL_ ? MAIL_NIGHT_EVERY_MS_ : MAIL_DAY_EVERY_MS_;
 }
 
-function ensureMailReaderTrigger_() {
-  var cache = CacheService.getScriptCache();
-  if (cache.get('mail-reader-trigger')) return;
+function mailSlowed_(every, slow) {
+  return slow && every < MAIL_NIGHT_EVERY_MS_ ? every * 3 : every;
+}
+
+// When the next read is due: the usual gap, or sooner if a busier stretch (round robin sign-up) starts before then. The
+// shared slow-down is read once: settings reads count toward a daily limit too (docs/google-limits.md).
+function mailNextDelay_(now, slow) {
+  var every = mailSlowed_(mailCadence_(now), slow);
+  for (var ahead = 60000; ahead < every; ahead += 60000) {
+    if (mailSlowed_(mailCadence_(new Date(now.getTime() + ahead)), slow) < every) return ahead;
+  }
+  return every;
+}
+
+// The one-off timer for the next read, replacing any earlier one. None when the next read falls at night: the 30-minute
+// timer covers it.
+function armMailJob_(now) {
   try {
-    var installed = ScriptApp.getProjectTriggers().some(function (trigger) { return trigger.getHandlerFunction() === MAIL_READER_HANDLER; });
-    if (!installed) {
-      ScriptApp.newTrigger(MAIL_READER_HANDLER).timeBased().everyMinutes(1).create();
-      appendAudit_('mail_reader_enabled', 'database', MAIL_READER_HANDLER, { everyMinutes: 1 });
-    }
-    cache.put('mail-reader-trigger', '1', 21600);
+    var slow = jobsSlowed_();
+    var delay = mailNextDelay_(now, slow);
+    var night = mailSlowed_(mailCadence_(new Date(now.getTime() + delay)), slow) >= MAIL_NIGHT_EVERY_MS_;
+    ScriptApp.getProjectTriggers().forEach(function (trigger) {
+      if (trigger.getHandlerFunction() === MAIL_READER_HANDLER) ScriptApp.deleteTrigger(trigger);
+    });
+    if (!night) ScriptApp.newTrigger(MAIL_READER_HANDLER).timeBased().after(delay).create();
+    PropertiesService.getScriptProperties().setProperty(MAIL_NEXT_KEY_, String(now.getTime() + delay));
   } catch (error) {
-    console.warn('Mail reader trigger unavailable: ' + error);
+    console.warn('Next mail read not set: ' + error);
+  }
+}
+
+// The 30-minute timer, installed once; the first run of a new schedule removes the old timers.
+function ensureMailJob_() {
+  var properties = PropertiesService.getScriptProperties();
+  try {
+    var triggers = ScriptApp.getProjectTriggers();
+    if (properties.getProperty(MAIL_SCHEDULE_KEY_) !== MAIL_SCHEDULE_VERSION_) {
+      triggers.forEach(function (trigger) {
+        var handler = trigger.getHandlerFunction();
+        if (handler === MAIL_READER_HANDLER || handler === VOICE_AUTO_REPLY_HANDLER) ScriptApp.deleteTrigger(trigger);
+      });
+      properties.setProperty(MAIL_SCHEDULE_KEY_, MAIL_SCHEDULE_VERSION_);
+      triggers = ScriptApp.getProjectTriggers();
+    }
+    if (!triggers.some(function (trigger) { return trigger.getHandlerFunction() === MAIL_WATCH_HANDLER; })) {
+      ScriptApp.newTrigger(MAIL_WATCH_HANDLER).timeBased().everyMinutes(30).create();
+      appendAudit_('mail_reader_enabled', 'database', MAIL_WATCH_HANDLER, { everyMinutes: 30 });
+      armMailJob_(new Date());
+    }
+  } catch (error) {
+    console.warn('Mail job timers unavailable: ' + error);
   }
 }
 
@@ -111,9 +182,9 @@ function readMail_(maxAgeMs, quiet) {
       return { skipped: 'failed' };
     }
     if (!lock.tryLock(10000)) return { skipped: 'busy' };
-    var added;
+    var added = { texts: 0, zeffy: 0 };
     try {
-      added = recordMail_(sheets.texts, found);
+      if (found.texts.length || found.zeffy.length) added = recordMail_(sheets.texts, found);
       if (state.day && state.day !== day) pruneMailTexts_(sheets.texts, now);
       writeMailReaderState_(sheets.state, [now, now, day, calls + found.calls]);
     } finally {
@@ -122,6 +193,11 @@ function readMail_(maxAgeMs, quiet) {
     if (state.day && state.day !== day) deskLog_('step', 'mail_reader_day', state.day, '', 'gmail_calls=' + state.calls);
     if (calls < MAIL_SLOW_AFTER_CALLS_ && calls + found.calls >= MAIL_SLOW_AFTER_CALLS_) {
       deskLog_('warn', 'gmail_reads_high', day, '', 'gmail_calls=' + (calls + found.calls) + ' reading every 5 minutes for the rest of the day');
+    }
+    // The automatic answers look at the texts only when one came in since they last did.
+    if (added.texts) {
+      var newest = Math.max.apply(null, found.texts.map(function (text) { return text.received_at; }));
+      PropertiesService.getScriptProperties().setProperty(MAIL_LAST_TEXT_KEY_, String(Math.max(newest, Number(PropertiesService.getScriptProperties().getProperty(MAIL_LAST_TEXT_KEY_)) || 0)));
     }
     return { texts: added.texts, zeffy: added.zeffy, gmailCalls: found.calls };
   } finally {
@@ -132,17 +208,22 @@ function readMail_(maxAgeMs, quiet) {
 // New Voice texts and Zeffy rows since the given time (ms). Each thread is read newest first and left at the first message
 // already recorded or older than that, so a long text history costs nothing.
 function mailSince_(since, textsSheet) {
-  var known = {};
-  mailTextRows_(textsSheet).forEach(function (row) { known[row.message_id] = true; });
-  ensurePrivatePaymentTables_();
+  // What is already recorded is read only when Gmail has something, so a quiet read is one search.
+  var known = null;
   var unreadable = {};
-  rows_('ZeffyPayments').forEach(function (row) { (row.kind === 'unreadable' ? unreadable : known)[String(row.message_id)] = true; });
+  var loadKnown = function () {
+    known = {};
+    mailTextRows_(textsSheet).forEach(function (row) { known[row.message_id] = true; });
+    ensurePrivatePaymentTables_();
+    rows_('ZeffyPayments').forEach(function (row) { (row.kind === 'unreadable' ? unreadable : known)[String(row.message_id)] = true; });
+  };
   var found = { texts: [], zeffy: [], calls: 0 };
   var zone = Session.getScriptTimeZone();
   for (var start = 0; ; start += 100) {
     var threads = GmailApp.search(MAIL_QUERY_ + ' after:' + Math.floor(since / 1000), start, 100);
     found.calls += 1;
     if (threads.length) {
+      if (!known) loadKnown();
       found.calls += 1;
       GmailApp.getMessagesForThreads(threads).forEach(function (messages) {
         for (var i = messages.length - 1; i >= 0; i -= 1) {

@@ -6,20 +6,25 @@ const vm = require('node:vm');
 let clock = Date.parse('2026-10-26T17:00:00Z');
 const grids = {};
 const sheets = {};
+// Sheets reads a leading ' as "plain text" and does not store it.
+const asStored = value => (typeof value === 'string' && value[0] === "'" ? value.slice(1) : value);
 const makeSheet = name => {
   const grid = grids[name] = [];
   const range = (row, column, rows, columns) => {
     const handle = {
       getValues: () => Array.from({ length: rows }, (_, r) => Array.from({ length: columns }, (_, c) => (grid[row - 1 + r] || [])[column - 1 + c] ?? '')),
       setValues: values => {
-        assert.ok(handle.text || row === 1, 'cells are plain text before they are written');
+        // The reader's own tabs hold ids and times, written as plain text; the run-time tab holds counts.
+        const text = name !== 'JobRuntime';
+        if (text) assert.ok(handle.text || row === 1, 'cells are plain text before they are written');
         values.forEach((line, r) => line.forEach((value, c) => {
-          assert.equal(typeof value, 'string', 'every value is written as text');
-          (grid[row - 1 + r] = grid[row - 1 + r] || [])[column - 1 + c] = value;
+          if (text) assert.equal(typeof value, 'string', 'every value is written as text');
+          (grid[row - 1 + r] = grid[row - 1 + r] || [])[column - 1 + c] = asStored(value);
         }));
         return handle;
       },
-      setNumberFormat: format => { assert.equal(format, '@'); handle.text = true; return handle; }
+      setNumberFormat: format => { assert.equal(format, '@'); handle.text = true; return handle; },
+      setFontWeight: () => handle
     };
     return handle;
   };
@@ -29,7 +34,10 @@ const makeSheet = name => {
     getMaxRows: () => Math.max(1000, grid.length),
     insertRowsAfter() {},
     getRange: range,
-    deleteRows: (row, count) => { grid.splice(row - 1, count); }
+    appendRow: values => { grid.push(values.map(asStored)); },
+    deleteRow: row => { grid.splice(row - 1, 1); },
+    deleteRows: (row, count) => { grid.splice(row - 1, count); },
+    setFrozenRows() {}
   };
 };
 
@@ -53,7 +61,10 @@ const voice = (name, body, when) => message('New text message from ' + name + ' 
 const minutes = count => count * 60000;
 const deskLogs = [];
 const audits = [];
-const triggers = [];
+// Timers as Google keeps them: { handler, every } for a repeating one, { handler, after } for a one-off. Until October
+// 2026 the job had an every-minute timer, and so did the automatic answers: the first run removes both.
+let triggers = [{ handler: 'readMail', every: 1 }, { handler: 'answerVoiceSignups', every: 1 }];
+const properties = {};
 const context = {
   Date: class extends Date {
     constructor(...args) { super(...(args.length ? args : [clock])); }
@@ -84,9 +95,14 @@ const context = {
   LockService: { getScriptLock: () => ({ hasLock: () => lockHeld, tryLock: () => (lockHeld = true), releaseLock: () => { lockHeld = false; } }) },
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; }, remove: key => { delete cache[key]; } }) },
   ScriptApp: {
-    getProjectTriggers: () => triggers.map(handler => ({ getHandlerFunction: () => handler })),
-    newTrigger: handler => ({ timeBased: () => ({ everyMinutes: n => ({ create: () => { assert.equal(n, 1); triggers.push(handler); } }) }) })
+    getProjectTriggers: () => triggers.map(trigger => ({ getHandlerFunction: () => trigger.handler, trigger })),
+    deleteTrigger: handle => { triggers = triggers.filter(trigger => trigger !== handle.trigger); },
+    newTrigger: handler => ({ timeBased: () => ({
+      everyMinutes: every => ({ create: () => { triggers.push({ handler, every }); } }),
+      after: after => ({ create: () => { triggers.push({ handler, after }); } })
+    }) })
   },
+  PropertiesService: { getScriptProperties: () => ({ getProperty: key => (key in properties ? properties[key] : null), setProperty: (key, value) => { properties[key] = String(value); }, deleteProperty: key => { delete properties[key]; } }) },
   // Pacific (PDT) wall clock, for the October dates used here.
   Utilities: {
     formatDate: (date, zone, pattern) => {
@@ -105,8 +121,10 @@ let zeffyRows = [];
 let gmailDown = false;
 vm.createContext(context);
 // The round robin days and sign-up hours come from the desk's automatic answers.
-for (const file of ['VoiceAutoReply.js', 'MailReader.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
-const read = () => JSON.parse(JSON.stringify(context.readMail()));
+for (const file of ['VoiceAutoReply.js', 'MailReader.js', 'JobRuntime.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
+// What a read found; the job also says what the automatic answers did (off here).
+const read = event => { const result = JSON.parse(JSON.stringify(context.readMail(event))); if (result.answered) assert.deepEqual(result.answered, { skipped: 'off' }); delete result.answered; return result; };
+const timers = () => triggers.map(trigger => trigger.handler + (trigger.every ? ' every ' + trigger.every : ' after ' + trigger.after / 60000)).sort();
 const texts = () => grids.VoiceTexts.slice(1);
 
 // A long history: Ada has texted for months, all in one thread, like Google Voice.
@@ -119,7 +137,7 @@ threads = [ada, [make('zeffy', 'Kim Tan', clock - 86400000)]];
 const first = read();
 assert.deepEqual(first, { texts: 8, zeffy: 1, gmailCalls: first.gmailCalls }, 'the first read takes the last week');
 assert.match(searches[0], /^in:anywhere \(from:txt\.voice\.google\.com OR from:communication\.mailer\.zeffy\.com\) after:\d+$/, 'one search for texts and Zeffy, Trash and Spam included');
-assert.deepEqual(triggers, [], 'the trigger itself installs nothing');
+assert.deepEqual(timers(), ['readMail after 1', 'readMailWatch every 30'], 'the old every-minute timers are gone: a 30-minute timer, and the next read a minute away on a round robin day');
 assert.equal(texts()[texts().length - 1][4], 'coming tonight', 'Voice links and footer are taken out');
 assert.equal(zeffyRows.length, 1);
 assert.equal(grids.MailReader[1][3], String(first.gmailCalls), 'Gmail calls are counted for the day');
@@ -152,13 +170,16 @@ assert.equal(texts().filter(row => row[4] === 'see you').length, 1);
 calls = 0;
 assert.deepEqual(JSON.parse(JSON.stringify(context.readMailIfStale_(60000))), { skipped: 'fresh' });
 assert.equal(calls, 0);
-assert.deepEqual(triggers, ['readMail'], 'the desk installs the minute trigger');
 clock += minutes(2);
 assert.equal(context.readMailIfStale_(60000).texts, 0);
 cache = {};
+triggers = triggers.filter(trigger => trigger.handler !== 'readMailWatch');
 context.readMailIfStale_(60000);
-assert.deepEqual(triggers, ['readMail'], 'never twice');
-assert.deepEqual(audits.map(entry => entry[0]), ['mail_reader_enabled']);
+assert.deepEqual(timers().filter(timer => /Watch/.test(timer)), ['readMailWatch every 30'], 'the desk puts back a missing 30-minute timer');
+cache = {};
+context.readMailIfStale_(60000);
+assert.equal(triggers.filter(trigger => trigger.handler === 'readMailWatch').length, 1, 'never twice');
+assert.deepEqual(audits.map(entry => entry[0]), ['mail_reader_enabled', 'mail_reader_enabled']);
 
 // Never while the caller holds the lock, and one read at a time.
 lockHeld = true;
@@ -224,7 +245,8 @@ assert.equal(read().texts, 0);
 // for the Saturday pilot from October 31), every 30 minutes from 11 PM to 7 AM, and every 5 minutes otherwise.
 const pt = (date, time) => Date.parse(date + 'T' + time + ':00Z') + 7 * 3600000;
 const every = (date, time) => context.mailReadEvery_(new Date(pt(date, time))) / 60000;
-assert.equal(every('2026-10-26', '06:00'), 30, 'Monday 6 AM is still night');
+assert.equal(every('2026-10-26', '05:59'), 30, 'night');
+assert.equal(every('2026-10-26', '06:00'), 1, 'a round robin day from 6 AM, when the automatic answers start');
 assert.equal(every('2026-10-26', '07:00'), 1, 'Monday morning: a round robin day');
 assert.equal(every('2026-10-26', '19:14'), 1);
 assert.equal(every('2026-10-26', '19:15'), 5, 'after sign-up closes');
@@ -235,20 +257,51 @@ assert.equal(every('2026-10-28', '12:00'), 1, 'Wednesday');
 assert.equal(every('2026-10-24', '12:00'), 5, 'no Saturday round robin before the pilot');
 assert.equal(every('2026-10-31', '12:00'), 1, 'the Saturday pilot');
 assert.equal(every('2026-10-31', '15:15'), 5);
-// The minute trigger at night: read, then nothing for 30 minutes.
+// Each run sets the one-off timer for the next read: none at night (the 30-minute timer covers it), and never past the
+// start of a busier stretch.
+const nextAfter = () => triggers.filter(trigger => trigger.handler === 'readMail').map(trigger => trigger.after / 60000);
 clock = pt('2026-10-28', '01:00');
 assert.equal(typeof read().gmailCalls, 'number');
+assert.deepEqual(nextAfter(), [], 'no one-off timer at night');
 calls = 0;
-for (let minute = 1; minute < 30; minute += 1) {
-  clock += minutes(1);
-  assert.deepEqual(read(), { skipped: 'fresh' });
-}
-assert.equal(calls, 0, 'no Gmail for half an hour overnight');
 clock += minutes(1);
-assert.equal(typeof read().gmailCalls, 'number', 'read again after 30 minutes');
+assert.deepEqual(read(), { skipped: 'fresh' }, 'a run sooner than due reads nothing');
+assert.equal(calls, 0);
+clock = pt('2026-10-28', '05:45');
+read();
+assert.deepEqual(nextAfter(), [15], 'Wednesday 5:45 AM: next at 6:00, when sign-up opens');
+clock = pt('2026-10-28', '06:00');
+read();
+assert.deepEqual(nextAfter(), [1], 'then every minute');
+clock = pt('2026-10-28', '19:12');
+read();
+assert.deepEqual(nextAfter(), [1]);
+clock = pt('2026-10-28', '19:15');
+read();
+assert.deepEqual(nextAfter(), [5], 'after sign-up closes, every 5 minutes');
+clock = pt('2026-11-03', '12:00');
+read();
+assert.deepEqual(nextAfter(), [5], 'Tuesday midday');
+// A timer run is measured (a page's read is not), toward the 90 minutes every app's timers share (JobRuntime.js).
+clock += minutes(6);
+read({ triggerUid: 't1' });
+assert.equal(JSON.parse(properties.CTTC_JOB_RUNTIME).runs, 1, 'one timer run counted');
+assert.deepEqual(JSON.parse(JSON.stringify(grids.JobRuntime[1].slice(0, 3))), ['desk', '2026-11-03', 1], 'and reported to the JobRuntime tab');
+// Once every app's timers together have run an hour today, the desk reads a third as often.
+grids.JobRuntime.push(['coaching', '2026-11-03', 900, 3700, '']);
+properties.CTTC_JOB_RUNTIME = JSON.stringify(Object.assign(JSON.parse(properties.CTTC_JOB_RUNTIME), { reportedAt: 0 }));
+clock += minutes(6);
+read({ triggerUid: 't2' });
+assert.equal(JSON.parse(properties.CTTC_JOB_RUNTIME).slow, true);
+assert.deepEqual(deskLogs.filter(entry => entry[1] === 'trigger_time_high').map(entry => entry[0]), ['warn'], 'the desk log warns once');
+assert.equal(context.mailReadEvery_(new Date(pt('2026-11-03', '13:00'))) / 60000, 15, 'every 15 minutes instead of 5');
+assert.equal(context.mailReadEvery_(new Date(pt('2026-11-03', '23:30'))) / 60000, 30, 'the night stays at 30');
 // A desk with Voice signups open still reads within the minute, night or day.
 clock += minutes(2);
 assert.equal(typeof context.readMailIfStale_(60000).gmailCalls, 'number');
+clock = pt('2026-11-03', '22:57');
+read();
+assert.deepEqual(nextAfter(), [], 'from 11 PM the 30-minute timer alone');
 
 assert.equal(context.voiceBodyText_('<https://voice.google.com>\n\nHi\n  there \nGoogle LLC\nignored'), 'Hi\nthere');
 console.log('Mail reader checks passed');

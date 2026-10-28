@@ -33,6 +33,7 @@ let cache = {};
 let lockFree = true;
 let closuresBody = { days: {} };
 let triggers = [];
+let mailJobEnsured = 0;
 const players = [
   { playerId: 'p-ada', name: 'Ada Every' },
   { playerId: 'p-eli1', name: 'Eli Twin' },
@@ -64,6 +65,10 @@ const context = {
     deleteTrigger: trigger => { triggers = triggers.filter(item => item !== trigger); },
     newTrigger: handler => ({ timeBased: () => ({ everyMinutes: n => ({ create: () => { triggers.push({ getHandlerFunction: () => handler, every: n }); } }) }) })
   },
+  // The answers run with the desk's mail job (MailReader.js), which has the timers.
+  MAIL_WATCH_HANDLER: 'readMailWatch',
+  MAIL_LAST_TEXT_KEY_: 'CTTC_MAIL_LAST_TEXT_AT',
+  ensureMailJob_: () => { mailJobEnsured += 1; },
   listPlayers: () => players,
   playerAliases_: () => ({ 'faye a': 'p-fay', 'gone player': 'p-missing' }),
   normalizeName_: name => String(name || '').trim().replace(/\s+/g, ' '),
@@ -105,10 +110,9 @@ assert.deepEqual(run(), { skipped: 'off' });
 assert.equal(searches, 0, 'off reads nothing');
 assert.equal(replies.length, 0);
 
-assert.deepEqual(JSON.parse(JSON.stringify(context.enableVoiceAutoReply())), { on: true, triggers: 1 });
-assert.equal(triggers[0].every, 1, 'every minute');
-context.enableVoiceAutoReply();
-assert.equal(triggers.length, 1, 'turning it on twice keeps one trigger');
+assert.deepEqual(JSON.parse(JSON.stringify(context.enableVoiceAutoReply())), { on: true, mailJob: false });
+assert.equal(triggers.length, 0, 'no timer of its own: it runs with the mail job');
+assert.equal(mailJobEnsured, 1, 'turning it on makes sure the mail job is set up');
 
 const first = run();
 const said = Object.fromEntries(replies.map(item => [item.to, item.reply]));
@@ -177,10 +181,32 @@ clock = Date.parse('2026-10-31T22:15:00Z');
 assert.deepEqual(run(), { skipped: 'not now' }, 'Saturday sign-up closes at 3:15 PM');
 
 // Off again.
-assert.deepEqual(JSON.parse(JSON.stringify(context.disableVoiceAutoReply())), { on: false, triggers: 0 });
+assert.deepEqual(JSON.parse(JSON.stringify(context.disableVoiceAutoReply())), { on: false, mailJob: false });
 inbox.push(text('Rae New', '(925) 555-0116', 'coming', Date.parse('2026-11-02T16:30:00Z')));
 const before = replies.length;
 assert.deepEqual(run(), { skipped: 'off' });
 assert.equal(replies.length, before);
+
+// After each mail read, the job answers only when a text came in since the last look, or once when a round robin day's
+// sign-up opens; a look outside sign-up hours marks nothing, so a text from the night is answered in the morning.
+context.enableVoiceAutoReply();
+const answerNew = () => JSON.parse(JSON.stringify(context.answerNewTexts_(new context.Date())));
+cache = {};
+inbox = [text('Vic Night', '(925) 555-0118', 'coming tonight', Date.parse('2026-11-09T12:00:00Z'))];
+properties.CTTC_MAIL_LAST_TEXT_AT = String(Date.parse('2026-11-09T12:00:00Z'));
+clock = Date.parse('2026-11-09T12:30:00Z'); // Monday 4:30 AM Pacific
+assert.deepEqual(answerNew(), { skipped: 'not now' });
+assert.equal(properties.CTTC_VOICE_ANSWER_CHECKED, undefined, 'nothing marked at night');
+clock = Date.parse('2026-11-09T14:00:00Z'); // 6:00 AM
+const morning = replies.length;
+assert.deepEqual(answerNew().sent, ['unlinked'], 'answered when sign-up opens');
+assert.equal(replies.length, morning + 1);
+clock += 60000;
+assert.deepEqual(answerNew(), { skipped: 'nothing new' }, 'a read with nothing new costs nothing more');
+inbox.push(text('Ada Every', '(925) 555-0101', 'I\'m in', clock - 1000));
+properties.CTTC_MAIL_LAST_TEXT_AT = String(clock - 1000);
+assert.deepEqual(answerNew().sent, ['linked'], 'a new text is answered with the next read');
+context.disableVoiceAutoReply();
+assert.deepEqual(answerNew(), { skipped: 'off' });
 
 console.log('Voice auto-reply checks passed');

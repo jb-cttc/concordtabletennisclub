@@ -1,5 +1,5 @@
-// Automatic answers to round robin texts (GitHub PR #75). On a round robin day, until sign-up closes, a minute trigger reads
-// the day's forwarded Voice texts (VoiceSuggestions.js) and answers each person once:
+// Automatic answers to round robin texts (GitHub PR #75). On a round robin day, until sign-up closes, the desk's mail job
+// (MailReader.js) runs these after every read that brought new texts, and answers each person once:
 //   - a contact name that is exactly one desk player (or an alias of one): VOICE_LINKED_REPLY with their directory name;
 //   - anyone else (a number with no contact name, a name that is no one or several people): VOICE_UNLINKED_REPLY.
 // Linked and "says they are coming" are the same checks as the ✓ in Voice signups (voiceValidation_ in VoiceSuggestions.js).
@@ -7,10 +7,14 @@
 // left for a person. The organizer still adds people to the round robin from Voice signups; a reply already in the thread
 // stops the desk's own "Confirmed." from being sent twice.
 //
-// Off until the owner runs enableVoiceAutoReply(): a trigger runs whatever code was pushed last, including a /dev preview,
-// so it must never start texting members by itself. disableVoiceAutoReply() turns it off again.
+// Off until the owner runs enableVoiceAutoReply(): the mail job runs whatever code was pushed last, including a /dev
+// preview, so it must never start texting members by itself. disableVoiceAutoReply() turns it off again. There is no timer
+// of its own (until October 2026 it had one firing every minute, all week): answerVoiceSignups is still callable from the
+// editor.
 var VOICE_AUTO_REPLY_KEY = 'CTTC_VOICE_AUTO_REPLY';
 var VOICE_AUTO_REPLIED_KEY = 'CTTC_VOICE_AUTO_REPLIED';
+// The newest text the answers have looked at, and the round robin day they last ran on.
+var VOICE_ANSWER_CHECKED_KEY = 'CTTC_VOICE_ANSWER_CHECKED';
 var VOICE_AUTO_REPLY_HANDLER = 'answerVoiceSignups';
 var VOICE_LINKED_REPLY = 'Received - you\'re on the list, {name}! See you {when}.';
 var VOICE_UNLINKED_REPLY = 'We\'re glad to have you! This number isn\'t linked to anyone in our club directory yet. Reply with your name and we\'ll add you.';
@@ -26,9 +30,26 @@ var VOICE_REPLY_FROM = 6 * 60;
 var VOICE_REPLIES_PER_RUN = 20;
 var VOICE_CLOSURES_URL = 'https://concordtabletennisclub.com/data/closures.json';
 
-// The minute trigger. Returns what it did, for the editor and the tests.
+// Returns what it did, for the editor and the tests.
 function answerVoiceSignups() {
   return guardDesk_('voice_auto_reply', function () { return answerVoiceSignups_(new Date()); });
+}
+
+// Run by the mail job after each read: answers only when a text came in since the last look, or once on each round robin
+// day when sign-up opens (a text from before 6 AM is answered at 6). Nothing is marked as looked at until it was looked at
+// within sign-up hours, so a text that came in at night is still answered in the morning.
+function answerNewTexts_(now) {
+  var properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty(VOICE_AUTO_REPLY_KEY) !== 'on') return { skipped: 'off' };
+  var date = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var newest = Number(properties.getProperty(MAIL_LAST_TEXT_KEY_)) || 0;
+  var checked = null;
+  try { checked = JSON.parse(properties.getProperty(VOICE_ANSWER_CHECKED_KEY) || 'null'); } catch (error) { checked = null; }
+  checked = checked || { newest: 0, date: '' };
+  if (newest <= checked.newest && checked.date === date) return { skipped: 'nothing new' };
+  var result = guardDesk_('voice_auto_reply', function () { return answerVoiceSignups_(now); });
+  if (!result.skipped || result.skipped === 'closed') properties.setProperty(VOICE_ANSWER_CHECKED_KEY, JSON.stringify({ newest: newest, date: date }));
+  return result;
 }
 
 function answerVoiceSignups_(now) {
@@ -108,21 +129,16 @@ function voiceClubClosed_(date) {
   return days[date] === 'full';
 }
 
-// Owner only, from the editor or the desk: turns automatic answers on, with the minute trigger.
+// Owner only, from the editor or the desk: turns automatic answers on. They run with the mail job, so this makes sure its
+// timers are set.
 function enableVoiceAutoReply() {
-  ScriptApp.getProjectTriggers().forEach(function (trigger) {
-    if (trigger.getHandlerFunction() === VOICE_AUTO_REPLY_HANDLER) ScriptApp.deleteTrigger(trigger);
-  });
-  ScriptApp.newTrigger(VOICE_AUTO_REPLY_HANDLER).timeBased().everyMinutes(1).create();
   PropertiesService.getScriptProperties().setProperty(VOICE_AUTO_REPLY_KEY, 'on');
-  appendAudit_('voice_auto_reply_enabled', 'database', VOICE_AUTO_REPLY_HANDLER, { everyMinutes: 1 });
+  ensureMailJob_();
+  appendAudit_('voice_auto_reply_enabled', 'database', VOICE_AUTO_REPLY_HANDLER, {});
   return voiceAutoReplyStatus();
 }
 
 function disableVoiceAutoReply() {
-  ScriptApp.getProjectTriggers().forEach(function (trigger) {
-    if (trigger.getHandlerFunction() === VOICE_AUTO_REPLY_HANDLER) ScriptApp.deleteTrigger(trigger);
-  });
   PropertiesService.getScriptProperties().setProperty(VOICE_AUTO_REPLY_KEY, 'off');
   appendAudit_('voice_auto_reply_disabled', 'database', VOICE_AUTO_REPLY_HANDLER, {});
   return voiceAutoReplyStatus();
@@ -131,6 +147,6 @@ function disableVoiceAutoReply() {
 function voiceAutoReplyStatus() {
   return {
     on: PropertiesService.getScriptProperties().getProperty(VOICE_AUTO_REPLY_KEY) === 'on',
-    triggers: ScriptApp.getProjectTriggers().filter(function (trigger) { return trigger.getHandlerFunction() === VOICE_AUTO_REPLY_HANDLER; }).length
+    mailJob: ScriptApp.getProjectTriggers().some(function (trigger) { return trigger.getHandlerFunction() === MAIL_WATCH_HANDLER; })
   };
 }
