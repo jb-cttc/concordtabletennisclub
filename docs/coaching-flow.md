@@ -181,7 +181,13 @@ Invisible characters are removed first. An unreadable reply to an
 - it arrives within 3 days and after the question was asked, and the
   question is still open.
 
-**Text replies** go through the club's Google Voice number, forwarded to Gmail:
+**Text replies** go through the club's Google Voice number, forwarded to Gmail.
+The app reads texts from the desk Sheet's `VoiceTexts` tab, where the desk's one
+mail reader collects them every minute ([One Gmail reader](round-robin-operations.md#one-gmail-reader)),
+so set the script property `DESK_SHEET_ID` to the desk Sheet's id. It searches
+Gmail for texts only to text back someone whose last text came before the desk
+started collecting them. Emailed answers are searched from the last check (5
+minutes back), not from the oldest open question.
 
 - The app can only text someone who has **texted the club number first**:
   coaches text `COACH` once (this sets `Coaches.registered_at`), students text

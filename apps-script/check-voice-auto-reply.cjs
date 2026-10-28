@@ -55,7 +55,10 @@ const context = {
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; } }) },
   UrlFetchApp: { fetch: () => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify(closuresBody) }) },
   LockService: { getDocumentLock: () => ({ tryLock: () => lockFree, releaseLock() {} }), getScriptLock: () => { throw new Error('score saves own the script lock'); } },
-  GmailApp: { search: () => { searches += 1; return [{ getMessages: () => inbox }]; } },
+  MAIL_FRESH_MS_: 60000,
+  readMailIfStale_: () => { searches += 1; },
+  storedVoiceMessages_: (from, to) => inbox.filter(message => message.getDate().getTime() >= from && message.getDate().getTime() < to),
+  GmailApp: { search: () => { throw new Error('texts come from the mail reader, never a Gmail search'); } },
   ScriptApp: {
     getProjectTriggers: () => triggers,
     deleteTrigger: trigger => { triggers = triggers.filter(item => item !== trigger); },

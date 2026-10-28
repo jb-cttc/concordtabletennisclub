@@ -7,7 +7,6 @@ const vm = require('node:vm');
 const manifest = JSON.parse(fs.readFileSync(__dirname + '/appsscript.json', 'utf8'));
 assert.deepEqual(manifest.oauthScopes, [
   'https://www.googleapis.com/auth/spreadsheets',
-  'https://mail.google.com/',
   // Only to read the site's session-roster.json and closures.json.
   'https://www.googleapis.com/auth/script.external_request',
   'https://www.googleapis.com/auth/userinfo.email'
@@ -25,6 +24,7 @@ assert.doesNotMatch(source, /=>|`|^\s*(let|const|class)\s/m, 'Code.js is ES5 sty
 const logWriter = /\nfunction log_\([\s\S]*?\n}\n/.exec(source)[0];
 assert.doesNotMatch(source.replace(logWriter, ''), /HtmlService|getActiveSpreadsheet|\.setValue|\.appendRow|insertSheet|\.reply\(|sendEmail|deleteRow/, 'it only reads: no page, no writes, no replies');
 assert.match(logWriter, /getSheetByName\(LOG_TAB\)/);
+assert.doesNotMatch(source, /GmailApp/, 'texts come from the desk Sheet, where the desk\'s one mail reader collects them: the app never reads Gmail');
 assert.match(source, /var LOG_TAB = 'CTTC Turnout Logs';/);
 
 // ---- Fakes ----
@@ -83,8 +83,15 @@ const SpreadsheetApp = {
   }
 };
 
+// Forwarded Voice texts, as the desk's mail reader records them in its VoiceTexts tab (apps-script/MailReader.js).
 let messages = [];
 let searches = [];
+let readerStopped = false;
+Object.defineProperty(tabs, 'VoiceTexts', { enumerable: true, get: () => {
+  searches.push('VoiceTexts');
+  return [['message_id', 'received_at', 'from', 'subject', 'text']].concat(messages.map(m => [m.getId(), String(m.getDate().getTime()), m.getFrom(), m.getSubject(), m.getPlainBody()]));
+} });
+Object.defineProperty(tabs, 'MailReader', { enumerable: true, get: () => [['read_at', 'cursor', 'day', 'gmail_calls'], [String(readerStopped ? clock - 11 * 60000 : clock - 30000), '', '', '']] });
 const text = (sender, body, at, from = 'x@txt.voice.google.com') => ({
   getId: () => sender + at,
   getFrom: () => '"' + sender + '" <' + from + '>',
@@ -92,12 +99,7 @@ const text = (sender, body, at, from = 'x@txt.voice.google.com') => ({
   getPlainBody: () => body + '\n\nTo respond to this text message, reply to this email or visit Google Voice.\nYOUR ACCOUNT',
   getDate: () => new FakeDate(at)
 });
-const GmailApp = {
-  search(query, start, max) {
-    searches.push(query);
-    return [{ getMessages: () => messages }];
-  }
-};
+const GmailApp = { search() { throw new Error('the turnout app never reads Gmail'); } };
 
 let cache = {};
 const CacheService = {
@@ -182,7 +184,7 @@ const said = JSON.stringify(answer);
   assert.ok(!said.includes(word), 'the public answer never carries a name, number, id or text: ' + word);
 });
 assert.equal(opened[0], 'desk-sheet');
-assert.match(searches[0], /^in:anywhere from:txt\.voice\.google\.com after:2026\/10\/25 before:2026\/10\/28$/);
+assert.ok(searches.length > 0, 'texts are read from the desk Sheet');
 assert.deepEqual(fetched, ['https://concordtabletennisclub.com/data/closures.json', 'https://concordtabletennisclub.com/data/session-roster.json']);
 assert.ok(Object.keys(cache).filter(key => key.startsWith('site:/data/session-roster.json:')).length >= 2, 'the roster is cached in parts');
 
@@ -212,7 +214,7 @@ const logText = JSON.stringify(tabs[LOG]);
 assert.equal(new Set(rowsOf('text_counted').concat(rowsOf('text_skipped')).map(row => row[4])).size, 11, 'one code per sender');
 const firstLog = logRows().length;
 
-// The same minute is served from the cache: no Sheet, no Gmail.
+// The same minute is served from the cache: no Sheet.
 const before = { opened: opened.length, searches: searches.length };
 assert.deepEqual(call('turnout'), answer);
 assert.deepEqual({ opened: opened.length, searches: searches.length }, before);
@@ -277,5 +279,15 @@ context.console.log = line => logged.push(line);
 assert.match(call('setup'), /^Ready: 8 players in the desk Sheet, \d+ published nights\.$/);
 assert.match(rowsOf('turnout_setup')[0][5], /^players=8 nights=\d+$/);
 assert.deepEqual(logged.map(line => /^Ready: /.test(line)), [true], 'the editor shows the result: Run displays only the log');
+
+// A desk whose mail reader stopped: the page still answers, and the log says texts are not being collected, once.
+cache = {};
+clock = at('10:00');
+readerStopped = true;
+assert.equal(call('turnout').ok, true);
+delete cache.turnout;
+call('turnout');
+assert.deepEqual(rowsOf('texts_not_collected').map(row => row[1]), ['error'], 'logged once, as an error');
+readerStopped = false;
 
 console.log('Turnout app checks passed');

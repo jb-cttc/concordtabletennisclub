@@ -43,6 +43,8 @@ var LATE_ASK_MS = 14 * 24 * 60 * 60 * 1000;
 var PROPOSE_WAIT_MS = 10 * 60 * 1000;
 var MAX_PROPOSALS_PER_DAY = 10;
 var THREAD_DAYS = 90;
+// Each email check reaches this far back before the last one, for mail Gmail is slow to make searchable.
+var MAIL_OVERLAP_MS = 5 * 60 * 1000;
 var MAX_STUDENTS = 3000;
 var MAX_REQUESTS = 5000;
 var MAX_PER_MINUTE = 30;
@@ -1744,8 +1746,49 @@ function fromCoach_(text, coach) {
   return (!!text.name && nameKey_(text.name) === nameKey_(coach.name)) || (!!digits && text.digits === digits);
 }
 
-// Recent forwarded texts from one coach or student ({name, phone}), newest first.
+// Recent forwarded texts from one coach or student ({name, phone}), newest first, from the texts the desk collects.
 function voiceTextsFrom_(coach, days) {
+  return storedTexts_(Date.now() - days * 86400000).map(voiceText_).filter(function (text) { return text && fromCoach_(text, coach); })
+    .sort(function (a, b) { return b.at - a.at; });
+}
+
+// ---------- Texts, collected by the desk ----------
+// Gmail allows a free account about 20,000 reads a day, shared by all the club's apps, and searching Voice texts here every
+// minute used them up. The desk's one mail reader (apps-script/MailReader.js) records every forwarded text in its Sheet's
+// VoiceTexts tab within a minute, and the app reads them there (script property DESK_SHEET_ID). Each row is shaped like the
+// Gmail message it came from, so voiceText_ reads it unchanged; only a reply opens the real message, by id.
+var READER_LATE_MS = 10 * 60 * 1000;
+
+// Texts received since the given time (ms). Throws when the desk has stopped collecting them, so the minute check reports it.
+function storedTexts_(since) {
+  if (!PropertiesService.getScriptProperties().getProperty('DESK_SHEET_ID')) throw new Error('set the script property DESK_SHEET_ID to the id of the desk Sheet, where texts are collected');
+  var desk = book_('DESK_SHEET_ID');
+  var reader = desk.getSheetByName('MailReader');
+  var readAt = reader && reader.getLastRow() >= 2 ? Number(reader.getRange(2, 1, 1, 1).getValues()[0][0]) || 0 : 0;
+  var tab = desk.getSheetByName('VoiceTexts');
+  if (!tab || Date.now() - readAt > READER_LATE_MS) {
+    throw new Error('the desk has not collected texts since ' + (readAt ? momentLabel_(readAt) : 'it was set up') + ': its mail reader is not running');
+  }
+  return tab.getDataRange().getValues().slice(1).filter(function (row) { return String(row[0]) && Number(row[1]) >= since; }).map(storedMessage_);
+}
+
+// A VoiceTexts row (message_id, received_at, from, subject, text) as the Gmail message it came from.
+function storedMessage_(row) {
+  var real = null;
+  var gmail = function () { return real || (real = GmailApp.getMessageById(String(row[0]))); };
+  return {
+    getId: function () { return String(row[0]); },
+    getDate: function () { return new Date(Number(row[1])); },
+    getFrom: function () { return String(row[2]); },
+    getSubject: function () { return String(row[3]); },
+    getPlainBody: function () { return String(row[4]); },
+    getReplyTo: function () { return gmail().getReplyTo(); },
+    reply: function (body) { return gmail().reply(body); }
+  };
+}
+
+// The same, searched in Gmail: only to reply to someone whose last text came before the desk started collecting them.
+function gmailTextsFrom_(coach, days) {
   var name = String(coach.name || '').replace(/["\\()]/g, ' ').replace(/\s+/g, ' ').trim();
   var terms = name ? ['subject:"' + name + '"'] : [];
   var digits = phoneDigits_(coach.phone);
@@ -1766,7 +1809,7 @@ function voiceTextsFrom_(coach, days) {
 
 // Replies to the coach's latest text to the club number, which Voice turns into a text back to them. Throws if they have not texted in.
 function sendText_(coach, body, log) {
-  var latest = voiceTextsFrom_(coach, THREAD_DAYS)[0];
+  var latest = voiceTextsFrom_(coach, THREAD_DAYS)[0] || gmailTextsFrom_(coach, THREAD_DAYS)[0];
   if (!latest) throw new Error('this coach has not texted the club number yet');
   var replyTo = String(latest.message.getReplyTo() || latest.message.getFrom() || '');
   if (!/@txt\.voice\.google\.com\b/i.test(replyTo)) throw new Error('the text had no Google Voice reply address');
@@ -2223,9 +2266,12 @@ function checkMail_() {
   questions.forEach(function (question) { byCode[question.code] = question; });
   var answers = {};
   var us = [Session.getEffectiveUser().getEmail(), adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
-  // Gmail reads count against a daily quota (about 20,000 on a free account) and this runs every minute, so only threads with a
-  // message from someone else since the oldest open question are opened, never threads holding only our own sent questions.
-  var since = Math.floor(Math.min.apply(null, questions.map(function (question) { return question.after; })) / 1000);
+  // Gmail reads count against a daily quota (about 20,000 on a free account, shared by all the club's apps) and this runs every
+  // minute, so only threads with a message from someone else since the last check (a few minutes back, for mail Gmail is slow
+  // to make searchable) and since the oldest open question are opened, never threads holding only our own sent questions.
+  var properties = PropertiesService.getScriptProperties();
+  var checked = Number(properties.getProperty('MAIL_CHECKED_AT')) || 0;
+  var since = Math.floor(Math.max(Math.min.apply(null, questions.map(function (question) { return question.after; })), checked - MAIL_OVERLAP_MS) / 1000);
   var threads = GmailApp.search(mailQuery_(since), 0, 50);
   var seen = { messages: 0, matched: 0 };
   threads.forEach(function (thread) {
@@ -2267,6 +2313,7 @@ function checkMail_() {
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
     else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
+  properties.setProperty('MAIL_CHECKED_AT', String(now));
 }
 
 // The reply as the person sees it. Gmail's plain-text version of an HTML-only email can run lines together ("YESSent from my
@@ -2369,24 +2416,19 @@ function lateVerify_(request, requests, availability, now) {
 // STUDENT turns on lesson texts for every student whose mobile number (or, for a saved Voice contact, name) matches; STOP turns
 // them off. Gmail is only searched once some student has given a number.
 function checkStudentTexts_() {
-  // STUDENT and STOP only switch texts on or off, so every 5 minutes is soon enough and saves Gmail reads.
+  // STUDENT and STOP only switch texts on or off, so every 5 minutes is soon enough.
   var cache = CacheService.getScriptCache();
   if (cache.get('student-texts')) return false;
   cache.put('student-texts', '1', 300);
   if (!rows_('Students').some(function (student) { return phoneDigits_(student.phone); })) return;
-  var seen = {};
   var texts = [];
-  GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:2d (STUDENT OR STOP)', 0, 30).forEach(function (thread) {
-    thread.getMessages().forEach(function (message) {
-      if (seen[message.getId()]) return;
-      seen[message.getId()] = true;
-      var text = voiceText_(message);
-      var word = text ? text.text.split('\n')[0].trim().replace(/[.!]+$/, '').toUpperCase() : '';
-      if (word === 'STUDENT' || word === 'STOP') {
-        text.word = word;
-        texts.push(text);
-      }
-    });
+  storedTexts_(Date.now() - 2 * 86400000).forEach(function (message) {
+    var text = voiceText_(message);
+    var word = text ? text.text.split('\n')[0].trim().replace(/[.!]+$/, '').toUpperCase() : '';
+    if (word === 'STUDENT' || word === 'STOP') {
+      text.word = word;
+      texts.push(text);
+    }
   });
   texts.sort(function (a, b) { return a.at - b.at; });
   var answers = [];

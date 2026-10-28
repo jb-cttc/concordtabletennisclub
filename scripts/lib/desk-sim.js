@@ -120,6 +120,8 @@ function createSpreadsheet(DateClass) {
         return last;
       },
       getMaxColumns: () => maxColumns,
+      getMaxRows: () => Math.max(1000, cells.length),
+      insertRowsAfter: () => sheet,
       insertColumnsAfter: (after, count) => { maxColumns += count; },
       getDataRange: () => range(1, 1, Math.max(1, sheet.getLastRow()), Math.max(1, sheet.getLastColumn())),
       getRange: (row, column, rows, columns) => {
@@ -166,6 +168,7 @@ function createSpreadsheet(DateClass) {
           return self;
         },
         setValue: value => self.setValues([[value]]),
+        setNumberFormat: () => self,
         setBackground: () => self, setFontColor: () => self, setFontWeight: () => self, setWrap: () => self
       };
       return self;
@@ -255,11 +258,13 @@ function createServer(clock, options) {
       search: () => {
         if (current) current.extraMs += gmail.searchMs;
         return gmail.threads;
-      }
+      },
+      getMessagesForThreads: threads => threads.map(thread => thread.getMessages()),
+      getMessageById: id => gmail.threads.flatMap(thread => thread.getMessages()).find(message => message.getId() === id) || null
     },
     ScriptApp: {
       getProjectTriggers: () => [],
-      newTrigger: () => ({ timeBased: () => ({ after: () => ({ create() {} }), everyHours: () => ({ create() {} }) }) }),
+      newTrigger: () => ({ timeBased: () => ({ after: () => ({ create() {} }), everyHours: () => ({ create() {} }), everyMinutes: () => ({ create() {} }) }) }),
       deleteTrigger() {},
       getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/sim/dev' })
     },

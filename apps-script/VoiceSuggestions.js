@@ -104,25 +104,21 @@ function voiceCandidates_(sender, players, byName, links) {
   return ids;
 }
 
-// Forwarded Voice texts received on sessionDate, grouped by sender and sorted oldest to newest.
+// Forwarded Voice texts received on sessionDate, grouped by sender and sorted oldest to newest. They come from the texts
+// the mail reader recorded (MailReader.js), brought up to the last minute first, so every open desk costs Gmail nothing.
 function voiceSenders_(sessionDate) {
-  var day = new Date(sessionDate + 'T12:00:00Z');
-  var after = new Date(day.getTime() - 86400000).toISOString().slice(0, 10).replace(/-/g, '/');
-  var before = new Date(day.getTime() + 172800000).toISOString().slice(0, 10).replace(/-/g, '/');
-  var threads = GmailApp.search('in:anywhere from:txt.voice.google.com after:' + after + ' before:' + before, 0, 101);
-  if (threads.length > 100) throw new Error('Too many forwarded texts to check safely');
+  var noon = new Date(sessionDate + 'T12:00:00Z').getTime();
+  readMailIfStale_(MAIL_FRESH_MS_);
   var senders = {};
   var seen = {};
-  threads.forEach(function (thread) {
-    thread.getMessages().forEach(function (message) {
-      if (seen[message.getId()]) return;
-      seen[message.getId()] = true;
-      if (Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd') !== sessionDate) return;
-      var text = voiceForwardedText_(message);
-      if (!text) return;
-      var sender = senders[text.senderKey] || (senders[text.senderKey] = { senderName: text.senderName, senderKey: text.senderKey, phoneKey: text.phoneKey, known: text.known, messages: [] });
-      sender.messages.push({ text: text.text, receivedAt: text.receivedAt, message: message });
-    });
+  storedVoiceMessages_(noon - 86400000, noon + 86400000).forEach(function (message) {
+    if (seen[message.getId()]) return;
+    seen[message.getId()] = true;
+    if (Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd') !== sessionDate) return;
+    var text = voiceForwardedText_(message);
+    if (!text) return;
+    var sender = senders[text.senderKey] || (senders[text.senderKey] = { senderName: text.senderName, senderKey: text.senderKey, phoneKey: text.phoneKey, known: text.known, messages: [] });
+    sender.messages.push({ text: text.text, receivedAt: text.receivedAt, message: message });
   });
   Object.keys(senders).forEach(function (key) {
     senders[key].messages.sort(function (left, right) { return left.receivedAt - right.receivedAt; });
