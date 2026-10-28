@@ -37,7 +37,7 @@ piece of work is due. It never wakes just to find nothing to do.
 
 | App | Job | Wakes | Runs a day (estimate) |
 | --- | --- | --- | --- |
-| Desk | Mail reader (`readMailWatch` every 30 minutes; one-off `readMail`), then automatic answers when a new text came in | Every minute on a round robin day from 6 AM until sign-up closes; every 5 minutes otherwise by day; every 30 minutes from 11 PM to 7 AM | Mon/Wed about 890; Saturday pilot about 700; other days about 240 |
+| Desk | Mail reader (`readMailWatch` every 30 minutes; one-off `readMail`), then automatic answers when a new text came in | Every minute in the 4 hours before a round robin's sign-up closes (3:15 to 7:15 PM Mon/Wed; 11:15 AM to 3:15 PM Saturday pilot); every 5 minutes otherwise by day, and from 6 AM on a round robin day; every 30 minutes from 11 PM to 7 AM | Mon/Wed and Saturday about 445; other days about 240 |
 | Desk | Rating sync (`syncRatingsFromPublicSite`), if its hourly timer is on | Hourly | 24 |
 | Desk | Publish backup (`publishDue`) | One-off, only after a session is finalized | 0 to 3 |
 | Coaching | Check (`checkTextsWatch` every 30 minutes; one-off `checkTexts`) | Every 2 minutes by day while a coach or student owes an answer, else every 15; 30-minute timer only from 11 PM to 7 AM; a question sent brings it within 2 minutes | About 110 with nobody waiting; up to about 530 |
@@ -46,11 +46,12 @@ piece of work is due. It never wakes just to find nothing to do.
 | Staffing | Sweep (`sweep`) | Hourly | 24 |
 | Turnout | none | Only when the Tonight page asks (cached 60 seconds) | 0 timer runs |
 
-A typical round robin day is about 1,100 to 1,200 timer runs, and 2,000 at most
-if coaching and staffing both have answers owed all day. At 1 to 2 seconds a run
-that is roughly 20 to 65 minutes of the 90. The `JobRuntime` tab shows the real
-figure; if it regularly passes 45 minutes, the first thing to narrow is the desk's
-every-minute stretch on round robin days, which is the largest share.
+A typical round robin day is about 750 timer runs, and about 1,600 at most if
+coaching and staffing both have answers owed all day. At 1 to 2 seconds a run that
+is roughly 12 to 55 minutes of the 90. (Reading every minute from 6 AM, as first
+built, added about 440 runs a round robin day.) The `JobRuntime` tab shows the
+real figure; if it regularly passes 45 minutes, look first at whichever app's row
+is largest there.
 
 ## Things only the club account can do in Google
 

@@ -238,9 +238,10 @@ many times for one day: gmail").
 
 Now one job in the desk (`apps-script/MailReader.js`) reads only mail that
 arrived since its last read, once. It wakes only as often as texts matter:
-**every minute** on a round robin day from 6 AM until sign-up closes (7:15 PM;
+**every minute** in the 4 hours before a round robin's sign-up closes, when
+most signups come in (3:15 to 7:15 PM on Mondays and Wednesdays; 11:15 AM to
 3:15 PM for the Saturday pilot), **every 30 minutes** from 11 PM to 7 AM, and
-**every 5 minutes** otherwise. Waking costs timer run time, which every club
+**every 5 minutes** otherwise, including from 6 AM on a round robin day. Waking costs timer run time, which every club
 app shares ([Google limits](google-limits.md)), so it never wakes just to find
 nothing due: a 30-minute timer (`readMailWatch`) always runs, covers the night
 and restarts the chain if a run fails, and each run sets a one-off timer
@@ -326,8 +327,8 @@ When switched on, the desk answers round robin texts by itself
 sign-up closes at 7:15 PM Pacific, and on Saturdays from 6 AM until 3:15 PM,
 except on days the club site lists as closed. They have no timer of their own:
 the mail job runs them after each read that brought a new text (within a
-minute in those hours), and once when sign-up opens, so a text from the night
-is answered at 6 AM. Each person gets at most one automatic answer a day:
+minute in the last 4 hours of sign-up, within 5 minutes earlier in the day),
+and once when sign-up opens, so a text from the night is answered by 6:05 AM. Each person gets at most one automatic answer a day:
 
 | The Voice contact name is | The answer |
 | --- | --- |

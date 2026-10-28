@@ -189,7 +189,7 @@ Invisible characters are removed first. An unreadable reply to an
 
 **Text replies** go through the club's Google Voice number, forwarded to Gmail.
 The app reads texts from the desk Sheet's `VoiceTexts` tab, where the desk's one
-mail reader collects them (every minute on round robin days, every 5 minutes otherwise, every 30 overnight; [One Gmail reader](round-robin-operations.md#one-gmail-reader)),
+mail reader collects them (every minute in the last 4 hours of round robin sign-up, every 5 minutes otherwise by day, every 30 overnight; [One Gmail reader](round-robin-operations.md#one-gmail-reader)),
 so set the script property `DESK_SHEET_ID` to the desk Sheet's id. It searches
 Gmail for texts only to text back someone whose last text came before the desk
 started collecting them. Emailed answers are searched from the last check (5

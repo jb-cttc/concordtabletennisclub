@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 // The one Gmail reader (MailReader.js), against a fake Gmail, Sheet and clock. Made-up names and 555 numbers only.
-let clock = Date.parse('2026-10-26T17:00:00Z');
+let clock = Date.parse('2026-10-26T23:00:00Z'); // Monday 4 PM Pacific: round robin sign-up, read every minute
 const grids = {};
 const sheets = {};
 // Sheets reads a leading ' as "plain text" and does not store it.
@@ -137,7 +137,7 @@ threads = [ada, [make('zeffy', 'Kim Tan', clock - 86400000)]];
 const first = read();
 assert.deepEqual(first, { texts: 8, zeffy: 1, gmailCalls: first.gmailCalls }, 'the first read takes the last week');
 assert.match(searches[0], /^in:anywhere \(from:txt\.voice\.google\.com OR from:communication\.mailer\.zeffy\.com\) after:\d+$/, 'one search for texts and Zeffy, Trash and Spam included');
-assert.deepEqual(timers(), ['readMail after 1', 'readMailWatch every 30'], 'the old every-minute timers are gone: a 30-minute timer, and the next read a minute away on a round robin day');
+assert.deepEqual(timers(), ['readMail after 1', 'readMailWatch every 30'], 'the old every-minute timers are gone: a 30-minute timer, and the next read a minute away (round robin sign-up)');
 assert.equal(texts()[texts().length - 1][4], 'coming tonight', 'Voice links and footer are taken out');
 assert.equal(zeffyRows.length, 1);
 assert.equal(grids.MailReader[1][3], String(first.gmailCalls), 'Gmail calls are counted for the day');
@@ -241,21 +241,27 @@ gmailDown = false;
 clock += minutes(1);
 assert.equal(read().texts, 0);
 
-// Gmail is read only as often as texts matter: every minute on a round robin day until sign-up closes (7:15 PM, 3:15 PM
-// for the Saturday pilot from October 31), every 30 minutes from 11 PM to 7 AM, and every 5 minutes otherwise.
+// Gmail is read only as often as texts matter: every minute in the 4 hours before a round robin's sign-up closes (3:15 to
+// 7:15 PM; 11:15 AM to 3:15 PM for the Saturday pilot from October 31), every 30 minutes from 11 PM to 7 AM, and every 5
+// minutes otherwise, including from 6 AM on a round robin day.
 const pt = (date, time) => Date.parse(date + 'T' + time + ':00Z') + 7 * 3600000;
 const every = (date, time) => context.mailReadEvery_(new Date(pt(date, time))) / 60000;
 assert.equal(every('2026-10-26', '05:59'), 30, 'night');
-assert.equal(every('2026-10-26', '06:00'), 1, 'a round robin day from 6 AM, when the automatic answers start');
-assert.equal(every('2026-10-26', '07:00'), 1, 'Monday morning: a round robin day');
+assert.equal(every('2026-10-26', '06:00'), 5, 'a round robin day from 6 AM, when the automatic answers start');
+assert.equal(every('2026-10-26', '07:00'), 5, 'Monday morning');
+assert.equal(every('2026-10-26', '15:14'), 5);
+assert.equal(every('2026-10-26', '15:15'), 1, 'every minute for the last 4 hours of sign-up');
 assert.equal(every('2026-10-26', '19:14'), 1);
 assert.equal(every('2026-10-26', '19:15'), 5, 'after sign-up closes');
 assert.equal(every('2026-10-26', '23:00'), 30, '11 PM');
 assert.equal(every('2026-10-27', '06:59'), 30);
 assert.equal(every('2026-10-27', '12:00'), 5, 'Tuesday: no round robin');
-assert.equal(every('2026-10-28', '12:00'), 1, 'Wednesday');
+assert.equal(every('2026-10-28', '12:00'), 5, 'Wednesday midday');
+assert.equal(every('2026-10-28', '16:00'), 1, 'Wednesday afternoon');
 assert.equal(every('2026-10-24', '12:00'), 5, 'no Saturday round robin before the pilot');
-assert.equal(every('2026-10-31', '12:00'), 1, 'the Saturday pilot');
+assert.equal(every('2026-10-31', '11:14'), 5, 'the Saturday pilot: 5 minutes in the morning');
+assert.equal(every('2026-10-31', '11:15'), 1, 'every minute from 11:15 AM');
+assert.equal(every('2026-10-31', '12:00'), 1);
 assert.equal(every('2026-10-31', '15:15'), 5);
 // Each run sets the one-off timer for the next read: none at night (the 30-minute timer covers it), and never past the
 // start of a busier stretch.
@@ -272,7 +278,13 @@ read();
 assert.deepEqual(nextAfter(), [15], 'Wednesday 5:45 AM: next at 6:00, when sign-up opens');
 clock = pt('2026-10-28', '06:00');
 read();
-assert.deepEqual(nextAfter(), [1], 'then every minute');
+assert.deepEqual(nextAfter(), [5], 'then every 5 minutes');
+clock = pt('2026-10-28', '15:12');
+read();
+assert.deepEqual(nextAfter(), [3], 'the next read lands at 3:15 PM, when every minute starts');
+clock = pt('2026-10-28', '15:15');
+read();
+assert.deepEqual(nextAfter(), [1], 'then every minute until sign-up closes');
 clock = pt('2026-10-28', '19:12');
 read();
 assert.deepEqual(nextAfter(), [1]);

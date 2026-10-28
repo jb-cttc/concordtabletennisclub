@@ -9,8 +9,9 @@
 //   - Zeffy play pass emails in ZeffyPayments (ZeffyTracking.js).
 // A quiet read costs one search. Gmail is otherwise opened only to send a reply, by message id.
 //
-// The job wakes only as often as texts matter (mailReadEvery_): every minute on a round robin day from 6 AM until sign-up
-// closes, every 5 minutes otherwise, every 30 minutes from 11 PM to 7 AM. Waking costs scheduled-job run time (Google allows
+// The job wakes only as often as texts matter (mailReadEvery_): every minute in the last 4 hours before a round robin's
+// sign-up closes, when most signups come in, every 5 minutes otherwise by day (and from 6 AM on a round robin day, when
+// the automatic answers start), every 30 minutes from 11 PM to 7 AM. Waking costs scheduled-job run time (Google allows
 // 90 minutes a day across every club app, JobRuntime.js), so the job never wakes just to find nothing due: a 30-minute
 // timer (readMailWatch) always runs, covers the night and restarts the chain if a run ever fails, and each run sets a
 // one-off timer (readMail) for when the next read is due, if that is sooner. After a read that brought new texts, the
@@ -38,6 +39,10 @@ var MAIL_OVERLAP_MS_ = 3 * 60000;
 var MAIL_FIRST_DAYS_ = 7;
 var MAIL_KEEP_DAYS_ = 90;
 var MAIL_FRESH_MS_ = 60000;
+// Every minute only for this long before sign-up closes: 3:15 to 7:15 PM on Mondays and Wednesdays, 11:15 AM to 3:15 PM
+// for the Saturday pilot. Earlier in the day every 5 minutes is soon enough, and saves about 440 timer runs a round
+// robin day (docs/google-limits.md).
+var MAIL_BUSY_MINUTES_ = 4 * 60;
 var MAIL_DAY_EVERY_MS_ = 5 * 60000;
 // 11 PM to 7 AM, Pacific.
 var MAIL_NIGHT_FROM_ = 23 * 60;
@@ -87,9 +92,9 @@ function readMailIfStale_(maxAgeMs) {
   return readMail_(maxAgeMs, true);
 }
 
-// How often Gmail is read at this moment: every minute on a round robin day from 6 AM until sign-up closes (the days and
-// times of the desk's automatic answers, VOICE_REPLY_DAYS), every 30 minutes from 11 PM to 7 AM, otherwise every 5
-// minutes. A third as often (not at night) once every app's timers together have run a lot today (JobRuntime.js).
+// How often Gmail is read at this moment: every minute in the last MAIL_BUSY_MINUTES_ before a round robin's sign-up
+// closes (the days and times of the desk's automatic answers, VOICE_REPLY_DAYS), every 5 minutes otherwise by day and from
+// 6 AM on a round robin day, every 30 minutes from 11 PM to 7 AM. A third as often (not at night) once every app's timers together have run a lot today (JobRuntime.js).
 function mailReadEvery_(now) {
   return mailSlowed_(mailCadence_(now), jobsSlowed_());
 }
@@ -99,8 +104,9 @@ function mailCadence_(now) {
   var date = Utilities.formatDate(now, zone, 'yyyy-MM-dd');
   var minutes = Number(Utilities.formatDate(now, zone, 'H')) * 60 + Number(Utilities.formatDate(now, zone, 'm'));
   var day = VOICE_REPLY_DAYS[new Date(date + 'T12:00:00Z').getUTCDay()];
-  return day && !(day.from && date < day.from) && minutes >= VOICE_REPLY_FROM && minutes < day.until ? MAIL_FRESH_MS_ :
-    minutes >= MAIL_NIGHT_FROM_ || minutes < MAIL_NIGHT_UNTIL_ ? MAIL_NIGHT_EVERY_MS_ : MAIL_DAY_EVERY_MS_;
+  var signup = day && !(day.from && date < day.from) && minutes >= VOICE_REPLY_FROM && minutes < day.until;
+  if (signup) return minutes >= day.until - MAIL_BUSY_MINUTES_ ? MAIL_FRESH_MS_ : MAIL_DAY_EVERY_MS_;
+  return minutes >= MAIL_NIGHT_FROM_ || minutes < MAIL_NIGHT_UNTIL_ ? MAIL_NIGHT_EVERY_MS_ : MAIL_DAY_EVERY_MS_;
 }
 
 function mailSlowed_(every, slow) {
