@@ -11,7 +11,7 @@ player. The plain table above the floor carries the same numbers.
 | Mark | Meaning | Where it comes from |
 | --- | --- | --- |
 | Solid body | **Playing tonight**: signed in at the desk | The desk Sheet: `SessionPlayers` rows for tonight's `Sessions` row, at `starting_rating`. |
-| Solid body with a green bubble | **Playing tonight**: texted the club today | Forwarded Google Voice texts in the club's Gmail, matched to a player by contact name (`Players.display_name`, then `Aliases`). |
+| Solid body with a green bubble | **Playing tonight**: texted the club today | Forwarded Google Voice texts, collected by the desk's mail reader in the desk Sheet's `VoiceTexts` tab ([One Gmail reader](round-robin-operations.md#one-gmail-reader)), matched to a player by contact name (`Players.display_name`, then `Aliases`). The app never reads Gmail. |
 | Ghost body | **Likely**: a regular with a 90% or better chance of coming | `turnout.js` `likelihood()` on the site's `data/session-roster.json`. |
 | Chalk spot | **Expected**: the rest of the forecast | The night's total is the usual turnout for that weekday (`expectedTotal`: the last 8 same-weekday nights, recent ones counting most). Everyone playing is in it; the rest is shared out between the zones by each other recent player's chance. |
 | Body at the front desk | Playing tonight, but no rating known (an unmatched text, a number with no contact name, a player with a blank rating) | Counted in the **New faces** column. |
@@ -102,7 +102,7 @@ the app again.
 | --- | --- |
 | `turnout.js` | Pure logic: zones, the night and phase, likelihood, the tally. Published with the site. |
 | `turnout-app/` | Public Apps Script project. `turnout()` answers the counts; `doGet` serves it as JSON. `Turnout.js` is an exact copy of `turnout.js`. |
-| `tonight.html` | The page. Asks the app every minute (one answer is cached for 60 seconds on Google, so a busy page reads the Sheet and Gmail about once a minute). |
+| `tonight.html` | The page. Asks the app every minute (one answer is cached for 60 seconds on Google, so a busy page reads the Sheet about once a minute). |
 | `scripts/check-turnout.js`, `turnout-app/check-turnout-app.cjs` | Checks, in `npm test`. |
 
 Until `TURNOUT_URL` is set in `tonight.html`, or whenever the app cannot be
@@ -127,8 +127,8 @@ must never live in it. `check-turnout-app.cjs` asserts that only `doGet`,
    Commit the new `.clasp.json` (it holds only the script id).
 2. In **Project Settings > Script properties**, set `DESK_SHEET_ID` to the
    id in the desk Sheet's address (the part after `/d/`). The app reads its
-   `Players`, `Aliases`, `Sessions` and `SessionPlayers` tabs by header name
-   and never writes to them.
+   `Players`, `Aliases`, `Sessions`, `SessionPlayers`, `VoiceTexts` and
+   `MailReader` tabs by header name and never writes to them.
 3. In the editor, run **`setup`** once and grant the permissions. It
    returns how many players and published nights it can read. From the web
    it does nothing.
@@ -145,8 +145,8 @@ the desk Sheet, … published nights"); the Run button shows only what is
 logged. Before the owner has run `setup` once and approved its permissions,
 the address answers "Access Denied" and the page shows the forecast only.
 
-Scopes: `spreadsheets` (to read the desk Sheet), `mail.google.com` (to read
-forwarded Voice texts; it never replies), `script.external_request` (to read
+Scopes: `spreadsheets` (to read the desk Sheet, including the Voice texts the
+desk collects), `script.external_request` (to read
 `closures.json` and `session-roster.json` from the site), `userinfo.email`
 (for `setup`'s owner check).
 
@@ -164,6 +164,7 @@ detail`). Read it from GitHub: **Actions > Desk log > Run workflow**, with
 | `turnout_counts` | step | The totals whenever they change: phase, playing (here and texted), likely, expected |
 | `turnout_setup` | step | How many players and published nights `setup` could read |
 | `turnout_failed` | error | What went wrong, cleaned of anything personal |
+| `texts_not_collected` | error | The desk's mail reader has not run for over 10 minutes, so new texts are missing; the page still answers. At most once in 10 minutes |
 
 A texter appears only as a code in `ref` (`S` and six characters; the same
 sender always gets the same code), never a name, number or message. The

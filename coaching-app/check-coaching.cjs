@@ -111,6 +111,23 @@ const inbound = (subjectName, body, at = clock, from = voiceFrom) => {
     getDate: () => new Date(at), reply: text => { replies.push({ subject: 'New text message from ' + subjectName, body: text }); }
   });
 };
+// The desk's Sheet, where its one mail reader records every forwarded text (apps-script/MailReader.js): the app reads texts
+// there, never by searching Gmail. Here the tab simply holds the inbox; readerStopped is a desk that stopped collecting.
+let readerStopped = false;
+let textReads = 0;
+books['desk-sheet-id'] = {
+  getSheetByName: name => ({
+    VoiceTexts: {
+      getDataRange: () => ({ getValues: () => {
+        textReads += 1;
+        if (voiceDown) throw new Error('Google Voice is unavailable');
+        return [['message_id', 'received_at', 'from', 'subject', 'text']].concat(inbox.map(message => [message.getId(), String(message.getDate().getTime()), message.getFrom(), message.getSubject(), message.getPlainBody()]));
+      } })
+    },
+    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 11 * 60000 : clock - 30000)]] }) }
+  }[name] || null)
+};
+properties.DESK_SHEET_ID = 'desk-sheet-id';
 const context = {
   Date: FakeDate, Math, Number, String, JSON, Object, console: { error: () => {}, log: line => { logs.push(line); } },
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = value; } }) },
@@ -121,7 +138,7 @@ const context = {
       const book = makeBook(id);
       return Object.assign({ getId: () => id }, book);
     },
-    openById: id => { assert.ok(books[id], 'only the two Sheets the app made are opened'); return books[id]; }
+    openById: id => { assert.ok(books[id], 'only the two Sheets the app made, and the desk Sheet, are opened'); return books[id]; }
   },
   Session: { getActiveUser: () => ({ getEmail: () => activeEmail }), getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
   ScriptApp: {
@@ -139,6 +156,7 @@ const context = {
   },
   GmailApp: {
     getInboxUnreadCount: () => 0,
+    getMessageById: id => inbox.find(message => message.getId() === id),
     search: query => {
       gmailQueries.push(query);
       // Emailed answers: replies whose subject carries a [CTTC ref] code.
@@ -1705,5 +1723,13 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
   await wait(50);
   assert.ok(copy.navigations.length >= 1, 'hands over to Google\'s own page');
   copy.dom.window.close();
+  // Texts are read from the desk's tab; Gmail is searched for them only to text back someone with no collected text yet.
+  readerStopped = true;
+  assert.throws(() => context.storedTexts_(0), /desk has not collected texts since .*: its mail reader is not running/, 'a desk that stopped collecting texts is a failing step, so the club hears');
+  readerStopped = false;
+  const lastEmailCheck = gmailQueries.filter(query => /CTTC ref/.test(query)).pop();
+  if (lastEmailCheck) assert.ok(Number(lastEmailCheck.match(/after:(\d+)$/)[1]) * 1000 >= Number(properties.MAIL_CHECKED_AT) - 2 * 5 * 60000, 'emailed answers are searched from the last check, not from the oldest question');
+  assert.ok(textReads > 0);
+  gmailQueries.filter(query => /txt\.voice/.test(query)).forEach(query => assert.match(query, /newer_than:90d \(/, 'only the reply fallback searches Gmail for texts'));
   console.log('Coaching app checks passed');
 })().catch(error => { console.error(error); process.exit(1); });

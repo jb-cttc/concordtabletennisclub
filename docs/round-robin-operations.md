@@ -9,7 +9,8 @@
   private Google Sheet instead (`scripts/publish-finalized-sessions.js`).
 - **Owner desk** (`apps-script/`, Google Apps Script bound to the round-robin
   Sheet, deployed for the club account only). Rosters, groups, scores, Open
-  Play, payments, membership, and Voice signups. Push with
+  Play, payments, membership, Voice signups, and the club's one Gmail reader
+  (below). Push with
   `npx --no-install @google/clasp push` from `apps-script/`, then create a
   version and redeploy the existing `/exec` deployment.
 
@@ -178,8 +179,9 @@ Members and visitors pay a per-session fee ($10 or $15), recorded per date in
 Payment, Open Play and membership changes are kept on the device first and sync
 to the Sheet in the background, so they keep working when the connection
 drops. **Zeffy** is an optional monthly
-play pass, tracked from Zeffy's payment emails to the club Gmail. At most every
-10 minutes the desk reads new Zeffy mail and records purchase, renewal
+play pass, tracked from Zeffy's payment emails to the club Gmail. The mail
+reader (see [One Gmail reader](#one-gmail-reader)) reads new Zeffy mail every
+minute and records purchase, renewal
 (`recurring payment` in the subject) and cancellation emails in the private
 `ZeffyPayments` sheet, one row per person covered (a renewal covers everyone the
 buyer first purchased for). An email counts as a play pass when its subject or
@@ -202,10 +204,43 @@ keep their manual pass and appear in the sidebar list. Covered players show a
 locked **Zeffy ✓**. Zeffy is not a membership payment: `MembershipDues` records
 only the membership year.
 
+## One Gmail reader
+
+Gmail allows a free account about 20,000 reads a day, and every club app (desk,
+coaching, staffing, turnout) shares that allowance. Until October 2026 each app
+searched the same Google Voice texts on its own every minute, re-reading each
+person's whole text history (Voice keeps all of a person's texts in one Gmail
+thread), and the allowance ran out on round robin nights ("Service invoked too
+many times for one day: gmail").
+
+Now one minute trigger in the desk (`readMail`, `apps-script/MailReader.js`)
+reads only mail that arrived since its last run, once:
+
+- forwarded Voice texts go to the private **`VoiceTexts`** tab (`message_id`,
+  `received_at` in milliseconds, `from`, `subject`, `text` without Voice's
+  links and footer), kept for 90 days;
+- Zeffy play pass emails go to `ZeffyPayments`.
+
+The desk's Voice signups and automatic answers, and the coaching, staffing and
+turnout apps (which open this Sheet by their `DESK_SHEET_ID` script property)
+read texts from `VoiceTexts`, never by searching Gmail. Gmail is opened only to
+send a reply, by message id. A quiet minute costs one Gmail search.
+
+The **`MailReader`** tab has one row: when it last read (`read_at`), how far it
+has read (`cursor`), and its Gmail calls today (`gmail_calls`). Past 6,000 calls
+in a day it reads every 5 minutes instead of every minute and the desk log gets
+a `gmail_reads_high` warning; each new day logs `mail_reader_day` with the
+previous day's count. The desk installs the trigger the first time it reads mail,
+and reads mail itself when the trigger has not run in the last minute. If
+`read_at` is more than 10 minutes old, the coaching and staffing minute checks
+fail (and email the club after 30 minutes) and the turnout log records
+`texts_not_collected`.
+
 ## Voice signups
 
 Google Voice forwards each text to the club Gmail from a
-`@txt.voice.google.com` relay address. The desk lists every text received on
+`@txt.voice.google.com` relay address, and the mail reader records it in
+`VoiceTexts`. The desk lists every text received on
 the selected date (Trash and Spam included), grouped by sender, newest first,
 with a timestamp per message. It does not interpret the wording. Each sender
 shows likely directory matches, including linked names; the organizer clicks

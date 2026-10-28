@@ -55,6 +55,8 @@ var REMIND_FROM = '09:00';
 var RETRY_MAIL_DAYS = 3;
 var MIN_QUOTA = 10;
 var THREAD_DAYS = 90;
+// Each email check reaches this far back before the last one, for mail Gmail is slow to make searchable.
+var MAIL_OVERLAP_MS = 5 * 60 * 1000;
 var LOG_KEEP = 500;
 // A step of the minute check that fails without a break for this long is emailed to the club. Google's services have outages
 // of a few minutes that clear by themselves; those go to the Log tab, not the club inbox.
@@ -2600,9 +2602,11 @@ function checkMail_() {
   var self = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
   var us = [self, adminEmail_()].map(function (address) { return String(address || '').toLowerCase(); });
   var club = questions.some(function (question) { return question.kind === 'club'; });
-  // Only threads with a message since the oldest open question are opened, to spare the Gmail quota: from someone else, or
-  // from our own account too while the club (when it is this account) has an approval to answer.
-  var since = Math.floor(Math.min.apply(null, questions.map(function (question) { return question.after; })) / 1000);
+  // Only threads with a message since the last check (a few minutes back, for mail Gmail is slow to make searchable) and since
+  // the oldest open question are opened, to spare the Gmail quota all the club's apps share: from someone else, or from our
+  // own account too while the club (when it is this account) has an approval to answer.
+  var checked = Number(property_('MAIL_CHECKED_AT', '0')) || 0;
+  var since = Math.floor(Math.max(Math.min.apply(null, questions.map(function (question) { return question.after; })), checked - MAIL_OVERLAP_MS) / 1000);
   var answers = {};
   GmailApp.search(mailQuery_(since, club ? 8 : 3, club && sameAddress_(adminEmail_(), self)), 0, 50).forEach(function (thread) {
     thread.getMessages().forEach(function (message) {
@@ -2654,6 +2658,7 @@ function checkMail_() {
     else if (found.question.kind === 'club') clubAnswer_(found.question.id, found.answer);
     else dropAnswer_(found.question.id, found.answer);
   });
+  PropertiesService.getScriptProperties().setProperty('MAIL_CHECKED_AT', String(now));
 }
 
 // The reply as the person sees it. Gmail's plain-text version of an HTML-only email can run lines together ("YESSent from my
@@ -2941,8 +2946,49 @@ function fromPerson_(text, person) {
   return (!!digits && text.digits === digits) || (!text.digits && !!text.name && nameKey_(text.name) === nameKey_(person.name));
 }
 
-// Recent forwarded texts from one person ({name, phone}), newest first.
+// Recent forwarded texts from one person ({name, phone}), newest first, from the texts the desk collects.
 function voiceTextsFrom_(person, days) {
+  return storedTexts_(Date.now() - days * 86400000).map(voiceText_).filter(function (text) { return text && fromPerson_(text, person); })
+    .sort(function (a, b) { return b.at - a.at; });
+}
+
+// ---------- Texts, collected by the desk ----------
+// Gmail allows a free account about 20,000 reads a day, shared by all the club's apps, and searching Voice texts here every
+// minute used them up. The desk's one mail reader (apps-script/MailReader.js) records every forwarded text in its Sheet's
+// VoiceTexts tab within a minute, and the app reads them there (DESK_SHEET_ID). Each row is shaped like the Gmail message it
+// came from, so voiceText_ reads it unchanged; only a reply opens the real message, by id.
+var READER_LATE_MS = 10 * 60 * 1000;
+
+// Texts received since the given time (ms). Throws when the desk has stopped collecting them, so the minute check reports it.
+function storedTexts_(since) {
+  if (!property_('DESK_SHEET_ID', '')) throw new Error('Set the script property DESK_SHEET_ID to the id of the desk Sheet.');
+  var desk = book_('DESK_SHEET_ID');
+  var reader = desk.getSheetByName('MailReader');
+  var readAt = reader && reader.getLastRow() >= 2 ? Number(reader.getRange(2, 1, 1, 1).getValues()[0][0]) || 0 : 0;
+  var tab = desk.getSheetByName('VoiceTexts');
+  if (!tab || Date.now() - readAt > READER_LATE_MS) {
+    throw new Error('the desk has not collected texts since ' + (readAt ? momentLabel_(readAt) : 'it was set up') + ': its mail reader is not running');
+  }
+  return tab.getDataRange().getValues().slice(1).filter(function (row) { return String(row[0]) && Number(row[1]) >= since; }).map(storedMessage_);
+}
+
+// A VoiceTexts row (message_id, received_at, from, subject, text) as the Gmail message it came from.
+function storedMessage_(row) {
+  var real = null;
+  var gmail = function () { return real || (real = GmailApp.getMessageById(String(row[0]))); };
+  return {
+    getId: function () { return String(row[0]); },
+    getDate: function () { return new Date(Number(row[1])); },
+    getFrom: function () { return String(row[2]); },
+    getSubject: function () { return String(row[3]); },
+    getPlainBody: function () { return String(row[4]); },
+    getReplyTo: function () { return gmail().getReplyTo(); },
+    reply: function (body) { return gmail().reply(body); }
+  };
+}
+
+// The same, searched in Gmail: only to reply to someone whose last text came before the desk started collecting them.
+function gmailTextsFrom_(person, days) {
   var name = String(person.name || '').replace(/["\\()]/g, ' ').replace(/\s+/g, ' ').trim();
   var terms = name ? ['subject:"' + name + '"'] : [];
   var digits = phoneDigits_(person.phone);
@@ -2962,7 +3008,7 @@ function voiceTextsFrom_(person, days) {
 
 // Replies to the person's latest text to the club number, which Voice turns into a text back to them.
 function sendText_(person, body, log) {
-  var latest = voiceTextsFrom_(person, THREAD_DAYS)[0];
+  var latest = voiceTextsFrom_(person, THREAD_DAYS)[0] || gmailTextsFrom_(person, THREAD_DAYS)[0];
   if (!latest) throw new Error('this person has not texted the club number yet');
   latest.message.reply(body);
   if (log) logSent_('text', log[0], log[1], phoneDigits_(person.phone) || person.name);
@@ -3010,19 +3056,14 @@ function checkOptIns_() {
   cache.put('opt-ins', '1', 300);
   var onFile = rows_('Emails').filter(function (row) { return String(row.status).trim().toLowerCase() === 'approved' && phoneDigits_(row.phone) && cleanEmail_(row.email); });
   if (!onFile.length && !rows_('People').some(function (person) { return phoneDigits_(person.phone); })) return;
-  var seen = {};
   var texts = [];
-  GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:2d (STAFF OR STOP)', 0, 30).forEach(function (thread) {
-    thread.getMessages().forEach(function (message) {
-      if (seen[message.getId()]) return;
-      seen[message.getId()] = true;
-      var text = voiceText_(message);
-      var word = text ? (text.text.split('\n')[0] || '').trim().replace(/[.!]+$/, '').toUpperCase() : '';
-      if (word === 'STAFF' || word === 'STOP') {
-        text.word = word;
-        texts.push(text);
-      }
-    });
+  storedTexts_(Date.now() - 2 * 86400000).forEach(function (message) {
+    var text = voiceText_(message);
+    var word = text ? (text.text.split('\n')[0] || '').trim().replace(/[.!]+$/, '').toUpperCase() : '';
+    if (word === 'STAFF' || word === 'STOP') {
+      text.word = word;
+      texts.push(text);
+    }
   });
   texts.sort(function (a, b) { return a.at - b.at; });
   var welcome = [];

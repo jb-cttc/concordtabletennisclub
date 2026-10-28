@@ -2,11 +2,11 @@
 // renamed form or a reworded subject still counts when the email is about the play pass.
 var ZEFFY_QUERY_ = 'in:anywhere from:communication.mailer.zeffy.com';
 var ZEFFY_PASS_ = /play\s*-?\s*pass/i;
-var ZEFFY_SYNCED_AT_ = 'CTTC_ZEFFY_SYNCED_AT';
 // Raised whenever the reader learns a new email format: the next sync reads the whole mailbox again, so emails it could
 // not read before are picked up. Emails already recorded are skipped.
 var ZEFFY_READER_ = 'CTTC_ZEFFY_READER';
 var ZEFFY_READER_VERSION_ = '2';
+// The mail reader's trigger reads every minute; without it, the desk reads Zeffy mail itself at most this often.
 var ZEFFY_SYNC_INTERVAL_MS_ = 10 * 60000;
 // A renewal retried a few days late still continues the streak.
 var ZEFFY_RENEWAL_GRACE_DAYS_ = 3;
@@ -42,15 +42,13 @@ function parseZeffyEmail_(from, subject, body, paidOn) {
   });
 }
 
-// Gmail can take many seconds to answer, and score saves wait on the script lock, so the mailbox is read without
-// the lock. The lock is taken only to add the new rows, and a message another run already recorded is skipped then.
-// Never call this while holding the lock: it would keep the desk waiting on Gmail.
+// New Zeffy emails come in with the desk's one mail reader (MailReader.js). Only a new reader version reads the whole
+// mailbox again, once. Gmail can take many seconds to answer, and score saves wait on the script lock, so the mailbox is
+// read without the lock. The lock is taken only to add the new rows, and a message another run already recorded is
+// skipped then. Never call this while holding the lock: it would keep the desk waiting on Gmail.
 function syncZeffyPayments_() {
   var properties = PropertiesService.getScriptProperties();
-  var current = properties.getProperty(ZEFFY_READER_) === ZEFFY_READER_VERSION_;
-  var last = current ? Number(properties.getProperty(ZEFFY_SYNCED_AT_)) || 0 : 0;
-  var now = Date.now();
-  if (now - last < ZEFFY_SYNC_INTERVAL_MS_) return;
+  if (properties.getProperty(ZEFFY_READER_) === ZEFFY_READER_VERSION_) return readMailIfStale_(ZEFFY_SYNC_INTERVAL_MS_);
   // A caller already holding the lock uses the emails recorded so far; the next caller without it reads Gmail.
   var lock = LockService.getScriptLock();
   if (lock.hasLock()) return;
@@ -58,7 +56,7 @@ function syncZeffyPayments_() {
   var known = {};
   var unreadable = {};
   rows_('ZeffyPayments').forEach(function (row) { (row.kind === 'unreadable' ? unreadable : known)[String(row.message_id)] = true; });
-  var query = ZEFFY_QUERY_ + (last ? ' newer_than:' + (Math.ceil((now - last) / 86400000) + 2) + 'd' : '');
+  var query = ZEFFY_QUERY_;
   var found = [];
   for (var start = 0; ; start += 100) {
     var threads = GmailApp.search(query, start, 100);
@@ -84,7 +82,6 @@ function syncZeffyPayments_() {
     var recorded = {};
     rows_('ZeffyPayments').forEach(function (row) { if (row.kind !== 'unreadable') recorded[String(row.message_id)] = true; });
     appendObjects_('ZeffyPayments', found.filter(function (row) { return !recorded[String(row.message_id)]; }));
-    properties.setProperty(ZEFFY_SYNCED_AT_, String(now));
     properties.setProperty(ZEFFY_READER_, ZEFFY_READER_VERSION_);
   } finally {
     lock.releaseLock();

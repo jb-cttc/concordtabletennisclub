@@ -48,6 +48,7 @@ const coachingBook = {
     ['r5', 'c1', new Date('2026-09-24T19:00:00Z'), '19:00', '30', 'D', 'Casey Kim', 'casey@example.com', 'confirmed']]
 };
 let coachingId = 'coaching-sheet';
+let freshReads = 0;
 const context = {
   TABLES: {},
   SpreadsheetApp: {
@@ -65,7 +66,11 @@ const context = {
   validateSessionDate_: date => { if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw Error('Invalid date'); },
   listPlayers: () => players,
   playerAliases_: () => ({ 'patrick lee': 'p0', 'christopher moss': 'p1', 'old record': 'gone' }),
-  GmailApp: { search: query => { assert.match(query, /^in:anywhere from:txt\.voice\.google\.com /, 'Trash and Spam are searched too'); return [{ getMessages: () => inbox }, { getMessages: () => inbox.slice(0, 1) }]; } },
+  // Texts come from the mail reader's VoiceTexts tab (MailReader.js), never from a Gmail search; one is listed twice.
+  MAIL_FRESH_MS_: 60000,
+  readMailIfStale_: maxAge => { assert.equal(maxAge, 60000); freshReads += 1; },
+  storedVoiceMessages_: (from, to) => inbox.concat(inbox.slice(0, 1)).filter(message => message.getDate().getTime() >= from && message.getDate().getTime() < to),
+  GmailApp: { search: () => { throw new Error('Voice signups never search Gmail'); } },
   Utilities: { formatDate: date => new Date(date.getTime() - 7 * 3600000).toISOString().slice(0, 10) },
   Session: { getScriptTimeZone: () => 'America/Los_Angeles' },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }), getDocumentLock: () => ({ waitLock() {}, releaseLock() {} }) },
@@ -75,6 +80,7 @@ vm.createContext(context);
 for (const file of ['LinkedNames.js', 'VoiceSuggestions.js', 'Coaching.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 
 const day = JSON.parse(JSON.stringify(context.listVoiceSuggestions('2026-09-24')));
+assert.equal(freshReads, 1, 'new mail is read in first, at most a minute old');
 const bySender = Object.fromEntries(day.map(s => [s.senderName, s]));
 assert.deepEqual(Object.keys(bySender), ['Casey', 'Unknown number ending 0123', 'Christopher Moss', 'Patrick Lee', 'Jordan Fox', 'Taylor Quinn Vale'], 'newest sender first');
 assert.deepEqual(bySender['Taylor Quinn Vale'].playerIds, ['p6'], 'parentheses in a directory name do not block a match');

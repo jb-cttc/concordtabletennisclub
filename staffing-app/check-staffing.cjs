@@ -122,6 +122,22 @@ const PLAYERS = [
 // Players with no email on file at the start: the seed and member imports, and the club-approval path, find theirs.
 const NO_EMAIL = ['Ron Tate', 'Susan Lake', 'Zoey Hart', 'Una Newman', 'Vic Lowe', 'Wes Hunt', 'Tess Vale', 'Uma Rios', 'Gia Rowe', 'Ivo Bly', 'Jan Bly', 'Xan Doe'];
 makeBook('desk-sheet-id').insertSheet('Players');
+// The desk's one mail reader records every forwarded text in its VoiceTexts tab (apps-script/MailReader.js): the app reads
+// texts there, never by searching Gmail. Here the tab simply holds the inbox; readerStopped is a desk that stopped collecting.
+let readerStopped = false;
+let textReads = 0;
+{
+  const deskSheet = books['desk-sheet-id'].getSheetByName;
+  books['desk-sheet-id'].getSheetByName = name => ({
+    VoiceTexts: {
+      getDataRange: () => ({ getValues: () => {
+        textReads += 1;
+        return [['message_id', 'received_at', 'from', 'subject', 'text']].concat(inbox.map(message => [message.getId(), String(message.getDate().getTime()), message.getFrom(), message.getSubject(), message.getPlainBody()]));
+      } })
+    },
+    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 11 * 60000 : clock - 30000)]] }) }
+  }[name] || deskSheet(name));
+}
 grids.Players.push(['display_name', 'current_rating', 'player_id', 'created_at', 'active', 'updated_at']);
 PLAYERS.forEach(([id, name, active]) => grids.Players.push([name, 1500, id, new Date(START), active, '']));
 const emailOf = name => name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com';
@@ -172,13 +188,14 @@ const context = {
   MailApp: { getRemainingDailyQuota: () => quota, sendEmail: message => { assert.equal(held <= 1, true); sent.push(message); } },
   GmailApp: {
     getInboxUnreadCount: () => 0,
+    getMessageById: id => inbox.find(message => message.getId() === id),
     search: query => {
       const answers = query.match(/^newer_than:(3|8)d subject:"CTTC shift" (-from:me )?after:(\d+)$/);
       if (answers) {
         const found = mailbox.filter(message => message.getDate().getTime() >= Number(answers[3]) * 1000);
         return found.length ? [{ getMessages: () => mailbox.slice() }] : [];
       }
-      assert.match(query, /^in:anywhere from:txt\.voice\.google\.com newer_than:\d+d \(.+\)$/);
+      assert.match(query, /^in:anywhere from:txt\.voice\.google\.com newer_than:90d \(.+\)$/, 'texts are read from the desk; Gmail only to text back someone with no collected text yet');
       return inbox.length ? [{ getMessages: () => inbox.slice() }] : [];
     }
   },
@@ -1709,5 +1726,9 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
     assert.equal(page.querySelector('#mine h2').textContent, 'Your nights, Sage', 'and the My nights link works from the site\'s address');
     site.window.close();
   }
+  assert.ok(textReads > 0, 'texts come from the desk Sheet');
+  readerStopped = true;
+  assert.throws(() => context.storedTexts_(0), /desk has not collected texts since .*: its mail reader is not running/, 'a desk that stopped collecting texts is a failing step, so the club hears');
+  readerStopped = false;
   console.log('staffing app checks passed');
 })().catch(error => { console.error(error); process.exit(1); });

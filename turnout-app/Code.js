@@ -5,7 +5,8 @@
 //
 // It runs as the club owner and reads three things: the desk's private Sheet (script property DESK_SHEET_ID: Players,
 // Aliases, Sessions, SessionPlayers) for who has signed in at the desk tonight; the club's forwarded Google Voice texts
-// from today for who has texted; and the site's published session-roster.json for who usually comes (turnout.js, copied
+// from today for who has texted, which the desk's one mail reader collects in that Sheet's VoiceTexts tab (the app never
+// searches Gmail: the club's apps share about 20,000 Gmail reads a day); and the site's published session-roster.json for who usually comes (turnout.js, copied
 // here as Turnout.js). What it answers is counts per rating zone and nothing else: never a name, a number or a text,
 // because the page is public and tells anyone who will be at the gym tonight. Steps and setup: docs/turnout-flow.md.
 var TZ = 'America/Los_Angeles';
@@ -13,7 +14,8 @@ var SITE = 'https://concordtabletennisclub.com';
 // One answer serves every visitor for this long, so a busy page reads the Sheet and Gmail about once a minute.
 var ANSWER_SECONDS = 60;
 var ROSTER_SECONDS = 3600;
-var MAX_THREADS = 100;
+// Texts older than this mean the desk's mail reader stopped: the page still answers, and the log says so.
+var READER_LATE_MS = 10 * 60 * 1000;
 // Texts that are commands for the coaching or staffing apps, or answers to their questions, not round robin signups.
 var COMMAND = /^\s*(coach|student|stop|staff|confirm|release|yes|no)\b/i;
 // A latest text like "can't make it tonight" takes the sender back off the floor.
@@ -75,7 +77,6 @@ function setup_() {
   var desk = desk_();
   var players = desk.getSheetByName('Players');
   var roster = siteJson_('/data/session-roster.json');
-  GmailApp.search('in:anywhere from:txt.voice.google.com newer_than:1d', 0, 1);
   CacheService.getScriptCache().remove('turnout');
   log_('step', 'turnout_setup', '', '', 'players=' + Math.max(0, players.getLastRow() - 1) + ' nights=' + Object.keys(roster).length);
   return 'Ready: ' + Math.max(0, players.getLastRow() - 1) + ' players in the desk Sheet, ' + Object.keys(roster).length + ' published nights.';
@@ -132,7 +133,7 @@ function answer_(now) {
   }
 
   if (night.date === clock.date) {
-    voiceSenders_(night.date).forEach(function (sender) {
+    voiceSenders_(desk, night.date).forEach(function (sender) {
       var ref = 'S' + code_(sender.key);
       if (sender.skip) {
         logOnce_(night.date + ':' + ref + ':skip:' + sender.skip, LOG_REPEAT_SECONDS, 'step', 'text_skipped', night.date, ref, sender.skip);
@@ -223,27 +224,26 @@ function siteJson_(path) {
 // Everyone who texted the club's Google Voice number on date (Pacific): [{key, known, skip}]. key is the contact name's
 // nameKey, or the number's digits when Voice has no contact name for it. skip says why a sender is not counted: only
 // commands for the other apps, a latest text that says they are not coming, or one that only asks a question.
-function voiceSenders_(date) {
-  var day = new Date(date + 'T12:00:00Z');
-  var after = Utilities.formatDate(new Date(day.getTime() - 86400000), 'UTC', 'yyyy/MM/dd');
-  var before = Utilities.formatDate(new Date(day.getTime() + 172800000), 'UTC', 'yyyy/MM/dd');
-  var threads = GmailApp.search('in:anywhere from:txt.voice.google.com after:' + after + ' before:' + before, 0, MAX_THREADS);
-  var seen = {};
+function voiceSenders_(desk, date) {
+  var reader = table_(desk, 'MailReader')[0];
+  var readAt = reader ? Number(reader.read_at) || 0 : 0;
+  if (Date.now() - readAt > READER_LATE_MS) logOnce_('reader-late', LOG_FAILURE_SECONDS, 'error', 'texts_not_collected', date, '', 'the desk mail reader last ran ' + (readAt ? new Date(readAt).toISOString() : 'never'));
+  var noon = new Date(date + 'T12:00:00Z').getTime();
   var latest = {};
   var commands = {};
-  threads.forEach(function (thread) {
-    thread.getMessages().forEach(function (message) {
-      if (seen[message.getId()]) return;
-      seen[message.getId()] = true;
-      if (Utilities.formatDate(message.getDate(), TZ, 'yyyy-MM-dd') !== date) return;
-      var text = voiceText_(message);
-      if (!text) return;
-      if (COMMAND.test(text.text)) {
-        commands[text.key] = text.known;
-        return;
-      }
-      if (!latest[text.key] || latest[text.key].at < text.at) latest[text.key] = text;
-    });
+  table_(desk, 'VoiceTexts').forEach(function (row) {
+    var at = Number(row.received_at);
+    if (!(at >= noon - 86400000 && at < noon + 86400000)) return;
+    var message = { getFrom: function () { return String(row.from); }, getSubject: function () { return String(row.subject); },
+      getPlainBody: function () { return String(row.text); }, getDate: function () { return new Date(at); } };
+    if (Utilities.formatDate(message.getDate(), TZ, 'yyyy-MM-dd') !== date) return;
+    var text = voiceText_(message);
+    if (!text) return;
+    if (COMMAND.test(text.text)) {
+      commands[text.key] = text.known;
+      return;
+    }
+    if (!latest[text.key] || latest[text.key].at < text.at) latest[text.key] = text;
   });
   var senders = Object.keys(latest).map(function (key) {
     var text = latest[key].text;

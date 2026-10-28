@@ -27,15 +27,38 @@ const PASS = 'New purchase with automatic renewal for CTTC Monthly Pre-pay Playp
 const purchase = (buyer, email, participants) => 'Organization: *Concord Table Tennis Club* New $65.00 payment received! ' + buyer + ' ' + email +
   ' California, US Payment method: Card ORDER SUMMARY ' + participants.map((name, index) => 'Participant ' + (index + 1) + ': Monthly Playpass / $65.00\nName: ' + name + '\nEmail: ' + email).join(' ') + ' View payment <https://example.invalid/x>';
 const renewal = (buyer, email) => 'New $65.00 payment received! ' + buyer + ' <' + email + '> California, US ORDER SUMMARY Participant 1: Monthly Playpass / $65.00 View payment';
+// The mail reader's own tabs (MailReader.js), as a grid.
+const grids = {};
+const fakeSheet = name => {
+  const grid = grids[name] = grids[name] || [];
+  const range = (row, column, rows, columns) => {
+    const handle = {
+      getValues: () => Array.from({ length: rows }, (_, r) => Array.from({ length: columns }, (_, c) => (grid[row - 1 + r] || [])[column - 1 + c] ?? '')),
+      setValues: values => { values.forEach((line, r) => line.forEach((value, c) => { (grid[row - 1 + r] = grid[row - 1 + r] || [])[column - 1 + c] = value; })); return handle; },
+      setNumberFormat: () => handle
+    };
+    return handle;
+  };
+  return { getDataRange: () => ({ getValues: () => grid.map(line => line.slice()) }), getLastRow: () => grid.length, getMaxRows: () => 1000, insertRowsAfter() {}, getRange: range, deleteRows: (row, count) => grid.splice(row - 1, count) };
+};
+const mailSheets = {};
+const staleReader = () => { grids.MailReader[1][0] = String(Date.now() - 11 * 60000); };
 const context = {
   TABLES: {},
+  CacheService: { getScriptCache: () => ({ get: () => null, put() {}, remove() {} }) },
+  ScriptApp: { getProjectTriggers: () => [{ getHandlerFunction: () => 'readMail' }] },
+  deskLog_() {}, guardDesk_: (name, work) => work(),
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = value; } }) },
-  GmailApp: { search: (query, start) => { assert.equal(lockHeld, false, 'Gmail is never read while holding the script lock that saves wait on'); searches.push(query); return start ? [] : [{ getMessages: () => inbox }]; } },
+  GmailApp: {
+    search: (query, start) => { assert.equal(lockHeld, false, 'Gmail is never read while holding the script lock that saves wait on'); searches.push(query); return start ? [] : [{ getMessages: () => inbox }]; },
+    getMessagesForThreads: threads => threads.map(thread => thread.getMessages())
+  },
   Utilities: { formatDate: value => value.toISOString().slice(0, 10) },
   Session: { getScriptTimeZone: () => 'UTC' },
-  SpreadsheetApp: { getActive: () => ({ getSheetByName: () => ({}) }) },
+  SpreadsheetApp: { getActive: () => ({ getSheetByName: name => /^(VoiceTexts|MailReader)$/.test(name) ? mailSheets[name] || null : {}, insertSheet: name => (mailSheets[name] = fakeSheet(name)) }) },
   LockService: { getScriptLock: () => ({ waitLock() { lockHeld = true; }, releaseLock() { lockHeld = false; }, hasLock: () => lockHeld, tryLock: () => (lockHeld = true) }) },
-  ensureHeader_() {}, formatTable_() {}, appendAudit_() {},
+  ensureHeader_: (sheet, headers) => { if (!sheet.getLastRow || sheet.getLastRow()) return; sheet.getRange(1, 1, 1, headers.length).setValues([headers]); },
+  formatTable_() {}, appendAudit_() {},
   playerAliases_: () => ({ 'danielle chen': 'b' }),
   displayDate_: value => String(value),
   validateSessionDate_: date => { if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Invalid date'); },
@@ -51,7 +74,7 @@ const context = {
 };
 context.normalizeName_ = value => String(value || '').trim().replace(/\s+/g, ' ');
 vm.createContext(context);
-for (const file of ['LinkedNames.js', 'PrivatePayments.js', 'ZeffyTracking.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
+for (const file of ['LinkedNames.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'MailReader.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 const date = '2026-09-23';
 const names = () => context.getZeffyPlayers(null, date).map(p => p.name).join(',');
 
@@ -118,7 +141,8 @@ assert.equal(context.getPrivatePaymentState(date).a, 'zeffy');
 
 context.setZeffyPass('ml', false);
 context.setZeffyPass('ron', false);
-properties.CTTC_ZEFFY_SYNCED_AT = '0';
+// The whole mailbox is read again only for a new reader version.
+delete properties.CTTC_ZEFFY_READER;
 inbox = [
   mail('m1', '2026-07-12', PASS, purchase('Danielle Chen', 'd@example.com', ['Danielle Chen'])),
   mail('m2', '2026-08-12', PASS + ' (recurring payment)', renewal('Danielle Chen', 'd@example.com')),
@@ -145,17 +169,24 @@ assert.equal(context.getPrivatePaymentOverview('2026-10-12').methods.b, 'zeffy',
 assert.equal(context.getPrivatePaymentOverview('2026-10-13').methods.b, '', 'a missed renewal expires the pass');
 assert.equal(context.getZeffyPlayers(null, '2026-11-01').find(pass => pass.name === 'Mei Tan').streak, 2, 'renewals cover everyone the buyer bought for');
 const fullSearches = searches.length;
-properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
+context.getZeffyPlayers(null, date);
+assert.equal(searches.length, fullSearches, 'mail read in the last 10 minutes is not read again');
+staleReader();
 context.getZeffyPlayers(null, date);
 assert.equal(searches.length, fullSearches + 1);
-assert.match(searches[searches.length - 1], /newer_than:3d$/, 'later syncs read only recent mail');
+assert.match(searches[searches.length - 1], /^in:anywhere \(from:txt\.voice\.google\.com OR from:communication\.mailer\.zeffy\.com\) after:\d+$/, 'later syncs are the one mail reader, reading only new mail');
 // A payment reads the mailbox before it takes the lock (the search mock fails the check otherwise).
-properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
+staleReader();
 const beforePayment = searches.length;
 context.setSessionPayment(date, 'a', 'cash');
 assert.equal(searches.length, beforePayment + 1, 'a payment still brings in new Zeffy mail first');
 assert.equal(lockHeld, false);
 assert.equal(tables.ZeffyPayments.length, 8, 'messages are recorded once');
+// A pass bought a minute ago comes in with the next read.
+inbox.push({ getId: () => 'm10', getDate: () => new Date(Date.now() - 60000), getFrom: () => 'Zeffy <contact@communication.mailer.zeffy.com>', getSubject: () => PASS, getPlainBody: () => purchase('Avery Park', 'a@example.com', ['Avery Park']) });
+staleReader();
+context.getZeffyPlayers(null, date);
+assert.equal(tables.ZeffyPayments.length, 9, 'a new purchase is recorded by the mail reader');
 tables.ZeffyPayments.length = 0;
 inbox = [];
 
@@ -173,7 +204,6 @@ assert.deepEqual(JSON.parse(JSON.stringify(context.parseZeffyEmail_(ZEFFY, RENAM
 
 // A new reader reads the whole mailbox once, so emails the old one skipped are picked up.
 delete properties.CTTC_ZEFFY_READER;
-properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
 inbox = [
   mail('n1', '2026-09-20', RENAMED, reworded),
   mail('n2', '2026-09-21', RENAMED, garbled),
@@ -184,13 +214,11 @@ assert.doesNotMatch(searches[searches.length - 1], /newer_than/, 'a new reader r
 assert.equal(properties.CTTC_ZEFFY_READER, '2');
 assert.equal(context.getPrivatePaymentOverview(date).unreadable, 1, 'the sidebar hears about the unreadable email');
 assert.equal(context.getPrivatePaymentOverview('2027-01-01').unreadable, 0, 'only for 90 days');
-properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
 properties.CTTC_ZEFFY_READER = '1';
 context.getZeffyPlayers(null, date);
 assert.equal(tables.ZeffyPayments.filter(row => row.kind === 'unreadable').length, 1, 'an unreadable email is recorded once');
 // Once a reader can read it, its buyer is listed and the notice goes away.
 inbox[1] = mail('n2', '2026-09-21', RENAMED, purchase('Kim Tan', 'k@example.com', ['Kim Tan']));
-properties.CTTC_ZEFFY_SYNCED_AT = String(Date.now() - 11 * 60000);
 properties.CTTC_ZEFFY_READER = '1';
 assert.equal(names(), 'Avery Park,Kim Tan');
 assert.equal(context.getPrivatePaymentOverview(date).unreadable, 0);
