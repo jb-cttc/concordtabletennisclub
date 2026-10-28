@@ -191,7 +191,7 @@ on another device after the window opened.
     today says so in the confirmation ("1 Zeffy payment under ... will no
     longer count").
   - The directory search also finds a player by another name, shown as "Also
-    goes by ...".
+    goes by ...". Search ignores case and accents: "darselo" finds "Dárselo".
   - The AuditLog records each name added, corrected or removed; the desk log
     only how many.
 
