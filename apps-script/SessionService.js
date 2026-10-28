@@ -58,6 +58,8 @@ function addPlayer(displayName, currentRating) {
     });
     if (duplicate) throw new Error(name + ' already exists.');
     if (previousNameOwner_(name)) throw new Error(name + ' was another player\'s name before a correction, so it cannot be used again.');
+    var alias = rows_('Aliases').find(function (row) { return aliasKey_(row.alias) === aliasKey_(name); });
+    if (alias) throw new Error(name + ' is another name for an existing player. Search for it in the directory instead of adding a new player.');
     var now = new Date();
     var player = {
       player_id: 'player-' + Utilities.getUuid(),

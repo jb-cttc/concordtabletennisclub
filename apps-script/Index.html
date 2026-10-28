@@ -61,7 +61,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
   var READ_TIMEOUT_MS = 30000;
-  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1, getCloverDesk: 1 };
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1, getCloverDesk: 1, listPlayerAliases: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -299,7 +299,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 (function () {
   var O = window.CTTCOrganizer;
   var SITE = 'https://concordtabletennisclub.com';
-  var state = { players: [], archived: [], session: null, roster: [], groups: [], matches: [], promotions: {}, winners: [], previousDate: null, customized: false, showArchived: false };
+  var state = { players: [], archived: [], aliases: {}, session: null, roster: [], groups: [], matches: [], promotions: {}, winners: [], previousDate: null, customized: false, showArchived: false };
   var byId = {};
   var byName = {};
   var siteCache = {};
@@ -1018,14 +1018,23 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   });
   // The pencil opens the edit window (the player editor script below) to correct a name, rating or email address.
   function editButton(p) {
-    return '<button type="button" class="edit-player" data-edit-player="' + esc(p.playerId) + '" title="Edit name, rating or email" aria-label="Edit ' + esc(p.name) + '">\u270E</button>';
+    return '<button type="button" class="edit-player" data-edit-player="' + esc(p.playerId) + '" title="Edit name, rating, email or other names" aria-label="Edit ' + esc(p.name) + '">\u270E</button>';
+  }
+  // A search also finds a player by another name they go by (a Voice contact, a Zeffy or Clover name), shown under theirs.
+  function otherNameMatch(p, query) {
+    if (!query || p.name.toLowerCase().indexOf(query) >= 0) return '';
+    return (state.aliases[p.playerId] || []).find(function (name) { return name.toLowerCase().indexOf(query) >= 0; }) || '';
+  }
+  function aka(p, query) {
+    var name = otherNameMatch(p, query);
+    return name ? '<span class="aka">Also goes by ' + esc(name) + '</span>' : '';
   }
   function renderDirectory() {
     var query = search.value.trim().toLowerCase();
-    var matches = function (p) { return !query || p.name.toLowerCase().indexOf(query) >= 0; };
+    var matches = function (p) { return !query || p.name.toLowerCase().indexOf(query) >= 0 || !!otherNameMatch(p, query); };
     var html = state.players.filter(matches).slice(0, 50).map(function (p) {
       var added = state.roster.indexOf(p.playerId) >= 0;
-      return '<li><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span></div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
+      return '<li><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span>' + aka(p, query) + '</div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
     });
     var archivedMatches = query.length >= 2 ? state.archived.filter(matches) : [];
     if (archivedMatches.length && !state.showArchived) {
@@ -1033,7 +1042,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
     if (state.showArchived && archivedMatches.length) {
       html = html.concat(archivedMatches.slice(0, 25).map(function (p) {
-        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span><span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
+        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span>' + aka(p, query) + '<span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
       }));
     }
     results.innerHTML = html.join('');
@@ -1644,6 +1653,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (byName[known.name] === p.playerId) delete byName[known.name];
     known.name = p.name;
     known.currentRating = p.currentRating;
+    if (p.aliases) state.aliases[p.playerId] = p.aliases;
     if (byId[p.playerId]) byName[p.name] = p.playerId;
     state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
     state.archived.sort(function (a, b) { return a.name.localeCompare(b.name); });
@@ -2009,10 +2019,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     applyPendingActivations();
     if (search.value.trim().length >= 2) renderDirectory();
   }).catch(function () {});
+  call('listPlayerAliases').then(function (byPlayer) {
+    state.aliases = byPlayer || {};
+    if (search.value.trim()) renderDirectory();
+  }).catch(function () {});
 })();
 </script>
 <style>
 .promotion-context{margin:-6px 0 10px}
+.results .identity .aka{display:block;font-size:12px;color:var(--muted);font-style:italic}
 .group-summary{font:13px Arial,sans-serif;margin:0 0 12px;color:var(--muted)}
 .group-summary.warn,.group.needs-balance .count{color:#8a5a00;font-weight:700}
 .group.needs-balance{border-top-color:var(--gold)}
@@ -3997,6 +4012,17 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .player-editor-notes{margin:0 0 12px;padding-left:18px;color:var(--muted);font-size:12px}
 .player-editor-error{margin:0 0 12px;padding:8px 10px;background:#f6e8e6;border-left:4px solid var(--red);color:#6f241f}
 .player-editor-error:empty{display:none}
+.player-editor-aliases{border:1px solid var(--line);border-radius:4px;margin:0 0 12px;padding:8px 10px 10px}
+.player-editor-aliases legend{font-size:12px;color:var(--muted);padding:0 4px}
+.player-editor-aliases .hint{margin:0 0 8px;font-size:12px}
+.player-editor-aliases ul{list-style:none;margin:0 0 8px;padding:0}
+.player-editor-aliases li{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.player-editor-card .player-editor-aliases input{margin-top:0;flex:1;min-width:0}
+.player-editor-aliases .icon{min-width:40px;min-height:40px}
+.player-editor-card label.player-editor-keep{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:13px}
+.player-editor-card label.player-editor-keep[hidden]{display:none}
+.player-editor-card .player-editor-keep input{display:inline-block;width:auto;margin:0}
+.player-editor-notes .player-editor-warning{color:#6f241f}
 .player-editor-card footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);padding-top:13px}
 .player-editor-card footer .secondary{padding:9px 13px}
 </style>
@@ -4015,6 +4041,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       '<label>Name<input name="name" maxlength="80" autocomplete="off" spellcheck="false"></label>' +
       '<label>Rating<input name="rating" type="number" min="0" max="4000" step="1" inputmode="numeric"></label>' +
       '<label>Email<input name="email" type="email" maxlength="254" autocomplete="off" placeholder="No email on file"></label>' +
+      '<label class="player-editor-keep" hidden><input type="checkbox" name="keepOld" checked> Keep the old name as another name</label>' +
+      '<fieldset class="player-editor-aliases"><legend>Other names</legend>' +
+        '<p class="hint">Names this player goes by elsewhere: a Google Voice contact, a Zeffy or Clover payment, an old spelling. Type over a name to correct it.</p>' +
+        '<ul data-aliases></ul>' +
+        '<button type="button" class="secondary small" data-alias-add>+ Add another name</button>' +
+      '</fieldset>' +
       '<p class="player-editor-error" role="alert"></p>' +
       '<footer><button type="button" class="secondary" data-editor-cancel>Cancel</button><button type="submit" class="primary" data-editor-review>Review changes</button></footer>' +
     '</div>' +
@@ -4032,6 +4064,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var editStep = editor.querySelector('[data-step="edit"]');
   var confirmStep = editor.querySelector('[data-step="confirm"]');
   var fields = { name: form.elements.name, rating: form.elements.rating, email: form.elements.email };
+  var aliasList = editor.querySelector('[data-aliases]');
+  var keepOld = editor.querySelector('.player-editor-keep');
   var current = null;
   var loaded = null;
   var opener = null;
@@ -4041,7 +4075,38 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function error(step, message) { step.querySelector('.player-editor-error').textContent = message || ''; }
   function setFieldsDisabled(disabled) {
     Object.keys(fields).forEach(function (key) { fields[key].disabled = disabled; });
+    aliasList.querySelectorAll('input,button').forEach(function (control) { control.disabled = disabled; });
+    editor.querySelector('[data-alias-add]').disabled = disabled;
     editor.querySelector('[data-editor-review]').disabled = disabled;
+  }
+  // Other names: each is an input, so correcting one is typing over it (the same row, changed in place); x removes it;
+  // "+ Add another name" adds a row. Names compare as the desk does: no case, spacing or punctuation; "Yi, Dae" is "Dae Yi".
+  function nameKey(name) {
+    var plain = String(name || '').trim().replace(/\s+/g, ' ');
+    var comma = plain.match(/^([^,]+),\s*(.+)$/);
+    return (comma ? comma[2] + ' ' + comma[1] : plain).toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function aliasRow(from) {
+    var li = document.createElement('li');
+    var input = document.createElement('input');
+    input.maxLength = 80;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.value = from;
+    input.setAttribute('data-alias-from', from);
+    input.setAttribute('aria-label', from ? 'Other name ' + from : 'New other name');
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon';
+    remove.setAttribute('data-alias-remove', '');
+    remove.setAttribute('aria-label', from ? 'Remove ' + from : 'Remove this name');
+    remove.textContent = '\u00d7';
+    li.append(input, remove);
+    aliasList.appendChild(li);
+    return input;
+  }
+  function showKeepOld() {
+    keepOld.hidden = !loaded || fields.name.value.trim().replace(/\s+/g, ' ') === loaded.name;
   }
   function showStep(step) {
     editStep.hidden = step !== 'edit';
@@ -4062,6 +4127,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     fields.rating.value = '';
     fields.email.value = '';
     fields.email.placeholder = 'Loading...';
+    aliasList.replaceChildren();
+    form.elements.keepOld.checked = true;
+    keepOld.hidden = true;
     error(editStep, '');
     error(confirmStep, '');
     setFieldsDisabled(true);
@@ -4076,6 +4144,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       fields.rating.value = String(details.currentRating);
       fields.email.value = details.email || '';
       fields.email.placeholder = 'No email on file';
+      (details.aliases || []).forEach(function (alias) { aliasRow(alias.name); });
       setFieldsDisabled(false);
       fields.name.focus();
     }).catch(function (failure) {
@@ -4094,13 +4163,31 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     opener = null;
   }
 
+  // aliases: [{from, name}] for every name still listed; a row emptied counts as removed. A renamed player keeps the old
+  // name as another name when the box is ticked.
   function values() {
-    return { name: fields.name.value.trim().replace(/\s+/g, ' '), rating: fields.rating.value.trim(), email: fields.email.value.trim() };
+    var name = fields.name.value.trim().replace(/\s+/g, ' ');
+    var aliases = [].map.call(aliasList.querySelectorAll('input'), function (input) {
+      return { from: input.getAttribute('data-alias-from'), name: input.value.trim().replace(/\s+/g, ' ') };
+    }).filter(function (alias) { return alias.name; });
+    if (loaded && name !== loaded.name && form.elements.keepOld.checked && !aliases.some(function (alias) { return nameKey(alias.name) === nameKey(loaded.name); })) {
+      aliases.push({ from: '', name: loaded.name });
+    }
+    return { name: name, rating: fields.rating.value.trim(), email: fields.email.value.trim(), aliases: aliases };
   }
   function problem(next) {
     if (!next.name || next.name.length > 80) return 'Enter a name of 1 to 80 characters.';
     if (!/^\d+$/.test(next.rating) || Number(next.rating) > 4000) return 'Enter the rating as a whole number from 0 to 4000.';
     if (next.email && (next.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next.email))) return 'Enter a valid email address, or leave it blank.';
+    var seen = {};
+    seen[nameKey(next.name)] = 'the player\'s name';
+    for (var i = 0; i < next.aliases.length; i += 1) {
+      var alias = next.aliases[i];
+      if (alias.name.length > 80 || !nameKey(alias.name)) return 'Each other name needs 1 to 80 characters, with at least one letter or number.';
+      if (seen[nameKey(alias.name)]) return alias.name + ' is the same as ' + seen[nameKey(alias.name)] + '. Remove one of them.';
+      seen[nameKey(alias.name)] = alias.name;
+    }
+    if (next.aliases.length > 20) return 'A player can have up to 20 other names.';
     return '';
   }
   function changes(next) {
@@ -4108,6 +4195,15 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     if (next.name !== loaded.name) list.push({ label: 'Name', from: loaded.name, to: next.name });
     if (Number(next.rating) !== loaded.currentRating) list.push({ label: 'Rating', from: String(loaded.currentRating), to: String(Number(next.rating)) });
     if (next.email !== (loaded.email || '')) list.push({ label: 'Email', from: loaded.email || '(none)', to: next.email || '(none)' });
+    var kept = {};
+    next.aliases.forEach(function (alias) {
+      if (alias.from) kept[alias.from] = true;
+      if (!alias.from) list.push({ label: 'Other name added', from: null, to: alias.name });
+      else if (alias.name !== alias.from) list.push({ label: 'Other name corrected', from: alias.from, to: alias.name, alias: alias.from });
+    });
+    (loaded.aliases || []).forEach(function (alias) {
+      if (!kept[alias.name]) list.push({ label: 'Other name removed', from: alias.name, to: null, alias: alias.name });
+    });
     return list;
   }
   function item(parent, build) {
@@ -4117,6 +4213,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   }
   function review() {
     if (!loaded) return;
+    showKeepOld();
     var next = values();
     var message = problem(next);
     var list = message ? [] : changes(next);
@@ -4131,11 +4228,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       item(changeList, function (li) {
         var label = document.createElement('strong');
         label.textContent = change.label;
+        li.append(label);
         var from = document.createElement('del');
         from.textContent = change.from;
         var to = document.createElement('ins');
         to.textContent = change.to;
-        li.append(label, from, document.createTextNode(' → '), to);
+        if (change.from !== null) li.append(from);
+        if (change.from !== null && change.to !== null) li.append(document.createTextNode(' → '));
+        if (change.to !== null) li.append(to);
       });
     });
     var notes = confirmStep.querySelector('.player-editor-notes');
@@ -4144,6 +4244,21 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     if (labels.indexOf('Name') >= 0) item(notes, function (li) { li.textContent = 'Results already on the club site will show the new name after the next session is published.'; });
     if (labels.indexOf('Rating') >= 0) item(notes, function (li) { li.textContent = 'The new rating is used from the next session saved here. Use this only to correct a rating; finalizing a session updates ratings by itself.'; });
     if (labels.indexOf('Email') >= 0) item(notes, function (li) { li.textContent = 'Email addresses stay in the club\'s private Google Sheet and are never published.'; });
+    // What stops linking to this player when a name it is known by goes.
+    list.forEach(function (change) {
+      var uses = change.alias && (loaded.aliases || []).find(function (alias) { return alias.name === change.alias; });
+      if (!uses || !(uses.zeffy || uses.texts)) return;
+      var counts = [];
+      if (uses.zeffy) counts.push(uses.zeffy + (uses.zeffy === 1 ? ' Zeffy payment' : ' Zeffy payments'));
+      if (uses.texts) counts.push(uses.texts + (uses.texts === 1 ? ' text' : ' texts'));
+      item(notes, function (li) {
+        li.className = 'player-editor-warning';
+        li.textContent = counts.join(' and ') + ' under ' + uses.name + ' will no longer count for ' + loaded.name + ' unless another of their names matches.';
+      });
+    });
+    if (list.some(function (change) { return /^Other name/.test(change.label); })) {
+      item(notes, function (li) { li.textContent = 'Other names count for Voice signups, Zeffy passes, Clover payments and the cash page from their next check.'; });
+    }
     error(confirmStep, '');
     showStep('confirm');
   }
@@ -4158,8 +4273,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     backButton.disabled = true;
     confirmButton.textContent = 'Saving...';
     error(confirmStep, '');
-    window.cttcRequest('updatePlayer', playerId, { name: next.name, rating: Number(next.rating), email: next.email },
-      { name: loaded.name, rating: loaded.currentRating, email: loaded.email || '' }).then(function (saved) {
+    window.cttcRequest('updatePlayer', playerId, { name: next.name, rating: Number(next.rating), email: next.email, aliases: next.aliases },
+      { name: loaded.name, rating: loaded.currentRating, email: loaded.email || '', aliases: (loaded.aliases || []).map(function (alias) { return alias.name; }) }).then(function (saved) {
       saving = false;
       close();
       window.cttcDesk.playerEdited(saved);
@@ -4187,6 +4302,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     else review();
   });
   editor.querySelector('[data-editor-cancel]').addEventListener('click', close);
+  editor.querySelector('[data-alias-add]').addEventListener('click', function () { aliasRow('').focus(); });
+  aliasList.addEventListener('click', function (event) {
+    var remove = event.target.closest('[data-alias-remove]');
+    if (!remove || remove.disabled) return;
+    var row = remove.closest('li');
+    var next = row.nextElementSibling || row.previousElementSibling;
+    row.remove();
+    (next ? next.querySelector('input') : editor.querySelector('[data-alias-add]')).focus();
+  });
+  fields.name.addEventListener('input', showKeepOld);
   editor.querySelector('[data-editor-back]').addEventListener('click', function () {
     if (saving) return;
     error(confirmStep, '');

@@ -65,9 +65,11 @@ const player = (world, playerId) => table(world, 'Players').find(row => row.play
   assert.deepEqual(listed, [
     'Name' + ava.display_name + ' → Ava Exampel-Smith',
     'Rating' + ava.current_rating + ' → 1999',
-    'Email(none) → ava@example.test'
-  ]);
-  assert.equal(confirmStep().querySelectorAll('.player-editor-notes li').length, 3, 'what each change does is explained');
+    'Email(none) → ava@example.test',
+    'Other name added' + ava.display_name
+  ], 'a renamed player keeps the old name as another name (the box starts ticked)');
+  assert.equal(editor.querySelector('.player-editor-keep').hidden, false, 'the box shows once the name is changed');
+  assert.equal(confirmStep().querySelectorAll('.player-editor-notes li').length, 4, 'what each change does is explained');
   assert.equal(player(world, ava.player_id).display_name, ava.display_name, 'not saved before Confirm');
   // Back keeps the edits; Confirm saves them.
   tab.click(editor.querySelector('[data-editor-back]'));
@@ -103,11 +105,14 @@ const player = (world, playerId) => table(world, 'Players').find(row => row.play
   const audit = table(world, 'AuditLog').filter(row => row.action === 'player_updated');
   assert.equal(audit.length, 1);
   const details = JSON.parse(audit[0].details_json);
-  assert.deepEqual(details, { nameChanged: true, ratingChanged: true, emailChanged: true, name_from: ava.display_name, name_to: 'Ava Exampel-Smith', rating_from: String(ava.current_rating), rating_to: '1999' });
+  assert.deepEqual(details, { nameChanged: true, ratingChanged: true, emailChanged: true, name_from: ava.display_name, name_to: 'Ava Exampel-Smith', rating_from: String(ava.current_rating), rating_to: '1999',
+    aliasesAdded: 1, aliasesChanged: 0, aliasesRemoved: 0, aliases: { added: [ava.display_name], changed: [], removed: [] } });
+  assert.deepEqual(table(world, 'Aliases').filter(row => row.player_id === ava.player_id).map(row => row.alias), [ava.display_name], 'the old name is kept');
   assert.ok(!audit[0].details_json.includes('@'), 'the audit never holds the address');
   const logRow = table(world, 'CTTC Desk Logs').find(row => String(row.what).includes('player_updated'));
   assert.ok(logRow, 'the change is in the desk log');
   assert.doesNotMatch(String(logRow.detail), /Ava|Exampel|@|1999/);
+  assert.match(String(logRow.detail), /aliasesAdded=1/, 'only how many other names changed');
 
   // Refused at Google: a name another player has, a name that was another player's before a correction, and a change
   // made on another device after the window loaded.
@@ -147,6 +152,94 @@ const player = (world, playerId) => table(world, 'Players').find(row => row.play
   editor.dispatchEvent(new tab.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   assert.equal(editor.hidden, true, 'Escape closes the window');
   assert.equal(player(world, ben.player_id).display_name, ben.display_name);
+
+  // ---- Other names (Aliases) ----
+  const aliasesOf = id => table(world, 'Aliases').filter(row => row.player_id === id).map(row => row.alias);
+  const openEditor = async p => {
+    search.value = p.display_name;
+    search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
+    tab.click(tab.$('[data-edit-player="' + p.player_id + '"]'));
+    await run(world, 5000);
+  };
+  const aliasInputs = () => [...editor.querySelectorAll('[data-aliases] input')];
+  const listedChanges = () => [...confirmStep().querySelectorAll('.player-editor-changes li')].map(li => li.textContent);
+  const confirm = async () => { tab.click(editor.querySelector('[data-editor-confirm]')); await run(world, 5000); };
+
+  // Add: "+ Add another name" gives an empty row; the confirmation lists it.
+  await openEditor(ben);
+  assert.deepEqual(aliasInputs().map(input => input.value), [], 'no other names yet');
+  tab.click(editor.querySelector('[data-alias-add]'));
+  aliasInputs()[0].value = '  Benny   B ';
+  review();
+  assert.deepEqual(listedChanges(), ['Other name addedBenny B']);
+  await confirm();
+  assert.equal(editor.hidden, true);
+  assert.deepEqual(aliasesOf(ben.player_id), ['Benny B']);
+  // The directory finds Ben by it, and says why.
+  search.value = 'benny';
+  search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
+  assert.match(tab.$('#results').textContent, new RegExp(ben.display_name + '.*Also goes by Benny B'));
+
+  // Correct in place: typing over a name changes that row; it never adds a second one.
+  await openEditor(ben);
+  assert.deepEqual(aliasInputs().map(input => input.value), ['Benny B']);
+  aliasInputs()[0].value = 'Benny Bee';
+  review();
+  assert.deepEqual(listedChanges(), ['Other name correctedBenny B → Benny Bee']);
+  await confirm();
+  assert.deepEqual(aliasesOf(ben.player_id), ['Benny Bee'], 'one row, corrected');
+
+  // Remove, with a warning for what the name links today (here a Zeffy payment made under it).
+  server.run('ensurePrivatePaymentTables_');
+  server.spreadsheet.getSheetByName('ZeffyPayments').appendRow(['z1', '2026-09-01', 'purchase', 'Benny Bee', 'b@example.test', 'Benny Bee', '']);
+  await openEditor(ben);
+  tab.click(editor.querySelector('[data-alias-remove]'));
+  assert.deepEqual(aliasInputs(), []);
+  review();
+  assert.deepEqual(listedChanges(), ['Other name removedBenny Bee']);
+  assert.ok([...confirmStep().querySelectorAll('.player-editor-warning')].some(li => /^1 Zeffy payment under Benny Bee will no longer count for /.test(li.textContent)), 'the warning says what stops counting');
+  await confirm();
+  assert.deepEqual(aliasesOf(ben.player_id), []);
+
+  // The window refuses a name listed twice, or the player's own name, before anything is sent.
+  await openEditor(ben);
+  tab.click(editor.querySelector('[data-alias-add]'));
+  tab.click(editor.querySelector('[data-alias-add]'));
+  aliasInputs()[0].value = 'Benny Bee';
+  aliasInputs()[1].value = 'benny-bee';
+  review();
+  assert.match(editError(), /benny-bee is the same as Benny Bee/);
+  aliasInputs()[1].value = ben.display_name.toUpperCase();
+  review();
+  assert.match(editError(), /is the same as the player's name/);
+  editor.dispatchEvent(new tab.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+  // Google refuses: a name that is another player's other name (case, punctuation and "Last, First" do not matter),
+  // another player's directory name, or a name they had before a correction; renaming or adding a player to someone's
+  // other name; and a list changed on another device after the window loaded.
+  const keep = p => ({ name: p.display_name, rating: p.current_rating, email: '' });
+  server.run('updatePlayer', ben.player_id, Object.assign(keep(ben), { aliases: [{ from: '', name: 'Benny Bee' }] }));
+  assert.throws(() => server.run('updatePlayer', cy.player_id, Object.assign(keep(cy), { aliases: [{ from: '', name: 'Bee, Benny' }] })), new RegExp('Bee, Benny is already another name for ' + ben.display_name));
+  assert.throws(() => server.run('updatePlayer', cy.player_id, Object.assign(keep(cy), { aliases: [{ from: '', name: 'ava example-smith' }] })), /another player's name in the directory/);
+  assert.throws(() => server.run('updatePlayer', cy.player_id, Object.assign(keep(cy), { aliases: [{ from: '', name: 'Ava Example-Smith!' }] })), /another player's name in the directory/);
+  assert.throws(() => server.run('updatePlayer', cy.player_id, Object.assign(keep(cy), { aliases: [{ from: '', name: 'Ava Exampel-Smith' }] })), /another player's name before a correction/);
+  assert.throws(() => server.run('updatePlayer', cy.player_id, { name: 'Benny Bee', rating: cy.current_rating, email: '' }), /Benny Bee is another name for /);
+  assert.throws(() => server.run('addPlayer', 'benny bee', 1500), /another name for an existing player/);
+  assert.throws(() => server.run('updatePlayer', ben.player_id, Object.assign(keep(ben), { aliases: [] }), { aliases: [] }), /changed on another device/);
+  assert.throws(() => server.run('updatePlayer', ben.player_id, Object.assign(keep(ben), { aliases: [{ from: 'Gone Name', name: 'X Y' }] })), /no longer one of this player's other names/);
+  assert.throws(() => server.run('updatePlayer', ben.player_id, Object.assign(keep(ben), { aliases: [{ from: '', name: '!!!' }] })), /at least one letter or number/);
+  // Left out, the list is kept as it is (an older page); sent unchanged, nothing is written.
+  server.run('updatePlayer', ben.player_id, { name: ben.display_name, rating: ben.current_rating + 1, email: '' });
+  assert.deepEqual(aliasesOf(ben.player_id), ['Benny Bee']);
+  const quiet = table(world, 'AuditLog').length;
+  server.run('updatePlayer', ben.player_id, Object.assign(keep(ben), { rating: ben.current_rating + 1, aliases: [{ from: 'Benny Bee', name: 'Benny Bee' }] }), { aliases: ['Benny Bee'] });
+  assert.equal(table(world, 'AuditLog').length, quiet);
+  // Several names at once: one corrected, one removed, one added; other players' rows stay where they are.
+  server.run('updatePlayer', ben.player_id, Object.assign(keep(ben), { rating: ben.current_rating + 1, aliases: [{ from: 'Benny Bee', name: 'Benny Bee' }, { from: '', name: 'B. Example' }, { from: '', name: 'Benjamin E' }] }));
+  server.run('updatePlayer', ben.player_id, Object.assign(keep(ben), { rating: ben.current_rating + 1, aliases: [{ from: 'B. Example', name: 'B Example' }, { from: '', name: 'Benji' }] }), { aliases: ['Benny Bee', 'B. Example', 'Benjamin E'] });
+  assert.deepEqual(aliasesOf(ben.player_id).sort(), ['B Example', 'Benji']);
+  assert.deepEqual(aliasesOf(ava.player_id), [ava.display_name]);
+  assert.deepEqual(server.run('playerAliases_')['benji'], ben.player_id, 'the desk reads the new name at once');
 
   console.log('Player edit checks passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });
