@@ -145,10 +145,11 @@ V; a `MemberStatus` row or a badge click makes them M.
 Keep member-specific data (links, payments, dues, Zeffy passes, contact
 details) in the Sheet, and use made-up names in tests.
 
-### Correcting a name, rating, or email
+### Correcting a name, rating, email, or other names
 
 The pencil beside a name in the player directory (active or archived) opens a
-window with the player's name, rating, and email address. **Review changes**
+window with the player's name, rating, email address, and other names.
+**Review changes**
 lists every change as old → new; nothing is saved until **Confirm and save**.
 It needs a connection to Google, and `PlayerEdits.js` refuses a change made
 on another device after the window opened.
@@ -171,6 +172,28 @@ on another device after the window opened.
 - **Email.** Kept only in the private `PlayerEmails` sheet (`player_id`,
   `email`, `updated_at`), which publication never reads. The AuditLog records
   that it changed, not the address.
+- **Other names.** The private `Aliases` sheet (`alias`, `player_id`,
+  `created_at`): names the player goes by elsewhere, such as a Google Voice
+  contact name, a Zeffy buyer or Clover cardholder name, or an old spelling.
+  Voice signups and automatic answers, Zeffy passes, Clover payments, the cash
+  page, and the staffing and turnout apps use them from their next read.
+  Typing over a name corrects that row in place; **x** removes it; **+ Add
+  another name** adds one. A player can have up to 20.
+  - A name belongs to one player. The desk refuses a name that is already
+    another player's other name, another player's directory name, or a name
+    another player had before a correction. Case, spacing, punctuation and
+    "Last, First" order do not matter. Adding or renaming a player to someone's
+    other name is refused too.
+  - Renaming a player keeps the old name as another name unless **Keep the old
+    name as another name** is unticked, so Voice contacts, Zeffy and Clover
+    still match.
+  - Removing or correcting a name that links Zeffy payments or Voice texts
+    today says so in the confirmation ("1 Zeffy payment under ... will no
+    longer count").
+  - The directory search also finds a player by another name, shown as "Also
+    goes by ...".
+  - The AuditLog records each name added, corrected or removed; the desk log
+    only how many.
 
 ## Session fees and Zeffy
 
