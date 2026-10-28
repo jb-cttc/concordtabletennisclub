@@ -139,6 +139,8 @@ let textReads = 0;
       } })
     },
     MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
+    // The desk's key for waking the app (apps-script/MailReader.js wakeKey_), in a hidden tab of its Sheet.
+    AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? 'f'.repeat(64) : 'key']] }) },
     // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
     JobRuntime: runtimeGrid && {
       getDataRange: () => ({ getValues: () => runtimeGrid.map(line => line.slice()) }),
@@ -306,11 +308,10 @@ assert.deepEqual(grids.Training[0], ['player_id', 'name', 'keys', 'open', 'front
 // The owner's training list: everyone in these checks may open and run the Front Desk, except Cal (tables and closing only)
 // and Dee (keys but no opening training).
 PLAYERS.forEach(([id, name]) => { if (name !== 'Cal Diaz' && name !== 'Ron Tate' && name !== 'Susan Lake') grids.Training.push([id, name, name === 'Dee Nguyen' ? 'Yes' : 'yes', name === 'Dee Nguyen' ? 'No' : 'yes', name === 'Dee Nguyen' ? 'N/A' : 'Yes', '']); });
-assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkRepliesWatch every 30', 'sweep every 60'], 'an hourly sweep and a 30-minute reply check are installed');
-assert.equal(triggers.filter(trigger => trigger.handler === 'checkReplies').length <= 1, true, 'and at most one next check');
+assert.deepEqual(timers(), ['sweep every 60'], 'one timer: the hourly sweep, which runs the reply check too (the desk wakes it in between)');
 context.setup();
 assert.equal(created.length, 1, 'setup is safe to run again');
-assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkRepliesWatch every 30', 'sweep every 60']);
+assert.deepEqual(timers(), ['sweep every 60']);
 activeEmail = '';
 assert.equal(properties.STAFFING_DB_ID, 'private-book-id');
 
@@ -1432,7 +1433,7 @@ seedCheck();
   minutes(1);
   assert.deepEqual(club().map(message => message.subject), ['Action needed: the staffing app cannot apply the club\'s email decisions'], '30 minutes without a break');
   const alert = club()[0];
-  assert.match(alert.body, new RegExp('^The staffing app has failed to apply the club\'s email decisions at every attempt since ' + context.momentLabel_(since) + '\\. It retries every few minutes\\.'));
+  assert.match(alert.body, new RegExp('^The staffing app has failed to apply the club\'s email decisions at every attempt since ' + context.momentLabel_(since) + '\\. It retries at least every hour, and whenever a text or an email reply comes in\\.'));
   assert.match(alert.body, /Approvals and declines entered in the Emails tab are not being applied\./, 'what is affected');
   assert.match(alert.body, /\n\nError: Exception: Service Spreadsheets failed while accessing document with id x/);
   assert.match(alert.body, /WHAT TO DO\n\n1\. Check https:\/\/www\.google\.com\/appsstatus\/dashboard\/ for a Google Sheets or Gmail outage\. If Google lists one, no action is needed: the app resumes by itself when Google recovers\.\n2\. If Google lists no outage, forward this email to JB\./);
@@ -1743,42 +1744,70 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   }
   assert.ok(textReads > 0, 'texts come from the desk Sheet');
   // ---- When the check runs (90 minutes a day of timer run time are shared by every club app) ----
+  // No timer of its own: the hourly sweep runs it, and the desk's mail reader wakes it through doPost when something came in.
   {
     const at = (date, time) => { clock = Date.parse(date + 'T' + time + ':00Z') + 8 * 3600000; }; // Pacific wall clock (PST in December)
-    const next = () => triggers.filter(trigger => trigger.handler === 'checkReplies').map(trigger => trigger.after / 60000);
-    const run = () => { delete cache['check-replies']; delete cache['opt-ins']; context.checkReplies({ triggerUid: 'timer' }); };
-    // An app updated from the every-minute timer: its first run takes that timer away.
-    triggers = [{ handler: 'checkReplies', every: 1 }, { handler: 'sweep', every: 60 }];
+    const post = body => JSON.parse(context.doPost({ postData: { contents: JSON.stringify(body) } }).text);
+    const KEY = 'f'.repeat(64);
+    let checks = 0;
+    const checkMail = context.checkMail_;
+    context.checkMail_ = () => { checks += 1; return checkMail(); };
+    // An app updated from the 30-minute timer and its one-off: their first run takes both away, and keeps the sweep.
+    triggers = [{ handler: 'checkRepliesWatch', every: 30 }, { handler: 'checkReplies', after: 900000 }, { handler: 'sweep', every: 60 }];
     delete properties.CHECK_SCHEDULE;
     at('2026-12-01', '12:00');
-    run();
-    assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkRepliesWatch every 30', 'sweep every 60'], 'the every-minute timer is gone');
-    const owed = context.CHECK_WAITING_;
-    assert.deepEqual(next(), [owed ? 2 : 15], 'the next check: 2 minutes while an answer is owed, else 15');
-    at('2026-12-01', '23:30');
-    run();
-    assert.deepEqual(next(), [], 'no one-off timer at night');
-    at('2026-12-02', '09:00');
-    run();
-    if (!context.CHECK_WAITING_) {
-      assert.deepEqual(next(), [15]);
-      context.wakeCheck_();
-      assert.deepEqual(next(), [2], 'woken when a question is sent');
-    } else {
-      assert.deepEqual(next(), [2]);
+    delete cache['check-replies'];
+    context.checkRepliesWatch({ triggerUid: 'timer' });
+    assert.deepEqual(timers(), ['sweep every 60'], 'the old check timers are gone');
+    triggers = [{ handler: 'checkReplies', every: 1 }];
+    delete properties.CHECK_SCHEDULE;
+    delete cache['check-replies'];
+    context.checkReplies({ triggerUid: 'timer' });
+    assert.deepEqual(timers(), ['sweep every 60'], 'a missing sweep timer is put back');
+    // The sweep runs the check.
+    checks = 0;
+    delete cache['check-replies'];
+    context.sweep({ triggerUid: 'timer' });
+    assert.equal(checks, 1, 'the hourly sweep runs the check');
+    // A wake needs the desk's key; with it, CONFIRM or RELEASE, STAFF or STOP, or an email reply is checked, a round robin
+    // sign-up is not.
+    const text = body => ({ from: '"Someone (SMS)" <19255550100.19255550188.x@txt.voice.google.com>', subject: 'New text message from Someone', text: body });
+    checks = 0;
+    assert.equal(post({ fn: 'wake', key: 'guess', texts: [text('CONFIRM')], mail: 0 }).ok, false, 'a wrong key is refused');
+    assert.equal(checks, 0);
+    assert.deepEqual(post({ fn: 'wake', key: KEY, texts: [text('RR tonight please')], mail: 0 }), { ok: true, checked: false }, 'a sign-up text needs no look');
+    assert.equal(checks, 0);
+    for (const [body, why] of [[{ texts: [text('CONFIRM')], mail: 0 }, 'CONFIRM'], [{ texts: [text('release')], mail: 0 }, 'RELEASE'],
+      [{ texts: [text('CONFIRM except Dec 9')], mail: 0 }, 'CONFIRM except'], [{ texts: [text('STAFF')], mail: 0 }, 'STAFF'], [{ texts: [text('Stop')], mail: 0 }, 'STOP'],
+      [{ texts: [], mail: 1 }, 'an email reply'], [{ texts: [text('hello')], mail: 0, more: true }, 'more texts than were passed on']]) {
+      delete cache['opt-ins'];
+      assert.deepEqual(post(Object.assign({ fn: 'wake', key: KEY }, body)), { ok: true, checked: true }, why + ' is checked');
     }
-    // Each timer run is counted (a page call is not) and reported to the desk's JobRuntime tab.
+    assert.equal(checks, 7);
+    // The STAFF and STOP scan skips a check soon after the last, but never a wake, which may be about just that text.
+    const optIns = context.checkOptIns_;
+    let scanned = 0;
+    context.checkOptIns_ = () => { if (!cache['opt-ins']) scanned += 1; return optIns(); };
+    cache['opt-ins'] = '1';
+    post({ fn: 'wake', key: KEY, texts: [text('STAFF')], mail: 0 });
+    assert.equal(scanned, 1, 'a STAFF text is read at once');
+    context.checkOptIns_ = optIns;
+    // A wake right after a check still runs: its text may be newer than that check.
+    cache['check-replies'] = '1';
+    assert.equal(post({ fn: 'wake', key: KEY, texts: [text('CONFIRM')], mail: 0 }).checked, true);
+    // Each timer run is counted (a page call or a wake is not) and reported to the desk's JobRuntime tab.
+    at('2026-12-02', '09:00');
     runtimeGrid = [['app', 'day', 'runs', 'seconds', 'updated_at'], ['desk', '2026-12-02', '400', '3700', '']];
-    properties.JOB_RUNTIME = JSON.stringify(Object.assign(JSON.parse(properties.JOB_RUNTIME || '{}'), { reportedAt: 0 }));
-    clock += 15 * 60000;
-    run();
-    const counted = JSON.parse(properties.JOB_RUNTIME);
-    assert.equal(counted.day, '2026-12-02');
-    assert.deepEqual(JSON.parse(JSON.stringify(runtimeGrid.find(line => line[0] === 'staffing').slice(0, 2))), ['staffing', '2026-12-02'], 'reported to the desk');
-    assert.equal(counted.slow, true, 'every app together passed an hour');
-    clock += 15 * 60000;
-    run();
-    assert.deepEqual(next(), [context.CHECK_WAITING_ ? 6 : 45], 'checks a third as often for the rest of the day');
+    const counted = JSON.parse(properties.JOB_RUNTIME || '{"runs":0}');
+    properties.JOB_RUNTIME = JSON.stringify(Object.assign(counted, { reportedAt: 0 }));
+    post({ fn: 'wake', key: KEY, texts: [], mail: 1 });
+    assert.equal(JSON.parse(properties.JOB_RUNTIME).runs, counted.runs, 'a wake is not timer time');
+    delete cache['check-replies'];
+    context.sweep({ triggerUid: 'timer' });
+    assert.equal(JSON.parse(properties.JOB_RUNTIME).day, '2026-12-02');
+    assert.ok(runtimeGrid.some(line => line[0] === 'staffing' && line[1] === '2026-12-02'), 'reported to the desk');
+    assert.deepEqual(timers(), ['sweep every 60'], 'still one timer');
+    context.checkMail_ = checkMail;
     runtimeGrid = null;
     delete properties.JOB_RUNTIME;
   }

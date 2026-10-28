@@ -174,7 +174,7 @@ assert.equal(searches.length, fullSearches, 'mail read in the last 10 minutes is
 staleReader();
 context.getZeffyPlayers(null, date);
 assert.equal(searches.length, fullSearches + 1);
-assert.match(searches[searches.length - 1], /^in:anywhere \(from:txt\.voice\.google\.com OR from:communication\.mailer\.zeffy\.com\) after:\d+$/, 'later syncs are the one mail reader, reading only new mail');
+assert.match(searches[searches.length - 1], /^in:anywhere \(from:txt\.voice\.google\.com OR from:communication\.mailer\.zeffy\.com OR subject:"CTTC ref" OR subject:"CTTC shift"\) after:\d+$/, 'later syncs are the one mail reader, reading only new mail');
 // A payment reads the mailbox before it takes the lock (the search mock fails the check otherwise).
 staleReader();
 const beforePayment = searches.length;

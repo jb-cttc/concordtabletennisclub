@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
@@ -37,7 +38,8 @@ const makeSheet = name => {
     appendRow: values => { grid.push(values.map(asStored)); },
     deleteRow: row => { grid.splice(row - 1, 1); },
     deleteRows: (row, count) => { grid.splice(row - 1, count); },
-    setFrozenRows() {}
+    setFrozenRows() {},
+    hideSheet() { hidden.push(name); }
   };
 };
 
@@ -60,10 +62,27 @@ const voice = (name, body, when) => message('New text message from ' + name + ' 
   '\nTo respond to this text message, reply to this email or visit Google Voice.\nYOUR ACCOUNT <https://voice.google.com>', when, '"' + name + ' (SMS)" <19255550100.19255550101.x@txt.voice.google.com>');
 const minutes = count => count * 60000;
 const deskLogs = [];
+const hidden = [];
+// The coaching and staffing apps' web addresses: each call is kept, and an app answers as a woken app does.
+const wakes = [];
+let appDown = false;
+// Something a desk page's read records while the apps are being called.
+let duringWake = null;
+const wakeApp = request => {
+  if (duringWake) { const run = duringWake; duringWake = null; run(); }
+  const app = /AKfycbyw/.test(request.url) ? 'coaching' : 'staffing';
+  const body = JSON.parse(request.payload);
+  wakes.push({ app, body });
+  if (appDown) return { getResponseCode: () => 500, getContentText: () => 'Error' };
+  const answer = body.key === grids.AppWake[1][0] ? { ok: true, checked: body.mail > 0 || body.texts.some(text => /^(yes|no)/i.test(text.text)) } : { ok: false };
+  return { getResponseCode: () => 200, getContentText: () => JSON.stringify(answer) };
+};
 const audits = [];
 // Timers as Google keeps them: { handler, every } for a repeating one, { handler, after } for a one-off. Until October
-// 2026 the job had an every-minute timer, and so did the automatic answers: the first run removes both.
-let triggers = [{ handler: 'readMail', every: 1 }, { handler: 'answerVoiceSignups', every: 1 }];
+// 2026 the job had an every-minute timer, and so did the automatic answers; until November 2026 a 30-minute timer and a
+// one-off for the next read. The first run removes them all.
+let triggers = [{ handler: 'readMailWatch', every: 30 }, { handler: 'readMail', after: 300000 }, { handler: 'answerVoiceSignups', every: 1 }];
+let triggerCalls = 0;
 const properties = {};
 const context = {
   Date: class extends Date {
@@ -94,23 +113,28 @@ const context = {
   },
   LockService: { getScriptLock: () => ({ hasLock: () => lockHeld, tryLock: () => (lockHeld = true), releaseLock: () => { lockHeld = false; } }) },
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; }, remove: key => { delete cache[key]; } }) },
+  // Every call to Google's timers is counted: each is slow, so a quiet run makes none.
   ScriptApp: {
-    getProjectTriggers: () => triggers.map(trigger => ({ getHandlerFunction: () => trigger.handler, trigger })),
-    deleteTrigger: handle => { triggers = triggers.filter(trigger => trigger !== handle.trigger); },
+    getProjectTriggers: () => { triggerCalls += 1; return triggers.map(trigger => ({ getHandlerFunction: () => trigger.handler, trigger })); },
+    deleteTrigger: handle => { triggerCalls += 1; triggers = triggers.filter(trigger => trigger !== handle.trigger); },
     newTrigger: handler => ({ timeBased: () => ({
-      everyMinutes: every => ({ create: () => { triggers.push({ handler, every }); } }),
-      after: after => ({ create: () => { triggers.push({ handler, after }); } })
+      everyMinutes: every => {
+        assert.ok([1, 5, 10, 15, 30].includes(every), 'Google repeats a timer every 1, 5, 10, 15 or 30 minutes, not ' + every);
+        return { create: () => { triggerCalls += 1; triggers.push({ handler, every }); } };
+      }
     }) })
   },
+  UrlFetchApp: { fetchAll: requests => requests.map(wakeApp) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => (key in properties ? properties[key] : null), setProperty: (key, value) => { properties[key] = String(value); }, deleteProperty: key => { delete properties[key]; } }) },
   // Pacific (PDT) wall clock, for the October dates used here.
   Utilities: {
     formatDate: (date, zone, pattern) => {
       const pacific = new Date(date.getTime() - 7 * 3600000);
       return pattern === 'H' ? String(pacific.getUTCHours()) : pattern === 'm' ? String(pacific.getUTCMinutes()) : pacific.toISOString().slice(0, 10);
-    }
+    },
+    getUuid: () => crypto.randomUUID()
   },
-  Session: { getScriptTimeZone: () => 'America/Los_Angeles' },
+  Session: { getScriptTimeZone: () => 'America/Los_Angeles', getEffectiveUser: () => ({ getEmail: () => 'Club@example.com' }) },
   deskLog_: (...args) => deskLogs.push(args),
   appendAudit_: (...args) => audits.push(args),
   safeAudit_: (...args) => audits.push(args)
@@ -122,8 +146,16 @@ let gmailDown = false;
 vm.createContext(context);
 // The round robin days and sign-up hours come from the desk's automatic answers.
 for (const file of ['VoiceAutoReply.js', 'MailReader.js', 'JobRuntime.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
-// What a read found; the job also says what the automatic answers did (off here).
-const read = event => { const result = JSON.parse(JSON.stringify(context.readMail(event))); if (result.answered) assert.deepEqual(result.answered, { skipped: 'off' }); delete result.answered; return result; };
+// What a read found; the job also says what the automatic answers did (off here), and which apps it woke (woke).
+let woke = null;
+const read = event => {
+  const result = JSON.parse(JSON.stringify(context.readMail(event)));
+  if (result.answered) assert.deepEqual(result.answered, { skipped: 'off' });
+  woke = result.woke || null;
+  delete result.answered;
+  delete result.woke;
+  return result;
+};
 const timers = () => triggers.map(trigger => trigger.handler + (trigger.every ? ' every ' + trigger.every : ' after ' + trigger.after / 60000)).sort();
 const texts = () => grids.VoiceTexts.slice(1);
 
@@ -136,17 +168,22 @@ threads = [ada, [make('zeffy', 'Kim Tan', clock - 86400000)]];
 
 const first = read();
 assert.deepEqual(first, { texts: 8, zeffy: 1, gmailCalls: first.gmailCalls }, 'the first read takes the last week');
-assert.match(searches[0], /^in:anywhere \(from:txt\.voice\.google\.com OR from:communication\.mailer\.zeffy\.com\) after:\d+$/, 'one search for texts and Zeffy, Trash and Spam included');
-assert.deepEqual(timers(), ['readMail after 1', 'readMailWatch every 30'], 'the old every-minute timers are gone: a 30-minute timer, and the next read a minute away (round robin sign-up)');
+assert.match(searches[0], /^in:anywhere \(from:txt\.voice\.google\.com OR from:communication\.mailer\.zeffy\.com OR subject:"CTTC ref" OR subject:"CTTC shift"\) after:\d+$/,
+  'one search for texts, Zeffy and replies to the apps\' questions, Trash and Spam included');
+assert.deepEqual(timers(), ['readMail every 1'], 'the old timers are gone: one timer, every minute (round robin sign-up)');
 assert.equal(texts()[texts().length - 1][4], 'coming tonight', 'Voice links and footer are taken out');
 assert.equal(zeffyRows.length, 1);
 assert.equal(grids.MailReader[1][3], String(first.gmailCalls), 'Gmail calls are counted for the day');
 
-// A quiet minute: one search, nothing opened.
+// A quiet minute: one search, nothing opened, no timer changed, no app called.
 clock += minutes(1);
 calls = 0;
+triggerCalls = 0;
+wakes.length = 0;
 assert.deepEqual(read(), { texts: 0, zeffy: 0, gmailCalls: 1 });
 assert.equal(calls, 1, 'a quiet minute costs one Gmail call');
+assert.equal(triggerCalls, 0, 'and no call to Google\'s timers');
+assert.equal(wakes.length, 0, 'and wakes no app');
 assert.ok(Number(searches[searches.length - 1].match(/after:(\d+)/)[1]) * 1000 >= clock - minutes(5), 'only mail since the last read, with a few minutes to spare');
 
 // A new text in that long thread: the thread is read newest first and left at the first text already recorded.
@@ -173,13 +210,13 @@ assert.equal(calls, 0);
 clock += minutes(2);
 assert.equal(context.readMailIfStale_(60000).texts, 0);
 cache = {};
-triggers = triggers.filter(trigger => trigger.handler !== 'readMailWatch');
+triggers = [];
 context.readMailIfStale_(60000);
-assert.deepEqual(timers().filter(timer => /Watch/.test(timer)), ['readMailWatch every 30'], 'the desk puts back a missing 30-minute timer');
+assert.deepEqual(timers(), ['readMail every 1'], 'the desk puts back a missing timer');
 cache = {};
 context.readMailIfStale_(60000);
-assert.equal(triggers.filter(trigger => trigger.handler === 'readMailWatch').length, 1, 'never twice');
-assert.deepEqual(audits.map(entry => entry[0]), ['mail_reader_enabled', 'mail_reader_enabled']);
+assert.deepEqual(timers(), ['readMail every 1'], 'never twice');
+assert.deepEqual(audits.map(entry => entry[0]), ['mail_reader_enabled']);
 
 // Never while the caller holds the lock, and one read at a time.
 lockHeld = true;
@@ -263,37 +300,45 @@ assert.equal(every('2026-10-31', '11:14'), 5, 'the Saturday pilot: 5 minutes in 
 assert.equal(every('2026-10-31', '11:15'), 1, 'every minute from 11:15 AM');
 assert.equal(every('2026-10-31', '12:00'), 1);
 assert.equal(every('2026-10-31', '15:15'), 5);
-// Each run sets the one-off timer for the next read: none at night (the 30-minute timer covers it), and never past the
-// start of a busier stretch.
-const nextAfter = () => triggers.filter(trigger => trigger.handler === 'readMail').map(trigger => trigger.after / 60000);
+// The timer repeats at the pace due now, and changes only when the pace does: every 30 minutes at night, every 5 by day,
+// every minute during sign-up. A busier stretch starts on time: the timer speeds up a run ahead of it.
+const pace = () => triggers.filter(trigger => trigger.handler === 'readMail').map(trigger => trigger.every);
 clock = pt('2026-10-28', '01:00');
 assert.equal(typeof read().gmailCalls, 'number');
-assert.deepEqual(nextAfter(), [], 'no one-off timer at night');
+assert.deepEqual(pace(), [30], 'every 30 minutes at night');
 calls = 0;
+triggerCalls = 0;
 clock += minutes(1);
 assert.deepEqual(read(), { skipped: 'fresh' }, 'a run sooner than due reads nothing');
 assert.equal(calls, 0);
+assert.equal(triggerCalls, 0, 'and changes no timer');
 clock = pt('2026-10-28', '05:45');
 read();
-assert.deepEqual(nextAfter(), [15], 'Wednesday 5:45 AM: next at 6:00, when sign-up opens');
+assert.deepEqual(pace(), [5], 'Wednesday 5:45 AM: every 5 minutes, so the first read after 6:00, when sign-up opens, is on time');
 clock = pt('2026-10-28', '06:00');
 read();
-assert.deepEqual(nextAfter(), [5], 'then every 5 minutes');
+assert.deepEqual(pace(), [5]);
+clock = pt('2026-10-28', '15:10');
+read();
+assert.deepEqual(pace(), [5]);
 clock = pt('2026-10-28', '15:12');
 read();
-assert.deepEqual(nextAfter(), [3], 'the next read lands at 3:15 PM, when every minute starts');
+assert.deepEqual(pace(), [1], 'every minute from the run before 3:15 PM');
+assert.equal(triggers.length, 1, 'one timer: the new one replaces the old');
+clock = pt('2026-10-28', '15:13');
+assert.deepEqual(read(), { skipped: 'fresh' }, 'reads stay 5 minutes apart until 3:15');
 clock = pt('2026-10-28', '15:15');
 read();
-assert.deepEqual(nextAfter(), [1], 'then every minute until sign-up closes');
+assert.deepEqual(pace(), [1], 'then every minute until sign-up closes');
 clock = pt('2026-10-28', '19:12');
 read();
-assert.deepEqual(nextAfter(), [1]);
+assert.deepEqual(pace(), [1]);
 clock = pt('2026-10-28', '19:15');
 read();
-assert.deepEqual(nextAfter(), [5], 'after sign-up closes, every 5 minutes');
+assert.deepEqual(pace(), [5], 'after sign-up closes, every 5 minutes');
 clock = pt('2026-11-03', '12:00');
 read();
-assert.deepEqual(nextAfter(), [5], 'Tuesday midday');
+assert.deepEqual(pace(), [5], 'Tuesday midday');
 // A timer run is measured (a page's read is not), toward the 90 minutes every app's timers share (JobRuntime.js).
 clock += minutes(6);
 read({ triggerUid: 't1' });
@@ -308,12 +353,129 @@ assert.equal(JSON.parse(properties.CTTC_JOB_RUNTIME).slow, true);
 assert.deepEqual(deskLogs.filter(entry => entry[1] === 'trigger_time_high').map(entry => entry[0]), ['warn'], 'the desk log warns once');
 assert.equal(context.mailReadEvery_(new Date(pt('2026-11-03', '13:00'))) / 60000, 15, 'every 15 minutes instead of 5');
 assert.equal(context.mailReadEvery_(new Date(pt('2026-11-03', '23:30'))) / 60000, 30, 'the night stays at 30');
+assert.equal(context.mailTimerEvery_(new Date(pt('2026-11-03', '13:00')), true), 15, 'and the timer follows');
+assert.equal(context.mailTimerEvery_(new Date(pt('2026-11-04', '16:00')), true), 5, 'sign-up: every 3 minutes is not a pace Google repeats, so every 5');
 // A desk with Voice signups open still reads within the minute, night or day.
 clock += minutes(2);
 assert.equal(typeof context.readMailIfStale_(60000).gmailCalls, 'number');
 clock = pt('2026-11-03', '22:57');
 read();
-assert.deepEqual(nextAfter(), [], 'from 11 PM the 30-minute timer alone');
+assert.deepEqual(pace(), [15], 'until 11 PM every 15 minutes (today is slowed)');
+clock = pt('2026-11-03', '23:00');
+read();
+assert.deepEqual(pace(), [30], 'from 11 PM, every 30');
+properties.CTTC_JOB_RUNTIME = JSON.stringify({ day: '2026-11-04', runs: 0, ms: 0, reportedAt: Date.now(), slow: false });
+
+// Waking the coaching and staffing apps. A new text wakes both at once, with the desk's key and what came in; the key is
+// made the first time, in a hidden tab the apps can open.
+const answered = () => wakes.map(entry => entry.app + ':' + entry.body.mail + ':' + entry.body.texts.map(text => text.text).join('|'));
+clock = pt('2026-11-04', '10:00');
+wakes.length = 0;
+ada.push(make('Ada Every', 'YES', clock - 5000));
+assert.equal(read().texts, 1);
+assert.deepEqual(answered(), ['coaching:0:YES', 'staffing:0:YES']);
+assert.deepEqual(woke, { coaching: 'checked', staffing: 'checked' });
+assert.match(grids.AppWake[1][0], /^[0-9a-f]{64}$/, 'a long random key');
+assert.ok(wakes.every(entry => entry.body.key === grids.AppWake[1][0] && entry.body.fn === 'wake'));
+assert.deepEqual(hidden, ['AppWake'], 'the key\'s tab is hidden');
+assert.equal(properties.CTTC_WAKE_coaching, undefined, 'nothing left to tell');
+// A text that is no answer: the apps say there is nothing to check.
+clock += minutes(5);
+wakes.length = 0;
+ada.push(make('Ada Every', 'running late', clock - 5000));
+read();
+assert.deepEqual(woke, { coaching: 'nothing to check', staffing: 'nothing to check' });
+// An email reply to a coaching question wakes coaching only, and is not recorded as a text or a payment. Our own question
+// in the thread wakes nothing; a reply already seen (within the search's overlap) is not passed on twice.
+const question = message('Confirm your coaching request [CTTC ref 0A1B2C3D4E]', 'Reply YES', clock - minutes(10), 'Concord Table Tennis Club <club@example.com>');
+question.when = new Date(clock - minutes(10)).toISOString();
+const reply = message('Re: Confirm your coaching request [CTTC ref 0A1B2C3D4E]', 'YES', clock + minutes(4), 'Student <student@example.com>');
+reply.when = new Date(clock + minutes(4)).toISOString();
+const asked = [question];
+threads.push(asked);
+clock += minutes(1);
+wakes.length = 0;
+const textsBefore = texts().length;
+const zeffyBefore = zeffyRows.length;
+read();
+assert.deepEqual(wakes, [], 'our own question wakes nothing');
+clock += minutes(4);
+asked.push(reply);
+read();
+assert.deepEqual(answered(), ['coaching:1:']);
+assert.equal(texts().length, textsBefore, 'not recorded as a text');
+assert.equal(zeffyRows.length, zeffyBefore, 'nor as a payment');
+clock += minutes(5);
+wakes.length = 0;
+grids.MailReader[1][1] = String(clock - minutes(2));
+read();
+assert.deepEqual(wakes, [], 'a reply already passed on is not passed on again');
+// The club's answer to a staffing approval comes from this account, as a reply: it wakes staffing.
+const approval = message('Approve an email for staff sign-ups [CTTC shift 1A2B3C4D5E]', 'Reply YES', clock - minutes(30), 'Concord Table Tennis Club <club@example.com>');
+approval.when = new Date(clock - minutes(30)).toISOString();
+const clubYes = message('Re: Approve an email for staff sign-ups [CTTC shift 1A2B3C4D5E]', 'YES', clock + minutes(4), 'club@example.com');
+clubYes.when = new Date(clock + minutes(4)).toISOString();
+threads.push([approval, clubYes]);
+clock += minutes(5);
+wakes.length = 0;
+read();
+assert.deepEqual(answered(), ['staffing:1:']);
+// What a desk page's read finds wakes the apps at the job's next run, not during the page's call.
+clock += minutes(5);
+wakes.length = 0;
+ada.push(make('Ada Every', 'NO', clock - 5000));
+assert.equal(context.readMailIfStale_(60000).texts, 1);
+assert.deepEqual(wakes, [], 'a page never waits on the apps');
+clock += minutes(1);
+read();
+assert.deepEqual(answered(), ['coaching:0:NO', 'staffing:0:NO']);
+// A desk page's read that records a text while the apps are being called: that text still wakes them, at the next run.
+clock += minutes(5);
+ada.push(make('Ada Every', 'YES', clock - 5000));
+duringWake = () => context.noteWake_([{ from: 'x', subject: 'New text message from Late Text', text: 'NO' }], {});
+read();
+assert.ok(properties.CTTC_WAKE_coaching && /Late Text/.test(properties.CTTC_WAKE_coaching), 'the newer text is kept');
+clock += minutes(5);
+wakes.length = 0;
+read();
+assert.deepEqual(answered(), ['coaching:0:YES|NO', 'staffing:0:YES|NO'], 'and passed on at the next run, with what was sent before (a second look costs nothing)');
+assert.equal(properties.CTTC_WAKE_coaching, undefined);
+// A busy minute: at most 10 texts are passed on, each cut to its start, and the app is told there were more.
+clock += minutes(5);
+wakes.length = 0;
+for (let index = 0; index < 12; index += 1) ada.push(make('Ada Every', 'text ' + index + ' ' + 'x'.repeat(300), clock - 5000 + index));
+read();
+assert.equal(wakes[0].body.texts.length, 10);
+assert.equal(wakes[0].body.more, true);
+assert.ok(wakes[0].body.texts.every(text => text.text.length === 120));
+// An app that does not answer is tried at the next runs; after 3 failed tries it is left to its hourly check, and the desk
+// log says so once an hour.
+appDown = true;
+clock += minutes(5);
+wakes.length = 0;
+ada.push(make('Ada Every', 'YES', clock - 5000));
+read();
+assert.deepEqual(woke, { coaching: 'failed', staffing: 'failed' });
+assert.ok(properties.CTTC_WAKE_coaching, 'kept for the next run');
+clock += minutes(5);
+read();
+clock += minutes(5);
+read();
+assert.equal(wakes.length, 6, 'three tries each');
+assert.equal(properties.CTTC_WAKE_coaching, undefined, 'then dropped');
+assert.deepEqual(deskLogs.filter(entry => entry[1] === 'app_wake_failed').map(entry => entry[0]), ['warn']);
+clock += minutes(5);
+wakes.length = 0;
+read();
+assert.deepEqual(wakes, [], 'nothing new, nothing to try');
+appDown = false;
+// A new day logs the day's calls by app.
+clock = pt('2026-11-05', '10:00');
+ada.push(make('Ada Every', 'YES', clock - 5000));
+read();
+const day = deskLogs.filter(entry => entry[1] === 'app_wakes_day').pop();
+assert.equal(day[2], '2026-11-04');
+assert.match(day[4], /^coaching=7 staffing=7 coaching_failed=3 staffing_failed=3$/);
 
 assert.equal(context.voiceBodyText_('<https://voice.google.com>\n\nHi\n  there \nGoogle LLC\nignored'), 'Hi\nthere');
 console.log('Mail reader checks passed');
