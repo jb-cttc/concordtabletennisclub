@@ -1020,18 +1020,22 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   function editButton(p) {
     return '<button type="button" class="edit-player" data-edit-player="' + esc(p.playerId) + '" title="Edit name, rating, email or other names" aria-label="Edit ' + esc(p.name) + '">\u270E</button>';
   }
+  // Search ignores case and accents, so "darselo" finds "Dárselo" (a phone keyboard needs a long press for "á").
+  function searchText(text) {
+    return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
   // A search also finds a player by another name they go by (a Voice contact, a Zeffy or Clover name), shown under theirs.
   function otherNameMatch(p, query) {
-    if (!query || p.name.toLowerCase().indexOf(query) >= 0) return '';
-    return (state.aliases[p.playerId] || []).find(function (name) { return name.toLowerCase().indexOf(query) >= 0; }) || '';
+    if (!query || searchText(p.name).indexOf(query) >= 0) return '';
+    return (state.aliases[p.playerId] || []).find(function (name) { return searchText(name).indexOf(query) >= 0; }) || '';
   }
   function aka(p, query) {
     var name = otherNameMatch(p, query);
     return name ? '<span class="aka">Also goes by ' + esc(name) + '</span>' : '';
   }
   function renderDirectory() {
-    var query = search.value.trim().toLowerCase();
-    var matches = function (p) { return !query || p.name.toLowerCase().indexOf(query) >= 0 || !!otherNameMatch(p, query); };
+    var query = searchText(search.value.trim());
+    var matches = function (p) { return !query || searchText(p.name).indexOf(query) >= 0 || !!otherNameMatch(p, query); };
     var html = state.players.filter(matches).slice(0, 50).map(function (p) {
       var added = state.roster.indexOf(p.playerId) >= 0;
       return '<li><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span>' + aka(p, query) + '</div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';

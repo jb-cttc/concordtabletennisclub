@@ -179,6 +179,16 @@ const player = (world, playerId) => table(world, 'Players').find(row => row.play
   search.value = 'benny';
   search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
   assert.match(tab.$('#results').textContent, new RegExp(ben.display_name + '.*Also goes by Benny B'));
+  // Accents and case do not matter: "darselo" finds "Dárselo Yi", and the other way round.
+  server.run('updatePlayer', cy.player_id, { name: cy.display_name, rating: cy.current_rating, email: '', aliases: [{ from: '', name: 'Dárselo Yi' }] });
+  tab.window.cttcDesk.playerEdited(Object.assign(server.run('getPlayerDetails', cy.player_id), { aliases: ['Dárselo Yi'] }));
+  ['darselo', 'DÁRSELO yi', 'dárselo'].forEach(query => {
+    search.value = query;
+    search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
+    assert.match(tab.$('#results').textContent, new RegExp(cy.display_name + '.*Also goes by Dárselo Yi'), query);
+  });
+  server.run('updatePlayer', cy.player_id, { name: cy.display_name, rating: cy.current_rating, email: '', aliases: [] });
+  tab.window.cttcDesk.playerEdited(Object.assign(server.run('getPlayerDetails', cy.player_id), { aliases: [] }));
 
   // Correct in place: typing over a name changes that row; it never adds a second one.
   await openEditor(ben);
@@ -240,6 +250,15 @@ const player = (world, playerId) => table(world, 'Players').find(row => row.play
   assert.deepEqual(aliasesOf(ben.player_id).sort(), ['B Example', 'Benji']);
   assert.deepEqual(aliasesOf(ava.player_id), [ava.display_name]);
   assert.deepEqual(server.run('playerAliases_')['benji'], ben.player_id, 'the desk reads the new name at once');
+  // A desk opened later loads every player's other names when it starts, and finds them with or without accents.
+  server.run('updatePlayer', cy.player_id, { name: cy.display_name, rating: cy.current_rating, email: '', aliases: [{ from: '', name: 'Dárselo Yi' }] });
+  const later = world.device().open();
+  await run(world, 20000);
+  ['darselo', 'Dárselo Yi', 'benji'].forEach(query => {
+    later.$('#search').value = query;
+    later.$('#search').dispatchEvent(new later.window.Event('input', { bubbles: true }));
+    assert.match(later.$('#results').textContent, /Also goes by (Dárselo Yi|Benji)/, 'found at startup: ' + query);
+  });
 
   console.log('Player edit checks passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });
