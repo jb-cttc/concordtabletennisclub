@@ -105,6 +105,7 @@ function zeffyPaymentRows_() {
 }
 
 // Zeffy Name and Aliases entries resolve to one directory player, case-insensitively.
+// An alias like "Daniel (Daeseop) Yi" also covers "Daeseop Yi" and "Daniel Yi", unless another player or alias has that name.
 function zeffyNameResolver_(playerRows, aliases) {
   var byName = {};
   var names = {};
@@ -114,9 +115,14 @@ function zeffyNameResolver_(playerRows, aliases) {
     var key = linkedNameKey_(player.display_name);
     byName[key] = byName[key] === undefined ? id : null;
   });
+  var claim = function (name, id) {
+    var key = linkedNameKey_(name);
+    if (byName[key] === undefined && names[id]) byName[key] = id;
+  };
+  Object.keys(aliases).forEach(function (alias) { claim(alias, aliases[alias]); });
   Object.keys(aliases).forEach(function (alias) {
-    var key = linkedNameKey_(alias);
-    if (byName[key] === undefined && names[aliases[alias]]) byName[key] = aliases[alias];
+    var parts = alias.match(/^(.+?)\s*\((.+?)\)\s*(.+)$/);
+    if (parts) [parts[2] + ' ' + parts[3], parts[1] + ' ' + parts[3]].forEach(function (name) { claim(name, aliases[alias]); });
   });
   return function (name) {
     var id = byName[linkedNameKey_(name)];
