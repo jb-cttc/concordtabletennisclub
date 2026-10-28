@@ -14,8 +14,9 @@ var SITE = 'https://concordtabletennisclub.com';
 // One answer serves every visitor for this long, so a busy page reads the Sheet and Gmail about once a minute.
 var ANSWER_SECONDS = 60;
 var ROSTER_SECONDS = 3600;
-// Texts older than this mean the desk's mail reader stopped: the page still answers, and the log says so.
-var READER_LATE_MS = 10 * 60 * 1000;
+// The desk reads mail every 30 minutes overnight, so only a longer gap means its reader stopped: the page still answers,
+// and the log says so.
+var READER_LATE_MS = 45 * 60 * 1000;
 // Texts that are commands for the coaching or staffing apps, or answers to their questions, not round robin signups.
 var COMMAND = /^\s*(coach|student|stop|staff|confirm|release|yes|no)\b/i;
 // A latest text like "can't make it tonight" takes the sender back off the floor.

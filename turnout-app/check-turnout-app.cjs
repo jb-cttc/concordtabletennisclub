@@ -91,7 +91,7 @@ Object.defineProperty(tabs, 'VoiceTexts', { enumerable: true, get: () => {
   searches.push('VoiceTexts');
   return [['message_id', 'received_at', 'from', 'subject', 'text']].concat(messages.map(m => [m.getId(), String(m.getDate().getTime()), m.getFrom(), m.getSubject(), m.getPlainBody()]));
 } });
-Object.defineProperty(tabs, 'MailReader', { enumerable: true, get: () => [['read_at', 'cursor', 'day', 'gmail_calls'], [String(readerStopped ? clock - 11 * 60000 : clock - 30000), '', '', '']] });
+Object.defineProperty(tabs, 'MailReader', { enumerable: true, get: () => [['read_at', 'cursor', 'day', 'gmail_calls'], [String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000), '', '', '']] });
 const text = (sender, body, at, from = 'x@txt.voice.google.com') => ({
   getId: () => sender + at,
   getFrom: () => '"' + sender + '" <' + from + '>',

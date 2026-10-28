@@ -180,8 +180,8 @@ Payment, Open Play and membership changes are kept on the device first and sync
 to the Sheet in the background, so they keep working when the connection
 drops. **Zeffy** is an optional monthly
 play pass, tracked from Zeffy's payment emails to the club Gmail. The mail
-reader (see [One Gmail reader](#one-gmail-reader)) reads new Zeffy mail every
-minute and records purchase, renewal
+reader (see [One Gmail reader](#one-gmail-reader)) reads new Zeffy mail and
+records purchase, renewal
 (`recurring payment` in the subject) and cancellation emails in the private
 `ZeffyPayments` sheet, one row per person covered (a renewal covers everyone the
 buyer first purchased for). An email counts as a play pass when its subject or
@@ -213,8 +213,13 @@ person's whole text history (Voice keeps all of a person's texts in one Gmail
 thread), and the allowance ran out on round robin nights ("Service invoked too
 many times for one day: gmail").
 
-Now one minute trigger in the desk (`readMail`, `apps-script/MailReader.js`)
-reads only mail that arrived since its last run, once:
+Now one trigger in the desk (`readMail`, `apps-script/MailReader.js`) reads
+only mail that arrived since its last read, once. It fires every minute but
+opens Gmail only as often as texts matter: **every minute** on a round robin
+day from 7 AM until sign-up closes (7:15 PM; 3:15 PM for the Saturday pilot),
+**every 30 minutes** from 11 PM to 7 AM, and **every 5 minutes** otherwise. A
+desk with Voice signups open, and the automatic answers from 6 AM on a round
+robin day, still read within the minute. It records:
 
 - forwarded Voice texts go to the private **`VoiceTexts`** tab (`message_id`,
   `received_at` in milliseconds, `from`, `subject`, `text` without Voice's
@@ -224,15 +229,16 @@ reads only mail that arrived since its last run, once:
 The desk's Voice signups and automatic answers, and the coaching, staffing and
 turnout apps (which open this Sheet by their `DESK_SHEET_ID` script property)
 read texts from `VoiceTexts`, never by searching Gmail. Gmail is opened only to
-send a reply, by message id. A quiet minute costs one Gmail search.
+send a reply, by message id. A quiet read costs one Gmail search, so a day
+with no texts costs a few hundred Gmail calls at most.
 
 The **`MailReader`** tab has one row: when it last read (`read_at`), how far it
 has read (`cursor`), and its Gmail calls today (`gmail_calls`). Past 6,000 calls
-in a day it reads every 5 minutes instead of every minute and the desk log gets
+in a day it reads at most every 5 minutes and the desk log gets
 a `gmail_reads_high` warning; each new day logs `mail_reader_day` with the
 previous day's count. The desk installs the trigger the first time it reads mail,
-and reads mail itself when the trigger has not run in the last minute. If
-`read_at` is more than 10 minutes old, the coaching and staffing minute checks
+and reads mail itself when the trigger has not read in the last minute. If
+`read_at` is more than 45 minutes old, the coaching and staffing minute checks
 fail (and email the club after 30 minutes) and the turnout log records
 `texts_not_collected`.
 
