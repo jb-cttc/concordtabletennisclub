@@ -87,7 +87,13 @@ const context = {
     getProjectTriggers: () => triggers.map(handler => ({ getHandlerFunction: () => handler })),
     newTrigger: handler => ({ timeBased: () => ({ everyMinutes: n => ({ create: () => { assert.equal(n, 1); triggers.push(handler); } }) }) })
   },
-  Utilities: { formatDate: date => new Date(date.getTime() - 7 * 3600000).toISOString().slice(0, 10) },
+  // Pacific (PDT) wall clock, for the October dates used here.
+  Utilities: {
+    formatDate: (date, zone, pattern) => {
+      const pacific = new Date(date.getTime() - 7 * 3600000);
+      return pattern === 'H' ? String(pacific.getUTCHours()) : pattern === 'm' ? String(pacific.getUTCMinutes()) : pacific.toISOString().slice(0, 10);
+    }
+  },
   Session: { getScriptTimeZone: () => 'America/Los_Angeles' },
   deskLog_: (...args) => deskLogs.push(args),
   appendAudit_: (...args) => audits.push(args),
@@ -98,7 +104,8 @@ let cache = {};
 let zeffyRows = [];
 let gmailDown = false;
 vm.createContext(context);
-vm.runInContext(fs.readFileSync(__dirname + '/MailReader.js', 'utf8'), context);
+// The round robin days and sign-up hours come from the desk's automatic answers.
+for (const file of ['VoiceAutoReply.js', 'MailReader.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 const read = () => JSON.parse(JSON.stringify(context.readMail()));
 const texts = () => grids.VoiceTexts.slice(1);
 
@@ -199,7 +206,7 @@ assert.ok(texts().length > 5, 'recent texts are kept');
 // Gmail failing (its daily allowance spent): the trigger fails and says so once in 10 minutes; the desk carries on with
 // the texts already recorded; nothing moves until Gmail answers again.
 gmailDown = true;
-clock += minutes(2);
+clock += minutes(6);
 const cursor = grids.MailReader[1][1];
 assert.throws(() => context.readMail(), /too many times/);
 clock += minutes(1);
@@ -212,6 +219,36 @@ assert.equal(cache['mail-reading'], undefined, 'a failed read does not block the
 gmailDown = false;
 clock += minutes(1);
 assert.equal(read().texts, 0);
+
+// Gmail is read only as often as texts matter: every minute on a round robin day until sign-up closes (7:15 PM, 3:15 PM
+// for the Saturday pilot from October 31), every 30 minutes from 11 PM to 7 AM, and every 5 minutes otherwise.
+const pt = (date, time) => Date.parse(date + 'T' + time + ':00Z') + 7 * 3600000;
+const every = (date, time) => context.mailReadEvery_(new Date(pt(date, time))) / 60000;
+assert.equal(every('2026-10-26', '06:00'), 30, 'Monday 6 AM is still night');
+assert.equal(every('2026-10-26', '07:00'), 1, 'Monday morning: a round robin day');
+assert.equal(every('2026-10-26', '19:14'), 1);
+assert.equal(every('2026-10-26', '19:15'), 5, 'after sign-up closes');
+assert.equal(every('2026-10-26', '23:00'), 30, '11 PM');
+assert.equal(every('2026-10-27', '06:59'), 30);
+assert.equal(every('2026-10-27', '12:00'), 5, 'Tuesday: no round robin');
+assert.equal(every('2026-10-28', '12:00'), 1, 'Wednesday');
+assert.equal(every('2026-10-24', '12:00'), 5, 'no Saturday round robin before the pilot');
+assert.equal(every('2026-10-31', '12:00'), 1, 'the Saturday pilot');
+assert.equal(every('2026-10-31', '15:15'), 5);
+// The minute trigger at night: read, then nothing for 30 minutes.
+clock = pt('2026-10-28', '01:00');
+assert.equal(typeof read().gmailCalls, 'number');
+calls = 0;
+for (let minute = 1; minute < 30; minute += 1) {
+  clock += minutes(1);
+  assert.deepEqual(read(), { skipped: 'fresh' });
+}
+assert.equal(calls, 0, 'no Gmail for half an hour overnight');
+clock += minutes(1);
+assert.equal(typeof read().gmailCalls, 'number', 'read again after 30 minutes');
+// A desk with Voice signups open still reads within the minute, night or day.
+clock += minutes(2);
+assert.equal(typeof context.readMailIfStale_(60000).gmailCalls, 'number');
 
 assert.equal(context.voiceBodyText_('<https://voice.google.com>\n\nHi\n  there \nGoogle LLC\nignored'), 'Hi\nthere');
 console.log('Mail reader checks passed');

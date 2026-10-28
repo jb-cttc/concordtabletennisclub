@@ -2957,7 +2957,8 @@ function voiceTextsFrom_(person, days) {
 // minute used them up. The desk's one mail reader (apps-script/MailReader.js) records every forwarded text in its Sheet's
 // VoiceTexts tab within a minute, and the app reads them there (DESK_SHEET_ID). Each row is shaped like the Gmail message it
 // came from, so voiceText_ reads it unchanged; only a reply opens the real message, by id.
-var READER_LATE_MS = 10 * 60 * 1000;
+// The desk reads mail every 30 minutes overnight, so only a longer gap means its reader stopped.
+var READER_LATE_MS = 45 * 60 * 1000;
 
 // Texts received since the given time (ms). Throws when the desk has stopped collecting them, so the minute check reports it.
 function storedTexts_(since) {

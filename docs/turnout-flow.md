@@ -164,7 +164,7 @@ detail`). Read it from GitHub: **Actions > Desk log > Run workflow**, with
 | `turnout_counts` | step | The totals whenever they change: phase, playing (here and texted), likely, expected |
 | `turnout_setup` | step | How many players and published nights `setup` could read |
 | `turnout_failed` | error | What went wrong, cleaned of anything personal |
-| `texts_not_collected` | error | The desk's mail reader has not run for over 10 minutes, so new texts are missing; the page still answers. At most once in 10 minutes |
+| `texts_not_collected` | error | The desk's mail reader has not read mail for over 45 minutes, so new texts are missing; the page still answers. At most once in 10 minutes |
 
 A texter appears only as a code in `ref` (`S` and six characters; the same
 sender always gets the same code), never a name, number or message. The

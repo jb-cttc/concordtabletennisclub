@@ -3,14 +3,18 @@
 // re-reading each person's whole text history (Voice keeps all of a person's texts in one thread). The allowance ran out
 // on round robin nights.
 //
-// Now a minute trigger here reads only mail that arrived since its last run, once, and records it:
+// Now a minute trigger here reads only mail that arrived since its last read, once, and records it:
 //   - forwarded Google Voice texts in the VoiceTexts tab, which every app reads instead of Gmail (the coaching, staffing
 //     and turnout apps open this Sheet by DESK_SHEET_ID);
 //   - Zeffy play pass emails in ZeffyPayments (ZeffyTracking.js).
-// A quiet minute costs one search. Gmail is otherwise opened only to send a reply, by message id.
+// A quiet read costs one search. Gmail is otherwise opened only to send a reply, by message id.
+//
+// The trigger fires every minute but reads Gmail only as often as texts matter (mailReadEvery_): every minute on a round
+// robin day until sign-up closes, every 5 minutes otherwise, and every 30 minutes overnight. A desk with Voice signups
+// open still reads within the minute.
 //
 // The MailReader tab holds when it last read, so the other apps can tell when texts stopped being collected, and how many
-// Gmail calls it made today. Past MAIL_SLOW_AFTER_CALLS_ in a day it reads every 5 minutes instead of every minute.
+// Gmail calls it made today. Past MAIL_SLOW_AFTER_CALLS_ in a day it reads at most every 5 minutes.
 var MAIL_TEXTS_TAB = 'VoiceTexts';
 var MAIL_TEXTS_HEADERS = ['message_id', 'received_at', 'from', 'subject', 'text'];
 var MAIL_READER_TAB = 'MailReader';
@@ -23,6 +27,11 @@ var MAIL_OVERLAP_MS_ = 3 * 60000;
 var MAIL_FIRST_DAYS_ = 7;
 var MAIL_KEEP_DAYS_ = 90;
 var MAIL_FRESH_MS_ = 60000;
+var MAIL_DAY_EVERY_MS_ = 5 * 60000;
+// 11 PM to 7 AM, Pacific.
+var MAIL_NIGHT_FROM_ = 23 * 60;
+var MAIL_NIGHT_UNTIL_ = 7 * 60;
+var MAIL_NIGHT_EVERY_MS_ = 30 * 60000;
 var MAIL_SLOW_AFTER_CALLS_ = 6000;
 var MAIL_SLOW_MS_ = 5 * 60000;
 var MAIL_VOICE_FOOTER_ = /^(To respond to this text message|YOUR ACCOUNT|HELP CENTER|HELP FORUM|Google LLC)/i;
@@ -31,7 +40,8 @@ var MAIL_VOICE_FOOTER_ = /^(To respond to this text message|YOUR ACCOUNT|HELP CE
 // minute; the run still fails, so the execution log shows each one.
 function readMail() {
   try {
-    return readMail_(30000);
+    // Triggers fire a few seconds early or late, so a read due now is not put off to the next minute.
+    return readMail_(mailReadEvery_(new Date()) - 30000);
   } catch (error) {
     var cache = CacheService.getScriptCache();
     if (!cache.get('mail-reader-failed')) {
@@ -47,6 +57,18 @@ function readMail() {
 function readMailIfStale_(maxAgeMs) {
   ensureMailReaderTrigger_();
   return readMail_(maxAgeMs, true);
+}
+
+// How often the trigger reads Gmail at this moment: every minute on a round robin day from 6 AM until sign-up closes (the
+// days and times of the desk's automatic answers, VOICE_REPLY_DAYS), every 30 minutes overnight, otherwise every 5 minutes.
+function mailReadEvery_(now) {
+  var zone = Session.getScriptTimeZone();
+  var date = Utilities.formatDate(now, zone, 'yyyy-MM-dd');
+  var minutes = Number(Utilities.formatDate(now, zone, 'H')) * 60 + Number(Utilities.formatDate(now, zone, 'm'));
+  if (minutes >= MAIL_NIGHT_FROM_ || minutes < MAIL_NIGHT_UNTIL_) return MAIL_NIGHT_EVERY_MS_;
+  var day = VOICE_REPLY_DAYS[new Date(date + 'T12:00:00Z').getUTCDay()];
+  if (day && !(day.from && date < day.from) && minutes >= VOICE_REPLY_FROM && minutes < day.until) return MAIL_FRESH_MS_;
+  return MAIL_DAY_EVERY_MS_;
 }
 
 function ensureMailReaderTrigger_() {

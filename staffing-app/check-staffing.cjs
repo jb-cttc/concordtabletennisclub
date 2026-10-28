@@ -135,7 +135,7 @@ let textReads = 0;
         return [['message_id', 'received_at', 'from', 'subject', 'text']].concat(inbox.map(message => [message.getId(), String(message.getDate().getTime()), message.getFrom(), message.getSubject(), message.getPlainBody()]));
       } })
     },
-    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 11 * 60000 : clock - 30000)]] }) }
+    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) }
   }[name] || deskSheet(name));
 }
 grids.Players.push(['display_name', 'current_rating', 'player_id', 'created_at', 'active', 'updated_at']);
