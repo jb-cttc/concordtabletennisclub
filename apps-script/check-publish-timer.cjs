@@ -41,6 +41,7 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(source, ctx);
 vm.runInContext(fs.readFileSync(__dirname + '/DeskLog.js', 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(__dirname + '/JobRuntime.js', 'utf8'), ctx);
 ctx.safeAudit_ = (...args) => ctx.appendAudit_(...args);
 const reset = () => {
   Object.keys(props).forEach(key => delete props[key]);

@@ -23,7 +23,7 @@ const context = {
   appendAudit_() {}
 };
 vm.createContext(context);
-for (const file of ['SessionService.js', 'RatingSync.js', 'DeskLog.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
+for (const file of ['SessionService.js', 'RatingSync.js', 'DeskLog.js', 'JobRuntime.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 Object.assign(context, {
   rows_: name => tables[name].map((row, index) => ({ ...row, __row: index + 2 })),
   updateRow_: (name, rowNumber, changes) => { writes.push([name, rowNumber, changes]); Object.assign(tables[name][rowNumber - 2], changes); },

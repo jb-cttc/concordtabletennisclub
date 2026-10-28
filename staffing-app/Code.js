@@ -416,7 +416,8 @@ function setup() {
   if (blank && database_().getSheets().length > 1) database_().deleteSheet(blank);
   var triggers = ScriptApp.getProjectTriggers().map(function (trigger) { return trigger.getHandlerFunction(); });
   if (triggers.indexOf('sweep') < 0) ScriptApp.newTrigger('sweep').timeBased().everyHours(1).create();
-  if (triggers.indexOf('checkReplies') < 0) ScriptApp.newTrigger('checkReplies').timeBased().everyMinutes(1).create();
+  ensureCheckSchedule_();
+  armCheck_(nextCheckDelay_(false));
   MailApp.getRemainingDailyQuota();
   GmailApp.getInboxUnreadCount();
   var players = '';
@@ -2423,29 +2424,170 @@ function saveMyNights(code, choice) {
 
 // ---------- The minute check: email and text replies ----------
 
-// Run every minute by a trigger. Reads YES or NO email answers, CONFIRM or RELEASE texts, and STAFF or STOP texts. A run that
+// Run by its timers (below). Reads YES or NO email answers, CONFIRM or RELEASE texts, and STAFF or STOP texts. A run that
 // starts while the last one is still going does nothing, so one reply is never applied twice. Only this function takes the
 // user lock, so it never waits on the script lock the rest of the app uses.
-function checkReplies() {
-  var cache = CacheService.getScriptCache();
-  if (cache.get('check-replies')) return;
-  var running = LockService.getUserLock();
-  if (!running.tryLock(0)) return;
+function checkReplies(event) { return runCheck_(event); }
+function checkRepliesWatch(event) { return runCheck_(event); }
+
+function runCheck_(event) {
+  return timed_(event, function () {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('check-replies')) return;
+    var running = LockService.getUserLock();
+    if (!running.tryLock(0)) return;
+    try {
+      cache.put('check-replies', '1', 20);
+      ensureCheckSchedule_();
+      CHECK_WAITING_ = 0;
+      var failing = failingSteps_();
+      step_(failing, 'read email answers', 'Volunteers\' YES and NO email replies, and the club\'s emailed approvals, are not being read.', checkMail_);
+      step_(failing, 'read CONFIRM and RELEASE texts', 'Volunteers\' CONFIRM and RELEASE texts are not being read.', checkTextAnswers_);
+      step_(failing, 'read STAFF and STOP texts', 'STAFF and STOP texts are not being read.', checkOptIns_);
+      step_(failing, 'apply the club\'s email decisions', 'Approvals and declines entered in the Emails tab are not being applied.', checkDecisions_);
+      armCheck_(nextCheckDelay_(CHECK_WAITING_ > 0));
+    } finally {
+      running.releaseLock();
+    }
+  });
+}
+
+// ---------- When the check runs ----------
+// Google allows a free account 90 minutes a day of timer run time, shared by every club app's timers (the desk's
+// apps-script/JobRuntime.js adds them up; docs/google-limits.md), and a run that finds nothing to do still counts. So the
+// check wakes only as often as its work needs: every 2 minutes by day while an answer is owed (an open email or text
+// question, or a request waiting on the club's decision), every 15 minutes by day otherwise (STAFF and STOP), and from
+// 11 PM to 7 AM only on the 30-minute timer. That 30-minute timer (checkRepliesWatch) always runs and restarts the chain
+// if a run ever fails; each run sets a one-off timer (checkReplies) for the next. Sending a question brings the next check
+// within 2 minutes (wakeCheck_), so an answer that comes straight back is read straight away.
+var CHECK_HANDLER = 'checkReplies';
+var CHECK_WATCH_HANDLER = 'checkRepliesWatch';
+// Raised when the timers change: the next run removes the old ones (checkReplies every minute, until October 2026).
+var CHECK_SCHEDULE_VERSION = '2';
+var CHECK_WAITING_MS = 2 * 60 * 1000;
+var CHECK_IDLE_MS = 15 * 60 * 1000;
+var CHECK_NIGHT_FROM = 23 * 60;
+var CHECK_NIGHT_UNTIL = 7 * 60;
+// How many answers this run found owed; the steps add to it.
+var CHECK_WAITING_ = 0;
+
+function minuteOfDay_(ms) {
+  var clock = Utilities.formatDate(new Date(ms), TZ, 'yyyy-MM-dd HH:mm').slice(11).split(':');
+  return Number(clock[0]) * 60 + Number(clock[1]);
+}
+
+// Milliseconds to the next check, or 0 for none before the 30-minute timer (at night). A third as often once every app's
+// timers together have run an hour today.
+function nextCheckDelay_(waiting) {
+  var delay = (waiting ? CHECK_WAITING_MS : CHECK_IDLE_MS) * (runtimeToday_().slow ? 3 : 1);
+  var at = minuteOfDay_(Date.now() + delay);
+  return at >= CHECK_NIGHT_FROM || at < CHECK_NIGHT_UNTIL ? 0 : delay;
+}
+
+function armCheck_(delay) {
   try {
-    cache.put('check-replies', '1', 20);
-    var failing = failingSteps_();
-    step_(failing, 'read email answers', 'Volunteers\' YES and NO email replies, and the club\'s emailed approvals, are not being read.', checkMail_);
-    step_(failing, 'read CONFIRM and RELEASE texts', 'Volunteers\' CONFIRM and RELEASE texts are not being read.', checkTextAnswers_);
-    step_(failing, 'read STAFF and STOP texts', 'STAFF and STOP texts are not being read.', checkOptIns_);
-    step_(failing, 'apply the club\'s email decisions', 'Approvals and declines entered in the Emails tab are not being applied.', checkDecisions_);
-  } finally {
-    running.releaseLock();
+    ScriptApp.getProjectTriggers().forEach(function (trigger) {
+      if (trigger.getHandlerFunction() === CHECK_HANDLER) ScriptApp.deleteTrigger(trigger);
+    });
+    if (delay) ScriptApp.newTrigger(CHECK_HANDLER).timeBased().after(delay).create();
+    PropertiesService.getScriptProperties().setProperty('NEXT_CHECK_AT', String(Date.now() + (delay || 30 * 60 * 1000)));
+  } catch (error) {
+    logError_('set the next check', error);
   }
 }
 
-// An open request the owner decided in the Emails tab (or whose 7 days ran out) is applied within a minute, not an hour.
+function ensureCheckSchedule_() {
+  var properties = PropertiesService.getScriptProperties();
+  var triggers = ScriptApp.getProjectTriggers();
+  if (properties.getProperty('CHECK_SCHEDULE') !== CHECK_SCHEDULE_VERSION) {
+    triggers.forEach(function (trigger) { if (trigger.getHandlerFunction() === CHECK_HANDLER) ScriptApp.deleteTrigger(trigger); });
+    properties.setProperty('CHECK_SCHEDULE', CHECK_SCHEDULE_VERSION);
+  }
+  if (!triggers.some(function (trigger) { return trigger.getHandlerFunction() === CHECK_WATCH_HANDLER; })) {
+    ScriptApp.newTrigger(CHECK_WATCH_HANDLER).timeBased().everyMinutes(30).create();
+  }
+}
+
+// A question just went out: the next check comes within 2 minutes, by day. Never fails the sending.
+function wakeCheck_() {
+  try {
+    var due = Number(PropertiesService.getScriptProperties().getProperty('NEXT_CHECK_AT')) || 0;
+    if (due && due <= Date.now() + CHECK_WAITING_MS) return;
+    var delay = nextCheckDelay_(true);
+    if (delay) armCheck_(delay);
+  } catch (error) {
+    logError_('bring the next check forward', error);
+  }
+}
+
+// ---------- Timer run time ----------
+// Each timer run's time is added to the app's total for the day, which goes to the desk Sheet's JobRuntime tab (by
+// DESK_SHEET_ID) at most every 30 minutes; the desk adds every app's rows and warns. Once every app together has run an
+// hour today, this app's timers run a third as often. Measured from when the code starts, so Google's start-up time is
+// not included. A page call has no triggerUid and is not measured: it does not count toward the limit.
+var RUNTIME_APP = 'staffing';
+var RUNTIME_REPORT_MS = 30 * 60 * 1000;
+var RUNTIME_SLOW_SECONDS = 60 * 60;
+
+function timed_(event, work) {
+  if (!(event && event.triggerUid)) return work();
+  var started = Date.now();
+  try {
+    return work();
+  } finally {
+    addRuntime_(Date.now() - started);
+  }
+}
+
+function runtimeToday_() {
+  var day = Utilities.formatDate(new Date(Date.now()), TZ, 'yyyy-MM-dd HH:mm').slice(0, 10);
+  var total = null;
+  try { total = JSON.parse(PropertiesService.getScriptProperties().getProperty('JOB_RUNTIME') || 'null'); } catch (error) { total = null; }
+  return total && total.day === day ? total : { day: day, runs: 0, ms: 0, reportedAt: 0, slow: false, previous: total };
+}
+
+function addRuntime_(ms) {
+  try {
+    var total = runtimeToday_();
+    var previous = total.previous;
+    delete total.previous;
+    total.runs += 1;
+    total.ms += ms;
+    if (Date.now() - total.reportedAt >= RUNTIME_REPORT_MS || previous) {
+      total.reportedAt = Date.now();
+      var sheet = book_('DESK_SHEET_ID').getSheetByName('JobRuntime');
+      if (sheet) {
+        if (previous && previous.day) writeRuntime_(sheet, previous);
+        writeRuntime_(sheet, total);
+        var seconds = sheet.getDataRange().getValues().slice(1).filter(function (row) { return String(row[1]) === total.day; })
+          .reduce(function (sum, row) { return sum + (Number(row[3]) || 0); }, 0);
+        total.slow = seconds >= RUNTIME_SLOW_SECONDS;
+      }
+    }
+    PropertiesService.getScriptProperties().setProperty('JOB_RUNTIME', JSON.stringify(total));
+  } catch (error) {
+    console.error('Run time not recorded: ' + error);
+  }
+}
+
+// One row per app and day (app, day, runs, seconds, updated_at), rewritten in place; the leading ' keeps the date as text.
+function writeRuntime_(sheet, total) {
+  var values = [RUNTIME_APP, "'" + total.day, total.runs, Math.round(total.ms / 100) / 10, new Date(Date.now()).toISOString()];
+  var rows = sheet.getDataRange().getValues();
+  for (var index = 1; index < rows.length; index += 1) {
+    if (String(rows[index][0]) === RUNTIME_APP && String(rows[index][1]) === total.day) {
+      sheet.getRange(index + 1, 1, 1, values.length).setValues([values]);
+      return;
+    }
+  }
+  sheet.appendRow(values);
+}
+
+// An open request the owner decided in the Emails tab (or whose 7 days ran out) is applied at the next check (within 2
+// minutes by day while one waits), not at the hourly sweep.
 function checkDecisions_() {
   var waiting = rows_('Batches').filter(function (batch) { return batch.status === 'awaiting_club'; });
+  CHECK_WAITING_ += waiting.length;
   if (!waiting.length) return;
   var emails = rows_('Emails');
   var now = Date.now();
@@ -2503,7 +2645,7 @@ function stepFailed_(failing, name, effect, error) {
   state.alerted = now;
   saveFailingSteps_(failing);
   var sent = mailClub_('Action needed: the staffing app cannot ' + name, [
-    { callout: 'The staffing app has failed to **' + name + '** at every attempt since ' + momentLabel_(state.since) + '. It retries every minute.', tone: 'action' },
+    { callout: 'The staffing app has failed to **' + name + '** at every attempt since ' + momentLabel_(state.since) + '. It retries every few minutes.', tone: 'action' },
     effect,
     'Error: ' + error,
     { heading: 'What to do' },
@@ -2596,6 +2738,7 @@ function emailQuestions_(now) {
 function checkMail_() {
   var now = Date.now();
   var questions = emailQuestions_(now);
+  CHECK_WAITING_ += questions.length;
   if (!questions.length) return;
   var byCode = {};
   questions.forEach(function (question) { byCode[question.code] = question; });
@@ -2955,7 +3098,7 @@ function voiceTextsFrom_(person, days) {
 // ---------- Texts, collected by the desk ----------
 // Gmail allows a free account about 20,000 reads a day, shared by all the club's apps, and searching Voice texts here every
 // minute used them up. The desk's one mail reader (apps-script/MailReader.js) records every forwarded text in its Sheet's
-// VoiceTexts tab within a minute, and the app reads them there (DESK_SHEET_ID). Each row is shaped like the Gmail message it
+// VoiceTexts tab (within a minute during round robin sign-up, within 5 by day), and the app reads them there (DESK_SHEET_ID). Each row is shaped like the Gmail message it
 // came from, so voiceText_ reads it unchanged; only a reply opens the real message, by id.
 // The desk reads mail every 30 minutes overnight, so only a longer gap means its reader stopped.
 var READER_LATE_MS = 45 * 60 * 1000;
@@ -3013,6 +3156,7 @@ function sendText_(person, body, log) {
   if (!latest) throw new Error('this person has not texted the club number yet');
   latest.message.reply(body);
   if (log) logSent_('text', log[0], log[1], phoneDigits_(person.phone) || person.name);
+  wakeCheck_();
 }
 
 // A CONFIRM or RELEASE after we texted someone a sign-up question answers that question (People.ask_ref), and so does
@@ -3020,6 +3164,7 @@ function sendText_(person, body, log) {
 // can still answer.
 function checkTextAnswers_() {
   rows_('People').filter(function (person) { return person.texts === 'yes' && person.ask_ref && Number(person.ask_at) > 0 && phoneDigits_(person.phone); }).forEach(function (person) {
+    CHECK_WAITING_ += 1;
     var asked = Number(person.ask_at);
     var reply = voiceTextsFrom_(person, 2).filter(function (text) { return text.at > asked && (staffWord_(text.text) || textExcept_(text.text)); }).sort(function (a, b) { return a.at - b.at; })[0];
     if (!reply) return;
@@ -3112,7 +3257,7 @@ function checkOptIns_() {
 
 // Run by the hourly trigger, and after every sign-up and answer. Expires holds that ran out, sends any email or text that has
 // not gone out yet, sends day-before reminders, and keeps the log short.
-function sweep() { sweep_(); }
+function sweep(event) { timed_(event, sweep_); }
 
 function sweep_() {
   var lock = LockService.getScriptLock();
@@ -3569,6 +3714,8 @@ function sendMail_(to, subject, lines, log, footer) {
     '<p style="margin:20px 0 0;font-size:12px;color:#777;">' + esc_(footer) + '</p></div>';
   MailApp.sendEmail({ to: to, subject: subject, body: body, htmlBody: html, name: FROM_NAME });
   if (log) logSent_('email', log[0], log[1], cleanEmail_(to) || to);
+  // A question (its subject carries a reference code): its answer is looked for soon.
+  if (subject.indexOf('[CTTC shift ') >= 0) wakeCheck_();
 }
 
 // ---------- The log ----------

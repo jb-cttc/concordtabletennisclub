@@ -122,10 +122,10 @@ the log holds:
 Sheet; it finds bookings made in the last 60 days. The log keeps the latest
 500 lines, so an older booking's early lines may be gone.
 
-Above the lines, `runs` shows the last minute check and the last sweep: when
-they finished, `ok`, and which steps failed; the minute check also has
-`mail`, the same counts as the status read-out below. A `checkTexts` time more than a
-few minutes old means the minute trigger has stopped.
+Above the lines, `runs` shows the last check and the last sweep: when they
+finished, `ok`, and which steps failed; the check also has `mail`, the same
+counts as the status read-out below. A `checkTexts` time more than 15 minutes
+old by day (or 30 at night) means its timers have stopped.
 
 ## 3. The request lifecycle
 
@@ -155,7 +155,13 @@ reply YES; the new row starts at `pending` (the coach is asked straight away).
 
 ## 4. How replies are recognised (the usual place things stick)
 
-Answers are read by the `checkTexts` trigger, which runs every minute.
+Answers are read by the check (`checkTexts`). It wakes only as often as its
+work needs, because timer run time is shared by every club app
+([Google limits](google-limits.md)): every 2 minutes by day while a coach or
+student owes an answer (an open text or email question), every 15 minutes by
+day otherwise, and from 11 PM to 7 AM only on its 30-minute timer
+(`checkTextsWatch`, which also restarts the chain if a run fails). Sending a
+question brings the next check within 2 minutes.
 
 **Email replies** (`checkMail_`) count only if **all** of these hold:
 
@@ -183,7 +189,7 @@ Invisible characters are removed first. An unreadable reply to an
 
 **Text replies** go through the club's Google Voice number, forwarded to Gmail.
 The app reads texts from the desk Sheet's `VoiceTexts` tab, where the desk's one
-mail reader collects them (every minute on round robin days, every 5 minutes otherwise, every 30 overnight; [One Gmail reader](round-robin-operations.md#one-gmail-reader)),
+mail reader collects them (every minute in the last 4 hours of round robin sign-up, every 5 minutes otherwise by day, every 30 overnight; [One Gmail reader](round-robin-operations.md#one-gmail-reader)),
 so set the script property `DESK_SHEET_ID` to the desk Sheet's id. It searches
 Gmail for texts only to text back someone whose last text came before the desk
 started collecting them. Emailed answers are searched from the last check (5
@@ -215,7 +221,7 @@ before the deadline but read after it still counts if the lesson is still
 offered, free, at least about an hour from its own deadline, and the coach
 is active.
 
-**Status read-out.** After each minute check the app renames a separate,
+**Status read-out.** After each check the app renames a separate,
 empty spreadsheet in the club's Drive (recreated if deleted), *CTTC Coaching
 status | {time, rounded down to 10 minutes} | mail
 q=… late=… threads=… messages=… coded=… answers=… | failed: …*. It holds
@@ -321,4 +327,4 @@ screen, so a refused request looked like nothing happened.
 | `CHANGE_WAIT_MS` | 10 minutes | gap between cancel/move requests for one lesson |
 | `REMIND_STUDENT_MS`, `REMIND_COACH_MS` | 1 hour, 2 hours | when the one reminder for each waiting step goes out |
 | `RETRY_MAIL_DAYS` | 3 days | unsent messages are retried this long |
-| Triggers | `checkTexts` every minute, `sweep` hourly | replies are picked up within about a minute |
+| Timers | `checkTextsWatch` every 30 minutes, one-off `checkTexts` (2 minutes while an answer is owed, else 15; none 11 PM to 7 AM), `sweep` hourly | replies are picked up within about 2 minutes while someone is waiting |

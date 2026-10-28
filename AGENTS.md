@@ -69,3 +69,35 @@ never commit, post, or quote member names or rows.
 - These are collaboration instructions, not a technical restriction on a
   person signed in to the shared Google account. Avoid claiming a PR merge
   automatically updates Google.
+
+## Designing for the whole system
+
+Lessons from October 2026, when each fix was sized for one app or one limit and
+the club paid for it (the Gmail allowance ran out; a phone edit of the Sheet
+broke another player's alias; a new setting needed the owner's hands).
+
+- **One set of Google limits for every app.** The desk, coaching, staffing and
+  turnout apps all run as the club account and share its daily limits. Before
+  adding or changing anything that runs on a timer, reads Gmail, sends email or
+  calls the web, add up the cost across all apps in
+  [Google limits and scheduled jobs](docs/google-limits.md), check every limit
+  it touches (not only the one in view), and update that page in the same PR.
+- **Timers wake only when work is due.** No fixed every-minute polling: a
+  30-minute repeating timer plus a one-off timer for the next piece of work, as
+  `apps-script/MailReader.js` and the coaching and staffing checks do. A run
+  that wakes to do nothing still costs run time.
+- **Measure new usage and guard it.** Anything that spends a shared limit
+  records what it spent where the desk log or a tab shows it, and slows down or
+  stops before the limit, with a warning first.
+- **No new owner-only Google steps without saying so first.** Script
+  properties, permission prompts, sharing and API switches can only be done by
+  the owner in Google. Prefer a design that needs none; otherwise state it in
+  the PR before building.
+- **Fixable on the desk, never by editing the Sheet.** Data people need to
+  correct (aliases, name links, passes, card links) gets a desk control with
+  Review and Confirm. Sheet edits on a phone show a stale, partial tab.
+- **Test the path a fresh page takes.** Check state loaded when a page opens,
+  not only state changed during the test's own visit.
+- **Verify every release against `main`.** After pushing an app, clone it back
+  and compare with the repository: clasp skips a push without saying so when
+  the manifest changes (use `--force` deliberately, then verify).

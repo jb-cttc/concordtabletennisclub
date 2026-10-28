@@ -18,7 +18,7 @@ assert.equal(manifest.webapp.executeAs, 'USER_DEPLOYING', 'visitors never need G
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), [
-  'checkTexts', 'coachBoard', 'coachList', 'coachPropose', 'doGet', 'doPost', 'joinWaitlist', 'openSlots', 'requestSlot', 'setup', 'studentChange', 'sweep'
+  'checkTexts', 'checkTextsWatch', 'coachBoard', 'coachList', 'coachPropose', 'doGet', 'doPost', 'joinWaitlist', 'openSlots', 'requestSlot', 'setup', 'studentChange', 'sweep'
 ], 'a public web app exposes every non-private function: only these may exist');
 
 // ---- Fakes ----
@@ -41,7 +41,9 @@ let userHeld = false;
 let overlap = null;
 const logs = [];
 let activeEmail = '';
-const triggers = [];
+// Timers as Google keeps them: { handler, every } repeats, { handler, after } fires once.
+let triggers = [];
+const timers = () => triggers.map(trigger => trigger.handler + (trigger.every ? ' every ' + trigger.every : ' after ' + trigger.after / 60000)).sort();
 const makeSheet = name => {
   grids[name] = grids[name] || [];
   const grid = grids[name];
@@ -114,6 +116,7 @@ const inbound = (subjectName, body, at = clock, from = voiceFrom) => {
 // The desk's Sheet, where its one mail reader records every forwarded text (apps-script/MailReader.js): the app reads texts
 // there, never by searching Gmail. Here the tab simply holds the inbox; readerStopped is a desk that stopped collecting.
 let readerStopped = false;
+let runtimeGrid = null;
 let textReads = 0;
 books['desk-sheet-id'] = {
   getSheetByName: name => ({
@@ -124,7 +127,13 @@ books['desk-sheet-id'] = {
         return [['message_id', 'received_at', 'from', 'subject', 'text']].concat(inbox.map(message => [message.getId(), String(message.getDate().getTime()), message.getFrom(), message.getSubject(), message.getPlainBody()]));
       } })
     },
-    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) }
+    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
+    // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
+    JobRuntime: runtimeGrid && {
+      getDataRange: () => ({ getValues: () => runtimeGrid.map(line => line.slice()) }),
+      getRange: row => ({ setValues: values => { runtimeGrid[row - 1] = values[0].map(value => String(value).replace(/^'/, '')); } }),
+      appendRow: values => { runtimeGrid.push(values.map(value => String(value).replace(/^'/, ''))); }
+    }
   }[name] || null)
 };
 properties.DESK_SHEET_ID = 'desk-sheet-id';
@@ -142,8 +151,13 @@ const context = {
   },
   Session: { getActiveUser: () => ({ getEmail: () => activeEmail }), getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
   ScriptApp: {
-    getProjectTriggers: () => triggers.map(handler => ({ getHandlerFunction: () => handler })),
-    newTrigger: handler => ({ timeBased: () => ({ everyHours: () => ({ create: () => { triggers.push(handler); } }), everyMinutes: () => ({ create: () => { triggers.push(handler); } }) }) })
+    getProjectTriggers: () => triggers.map(trigger => ({ getHandlerFunction: () => trigger.handler, trigger })),
+    deleteTrigger: handle => { triggers = triggers.filter(trigger => trigger !== handle.trigger); },
+    newTrigger: handler => ({ timeBased: () => ({
+      everyHours: hours => ({ create: () => { triggers.push({ handler, every: hours * 60 }); } }),
+      everyMinutes: every => ({ create: () => { triggers.push({ handler, every }); } }),
+      after: after => ({ create: () => { triggers.push({ handler, after }); } })
+    }) })
   },
   LockService: {
     getScriptLock: () => ({ waitLock: () => { assert.equal(held, 0, 'locks are never nested'); held += 1; }, releaseLock: () => { held -= 1; } }),
@@ -289,7 +303,7 @@ assert.notEqual(setupResult.privateSheet, setupResult.publicSheet);
 assert.equal(created.length, 2, 'one private and one public Sheet');
 assert.deepEqual(books['private-book-id'].names(), ['Availability', 'Coaches', 'Log', 'Requests', 'Students', 'Waitlist'], 'the send log is a private tab');
 assert.deepEqual(books['public-book-id'].names(), ['About', 'Schedule'], 'the public Sheet has only the schedule and a note');
-assert.deepEqual(triggers, ['sweep', 'checkTexts'], 'an hourly sweep and a minute-by-minute text check are installed');
+assert.deepEqual(timers(), ['checkTexts after 15', 'checkTextsWatch every 30', 'sweep every 60'], 'an hourly sweep, a 30-minute check, and the next check in 15 minutes (nobody is waiting)');
 context.setup();
 assert.equal(created.length, 2, 'setup is safe to run again');
 assert.deepEqual(grids.Coaches.slice(1).map(line => [line[0], line[1], line[2], line[5]]), [
@@ -320,7 +334,7 @@ assert.equal(run('coachList').coaches.filter(coach => coach.registered).length, 
 // the Coaches tab alone.
 context.CLUB_COACHES = [];
 grids.Coaches.splice(1);
-assert.deepEqual(triggers, ['sweep', 'checkTexts']);
+assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkTextsWatch every 30', 'sweep every 60']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
@@ -542,13 +556,13 @@ assert.doesNotMatch(sent[2].body, /sam@example/, 'the other sender is not shown 
 check();
 assert.equal(sent.length, 3, 'each unanswerable reply is answered once');
 sent.splice(1);
-// The next minute's check starts while this one is still reading mail: it must not read and apply the same YES again, which
+// The next check starts while this one is still reading mail: it must not read and apply the same YES again, which
 // sent the student a second email saying "That request is no longer waiting for you (it is pending)".
 overlap = () => { delete cache['check-texts']; context.checkTexts(); };
 logs.length = 0;
 answerMail('"Sam Student" <SAM@example.com>', 'Yes', verifyMail.subject);
 assert.equal(overlap, null);
-assert.ok(logs.includes('coaching checkTexts skipped: the previous minute check is still running'), 'a skipped check says so in the logs');
+assert.ok(logs.includes('coaching checkTexts skipped: the previous check is still running'), 'a skipped check says so in the logs');
 // Every message sent is logged once, by kind and request, with the recipient only as a code.
 const samId = cell('Requests', latestRequest('sam@example.com'), 'request_id');
 const sentLogs = logs.filter(line => line.startsWith('coaching sent '));
@@ -932,7 +946,7 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   properties.FAILING_STEPS = JSON.stringify(failing);
   check();
   assert.deepEqual(toClub().map(message => message.subject), ['Action needed: the coaching app cannot read coach texts'], '30 minutes without a break');
-  assert.match(toClub()[0].body, new RegExp('^The coaching app has failed to read coach texts at every attempt since ' + context.momentLabel_(since) + '\\. It retries every minute\\.\\n\\n' +
+  assert.match(toClub()[0].body, new RegExp('^The coaching app has failed to read coach texts at every attempt since ' + context.momentLabel_(since) + '\\. It retries every few minutes\\.\\n\\n' +
     'Coaches\' YES and NO texts are not being read\\.\\n\\nError: Error: Google Voice is unavailable\\n\\nWHAT TO DO\\n\\n1\\. Check https://www\\.google\\.com/appsstatus/dashboard/ '));
   assert.match(toClub()[0].body, /2\. If Google lists no outage, forward this email to JB\.\n\nThe club gets a follow-up email when this step works again\.\n\nSent by the CTTC coaching app to the club account\.$/);
   check();
@@ -1724,6 +1738,70 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
   assert.ok(copy.navigations.length >= 1, 'hands over to Google\'s own page');
   copy.dom.window.close();
   // Texts are read from the desk's tab; Gmail is searched for them only to text back someone with no collected text yet.
+  // ---- When the check runs (90 minutes a day of timer run time are shared by every club app) ----
+  {
+    const at = (date, time) => { clock = Date.parse(date + 'T' + time + ':00Z') + 7 * 3600000; }; // Pacific wall clock (PDT)
+    const next = () => triggers.filter(trigger => trigger.handler === 'checkTexts').map(trigger => trigger.after / 60000);
+    const run = () => { delete cache['check-texts']; context.checkTexts({ triggerUid: 'timer' }); };
+    // An app updated from the every-minute timer: its first run takes that timer away.
+    triggers = [{ handler: 'checkTexts', every: 1 }, { handler: 'sweep', every: 60 }];
+    delete properties.CHECK_SCHEDULE;
+    grids.Coaches.slice(1).forEach(line => { line[column('Coaches', 'ask_ref')] = ''; line[column('Coaches', 'ask_at')] = ''; });
+    grids.Students.slice(1).forEach(line => { line[column('Students', 'ask_ref')] = ''; line[column('Students', 'ask_at')] = ''; });
+    at('2026-10-20', '12:00');
+    run();
+    const waitingNow = context.STATUS_.waiting;
+    assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkTextsWatch every 30', 'sweep every 60'], 'the every-minute timer is gone');
+    assert.deepEqual(next(), [waitingNow ? 2 : 15], 'the next check: 2 minutes if someone owes an answer, else 15');
+    // Someone owes an answer: every 2 minutes.
+    const asked = grids.Coaches.slice(1).find(line => line[column('Coaches', 'coach_id')] && line[column('Coaches', 'status')] !== 'disabled' && line[column('Coaches', 'phone')]);
+    asked[column('Coaches', 'ask_ref')] = 'slots';
+    asked[column('Coaches', 'ask_at')] = String(clock);
+    clock += 120000;
+    run();
+    assert.ok(context.STATUS_.waiting >= 1, 'the open question is counted');
+    assert.deepEqual(next(), [2], 'an open question: every 2 minutes');
+    asked[column('Coaches', 'ask_ref')] = '';
+    asked[column('Coaches', 'ask_at')] = '';
+    // At night only the 30-minute timer; one that would land after 11 PM is not set.
+    at('2026-10-20', '23:30');
+    run();
+    assert.deepEqual(next(), [], 'no one-off timer at night');
+    at('2026-10-20', '22:50');
+    run();
+    assert.equal(context.STATUS_.waiting, 0);
+    assert.deepEqual(next(), [], 'a check due after 11 PM waits for the 30-minute timer');
+    // A question going out brings the next check within 2 minutes, by day.
+    at('2026-10-21', '09:00');
+    run();
+    assert.equal(context.STATUS_.waiting, 0, 'nobody owes an answer now');
+    {
+      assert.deepEqual(next(), [15]);
+      context.wakeCheck_();
+      assert.deepEqual(next(), [2], 'woken when a question is sent');
+      context.wakeCheck_();
+      assert.equal(next().length, 1, 'once');
+    }
+    // Each timer run is counted (a page call is not) and reported to the desk's JobRuntime tab; once every app has run an
+    // hour today, the checks come a third as often.
+    runtimeGrid = [['app', 'day', 'runs', 'seconds', 'updated_at'], ['desk', '2026-10-21', '400', '3700', '']];
+    const before = JSON.parse(properties.JOB_RUNTIME || '{"runs":0}');
+    properties.JOB_RUNTIME = JSON.stringify(Object.assign(before, { reportedAt: 0 }));
+    clock += 15 * 60000;
+    run();
+    const counted = JSON.parse(properties.JOB_RUNTIME);
+    assert.equal(counted.day, '2026-10-21');
+    assert.ok(counted.runs >= 1);
+    assert.deepEqual(JSON.parse(JSON.stringify(runtimeGrid.find(line => line[0] === 'coaching').slice(0, 2))), ['coaching', '2026-10-21'], 'reported to the desk');
+    assert.equal(counted.slow, true, 'every app together passed an hour');
+    // The slow-down is worked out as a run ends, so it applies from the run after.
+    clock += 15 * 60000;
+    run();
+    assert.equal(context.STATUS_.waiting, 0);
+    assert.deepEqual(next(), [45], '15 minutes becomes 45');
+    runtimeGrid = null;
+    delete properties.JOB_RUNTIME;
+  }
   readerStopped = true;
   assert.throws(() => context.storedTexts_(0), /desk has not collected texts since .*: its mail reader is not running/, 'a desk that stopped collecting texts is a failing step, so the club hears');
   readerStopped = false;

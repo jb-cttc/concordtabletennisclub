@@ -236,13 +236,17 @@ person's whole text history (Voice keeps all of a person's texts in one Gmail
 thread), and the allowance ran out on round robin nights ("Service invoked too
 many times for one day: gmail").
 
-Now one trigger in the desk (`readMail`, `apps-script/MailReader.js`) reads
-only mail that arrived since its last read, once. It fires every minute but
-opens Gmail only as often as texts matter: **every minute** on a round robin
-day from 7 AM until sign-up closes (7:15 PM; 3:15 PM for the Saturday pilot),
-**every 30 minutes** from 11 PM to 7 AM, and **every 5 minutes** otherwise. A
-desk with Voice signups open, and the automatic answers from 6 AM on a round
-robin day, still read within the minute. It records:
+Now one job in the desk (`apps-script/MailReader.js`) reads only mail that
+arrived since its last read, once. It wakes only as often as texts matter:
+**every minute** in the 4 hours before a round robin's sign-up closes, when
+most signups come in (3:15 to 7:15 PM on Mondays and Wednesdays; 11:15 AM to
+3:15 PM for the Saturday pilot), **every 30 minutes** from 11 PM to 7 AM, and
+**every 5 minutes** otherwise, including from 6 AM on a round robin day. Waking costs timer run time, which every club
+app shares ([Google limits](google-limits.md)), so it never wakes just to find
+nothing due: a 30-minute timer (`readMailWatch`) always runs, covers the night
+and restarts the chain if a run fails, and each run sets a one-off timer
+(`readMail`) for the next read. A desk with Voice signups open still reads
+within the minute. It records:
 
 - forwarded Voice texts go to the private **`VoiceTexts`** tab (`message_id`,
   `received_at` in milliseconds, `from`, `subject`, `text` without Voice's
@@ -259,11 +263,11 @@ The **`MailReader`** tab has one row: when it last read (`read_at`), how far it
 has read (`cursor`), and its Gmail calls today (`gmail_calls`). Past 6,000 calls
 in a day it reads at most every 5 minutes and the desk log gets
 a `gmail_reads_high` warning; each new day logs `mail_reader_day` with the
-previous day's count. The desk installs the trigger the first time it reads mail,
-and reads mail itself when the trigger has not read in the last minute. If
-`read_at` is more than 45 minutes old, the coaching and staffing minute checks
-fail (and email the club after 30 minutes) and the turnout log records
-`texts_not_collected`.
+previous day's count. The desk sets up the timers the first time it reads mail
+(and removes the every-minute timers used until October 2026), and reads mail
+itself when the job has not read in the last minute. If `read_at` is more than
+45 minutes old, the coaching and staffing checks fail (and email the club after
+30 minutes) and the turnout log records `texts_not_collected`.
 
 ## Voice signups
 
@@ -319,11 +323,12 @@ here they count as playing tonight like anyone signed in.
 ### Automatic answers
 
 When switched on, the desk answers round robin texts by itself
-(`apps-script/VoiceAutoReply.js`). A trigger checks every minute on Mondays
-and Wednesdays from 6 AM until sign-up closes at 7:15 PM Pacific, and on
-Saturdays from 6 AM until 3:15 PM, except on days the club site lists as
-closed. Each person gets at most one automatic
-answer a day:
+(`apps-script/VoiceAutoReply.js`), on Mondays and Wednesdays from 6 AM until
+sign-up closes at 7:15 PM Pacific, and on Saturdays from 6 AM until 3:15 PM,
+except on days the club site lists as closed. They have no timer of their own:
+the mail job runs them after each read that brought a new text (within a
+minute in the last 4 hours of sign-up, within 5 minutes earlier in the day),
+and once when sign-up opens, so a text from the night is answered by 6:05 AM. Each person gets at most one automatic answer a day:
 
 | The Voice contact name is | The answer |
 | --- | --- |
@@ -341,13 +346,12 @@ automatic answer counts as a reply, so **Confirmed.** is not sent on top of
 it. Each answer is logged as `voice_auto_reply` with the player id when
 linked, never the number or the text.
 
-It is off until the owner turns it on, because a trigger runs whatever code
-was pushed last, including a `/dev` preview. After the release that includes
-it, run `enableVoiceAutoReply` once in the Apps Script editor (it installs
-the minute trigger and sets `CTTC_VOICE_AUTO_REPLY` to `on`).
-`disableVoiceAutoReply` turns it off; `voiceAutoReplyStatus` shows the state.
-The minute trigger stops at once outside the hours above, so most runs cost
-almost nothing.
+It is off until the owner turns it on, because the mail job runs whatever
+code was pushed last, including a `/dev` preview. Run `enableVoiceAutoReply`
+once in the Apps Script editor (it sets `CTTC_VOICE_AUTO_REPLY` to `on` and
+makes sure the mail job's timers exist). `disableVoiceAutoReply` turns it off;
+`voiceAutoReplyStatus` shows the state. Until October 2026 the answers had
+their own timer firing every minute, all week; the mail job removes it.
 
 ## Saturday pilot
 

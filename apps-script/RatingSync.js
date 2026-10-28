@@ -13,8 +13,8 @@ function ratingsCheckedAt_() {
 
 // Called by the hourly trigger and on desk load.
 // Run by the hourly trigger as well as the page, so a failure with nobody watching is still recorded.
-function syncRatingsFromPublicSite() {
-  return guardDesk_('rating_sync', syncRatingsFromPublicSite_);
+function syncRatingsFromPublicSite(event) {
+  return timedJob_(event, function () { return guardDesk_('rating_sync', syncRatingsFromPublicSite_); });
 }
 
 function syncRatingsFromPublicSite_() {

@@ -404,7 +404,7 @@ All of this lives in `canTake_`; tests cover both modes.
 | They replied "YES except …" and nothing changed | A date was not among that email's nights or a word was not a date; they were emailed *We could not read the dates in your reply* with their My nights link. |
 | Someone answered NO (or let it expire) but meant some nights | Setup page, **Correct a volunteer's answer** (within 7 days): tick the nights they asked for. |
 | A My nights link says no upcoming nights | Their nights are past or released, or the email on file changed since (the link is made from the address; newer emails carry the new link). |
-| They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The minute trigger `checkReplies` must exist (Triggers page). |
+| They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The 30-minute timer `checkRepliesWatch` must exist (Triggers page); it sets the one-off `checkReplies` (every 2 minutes by day while an answer is owed, else 15). |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |
 | Desk, Money or Lock-up is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money, `keys` for Lock-up. Backups are never greyed out. |
 | Someone says the confirmation went to an old address | Their `Emails` row: type the new address as a new `approved` row (`source` owner); the old one becomes `replaced`. |
