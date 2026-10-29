@@ -62,7 +62,7 @@ const context = {
   normalizeName_: value => String(value || '').trim().replace(/\s+/g, ' ')
 };
 vm.createContext(context);
-for (const file of ['LinkedNames.js', 'CloverPayments.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
+for (const file of ['LinkedNames.js', 'NightFees.js', 'CloverPayments.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 const plain = value => JSON.parse(JSON.stringify(value));
 
 // Evening times in club time: 7 PM Pacific is 02:00 UTC the next day.

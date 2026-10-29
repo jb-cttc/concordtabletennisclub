@@ -60,6 +60,7 @@ const context = {
   ensureHeader_: (sheet, headers) => { if (!sheet.getLastRow || sheet.getLastRow()) return; sheet.getRange(1, 1, 1, headers.length).setValues([headers]); },
   formatTable_() {}, appendAudit_() {},
   playerAliases_: () => ({ 'danielle chen': 'b' }),
+  firstVisitIdsOn_: (sessionDate, playerRows) => { assert.ok(Array.isArray(playerRows), 'first visits reuse the Players rows already read'); return ['b']; },
   displayDate_: value => String(value),
   validateSessionDate_: date => { if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Invalid date'); },
   asBoolean_: value => value === true || String(value).toLowerCase() === 'true',
@@ -96,6 +97,7 @@ const overview = context.getPrivatePaymentOverview(date);
 assert.equal(overview.methods.a, '');
 assert.equal(overview.passes.length, 0);
 assert.equal(overview.coveredIds.length, 0);
+assert.deepEqual([...overview.firstVisitIds], ['b'], 'the overview names tonight\'s first visits (NightFees.js)');
 assert.equal(reads.Players, 1, 'payment overview should read Players once');
 assert.equal(reads.ZeffyPasses, 1, 'payment overview should read Zeffy passes once');
 assert.equal(reads.SessionPayments, 1, 'payment overview should read payments once');

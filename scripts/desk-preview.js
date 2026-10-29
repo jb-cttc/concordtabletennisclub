@@ -116,6 +116,15 @@ function cloverPreviewItem(date, id) {
 }
 const emails = {};
 const openPlay = {};
+// Players on a first visit ($10), by date; apps-script/NightFees.js works these out for real. The third player on a
+// night's roster starts as one, so the 1st badge can be seen.
+const firstVisits = {};
+const memberStatuses = {};
+const firstVisitsOn = function (date) {
+  const session = sessions['session-' + date];
+  const roster = session ? [].concat.apply([], session.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); })) : [];
+  return firstVisits[date] || (firstVisits[date] = roster.slice(2, 3));
+};
 const rpc = {
   getAppState: function (date) {
     return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString() };
@@ -172,7 +181,11 @@ const rpc = {
     emails[id] = changes.email;
     return rpc.getPlayerDetails(id);
   },
-  getMemberStatuses: function () { return {}; },
+  getMemberStatuses: function () {
+    const statuses = {};
+    players.forEach(function (player) { statuses[player.playerId] = memberStatuses[player.playerId] || 'visitor'; });
+    return { statuses: statuses, notes: {} };
+  },
   // Sample texts and volunteers, so the sidebar's RR and Open buttons can be pressed here.
   listVoiceSuggestions: function () {
     return players.slice(10, 16).map(function (player, index) {
@@ -199,8 +212,12 @@ const rpc = {
     openPlay[date] = ids;
     return attending;
   },
-  setMemberStatus: function () { return { statuses: {}, notes: {} }; },
-  getPrivatePaymentOverview: function (date) { return { methods: payments[date] || {}, coveredIds: [], passes: [] }; },
+  setMemberStatus: function (playerId, status) { memberStatuses[playerId] = status; return rpc.getMemberStatuses(); },
+  getPrivatePaymentOverview: function (date) { return { methods: payments[date] || {}, coveredIds: [], passes: [], firstVisitIds: firstVisitsOn(date) }; },
+  setFirstVisit: function (date, playerId, firstVisit) {
+    firstVisits[date] = firstVisitsOn(date).filter(function (id) { return id !== playerId; }).concat(firstVisit ? [playerId] : []);
+    return firstVisits[date];
+  },
   // Made-up Clover card payments for any date, so the sidebar's Clover list can be seen and used here. The rules that
   // decide matches are apps-script/CloverPayments.js; this only keeps what was pressed.
   getCloverDesk: function (date) { return cloverPreview(date); },
@@ -261,7 +278,7 @@ const cashPreview = (function () {
     HtmlService: {}, ScriptApp: {}
   };
   vm.createContext(context);
-  ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js'].forEach(function (file) {
+  ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js', 'NightFees.js'].forEach(function (file) {
     vm.runInContext(fs.readFileSync(path.join(DESK, file), 'utf8'), context, { filename: file });
   });
   // A plain table stand-in: rows are objects, written and read as they are.

@@ -1971,6 +1971,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       byId[added.playerId] = added;
       byName[added.name] = added.playerId;
       addToRoster(added.playerId, 'new player');
+      // The rest of the desk reads the new player too: their badge, and their first visit tonight.
+      document.dispatchEvent(new CustomEvent('cttc:players', { detail: added }));
     } catch (error) {
       setStatus(error.message, 'error');
     }
@@ -2126,6 +2128,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .group-list .member-badge{display:inline-grid;place-items:center;width:22px;height:22px;margin-left:7px;padding:0;border:0;border-radius:3px;background:#e9edeb;color:#46514b;font:700 12px Arial,sans-serif;vertical-align:middle;cursor:pointer}
 .group-list .member-badge.member{background:#e5f0f8;color:#164663}
 .group-list .member-badge.visitor{background:#fff0dc;color:#754712}
+.group-list .member-badge.intro{width:auto;min-width:22px;padding:0 4px;background:#e3f1d6;color:#2f5a12;font-size:11px}
 
 .group{overflow:visible}
 .group:has(.payment-control:hover),.group:has(.payment-control:focus-within){position:relative;z-index:2}
@@ -2136,6 +2139,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 #sync-note{position:fixed;left:12px;bottom:12px;max-width:min(420px,calc(100vw - 24px));padding:8px 12px;border-left:4px solid var(--gold);background:#fff3d9;box-shadow:0 4px 12px #17211b2b;font:13px Arial,sans-serif;z-index:1500}#sync-note[hidden]{display:none}
 @media print{#sync-note{display:none}}
 .payment-options .unpaid{border-top:1px solid #dce3df;color:#8a3b2b}
+.payment-options .first-visit{border-top:1px solid #dce3df;color:#46514b;font-size:12px;white-space:nowrap}
+.payment-options .first-visit[aria-pressed="true"]{color:#2f5a12;font-weight:700}
 .payment-options{display:none;position:absolute;right:0;top:100%;min-width:108px;padding:4px;background:#fff;border:1px solid #b8c7bc;box-shadow:0 6px 14px #17211b2b;z-index:3}
 :root:not(.payment-hold) .payment-control:not(.pass):not(.picked):hover .payment-options,.payment-control:not(.pass):not(.picked):focus-within .payment-options,.payment-control.open .payment-options{display:grid;gap:3px}
 .payment-options button{padding:7px;text-align:left;border:0;background:#fff;color:#17211b}
@@ -2146,6 +2151,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var dateField = document.getElementById('date');
   var methods = {};
   var covered = {};
+  // Players on their first visit tonight, who pay $10 instead of the visitor fee: worked out by Google (NightFees.js),
+  // and changed for the night from the payment menu.
+  var firstVisits = {};
   // Payments recorded elsewhere on the desk (a Clover card payment): a note for the button, and the players whose
   // payment is still on its way to Google.
   var notes = {};
@@ -2192,7 +2200,24 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       syncPayment(playerId);
     }
   });
+  outbox.register('setFirstVisit', {
+    rejected: /Unknown or inactive player|Valid player and first visit|Invalid date/,
+    describe: function (entry) { return 'First visit for ' + nameOf(entry.args[1]); },
+    done: function (entry) { syncPayment(entry.args[1]); },
+    rejectedFn: function (entry) { if (entry.args[0] === dateField.value) refreshPayments(); }
+  });
   outbox.onDrain(function () { refreshPayments(); });
+  function announceFirstVisits() {
+    document.dispatchEvent(new CustomEvent('cttc:first-visits', { detail: Object.assign({}, firstVisits) }));
+  }
+  function setFirstVisit(playerId, value) {
+    var selectedDate = dateField.value;
+    if (value) firstVisits[playerId] = true;
+    else delete firstVisits[playerId];
+    syncPayment(playerId);
+    announceFirstVisits();
+    outbox.enqueue('first:' + selectedDate + ':' + playerId, 'setFirstVisit', [selectedDate, playerId, value]);
+  }
   function choose(playerId, method) {
     var selectedDate = dateField.value;
     if (covered[playerId]) return;
@@ -2264,6 +2289,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         });
         options.appendChild(button);
       });
+      var first = document.createElement('button');
+      first.type = 'button';
+      first.className = 'first-visit';
+      first.addEventListener('click', function (event) {
+        setFirstVisit(playerId, !firstVisits[playerId]);
+        if (event.detail === 0) trigger.focus();
+        else first.blur();
+        close();
+      });
+      options.appendChild(first);
       control.append(trigger, options);
       row.insertBefore(control, row.querySelector('.move, [data-open-remove], .coaching-badge'));
       syncPayment(playerId);
@@ -2280,7 +2315,17 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var trigger = control.querySelector('.payment-trigger');
       var label = method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : 'Payment';
       if (trigger.textContent !== label) trigger.textContent = label;
-      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : waiting ? 'Saved on this device; syncing to Google' : method ? 'Paid by ' + method + (method === 'credit' && notes[playerId] ? ' (' + notes[playerId] + ')' : '') + '; change method on hover' : 'Choose payment method';
+      var junior = window.cttcStatusOf && window.cttcStatusOf(playerId) === 'junior';
+      var intro = !!firstVisits[playerId] && !junior;
+      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : waiting ? 'Saved on this device; syncing to Google' : method ? 'Paid by ' + method + (method === 'credit' && notes[playerId] ? ' (' + notes[playerId] + ')' : '') + '; change method on hover' : 'Choose payment method' + (intro ? ' · first visit, $10' : '');
+      var first = control.querySelector('.first-visit');
+      if (first) {
+        first.hidden = junior;
+        first.setAttribute('aria-pressed', intro ? 'true' : 'false');
+        var firstText = intro ? 'First visit $10 \u2713' : 'First visit $10';
+        if (first.textContent !== firstText) first.textContent = firstText;
+        first.title = intro ? 'Charging the $10 first-visit fee tonight. Click to charge the usual fee.' : 'Charge the $10 first-visit fee tonight';
+      }
       trigger.setAttribute('aria-label', 'Payment for ' + control.parentNode.querySelector('.identity strong').textContent + ': ' + (method || 'unpaid'));
       trigger.disabled = !!covered[playerId];
       var unpaid = control.querySelector('.unpaid');
@@ -2321,17 +2366,29 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function applyOverview(result, selectedDate) {
     covered = {};
     (result.coveredIds || []).forEach(function (playerId) { covered[playerId] = true; });
+    firstVisits = {};
+    (result.firstVisitIds || []).forEach(function (playerId) { firstVisits[playerId] = true; });
+    outbox.entries('setFirstVisit').forEach(function (entry) {
+      if (entry.args[0] !== selectedDate) return;
+      if (entry.args[2]) firstVisits[entry.args[1]] = true;
+      else delete firstVisits[entry.args[1]];
+    });
     methods = Object.assign({}, result.methods || {});
     outbox.entries('setSessionPayment').forEach(function (entry) {
       if (entry.args[0] === selectedDate && !covered[entry.args[1]]) methods[entry.args[1]] = entry.args[2];
     });
     decorateRoster();
     document.querySelectorAll('.payment-control').forEach(function (control) { syncPayment(control.getAttribute('data-payment-player')); });
+    announceFirstVisits();
   }
   new MutationObserver(decorateRoster).observe(document.getElementById('open-roster'), { childList: true, subtree: true });
   new MutationObserver(decorateRoster).observe(document.getElementById('groups'), { childList: true, subtree: true });
   document.getElementById('load').addEventListener('click', refreshPayments);
   document.addEventListener('cttc:players', refreshPayments);
+  // A junior pays $5 on any night: their menu has no first-visit choice.
+  document.addEventListener('cttc:member-statuses', function () {
+    document.querySelectorAll('.payment-control').forEach(function (control) { syncPayment(control.getAttribute('data-payment-player')); });
+  });
   dateField.addEventListener('change', refreshPayments);
   window.addEventListener('online', refreshPayments);
   refreshPayments();
@@ -2347,7 +2404,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 (function () {
   var statuses = {};
   var notes = {};
+  var firstVisits = {};
   var LABELS = { member: 'M', visitor: 'V', junior: 'J' };
+  window.cttcStatusOf = function (playerId) { return statuses[playerId]; };
   function playerIdFor(row) {
     var action = row.querySelector('[data-move], [data-open-remove]');
     return action ? action.getAttribute('data-move') || action.getAttribute('data-open-remove') : row.getAttribute('data-coaching');
@@ -2355,7 +2414,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function tipFor(playerId) {
     var current = statuses[playerId];
     if (current === 'junior') return notes[playerId];
-    var base = current === 'member' ? 'Member' : 'Visitor';
+    var base = current === 'member' ? 'Member' : firstVisits[playerId] ? 'Visitor on a first visit: $10 tonight' : 'Visitor';
     var linked = notes[playerId] ? ' · ' + notes[playerId] : '';
     return base + linked + ' · click to mark ' + (current === 'member' ? 'Visitor' : 'Member');
   }
@@ -2364,6 +2423,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     notes = result.notes || {};
     window.cttcOutbox.entries('setMemberStatus').forEach(function (entry) { statuses[entry.args[0]] = entry.args[1]; });
     decorate();
+    document.dispatchEvent(new Event('cttc:member-statuses'));
   }
   function setStatus(message) {
     document.getElementById('status').textContent = message;
@@ -2397,9 +2457,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       });
     }
     var current = statuses[playerId] || '';
-    var label = LABELS[current] || '?';
+    var intro = current === 'visitor' && !!firstVisits[playerId];
+    var label = intro ? '1st' : LABELS[current] || '?';
     if (badge.textContent !== label) badge.textContent = label;
-    var className = 'member-badge' + (current ? ' ' + current : '') + (badge.classList.contains('open') ? ' open' : '');
+    var className = 'member-badge' + (current ? ' ' + current : '') + (intro ? ' intro' : '') + (badge.classList.contains('open') ? ' open' : '');
     if (badge.className !== className) badge.className = className;
     var tip = current ? tipFor(playerId) : 'Loading membership';
     if (badge.getAttribute('data-tip') !== tip) {
@@ -2415,6 +2476,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   }
   document.addEventListener('click', function () {
     document.querySelectorAll('.member-badge.open').forEach(function (badge) { badge.classList.remove('open'); });
+  });
+  document.addEventListener('cttc:first-visits', function (event) {
+    firstVisits = event.detail || {};
+    decorate();
   });
   ['open-roster', 'groups'].forEach(function (id) {
     new MutationObserver(decorate).observe(document.getElementById(id), { childList: true, subtree: true });

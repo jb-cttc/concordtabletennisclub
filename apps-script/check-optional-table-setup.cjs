@@ -6,7 +6,8 @@ for (const [file, setup, names] of [
   ['PrivatePayments.js', 'ensurePrivatePaymentTables_', ['ZeffyPasses', 'SessionPayments', 'ZeffyPayments']],
   ['MemberStatus.js', 'ensureMemberStatusTable_', ['MemberStatus']],
   ['MembershipDues.js', 'ensureMembershipDuesTable_', ['MembershipDues']],
-  ['OpenPlay.js', 'ensureOpenPlayTable_', ['OpenPlay']]
+  ['OpenPlay.js', 'ensureOpenPlayTable_', ['OpenPlay']],
+  ['NightFees.js', 'ensureFirstVisitTable_', ['FirstVisits']]
 ]) {
   const sheets = new Map(names.map(name => [name, { name }]));
   const formatted = [];

@@ -4,11 +4,10 @@
 // Everything here only reads the Sheet, except the cash count the money collector enters at close (the private
 // CashCounts tab) and the club's day, week and month targets (the private CashTargets tab), both also in the AuditLog.
 //
-// Amounts come from status, never from an amount field: Junior $5, Member $10, Visitor $15, and $0 for a Zeffy monthly
-// play pass holder (the subscription replaces the nightly fee). The status used is the player's status today: the
-// MemberStatus tab keeps no history, so a visitor who joined later is counted as a member on earlier nights too.
+// Amounts come from status, never from an amount field: Junior $5, Member $10, Visitor $15, $10 on a first visit, and $0
+// for a Zeffy monthly play pass holder (the subscription replaces the nightly fee). Fees, first visits and each night's
+// status come from NightFees.js: a visitor who joined later is still a visitor on the nights before.
 var CASH_COUNT_HEADERS = ['session_date', 'counted', 'note', 'updated_at'];
-var CASH_FEES = { junior: 5, member: 10, visitor: 15 };
 // Methods that bring money in on the night. A Zeffy pass is paid monthly through Zeffy, so it counts as covered, not collected.
 var CASH_METHODS = ['cash', 'venmo', 'zelle', 'credit'];
 var CASH_KINDS = ['rr', 'open', 'other'];
@@ -169,20 +168,24 @@ function getCashFlow(fromDate, toDate) {
   var names = {};
   playerRows.forEach(function (player) { names[String(player.player_id)] = String(player.display_name); });
   // Archived players are not in the status list; they are counted as visitors.
-  var statuses = getMemberStatuses().statuses;
-  var coveredOn = cashZeffyCoverage_(playerRows, players, nameLinkRows_());
+  var linkRows = nameLinkRows_();
+  var statusesOn = memberStatusFinder_(getMemberStatuses().statuses, players, linkRows);
+  var coveredOn = cashZeffyCoverage_(playerRows, players, linkRows);
+  var sessionRows = rows_('SessionPlayers');
+  var openRows = cashRows_('OpenPlay');
+  var firstVisitsOn = firstVisitFinder_(playerRows, sessionRows, openRows);
 
   var days = {};
   // The first night each player appears anywhere in the desk's records, for "new faces".
   var firstSeen = {};
   var seen = function (playerId, date) { if (date && (!firstSeen[playerId] || date < firstSeen[playerId])) firstSeen[playerId] = date; };
   var dayFor = function (date) { return days[date] || (days[date] = { rr: {}, open: {}, paid: {}, count: null }); };
-  rows_('SessionPlayers').forEach(function (row) {
+  sessionRows.forEach(function (row) {
     var date = dateOfSession(row.session_id);
     seen(String(row.player_id), date);
     if (date && inWindow(date)) dayFor(date).rr[String(row.player_id)] = true;
   });
-  cashRows_('OpenPlay').forEach(function (row) {
+  openRows.forEach(function (row) {
     var date = displayDate_(row.session_date).slice(0, 10);
     seen(String(row.player_id), date);
     if (inWindow(date)) dayFor(date).open[String(row.player_id)] = true;
@@ -209,15 +212,18 @@ function getCashFlow(fromDate, toDate) {
   var built = Object.keys(days).sort().reverse().map(function (date) {
     var source = days[date];
     var covered = coveredOn(date);
+    var statuses = statusesOn(date);
+    var firstVisits = firstVisitsOn(date);
     var list = [];
     var add = function (playerId, kind) {
       var status = statuses[playerId] || 'visitor';
       var method = covered[playerId] ? 'zeffy' : source.paid[playerId] || '';
-      var owed = method === 'zeffy' ? 0 : CASH_FEES[status] || CASH_FEES.visitor;
+      var owed = method === 'zeffy' ? 0 : nightFee_(status, firstVisits[playerId]);
       list.push({
         playerId: playerId,
         name: names[playerId] || 'Unknown player',
         status: status,
+        firstVisit: !!firstVisits[playerId] && status !== 'junior',
         kind: kind,
         method: method,
         owed: owed,
@@ -265,10 +271,10 @@ function getCashFlow(fromDate, toDate) {
   // Player ids stay on the server; the page shows names.
   current.forEach(function (day) {
     day.playerList = day.playerList.map(function (player) {
-      return { name: player.name, status: player.status, kind: player.kind, method: player.method, owed: player.owed, collected: player.collected };
+      return { name: player.name, status: player.status, firstVisit: player.firstVisit, kind: player.kind, method: player.method, owed: player.owed, collected: player.collected };
     });
   });
-  return { from: fromDate, to: toDate, today: today, fees: CASH_FEES, targets: targets, days: current, totals: totals, groups: groups, insights: insights };
+  return { from: fromDate, to: toDate, today: today, fees: NIGHT_FEES, targets: targets, days: current, totals: totals, groups: groups, insights: insights };
 }
 
 function cashIso_(time) {

@@ -37,7 +37,9 @@ ctx.appendObjects_('NameLinks', [
   { kind: 'junior', name: 'Cy Example', linked_name: '' },
   { kind: 'same_person', name: 'Hal Example', linked_name: 'Dee Example' }
 ]);
-['Ava', 'Dee', 'Fay'].forEach(name => run('setMemberStatus', id(name), 'member'));
+// Members since before the desk kept a record of membership changes (no AuditLog row), as most of the club is.
+run('ensureMemberStatusTable_');
+ctx.appendObjects_('MemberStatus', ['Ava', 'Dee', 'Fay'].map(name => ({ player_id: id(name), status: 'member', updated_at: new Date() })));
 run('ensurePrivatePaymentTables_');
 ctx.appendObjects_('ZeffyPayments', [{ message_id: 'sim-1', paid_on: '2026-10-01', kind: 'purchase', payer_name: 'Dee Example', payer_email: 'dee@example.test', participant_name: 'Dee Example', created_at: '2026-10-01' }]);
 run('setZeffyPass', id('Eli'), true);
@@ -72,15 +74,15 @@ let flow = cashFlow(OLD, FRI);
 ctx.GmailApp.search = gmail;
 assert.equal(snapshot(), before, 'reading the cash flow writes nothing to the Sheet');
 assert.deepEqual(flow.days.map(day => day.date), [FRI, MON, OLD], 'days with players, newest first; Tuesday and the cleared Wednesday are left out');
-assert.deepEqual(flow.fees, { junior: 5, member: 10, visitor: 15 });
+assert.deepEqual(flow.fees, { junior: 5, member: 10, visitor: 15, intro: 10 });
 
 const day = date => flow.days.find(item => item.date === date);
 const who = (date, name) => day(date).playerList.find(player => player.name === name + ' Example');
 const mon = day(MON);
 assert.equal(mon.weekday, 'Mon');
-assert.deepEqual(plain(who(MON, 'Ava')), { name: 'Ava Example', status: 'member', kind: 'rr', method: 'cash', owed: 10, collected: 10 }, 'member $10');
-assert.deepEqual(plain(who(MON, 'Ben')), { name: 'Ben Example', status: 'visitor', kind: 'rr', method: 'venmo', owed: 15, collected: 15 }, 'visitor $15');
-assert.deepEqual(plain(who(MON, 'Cy')), { name: 'Cy Example', status: 'junior', kind: 'rr', method: 'zelle', owed: 5, collected: 5 }, 'junior $5');
+assert.deepEqual(plain(who(MON, 'Ava')), { name: 'Ava Example', status: 'member', firstVisit: false, kind: 'rr', method: 'cash', owed: 10, collected: 10 }, 'member $10');
+assert.deepEqual(plain(who(MON, 'Ben')), { name: 'Ben Example', status: 'visitor', firstVisit: false, kind: 'rr', method: 'venmo', owed: 15, collected: 15 }, 'visitor $15');
+assert.deepEqual(plain(who(MON, 'Cy')), { name: 'Cy Example', status: 'junior', firstVisit: false, kind: 'rr', method: 'zelle', owed: 5, collected: 5 }, 'junior $5');
 assert.deepEqual([who(MON, 'Dee').method, who(MON, 'Dee').owed], ['zeffy', 0], 'a Zeffy pass from the emails owes nothing');
 assert.deepEqual([who(MON, 'Eli').method, who(MON, 'Eli').owed], ['zeffy', 0], 'a pass entered by hand owes nothing');
 assert.deepEqual([who(MON, 'Fay').method, who(MON, 'Fay').owed, who(MON, 'Fay').collected], ['', 10, 0], 'unpaid still owes the fee');
@@ -198,7 +200,8 @@ assert.equal(flow.totals.days, 4);
   const cx = club.server.context;
   const go = (name, ...args) => club.server.run(name, ...args);
   const pid = name => club.players.find(player => player.display_name === name + ' Example').player_id;
-  go('setMemberStatus', pid('Ava'), 'member');
+  go('ensureMemberStatusTable_');
+  cx.appendObjects_('MemberStatus', [{ player_id: pid('Ava'), status: 'member', updated_at: new Date() }]);
   go('ensurePrivatePaymentTables_');
   go('ensureOpenPlayTable_');
   go('setZeffyPass', pid('Fay'), true);
@@ -404,7 +407,8 @@ assert.doesNotMatch(pageSource, /<\?!=/, 'every template value is escaped');
 assert.match(pageSource, /<div class="brand">Daily cash flow<small>/, 'the page title');
 assert.match(pageSource, /<span id="mode-pill" class="mode-pill" data-mode="<\?= deskMode \?>"><\/span>/);
 assert.match(pageSource, /<a id="desk-link" href="<\?= deskUrl \?>">/, 'a link back to the desk');
-assert.match(pageSource, /no status history/, 'the footnote says status is today\'s');
+assert.match(pageSource, /status that night/, 'the footnote says status is the one that night');
+assert.match(pageSource, /\$10 on a player\'s first visit/, 'and gives the first-visit fee');
 
 // The same framing guard as the desk: only direct visits, the club site, and localhost may show it.
 const guard = pageSource.match(/<body>\s*<script>([\s\S]*?)<\/script>/)[1];

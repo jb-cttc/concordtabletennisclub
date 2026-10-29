@@ -48,7 +48,8 @@ one player, in this order:
 | 3 | The same last name, with a first name or initial only one active player fits ("J SMITH", "Rob"/"Robert") | `Players`, `Aliases` |
 
 The amount must then be that player's fee for the night: Junior $5, Member
-$10, Visitor $15 (from the member badges). A payer can also cover someone else
+$10, Visitor $15, or $10 on a first visit (see
+[Session fees](round-robin-operations.md#session-fees-and-zeffy)). A payer can also cover someone else
 on the same payment when a `NameLinks` row says so. Use `kind` = `pays_for`,
 with the payer in `name` and the player they pay for in `linked_name`. The
 payment then matches when the fees of the payer, and of the people they pay
