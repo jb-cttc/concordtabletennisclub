@@ -105,8 +105,8 @@ Or, from a computer:
    | `STAFFING_DB_ID`, `TOKEN_SECRET`, `HEADERS`, `CLOSURES_LAST_GOOD` | set by the app | Don't edit. |
 
 3. In the editor, run **`setup`** once and grant the permissions. It creates
-   the private Sheet (its address is logged), the hourly `sweep` trigger and
-   the minute-by-minute `checkReplies` trigger, and logs how many active
+   the private Sheet (its address is logged) and the hourly `sweep` trigger
+   (which also runs the reply check), and logs how many active
    players it can read. It is safe to run again; from the web page it does
    nothing.
 4. Fill the **Training** tab (or let the seed import do it, section 6): one
@@ -127,8 +127,10 @@ Every function without a trailing `_` in `Code.js` can be called by anyone on
 the internet. `check-staffing.cjs` asserts the exact list: `doGet`,
 `staffBoard`, `findPlayers`, `playerAccess`, `signUp`, `requestDrop` (the
 page), `setup`, `importSeedSheet`, `importMemberEmails` (owner only; they
-refuse to run unless the person running them is the owner), `sweep` and
-`checkReplies` (triggers).
+refuse to run unless the person running them is the owner), `sweep`, and
+`checkReplies` and `checkRepliesWatch` (the reply check's old triggers, kept
+so their first run removes them). The desk's wake comes through `doPost`
+(`fn: 'wake'`) and needs the desk's key.
 
 Scopes beyond the coaching app's: `documents` (only to read the membership
 list when it is a Google Doc; DocumentApp has no read-only scope) and
@@ -264,7 +266,7 @@ email for staff sign-ups [CTTC shift …]*: "<full name> wants to use <email> �
 Reply YES to approve or NO to decline." Only a reply from `ADMIN_EMAIL` counts.
 
 - **YES** (or the owner sets that `Emails` row's `status` to `approved`; picked
-  up within a minute): the address becomes the email on file (`source =
+  up within the hour, at the next sweep): the address becomes the email on file (`source =
   approved-request`), the picks still free become normal pending holds, and the
   person gets the normal confirmation email (their own YES is still needed),
   which lists any picks taken meanwhile. If none is free they are told so.
@@ -404,11 +406,11 @@ All of this lives in `canTake_`; tests cover both modes.
 | They replied "YES except …" and nothing changed | A date was not among that email's nights or a word was not a date; they were emailed *We could not read the dates in your reply* with their My nights link. |
 | Someone answered NO (or let it expire) but meant some nights | Setup page, **Correct a volunteer's answer** (within 7 days): tick the nights they asked for. |
 | A My nights link says no upcoming nights | Their nights are past or released, or the email on file changed since (the link is made from the address; newer emails carry the new link). |
-| They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The 30-minute timer `checkRepliesWatch` must exist (Triggers page); it sets the one-off `checkReplies` (every 2 minutes by day while an answer is owed, else 15). |
+| They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The reply check has no timer of its own: the desk's mail reader wakes it when a text or an email reply comes in (within about 5 minutes by day), and the hourly `sweep` (Triggers page) runs it too. If the desk log shows `app_wake_failed`, replies wait for the sweep. |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |
 | Desk, Money or Lock-up is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money, `keys` for Lock-up. Backups are never greyed out. |
 | Someone says the confirmation went to an old address | Their `Emails` row: type the new address as a new `approved` row (`source` owner); the old one becomes `replaced`. |
 | A new email request is stuck | `Emails` row `pending`: answer the *Approve an email* message from `ADMIN_EMAIL`, or set `status` to `approved` / `declined`. After 7 days it is declined. |
 | A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date) or add it to `Closures`. Changes show within an hour. |
-| *Action needed: the staffing app cannot …* | A step of the minute check has failed at every attempt for 30 minutes (`ALERT_AFTER_MS`); the email names what is affected and what to do. Failures that clear sooner are in the `Log` tab, not emailed. When the step works again the club gets *Resolved: the staffing app can … again*. |
+| *Action needed: the staffing app cannot …* | A step of the reply check has failed at every attempt for 30 minutes (`ALERT_AFTER_MS`); the email names what is affected and what to do. Failures that clear sooner are in the `Log` tab, not emailed. When the step works again the club gets *Resolved: the staffing app can … again*. |
 | No texts | The person needs a mobile **on file** (`Emails.phone`) **and** `People.texts = yes` (they texted STAFF from that phone). |

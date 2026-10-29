@@ -19,7 +19,7 @@ shows that booking's lesson time, current `status`, who it is waiting on and
 the deadline (`booking`), and every line about it in order (`lines`): each
 step (`step:unverified`, `step:pending`, …), each email or text sent, each
 YES or NO read and whether it was applied, and any failure. `runs` shows
-whether the minute check and the sweep are running. Section 2 explains each
+whether the check and the sweep are running. Section 2 explains each
 line. If that answers the question, stop here; otherwise use the private
 Sheet:
 
@@ -90,7 +90,7 @@ above and the status), the request (or coach, wait or reply) it is about, and
 the recipient as a six-character code. The same person always gets the same
 code, but no name, address or number is ever logged. Two lines with the same
 kind, `ref` and `to` mean someone really did get the same message twice. A
-minute check that starts while the previous one is still running logs
+check that starts while the previous one is still running logs
 `coaching checkTexts skipped: …` and does nothing. Read the lines in the
 script editor under **Executions** (open a run to see its logs).
 
@@ -115,7 +115,7 @@ the log holds:
   cancelled, moved, expired), with `detail` saying who must act next and by
   when (`waiting on coach until Saturday, October 10, 2026, 3:00 PM Pacific
   Time`), who cancelled (`by student`), or for a move, `moved from <old code>`.
-- **Skipped minute checks**: kind `check-skipped`.
+- **Skipped checks**: kind `check-skipped`.
 
 `?log=<code>` shows only that booking's lines, plus a `booking` summary
 (`code`, `date`, `start`, `status`, `waitingOn`, `deadline`) from the private
@@ -124,8 +124,9 @@ Sheet; it finds bookings made in the last 60 days. The log keeps the latest
 
 Above the lines, `runs` shows the last check and the last sweep: when they
 finished, `ok`, and which steps failed; the check also has `mail`, the same
-counts as the status read-out below. A `checkTexts` time more than 15 minutes
-old by day (or 30 at night) means its timers have stopped.
+counts as the status read-out below. The check runs at least hourly (with the
+sweep), so a `checkTexts` time more than about an hour old means the hourly
+`sweep` timer has stopped.
 
 ## 3. The request lifecycle
 
@@ -155,13 +156,19 @@ reply YES; the new row starts at `pending` (the coach is asked straight away).
 
 ## 4. How replies are recognised (the usual place things stick)
 
-Answers are read by the check (`checkTexts`). It wakes only as often as its
-work needs, because timer run time is shared by every club app
-([Google limits](google-limits.md)): every 2 minutes by day while a coach or
-student owes an answer (an open text or email question), every 15 minutes by
-day otherwise, and from 11 PM to 7 AM only on its 30-minute timer
-(`checkTextsWatch`, which also restarts the chain if a run fails). Sending a
-question brings the next check within 2 minutes.
+Answers are read by the check (`checkTexts`). It has no timer of its own,
+because timer run time is shared by every club app
+([Google limits](google-limits.md)) and a check that finds nothing still
+counts. Instead the desk's one mail reader **wakes** it whenever a text or an
+email reply to one of its questions comes in (within about 5 minutes by day, a
+minute during round robin sign-up, 30 at night;
+[Waking the apps](round-robin-operations.md#waking-the-coaching-and-staffing-apps)).
+The wake calls the app's `/exec` address, which counts as a web request, not
+timer time. The app looks only when what came in can matter: a YES or NO,
+STUDENT or STOP, any text from a coach waiting to be verified, or an email
+reply; a round robin sign-up text is answered "nothing to check" at once. The
+hourly `sweep` runs the check too, so nothing waits more than an hour if a
+wake is missed.
 
 **Email replies** (`checkMail_`) count only if **all** of these hold:
 
@@ -210,7 +217,7 @@ minutes back), not from the oldest open question.
 An email reply to an open question that cannot be used gets an explanation
 (unreadable, or wrong address) within about 5 hours of arriving; the club is
 not emailed. Text replies with no yes/no are still ignored without a message.
-Each step of the minute check runs on its own, so a failing step (for
+Each step of the check runs on its own, so a failing step (for
 example Google Voice) does not stop email answers being read. A step that
 fails at every attempt for 30 minutes (`ALERT_AFTER_MS`) is emailed to the club
 once, as *Action needed: the coaching app cannot …*, with what to do; when it
@@ -230,7 +237,7 @@ read, replies quoting a code, answers applied, unreadable replies (with the
 length of the first line and any invisible or unusual space characters in it,
 as code points; never letters), and failed steps (addresses, numbers and
 quoted text masked). If
-it is not updating, the minute check is not running.
+it has not changed for more than an hour, the check is not running.
 
 ## 5. Coaches' offered times
 
@@ -327,4 +334,4 @@ screen, so a refused request looked like nothing happened.
 | `CHANGE_WAIT_MS` | 10 minutes | gap between cancel/move requests for one lesson |
 | `REMIND_STUDENT_MS`, `REMIND_COACH_MS` | 1 hour, 2 hours | when the one reminder for each waiting step goes out |
 | `RETRY_MAIL_DAYS` | 3 days | unsent messages are retried this long |
-| Timers | `checkTextsWatch` every 30 minutes, one-off `checkTexts` (2 minutes while an answer is owed, else 15; none 11 PM to 7 AM), `sweep` hourly | replies are picked up within about 2 minutes while someone is waiting |
+| Timers | `sweep` hourly, which also runs the check; the desk's mail reader wakes the check when a text or email reply comes in | replies are picked up within about 5 minutes by day (a minute during round robin sign-up, 30 at night), at most an hour if a wake is missed |

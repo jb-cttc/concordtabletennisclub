@@ -147,6 +147,6 @@ function disableVoiceAutoReply() {
 function voiceAutoReplyStatus() {
   return {
     on: PropertiesService.getScriptProperties().getProperty(VOICE_AUTO_REPLY_KEY) === 'on',
-    mailJob: ScriptApp.getProjectTriggers().some(function (trigger) { return trigger.getHandlerFunction() === MAIL_WATCH_HANDLER; })
+    mailJob: ScriptApp.getProjectTriggers().some(function (trigger) { return trigger.getHandlerFunction() === MAIL_READER_HANDLER; })
   };
 }

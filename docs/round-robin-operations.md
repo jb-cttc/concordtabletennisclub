@@ -241,12 +241,13 @@ arrived since its last read, once. It wakes only as often as texts matter:
 **every minute** in the 4 hours before a round robin's sign-up closes, when
 most signups come in (3:15 to 7:15 PM on Mondays and Wednesdays; 11:15 AM to
 3:15 PM for the Saturday pilot), **every 30 minutes** from 11 PM to 7 AM, and
-**every 5 minutes** otherwise, including from 6 AM on a round robin day. Waking costs timer run time, which every club
-app shares ([Google limits](google-limits.md)), so it never wakes just to find
-nothing due: a 30-minute timer (`readMailWatch`) always runs, covers the night
-and restarts the chain if a run fails, and each run sets a one-off timer
-(`readMail`) for the next read. A desk with Voice signups open still reads
-within the minute. It records:
+**every 5 minutes** otherwise, including from 6 AM on a round robin day. Each
+run costs timer run time, which every club app shares
+([Google limits](google-limits.md)), and so does each change to a timer: the job
+keeps **one repeating timer** (`readMail`) at the pace due now, and replaces it
+only when the pace changes, a run ahead of a busier stretch so that stretch
+starts on time. A quiet run makes no timer calls. A desk with Voice signups
+open still reads within the minute. It records:
 
 - forwarded Voice texts go to the private **`VoiceTexts`** tab (`message_id`,
   `received_at` in milliseconds, `from`, `subject`, `text` without Voice's
@@ -263,11 +264,47 @@ The **`MailReader`** tab has one row: when it last read (`read_at`), how far it
 has read (`cursor`), and its Gmail calls today (`gmail_calls`). Past 6,000 calls
 in a day it reads at most every 5 minutes and the desk log gets
 a `gmail_reads_high` warning; each new day logs `mail_reader_day` with the
-previous day's count. The desk sets up the timers the first time it reads mail
-(and removes the every-minute timers used until October 2026), and reads mail
-itself when the job has not read in the last minute. If `read_at` is more than
-45 minutes old, the coaching and staffing checks fail (and email the club after
-30 minutes) and the turnout log records `texts_not_collected`.
+previous day's count. The desk sets up the timer the first time it reads mail
+and puts it back if it goes missing (checked every 6 hours, and when automatic
+answers are switched on); the job's first run of a new schedule removes the old
+timers (the every-minute ones used until October 2026, then `readMailWatch`
+and the one-off `readMail`). The desk reads mail itself when the job has not
+read in the last minute. If `read_at` is more than 45 minutes old, the coaching
+and staffing checks fail (and, when that lasts past 30 minutes, email the club
+at their next hourly check) and the turnout log records `texts_not_collected`.
+
+### Waking the coaching and staffing apps
+
+The coaching and staffing apps wait for YES and NO answers by text and email.
+Until November 2026 each looked every 2 to 15 minutes on timers of its own,
+which spent most of the 90 minutes of timer run time a day every club app
+shares. Now they have only their hourly `sweep` (which runs the check too), and
+the mail reader **wakes** them when something they may be waiting for came in:
+
+- every new text wakes both apps;
+- an email reply to a coaching question (`[CTTC ref …]` in the subject) wakes
+  coaching, and one to a staffing question (`[CTTC shift …]`) wakes staffing.
+  The search includes those subjects; the replies are not recorded anywhere.
+  Our own questions wake nothing, except the club's own reply from this
+  account (it starts "Re:"), which approves a staffing request.
+
+A wake is a call to the app's `/exec` address, so the app's work counts as a
+web request, not timer time; the reader's run waits only for it, and calls both
+apps at once. The call carries what came in (each text cut to its first 120
+characters, at most 10 a call), so an app waiting on none of it (a round robin
+sign-up, say) answers "nothing to check" without opening a Sheet. What the app
+acts on, it still reads from `VoiceTexts` and Gmail, never from the call, and
+the call must carry the desk's key, kept in this Sheet's hidden **`AppWake`**
+tab (made by the desk the first time; the apps read it by `DESK_SHEET_ID`).
+What a desk page's own read finds wakes the apps at the job's next run, so a
+page never waits on them.
+
+A call that fails is tried at the job's next two runs; after that the app's
+hourly check picks up what came in, and the desk log gets an `app_wake_failed`
+warning (at most hourly). Each new day logs `app_wakes_day` with the previous
+day's calls by app (`coaching_failed` for failed calls). Because a wake goes to
+the apps' `/exec` addresses, release coaching and staffing before the desk when
+this changes.
 
 ## Voice signups
 

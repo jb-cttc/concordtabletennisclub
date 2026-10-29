@@ -66,7 +66,7 @@ const context = {
     newTrigger: handler => ({ timeBased: () => ({ everyMinutes: n => ({ create: () => { triggers.push({ getHandlerFunction: () => handler, every: n }); } }) }) })
   },
   // The answers run with the desk's mail job (MailReader.js), which has the timers.
-  MAIL_WATCH_HANDLER: 'readMailWatch',
+  MAIL_READER_HANDLER: 'readMail',
   MAIL_LAST_TEXT_KEY_: 'CTTC_MAIL_LAST_TEXT_AT',
   ensureMailJob_: () => { mailJobEnsured += 1; },
   listPlayers: () => players,

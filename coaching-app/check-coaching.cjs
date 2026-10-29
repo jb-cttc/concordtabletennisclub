@@ -27,6 +27,7 @@ let clock = START;
 class FakeDate extends Date { static now() { return clock; } }
 const grids = {};
 const textFormatted = new Set();
+const cleared = [];
 const books = {};
 const created = [];
 const properties = {};
@@ -72,7 +73,7 @@ const makeSheet = name => {
     deleteRows: (row, count) => { grid.splice(row - 1, count); },
     // Sheets reads a leading ' as "plain text" and does not store it.
     appendRow: values => { grid.push(Array.from(values, value => { assert.equal(String(value)[0], "'", 'appended values are kept as plain text'); return String(value).slice(1); })); },
-    clearContents: () => { grid.length = 0; },
+    clearContents: () => { cleared.push(name); grid.length = 0; },
     setFrozenRows: () => {}
   };
 };
@@ -117,6 +118,8 @@ const inbound = (subjectName, body, at = clock, from = voiceFrom) => {
 // there, never by searching Gmail. Here the tab simply holds the inbox; readerStopped is a desk that stopped collecting.
 let readerStopped = false;
 let runtimeGrid = null;
+// The desk's key for waking the app (apps-script/MailReader.js wakeKey_), in a hidden tab of its Sheet.
+const WAKE_KEY = 'f'.repeat(64);
 let textReads = 0;
 books['desk-sheet-id'] = {
   getSheetByName: name => ({
@@ -128,6 +131,7 @@ books['desk-sheet-id'] = {
       } })
     },
     MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
+    AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? WAKE_KEY : 'key']] }) },
     // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
     JobRuntime: runtimeGrid && {
       getDataRange: () => ({ getValues: () => runtimeGrid.map(line => line.slice()) }),
@@ -303,7 +307,7 @@ assert.notEqual(setupResult.privateSheet, setupResult.publicSheet);
 assert.equal(created.length, 2, 'one private and one public Sheet');
 assert.deepEqual(books['private-book-id'].names(), ['Availability', 'Coaches', 'Log', 'Requests', 'Students', 'Waitlist'], 'the send log is a private tab');
 assert.deepEqual(books['public-book-id'].names(), ['About', 'Schedule'], 'the public Sheet has only the schedule and a note');
-assert.deepEqual(timers(), ['checkTexts after 15', 'checkTextsWatch every 30', 'sweep every 60'], 'an hourly sweep, a 30-minute check, and the next check in 15 minutes (nobody is waiting)');
+assert.deepEqual(timers(), ['sweep every 60'], 'one timer: the hourly sweep, which runs the check too (the desk wakes it in between)');
 context.setup();
 assert.equal(created.length, 2, 'setup is safe to run again');
 assert.deepEqual(grids.Coaches.slice(1).map(line => [line[0], line[1], line[2], line[5]]), [
@@ -327,14 +331,20 @@ assert.equal(run('coachList').coaches.filter(coach => coach.registered).length, 
   assert.equal(statusOf('Raymond Trinh'), '', 'a listed coach missing from the tab is added back');
   assert.equal(statusOf('Retired Coach'), 'disabled');
   const before = JSON.stringify(grids.Coaches);
+  cleared.length = 0;
   context.sweep();
   assert.equal(JSON.stringify(grids.Coaches), before, 'a sweep with nothing to change writes nothing');
+  assert.deepEqual(cleared, [], 'nor rewrites an unchanged public schedule');
+  const schedule = JSON.stringify(grids.Schedule);
+  grids.Schedule[0][0] = 'edited';
+  context.sweep();
+  assert.equal(JSON.stringify(grids.Schedule), schedule, 'an edit to the public schedule is put right');
 }
 // The rest of these checks use made-up coaches, which the owner manages in the Sheet: with no club list, the sweep leaves
 // the Coaches tab alone.
 context.CLUB_COACHES = [];
 grids.Coaches.splice(1);
-assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkTextsWatch every 30', 'sweep every 60']);
+assert.deepEqual(timers(), ['sweep every 60']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
@@ -946,7 +956,7 @@ inbound('Ann Coach', 'COACH', clock - 60000);
   properties.FAILING_STEPS = JSON.stringify(failing);
   check();
   assert.deepEqual(toClub().map(message => message.subject), ['Action needed: the coaching app cannot read coach texts'], '30 minutes without a break');
-  assert.match(toClub()[0].body, new RegExp('^The coaching app has failed to read coach texts at every attempt since ' + context.momentLabel_(since) + '\\. It retries every few minutes\\.\\n\\n' +
+  assert.match(toClub()[0].body, new RegExp('^The coaching app has failed to read coach texts at every attempt since ' + context.momentLabel_(since) + '\\. It retries at least every hour, and whenever a text or an email reply comes in\\.\\n\\n' +
     'Coaches\' YES and NO texts are not being read\\.\\n\\nError: Error: Google Voice is unavailable\\n\\nWHAT TO DO\\n\\n1\\. Check https://www\\.google\\.com/appsstatus/dashboard/ '));
   assert.match(toClub()[0].body, /2\. If Google lists no outage, forward this email to JB\.\n\nThe club gets a follow-up email when this step works again\.\n\nSent by the CTTC coaching app to the club account\.$/);
   check();
@@ -1739,66 +1749,87 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
   copy.dom.window.close();
   // Texts are read from the desk's tab; Gmail is searched for them only to text back someone with no collected text yet.
   // ---- When the check runs (90 minutes a day of timer run time are shared by every club app) ----
+  // No timer of its own: the hourly sweep runs it, and the desk's mail reader wakes it through doPost when something came in.
   {
     const at = (date, time) => { clock = Date.parse(date + 'T' + time + ':00Z') + 7 * 3600000; }; // Pacific wall clock (PDT)
-    const next = () => triggers.filter(trigger => trigger.handler === 'checkTexts').map(trigger => trigger.after / 60000);
-    const run = () => { delete cache['check-texts']; context.checkTexts({ triggerUid: 'timer' }); };
-    // An app updated from the every-minute timer: its first run takes that timer away.
-    triggers = [{ handler: 'checkTexts', every: 1 }, { handler: 'sweep', every: 60 }];
+    const post = body => JSON.parse(context.doPost({ postData: { contents: JSON.stringify(body) } }).text);
+    const runs = () => (logs.join('\n').match(/coaching checkTexts skipped/g) || []).length;
+    // An app updated from the 30-minute timer and its one-off: their first run takes both away, and keeps the sweep.
+    triggers = [{ handler: 'checkTextsWatch', every: 30 }, { handler: 'checkTexts', after: 900000 }, { handler: 'sweep', every: 60 }];
     delete properties.CHECK_SCHEDULE;
-    grids.Coaches.slice(1).forEach(line => { line[column('Coaches', 'ask_ref')] = ''; line[column('Coaches', 'ask_at')] = ''; });
-    grids.Students.slice(1).forEach(line => { line[column('Students', 'ask_ref')] = ''; line[column('Students', 'ask_at')] = ''; });
     at('2026-10-20', '12:00');
-    run();
-    const waitingNow = context.STATUS_.waiting;
-    assert.deepEqual(timers().filter(timer => !/after/.test(timer)), ['checkTextsWatch every 30', 'sweep every 60'], 'the every-minute timer is gone');
-    assert.deepEqual(next(), [waitingNow ? 2 : 15], 'the next check: 2 minutes if someone owes an answer, else 15');
-    // Someone owes an answer: every 2 minutes.
-    const asked = grids.Coaches.slice(1).find(line => line[column('Coaches', 'coach_id')] && line[column('Coaches', 'status')] !== 'disabled' && line[column('Coaches', 'phone')]);
-    asked[column('Coaches', 'ask_ref')] = 'slots';
-    asked[column('Coaches', 'ask_at')] = String(clock);
-    clock += 120000;
-    run();
-    assert.ok(context.STATUS_.waiting >= 1, 'the open question is counted');
-    assert.deepEqual(next(), [2], 'an open question: every 2 minutes');
-    asked[column('Coaches', 'ask_ref')] = '';
-    asked[column('Coaches', 'ask_at')] = '';
-    // At night only the 30-minute timer; one that would land after 11 PM is not set.
-    at('2026-10-20', '23:30');
-    run();
-    assert.deepEqual(next(), [], 'no one-off timer at night');
-    at('2026-10-20', '22:50');
-    run();
-    assert.equal(context.STATUS_.waiting, 0);
-    assert.deepEqual(next(), [], 'a check due after 11 PM waits for the 30-minute timer');
-    // A question going out brings the next check within 2 minutes, by day.
-    at('2026-10-21', '09:00');
-    run();
-    assert.equal(context.STATUS_.waiting, 0, 'nobody owes an answer now');
-    {
-      assert.deepEqual(next(), [15]);
-      context.wakeCheck_();
-      assert.deepEqual(next(), [2], 'woken when a question is sent');
-      context.wakeCheck_();
-      assert.equal(next().length, 1, 'once');
+    delete cache['check-texts'];
+    context.checkTextsWatch({ triggerUid: 'timer' });
+    assert.deepEqual(timers(), ['sweep every 60'], 'the old check timers are gone');
+    triggers = [{ handler: 'checkTexts', every: 1 }];
+    delete properties.CHECK_SCHEDULE;
+    delete cache['check-texts'];
+    context.checkTexts({ triggerUid: 'timer' });
+    assert.deepEqual(timers(), ['sweep every 60'], 'a missing sweep timer is put back');
+    // The sweep runs the check: a YES that came in is read within the hour even if no wake came.
+    const before = JSON.parse(properties.RUN_checkTexts).at;
+    clock += 60000;
+    delete cache['check-texts'];
+    context.sweep({ triggerUid: 'timer' });
+    assert.notEqual(JSON.parse(properties.RUN_checkTexts).at, before, 'the hourly sweep runs the check');
+    // A wake needs the desk's key, and does nothing without it.
+    const text = (body, name = 'Someone Else', from = otherFrom) => ({ from, subject: 'New text message from ' + name, text: body });
+    clock += 60000;
+    let checked = JSON.parse(properties.RUN_checkTexts).at;
+    assert.equal(post({ fn: 'wake', key: 'guess', texts: [text('YES')], mail: 0 }).ok, false, 'a wrong key is refused');
+    assert.equal(post({ fn: 'wake', texts: [text('YES')], mail: 0 }).ok, false, 'so is none');
+    assert.equal(JSON.parse(properties.RUN_checkTexts).at, checked, 'and nothing was checked');
+    // With the key: a YES or NO, STUDENT or STOP, or an email reply is checked; a round robin sign-up is not.
+    assert.deepEqual(post({ fn: 'wake', key: WAKE_KEY, texts: [text('RR tonight please')], mail: 0 }), { ok: true, checked: false }, 'a sign-up text needs no look');
+    assert.equal(JSON.parse(properties.RUN_checkTexts).at, checked);
+    for (const [body, why] of [[{ texts: [text('Yes, see you then')], mail: 0 }, 'a YES'], [{ texts: [text('No')], mail: 0 }, 'a NO'], [{ texts: [text('STUDENT')], mail: 0 }, 'STUDENT'],
+      [{ texts: [text('stop')], mail: 0 }, 'STOP'], [{ texts: [], mail: 1 }, 'an email reply'], [{ texts: [text('hello')], mail: 0, more: true }, 'more texts than were passed on']]) {
+      clock += 60000;
+      assert.deepEqual(post(Object.assign({ fn: 'wake', key: WAKE_KEY }, body)), { ok: true, checked: true }, why + ' is checked');
+      assert.notEqual(JSON.parse(properties.RUN_checkTexts).at, checked);
+      checked = JSON.parse(properties.RUN_checkTexts).at;
     }
-    // Each timer run is counted (a page call is not) and reported to the desk's JobRuntime tab; once every app has run an
-    // hour today, the checks come a third as often.
+    // A coach waiting to be verified: any text from them is checked.
+    const waitingBefore = properties.WAITING_COACHES;
+    properties.WAITING_COACHES = JSON.stringify([{ name: 'New Coach', phone: '(925) 555-0177' }]);
+    clock += 60000;
+    assert.equal(post({ fn: 'wake', key: WAKE_KEY, texts: [text('Hi, this is me', 'New Coach')], mail: 0 }).checked, true, 'a text from a coach waiting to be verified is checked');
+    properties.WAITING_COACHES = waitingBefore;
+    assert.ok(properties.WAITING_COACHES, 'the check keeps the list of coaches waiting to be verified');
+    // The STUDENT and STOP scan skips a check soon after the last, but never a wake, which may be about just that text.
+    const scan = context.checkStudentTexts_;
+    let scanned = 0;
+    context.checkStudentTexts_ = () => { if (!cache['student-texts']) scanned += 1; return scan(); };
+    cache['student-texts'] = '1';
+    clock += 60000;
+    post({ fn: 'wake', key: WAKE_KEY, texts: [text('STUDENT')], mail: 0 });
+    assert.equal(scanned, 1, 'a STUDENT text is read at once');
+    context.checkStudentTexts_ = scan;
+    // A wake that comes while a check runs waits for it, rather than being dropped: its text may be newer than that check.
+    cache['check-texts'] = '1';
+    clock += 60000;
+    assert.equal(post({ fn: 'wake', key: WAKE_KEY, texts: [text('YES')], mail: 0 }).checked, true, 'a wake runs even right after a check');
+    delete cache['check-texts'];
+    const skipped = runs();
+    userHeld = true;
+    assert.equal(post({ fn: 'wake', key: WAKE_KEY, texts: [text('YES')], mail: 0 }).checked, false);
+    assert.equal(runs(), skipped + 1, 'a check still running after 30 seconds is logged as skipped');
+    userHeld = false;
+    // Each timer run is counted (a page call or a wake is not) and reported to the desk's JobRuntime tab.
+    at('2026-10-21', '09:00');
     runtimeGrid = [['app', 'day', 'runs', 'seconds', 'updated_at'], ['desk', '2026-10-21', '400', '3700', '']];
-    const before = JSON.parse(properties.JOB_RUNTIME || '{"runs":0}');
-    properties.JOB_RUNTIME = JSON.stringify(Object.assign(before, { reportedAt: 0 }));
-    clock += 15 * 60000;
-    run();
-    const counted = JSON.parse(properties.JOB_RUNTIME);
-    assert.equal(counted.day, '2026-10-21');
-    assert.ok(counted.runs >= 1);
-    assert.deepEqual(JSON.parse(JSON.stringify(runtimeGrid.find(line => line[0] === 'coaching').slice(0, 2))), ['coaching', '2026-10-21'], 'reported to the desk');
-    assert.equal(counted.slow, true, 'every app together passed an hour');
-    // The slow-down is worked out as a run ends, so it applies from the run after.
-    clock += 15 * 60000;
-    run();
-    assert.equal(context.STATUS_.waiting, 0);
-    assert.deepEqual(next(), [45], '15 minutes becomes 45');
+    const counted = JSON.parse(properties.JOB_RUNTIME || '{"runs":0}');
+    properties.JOB_RUNTIME = JSON.stringify(Object.assign(counted, { reportedAt: 0 }));
+    clock += 60000;
+    post({ fn: 'wake', key: WAKE_KEY, texts: [], mail: 1 });
+    assert.equal(JSON.parse(properties.JOB_RUNTIME).runs, counted.runs, 'a wake is not timer time');
+    delete cache['check-texts'];
+    context.sweep({ triggerUid: 'timer' });
+    const after = JSON.parse(properties.JOB_RUNTIME);
+    assert.equal(after.day, '2026-10-21');
+    assert.ok(after.runs >= 1);
+    assert.deepEqual(runtimeGrid.filter(line => line[0] === 'coaching').map(line => line[1]), ['2026-10-20', '2026-10-21'], 'reported to the desk: yesterday\'s total, and today\'s');
+    assert.deepEqual(timers(), ['sweep every 60'], 'still one timer');
     runtimeGrid = null;
     delete properties.JOB_RUNTIME;
   }
