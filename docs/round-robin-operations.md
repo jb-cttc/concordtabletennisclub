@@ -199,6 +199,19 @@ on another device after the window opened.
 
 Members and visitors pay a per-session fee ($10 or $15), recorded per date in
 `SessionPayments` as Venmo, Zelle, Cash, or Credit (or cleared back to unpaid).
+Juniors pay $5. A player's **first visit** costs $10 (see the club site's First
+Visit page). The desk works it out: a night is a first visit when the player's
+directory record was created that day and they have no earlier night on the
+desk, so a player added at the desk tonight shows a green **1st** badge in
+place of V. Players from the older records were created on another day and
+never count. If the desk gets it wrong (someone who came before but was never
+recorded, or a record added the day before), the player's payment menu has a
+**First visit $10** choice that changes it for that night only; the choice is
+kept in the private `FirstVisits` tab, made by the first one. All fees come
+from `apps-script/NightFees.js`, which the desk, the cash flow page and Clover
+matching share. A player's status on an earlier night is the one they had
+then, from the membership changes in the `AuditLog`: a visitor who joins
+tonight is still a visitor on the nights before.
 Payment, Open Play and membership changes are kept on the device first and sync
 to the Sheet in the background, so they keep working when the connection
 drops. **Zeffy** is an optional monthly

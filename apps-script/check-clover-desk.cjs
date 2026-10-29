@@ -52,7 +52,7 @@ context.Date = class extends Date {
   static now() { return clock; }
 };
 vm.createContext(context);
-for (const file of ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js', 'CloverPayments.js']) {
+for (const file of ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js', 'NightFees.js', 'CloverPayments.js']) {
   vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context, { filename: file });
 }
 context.rows_ = name => {

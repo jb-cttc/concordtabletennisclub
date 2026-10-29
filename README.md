@@ -319,7 +319,7 @@ commands, is in [AGENTS.md](AGENTS.md#what-this-session-can-access).
 **Daily cash flow:** `cash.html` (served at `/cash`, linked from the Membership page) frames the same released desk
 `/exec` address with `?view=cash`, so like the desk it opens only for the club's Google account. It totals each club day
 from the round robin roster, Open Play, `SessionPayments`, Zeffy passes and member status (Junior $5, Member $10,
-Visitor $15, Zeffy $0) and keeps the money collector's count in the private `CashCounts` tab. It goes live with the
+Visitor $15, $10 on a first visit, Zeffy $0; `apps-script/NightFees.js`) and keeps the money collector's count in the private `CashCounts` tab. It goes live with the
 next desk release; until then the button opens a page `/exec` does not know.
 
 **Volunteer signups:** `staffing-app/` is a separate Apps Script project, like `coaching-app/`. To set it up, follow

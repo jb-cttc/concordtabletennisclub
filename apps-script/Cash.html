@@ -177,8 +177,8 @@ details.table-view summary{cursor:pointer;color:var(--green2);font-weight:700}
 <div id="days" class="days"></div>
 <div class="footnote">
   <p>Targets are club-wide and saved for everyone. Only finished weeks or months wholly inside the chosen range count towards a target: the current week or month is "in progress", one cut off by the start or end of the range is "partial", and a week or month with no club nights is left empty. Those are drawn but never counted as met or missed. With Group by Day, each club night with players is a bar, and tonight counts once it is over.</p>
-  <p>Fees per night: Junior $5, Member $10, Visitor $15. A Zeffy monthly play pass covers the night, so pass holders are counted but owe $0. Expected is what was recorded as paid by Cash, Venmo, Zelle or Credit; outstanding is what unpaid players still owe.</p>
-  <p>Status is each player's status today: the desk keeps no status history, so someone who became a member later shows at the member fee on earlier nights too. Archived players count as visitors.</p>
+  <p>Fees per night: Junior $5, Member $10, Visitor $15, and $10 on a player's first visit. A Zeffy monthly play pass covers the night, so pass holders are counted but owe $0. Expected is what was recorded as paid by Cash, Venmo, Zelle or Credit; outstanding is what unpaid players still owe.</p>
+  <p>Status is each player's status that night, from the desk's membership changes. A first visit is the night a new player's record was created, unless the desk changed it. Archived players count as visitors.</p>
   <p>Round robin players come from the saved roster and Open Play from the desk's Open Play list (Friday nights are Open Play only, and so were Saturdays before the Saturday round robin pilot began on October 31, 2026). "Paid, not on the sheet" is a payment recorded for someone on neither list, kept so no payment is lost.</p>
 </div>
 </main>
@@ -408,7 +408,7 @@ details.table-view summary{cursor:pointer;color:var(--green2);font-weight:700}
   function playerList(day) {
     var rows = day.playerList.map(function (player) {
       var methodTag = el('span', { className: 'tag' + (player.method === '' ? ' unpaid' : player.method === 'zeffy' ? ' zeffy' : ''), text: METHOD_NAMES[player.method] || player.method });
-      return el('tr', {}, [el('td', { text: player.name }), el('td', { text: STATUS[player.status] || player.status }), el('td', { text: KINDS[player.kind] }), el('td', {}, [methodTag]), el('td', { className: 'num', text: money(player.owed) })]);
+      return el('tr', {}, [el('td', { text: player.name }), el('td', { text: (STATUS[player.status] || player.status) + (player.firstVisit ? ' · first visit' : '') }), el('td', { text: KINDS[player.kind] }), el('td', {}, [methodTag]), el('td', { className: 'num', text: money(player.owed) })]);
     });
     return el('details', { className: 'players' }, [
       el('summary', { text: 'Players (' + day.players + ')' }),

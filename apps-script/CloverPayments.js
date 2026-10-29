@@ -1,5 +1,6 @@
 // Clover card payments (issue #87). The club's Clover POS takes only nightly desk fees, round robin or Open Play ($5
-// Junior, $10 Member, $15 Visitor), so each card payment there is one night's fee for someone (or two). The desk reads those payments with a
+// Junior, $10 Member, $15 Visitor, $10 on a first visit: NightFees.js), so each card payment there is one night's fee for
+// someone (or two). The desk reads those payments with a
 // read-only Clover API token and works out who each one is for, so the organizer only handles the exceptions.
 //
 // The token and merchant ID are Script Properties (CLOVER_API_TOKEN, CLOVER_MERCHANT_ID), never in code: the repo is
@@ -29,7 +30,6 @@ var CLOVER_RETRIES_ = 4;
 var CLOVER_RETRY_PAUSE_MS_ = 1500;
 // Clover answers at most 90 days of payments per request; the report asks for a little either side of the range.
 var CLOVER_REPORT_MAX_DAYS_ = 85;
-var CLOVER_FEES_ = { junior: 5, member: 10, visitor: 15 };
 var CLOVER_LINK_HEADERS = ['link_key', 'player_id', 'source', 'updated_at'];
 // Words Clover and the card networks put where a cardholder name would be.
 var CLOVER_PLACEHOLDER_NAME_ = /\b(valued|cardholder|card holder|customer|guest|instant issue|apple pay|google pay)\b/;
@@ -284,7 +284,7 @@ function cloverIdentify_(payment, context) {
 }
 
 function cloverFee_(playerId, context) {
-  return CLOVER_FEES_[context.statuses[playerId]] || CLOVER_FEES_.visitor;
+  return nightFee_(context.statuses[playerId], context.firstVisits && context.firstVisits[playerId]);
 }
 
 // The players one payment covers: the payer alone, or with (or only) the players their 'pays_for' links name, when
@@ -311,8 +311,8 @@ function cloverMoney_(dollars) {
 //   needs-action  the organizer decides; payerId and playerIds are the suggestion;
 //   unmatched     no single player fits; suggestions are checked-in players whose fee is the amount;
 //   ignored       not a completed card payment (refunded, voided, declined, cash entered on Clover).
-// context: index (cloverPlayerIndex_), links, paysFor, statuses, covered (Zeffy), roster, hand (methods chosen by hand),
-// claimed (optional).
+// context: index (cloverPlayerIndex_), links, paysFor, statuses, firstVisits (optional), covered (Zeffy), roster, hand
+// (methods chosen by hand), claimed (optional).
 function cloverMatchNight_(payments, context) {
   // context.claimed: players another Clover payment already covers tonight (recorded earlier).
   var claimed = Object.assign({}, context.claimed || {});
@@ -403,10 +403,11 @@ function cloverPaysFor_(players, linkRows) {
 // changes, so the result never depends on which card is looked at first. A card no player fits on every night (a
 // Credit record missing, or a shared card) is never linked, and neither is one several players still fit. Timing is
 // not used to decide: people arrive together.
-// known: cards already linked (matched at the desk or saved), which count as settled from the start.
+// known: cards already linked (matched at the desk or saved), which count as settled from the start. A night may carry
+// its own statuses and firstVisits, for the fees that night; statuses is used otherwise.
 // Returns { links: { key: playerId }, cards: [ { key, payments, nights, candidates, why, conflict, almost } ] }.
 function cloverLearnCards_(nights, statuses, known) {
-  var fee = function (id) { return CLOVER_FEES_[statuses[id]] || CLOVER_FEES_.visitor; };
+  var fee = function (id, night) { return nightFee_((night.statuses || statuses)[id], night.firstVisits && night.firstVisits[id]); };
   var cards = {};
   nights.forEach(function (night) {
     var used = {};
@@ -420,7 +421,7 @@ function cloverLearnCards_(nights, statuses, known) {
       card.payments += used[key].length;
       if (!night.credit.length || used[key].length !== 1) return;
       var dollars = used[key][0].net / 100;
-      card.clues.push({ date: night.date, payment: used[key][0], options: night.credit.filter(function (id) { return fee(id) === dollars; }) });
+      card.clues.push({ date: night.date, payment: used[key][0], options: night.credit.filter(function (id) { return fee(id, night) === dollars; }) });
     });
   });
   var links = {};
@@ -571,8 +572,10 @@ function cloverNight_(sessionDate) {
   var covered = {};
   getZeffyCoveredPlayerIds(getZeffyPlayers(playerRows, sessionDate, true), players).forEach(function (id) { covered[id] = true; });
   var roster = {};
-  rows_('SessionPlayers').forEach(function (row) { if (String(row.session_id) === sessionId) roster[String(row.player_id)] = true; });
-  cashRows_('OpenPlay').forEach(function (row) { if (displayDate_(row.session_date).slice(0, 10) === sessionDate) roster[String(row.player_id)] = true; });
+  var sessionRows = rows_('SessionPlayers');
+  var openRows = cashRows_('OpenPlay');
+  sessionRows.forEach(function (row) { if (String(row.session_id) === sessionId) roster[String(row.player_id)] = true; });
+  openRows.forEach(function (row) { if (displayDate_(row.session_date).slice(0, 10) === sessionDate) roster[String(row.player_id)] = true; });
   var hand = {};
   cashRows_('SessionPayments').forEach(function (row) { if (String(row.session_id) === sessionId && row.method) hand[String(row.player_id)] = String(row.method); });
   return {
@@ -580,6 +583,7 @@ function cloverNight_(sessionDate) {
     names: names,
     index: cloverPlayerIndex_(players, playerAliases_()),
     statuses: getMemberStatuses().statuses,
+    firstVisits: firstVisitFinder_(playerRows, sessionRows, openRows)(sessionDate),
     covered: covered,
     roster: roster,
     hand: hand,
@@ -690,7 +694,7 @@ function cloverDeskState_(sessionDate, payments, config) {
   // Credit a Clover match recorded is that match's, not a choice by hand.
   var hand = {};
   Object.keys(night.hand).forEach(function (id) { if (!(claimed[id] && night.hand[id] === 'credit')) hand[id] = night.hand[id]; });
-  var context = { index: night.index, links: night.links, paysFor: night.paysFor, statuses: night.statuses, covered: night.covered, roster: night.roster, hand: hand, claimed: claimed };
+  var context = { index: night.index, links: night.links, paysFor: night.paysFor, statuses: night.statuses, firstVisits: night.firstVisits, covered: night.covered, roster: night.roster, hand: hand, claimed: claimed };
   var held = function (id) { return (decided[id] || []).some(function (row) { return row.how === 'held'; }); };
   var open = payments.filter(function (payment) { return !decided[payment.id] || held(payment.id); });
   var rows = cloverMatchNight_(open, context);
@@ -928,7 +932,8 @@ function getCloverReport(fromDate, toDate) {
   playerRows.forEach(function (player) { names[String(player.player_id)] = String(player.display_name); });
   var linkRows = nameLinkRows_();
   var index = cloverPlayerIndex_(players, playerAliases_());
-  var statuses = getMemberStatuses().statuses;
+  var auditRows = cashRows_('AuditLog');
+  var statusesOn = memberStatusFinder_(getMemberStatuses().statuses, players, linkRows, auditRows);
   var coveredOn = cashZeffyCoverage_(playerRows, players, linkRows);
   var paysFor = cloverPaysFor_(players, linkRows);
   var stored = cloverLinkRows_();
@@ -936,11 +941,14 @@ function getCloverReport(fromDate, toDate) {
   var inRange = function (date) { return date >= fromDate && date <= toDate; };
   var rosters = {};
   var hands = {};
-  rows_('SessionPlayers').forEach(function (row) {
+  var sessionRows = rows_('SessionPlayers');
+  var openRows = cashRows_('OpenPlay');
+  var firstVisitsOn = firstVisitFinder_(playerRows, sessionRows, openRows);
+  sessionRows.forEach(function (row) {
     var date = dateOfSession(row.session_id);
     if (inRange(date)) (rosters[date] || (rosters[date] = {}))[String(row.player_id)] = true;
   });
-  cashRows_('OpenPlay').forEach(function (row) {
+  openRows.forEach(function (row) {
     var date = displayDate_(row.session_date).slice(0, 10);
     if (inRange(date)) (rosters[date] || (rosters[date] = {}))[String(row.player_id)] = true;
   });
@@ -959,7 +967,7 @@ function getCloverReport(fromDate, toDate) {
     (hands[date] || (hands[date] = {}))[String(row.player_id)] = String(row.method);
     if (String(row.method) === 'credit') mark(date, String(row.player_id), row.updated_at);
   });
-  cashRows_('AuditLog').forEach(function (row) {
+  auditRows.forEach(function (row) {
     if (row.action !== 'session_payment_updated') return;
     var date = dateOfSession(row.entity_id);
     if (!inRange(date)) return;
@@ -975,8 +983,8 @@ function getCloverReport(fromDate, toDate) {
   Object.keys(stored).forEach(function (key) { if (stored[key]) known[key] = stored[key]; });
   var learned = cloverLearnCards_(dates.map(function (date) {
     var hand = hands[date] || {};
-    return { date: date, payments: byDate[date] || [], credit: Object.keys(hand).filter(function (id) { return hand[id] === 'credit'; }) };
-  }), statuses, known);
+    return { date: date, payments: byDate[date] || [], credit: Object.keys(hand).filter(function (id) { return hand[id] === 'credit'; }), statuses: statusesOn(date), firstVisits: firstVisitsOn(date) };
+  }), {}, known);
   var links = {};
   Object.keys(learned.links).forEach(function (key) { links[key] = learned.links[key]; });
   Object.keys(stored).forEach(function (key) { links[key] = stored[key]; });
@@ -1015,7 +1023,7 @@ function getCloverReport(fromDate, toDate) {
   var firstNight = {};
   var repeat = { cards: 0, payments: 0 };
   var nights = dates.map(function (date) {
-    var context = { index: index, links: links, paysFor: paysFor, statuses: statuses, covered: coveredOn(date), roster: rosters[date] || {}, hand: hands[date] || {} };
+    var context = { index: index, links: links, paysFor: paysFor, statuses: statusesOn(date), firstVisits: firstVisitsOn(date), covered: coveredOn(date), roster: rosters[date] || {}, hand: hands[date] || {} };
     var rows = cloverMatchNight_(byDate[date] || [], context);
     var creditWithoutPayment = cloverReviewNight_(rows, context);
     rows.forEach(function (row) {
