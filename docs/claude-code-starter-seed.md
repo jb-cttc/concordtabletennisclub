@@ -1,4 +1,4 @@
-# Claude Code starter
+# Claude Code starter seed
 
 > **To the person reading this:** give this whole file to your AI agent
 > (Claude Code on the web, the Claude app, or the `claude` command) and say
@@ -39,7 +39,7 @@ to tutor them, not to finish everything for them.
    the learner sees differs from what you described, believe their screen.
    Describe what to look for instead of insisting on a label.
 5. **Track progress in this file.** Once they have a repository, offer to
-   save this tutorial in it as `docs/claude-code-starter.md` and tick the
+   save this file in it as `docs/claude-code-starter-seed.md` and tick the
    [progress checklist](#progress-checklist) there as modules are finished.
    Then a later session can pick up where this one stopped.
 6. **Adapt.** This guide describes what worked for CTTC. If something simpler
@@ -387,7 +387,7 @@ Go over these once the learner has done a few changes:
 ## Progress checklist
 
 The agent ticks these off in the learner's copy of this file
-(`docs/claude-code-starter.md`).
+(`docs/claude-code-starter-seed.md`).
 
 Goal: _(what the learner wants to build)_
 Route: _(modules chosen)_
@@ -496,4 +496,4 @@ Check these for current steps. Products change faster than this guide.
 - A working example of all of this: `https://github.com/jb-cttc/concordtabletennisclub`
   (see `AGENTS.md`, `README.md` and `.claude/`)
 - The latest version of this tutorial:
-  `https://github.com/jb-cttc/concordtabletennisclub/blob/main/docs/claude-code-starter.md`
+  `https://github.com/jb-cttc/concordtabletennisclub/blob/main/docs/claude-code-starter-seed.md`

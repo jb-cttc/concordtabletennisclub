@@ -56,7 +56,7 @@ the script and deploys a numbered Google version separately.
 ## Agentic Development Context & Tips
 
 New to all this and want a setup like ours for your own project? Give the
-[Claude Code starter](docs/claude-code-starter.md) to your agent
+[Claude Code starter seed](docs/claude-code-starter-seed.md) to your agent
 and ask it to walk you through. It covers a GitHub account, a first
 repository, connecting Claude Code, and the habits and checks we use here.
 
