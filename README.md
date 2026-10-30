@@ -55,6 +55,13 @@ the script and deploys a numbered Google version separately.
 
 ## Agentic Development Context & Tips
 
+New to all this? The Claude Code starter seed
+([Markdown](docs/claude-code-starter-seed.md) for Claude,
+[HTML](docs/claude-code-starter-seed.html) to read; same content) is a
+tutorial to give to Claude in your own app. It walks you through contributing
+to this repository or setting up your own, linked to Claude the way ours is.
+`npm run check:starter-seed` keeps the two files matching.
+
 Agents and people work from the same source: this GitHub repository. The
 tools have different jobs, and knowing which one changes *code* versus *live
 data* prevents surprises:

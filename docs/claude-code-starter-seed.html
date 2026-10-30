@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Claude Code starter seed</title>
+<!-- Same content as claude-code-starter-seed.md; keep the two in step (npm run check:starter-seed compares their headings). Self-contained so it opens from a text message. -->
+<style>
+:root {
+  --bg: #FAF8F3;
+  --surface: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #5f5a54;
+  --line: #ddd8d0;
+  --accent: #8B1A1A;
+  --accent-soft: #f3e6e3;
+  --ok: #2f6b3a;
+  --code-bg: #f1ede5;
+  --display: Georgia, "Times New Roman", serif;
+  --body: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171514; --surface: #211e1c; --fg: #ece8e1; --muted: #a9a29a; --line: #3a3532;
+    --accent: #e0847a; --accent-soft: #3a2422; --ok: #8cc79a; --code-bg: #2a2623; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body);
+  font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 760px; margin: 0 auto; padding-block: 40px 64px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+h1, h2, h3 { font-family: var(--display); font-weight: normal; text-wrap: balance; margin: 0; line-height: 1.25; }
+h1 { font-size: 2.3rem; color: var(--accent); }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.15rem; }
+p, ul, ol { margin: 0; }
+ul, ol { padding-left: 1.3em; display: grid; gap: 6px; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: 0.85rem; overflow-wrap: normal; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+section, .stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 18px 20px; display: grid; gap: 10px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 0.85rem; }
+td:last-child { font-variant-numeric: tabular-nums; }
+.label { font-weight: 600; }
+.check { background: var(--accent-soft); border-radius: 6px; padding: 10px 12px; }
+
+/* Foldable parts and modules */
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+summary { cursor: pointer; padding: 14px 16px; display: flex; gap: 12px; align-items: baseline; justify-content: space-between; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "+"; font-family: var(--mono); color: var(--accent); width: 1ch; flex: none; }
+details[open] > summary::before { content: "\2212"; }
+summary h2, summary h3 { flex: 1; min-width: 0; }
+summary:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fold { padding: 0 16px 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.tag { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; flex: none; }
+details.done .tag { color: var(--ok); border-color: var(--ok); }
+details.off:not([open]) { opacity: 0.5; }
+.modules { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+
+/* Route picker and progress (shown only when scripts run) */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: inherit; font-size: 0.92rem; cursor: pointer; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.progress { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
+.progress p { font-size: 0.88rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.checklist { list-style: none; padding: 0; gap: 8px; }
+.checklist label { display: flex; gap: 10px; align-items: baseline; cursor: pointer; }
+.checklist input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; position: relative; top: 3px; }
+.checklist b { font-variant-numeric: tabular-nums; min-width: 1.6em; display: inline-block; }
+.note { font-size: 0.9rem; color: var(--muted); }
+@media (max-width: 520px) { h1 { font-size: 1.9rem; } h2 { font-size: 1.35rem; } .fold { padding: 0 12px 16px; } }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+
+<header class="stack">
+  <span class="eyebrow">Concord Table Tennis Club</span>
+  <h1>Claude Code starter seed</h1>
+  <div class="callout">
+    <p><strong>If someone sent you this file:</strong> open the Claude app (or <code>claude.ai</code>), start a new chat, attach this file, and say <em>"Read this and walk me through it."</em> You don't need to read it all yourself. Claude will ask what you want to do and take you one step at a time.</p>
+    <p>The file comes in two versions with the same content: the <code>.md</code> file is for Claude, and the <code>.html</code> file is easier for you to read in a browser. Claude can work from either one.</p>
+    <p>This is a tutorial, not a rulebook. Along the way, Claude will suggest a few short rules for your own project's <code>AGENTS.md</code> file, and you decide which ones to keep.</p>
+  </div>
+</header>
+
+<details id="part-a-instructions-for-the-agent">
+<summary><h2>Part A: Instructions for the agent</h2><span class="tag">For Claude</span></summary>
+<div class="fold">
+
+<p>The learner got this file directly, probably in a text from someone at the Concord Table Tennis Club (CTTC), and has given it to you. Assume nothing is set up yet. They may have no GitHub account, no Claude Code, and no access to anything of the club's. Your job is to tutor them, not to finish everything for them.</p>
+
+<h3 id="about-the-clubs-project">About the club's project</h3>
+<p>CTTC keeps its work in one public GitHub repository, <code>jb-cttc/concordtabletennisclub</code> (<a href="https://github.com/jb-cttc/concordtabletennisclub">https://github.com/jb-cttc/concordtabletennisclub</a>). Anyone can read it. It holds:</p>
+<ul>
+  <li>the club's public website, <code>concordtabletennisclub.com</code>, served by GitHub Pages</li>
+  <li>the "desk", a Google Apps Script app that runs club nights: check-in, round-robin groups, ratings and payments</li>
+  <li>smaller Google apps for coaching bookings, volunteer sign-ups and turnout</li>
+  <li>automatic checks (<code>npm test</code>), and an <code>AGENTS.md</code> file with the rules agents follow there</li>
+</ul>
+<p>The club's owner works with Claude Code in cloud sessions linked to that repository. Claude works on a branch, runs the checks and opens a pull request, and the owner reviews and merges. The owner releases the Google apps as a separate step. This seed teaches the learner that way of working. They can learn it by contributing to the club's repository, by setting up their own, or both.</p>
+
+<h3 id="where-youre-running">Where you're running</h3>
+<ul>
+  <li><strong>A plain Claude chat</strong> (the app or <code>claude.ai</code>, without files or a terminal): you can explain things and guide the learner's clicks, but you can't run commands. That's enough for modules 0, C1 and 1. When they reach hands-on work, help them open Claude Code (the <em>Code</em> section of the Claude app, or <code>claude.ai/code</code>) and attach this file again in the new session.</li>
+  <li><strong>A Claude Code session:</strong> you can run commands, use git and edit files. Still let the learner do anything that happens on their own accounts.</li>
+</ul>
+<p>Tell the learner in one sentence which of these you are.</p>
+
+<h3 id="how-to-run-this-tutorial">How to run this tutorial</h3>
+<ol>
+  <li><strong>Start by asking, not telling.</strong> Greet the learner and ask the <a href="#opening-questions">opening questions</a>. Suggest a route through the <a href="#part-b-modules">modules</a> that fits their answers and let them pick. They can skip, reorder or stop at any point.</li>
+  <li><strong>Do one step at a time.</strong> Give one small step, say what they should see when it worked, and wait for them before moving on. Keep each message short. Explain a word the first time you use it (repository, branch, commit, pull request, fork, environment variable).</li>
+  <li><strong>Let them do it, then explain.</strong> If you can run commands, offer to, and say what each one does. For anything in a browser on <em>their</em> account (signing up, installing an app, approving access), give them the clicks and let them do it.</li>
+  <li><strong>Check before you give instructions.</strong> Menu names and buttons in Claude and GitHub change often. If you can read the current docs (see <a href="#references">References</a>), check them before giving exact clicks. If what the learner sees differs from what you described, believe their screen, and describe what to look for rather than insisting on a label.</li>
+  <li><strong>Track progress.</strong> Keep the <a href="#progress-checklist">progress checklist</a> up to date. Once they have a repository of their own, offer to save this file in it as <code>docs/claude-code-starter-seed.md</code> and tick the checklist there. Until then, show the checklist at the end of each sitting so they can bring it to the next one.</li>
+  <li><strong>Adapt.</strong> This seed describes what worked for CTTC. If something simpler suits the learner (a website with no Google parts, or working on their own computer instead of the cloud), recommend it and say why.</li>
+</ol>
+
+<h3 id="safety-rules-never-break-these">Safety rules (never break these)</h3>
+<ul>
+  <li><strong>Never ask the learner to paste a password, token, API key or private key into the chat.</strong> Credentials go in the environment's settings screen or in a file on their own computer. They never go in a conversation or a repository.</li>
+  <li><strong>Public repositories are public.</strong> Before the first commit, make sure they understand that anyone can read a public repository, its issues and its history, and that deleting something later doesn't remove it from history. That means no personal contact details, member lists, payment details or credentials. This applies twice over in the club's repository: never post or commit anything about club members.</li>
+  <li><strong>Don't take outward-facing or hard-to-undo actions without asking.</strong> That covers creating or deleting repositories, publishing a site, opening or merging a pull request, sending email, and changing live data.</li>
+  <li><strong>Least access first.</strong> Start with read-only access and one repository, not "all repositories", unless the learner chooses otherwise.</li>
+  <li><strong>Never try to get the club's credentials.</strong> The club's Google desk, private Sheet, card payments and email are reached only through the owner's own sessions. See <a href="#module-c1-explore-the-clubs-project">module C1</a>.</li>
+</ul>
+
+<h3 id="this-tutorial-and-the-learners-agentsmd">This tutorial and the learner's AGENTS.md</h3>
+<p>This file teaches setup. <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) at the root of a repository is different: it holds the lasting rules for that project, and every future session reads it. Keep the two separate:</p>
+<ul>
+  <li><strong>Don't copy this tutorial, or big parts of it, into <code>AGENTS.md</code>.</strong> Most of what's here is explanation the learner only needs once.</li>
+  <li><strong>Grow the learner's <code>AGENTS.md</code> as you go.</strong> Some modules end with <strong>AGENTS.md candidates</strong>: rules that might belong there once that step is done. Decide which ones fit this learner's project, suggest them in your own words, show the exact lines, and write only what the learner agrees to. Skip the ones that don't apply, and add your own when the project needs them.</li>
+  <li><strong>Keep it short.</strong> A few lines on day one is fine. The test for any line: "Would a new session get this wrong without being told?" If not, leave it out.</li>
+  <li><strong>Explain why each rule matters.</strong> Every future session reads the file, so the learner should understand and agree with every line in it.</li>
+  <li><strong>The club's <code>AGENTS.md</code> belongs to the club.</strong> On the contributor path, follow it, and change it only when that change is the point of a pull request.</li>
+</ul>
+
+<h3 id="opening-questions">Opening questions</h3>
+<p>Ask these, adapting the wording, then suggest a route:</p>
+<ol>
+  <li><strong>Which path?</strong>
+    <ul>
+      <li><strong>Contribute to the club's project:</strong> look around the club's website and apps, and propose changes to the club's repository.</li>
+      <li><strong>Set up your own:</strong> a repository of their own, linked to Claude the way the club's is.</li>
+      <li><strong>Both:</strong> many people explore the club's project first, then start their own.</li>
+    </ul>
+  </li>
+  <li>What would you like to build or change? It could be a club page, a personal website, a small tool or a spreadsheet helper, or "I just want to see how it works."</li>
+  <li>Which of these do you already have? A GitHub account, a paid Claude plan that includes Claude Code, or a Google account you'd use for a project.</li>
+  <li>Where will you mostly work? A phone, a laptop browser, or a laptop where you're happy to install things.</li>
+  <li>How hands-on do you want to be? "Explain everything", "Show me and I'll follow", or "Do it and show me the result".</li>
+</ol>
+
+<h3 id="suggested-routes">Suggested routes</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Path</th><th>If the learner wants…</th><th>Route</th></tr></thead>
+  <tbody>
+    <tr><td>Contribute</td><td>Just to look around</td><td>0 → C1</td></tr>
+    <tr><td>Contribute</td><td>To propose changes to the club's project</td><td>0 → C1 → 1 → C2 → 8</td></tr>
+    <tr><td>Own</td><td>A first look</td><td>0 → 1 → 2 → 3</td></tr>
+    <tr><td>Own</td><td>A simple website</td><td>0 → 1 → 2 → 3 → 4</td></tr>
+    <tr><td>Own</td><td>A setup like the club's</td><td>0 → 1 → 2 → 3 → 5 → 6 → 8</td></tr>
+    <tr><td>Own</td><td>Google Sheets or Apps Script tools</td><td>the setup like the club's, then 7</td></tr>
+    <tr><td>Both</td><td>To explore the club's project, then build their own</td><td>0 → C1 → 1 → 2 → 3 → 5 → 6 → 8, with C2 whenever they're ready</td></tr>
+  </tbody>
+</table>
+</div>
+<p>On any route, they can work on their own computer instead of in the cloud. Use the local option in module 2.</p>
+
+</div>
+</details>
+
+<section id="part-b-modules">
+  <h2>Part B: Modules</h2>
+  <p>Each module has a goal, steps, a <strong>check</strong> (how to know it worked) and <strong>options</strong>. Do the steps in order inside a module. Modules C1 and C2 are for contributing to the club's project. Modules 1 to 7 mostly set up the learner's own repository. Modules 0 and 8 apply to both.</p>
+
+  <div class="stack" id="route-picker" hidden>
+    <p class="note">Highlight a route on this page:</p>
+    <div class="chips" role="group" aria-label="Routes">
+      <button class="chip" type="button" data-route="all" aria-pressed="true">Everything</button>
+      <button class="chip" type="button" data-route="look">Look around the club's project</button>
+      <button class="chip" type="button" data-route="contribute">Contribute to the club's project</button>
+      <button class="chip" type="button" data-route="first">My own: a first look</button>
+      <button class="chip" type="button" data-route="site">My own: a website</button>
+      <button class="chip" type="button" data-route="club">My own: set up like the club's</button>
+      <button class="chip" type="button" data-route="google">My own: with Google Apps Script</button>
+      <button class="chip" type="button" data-route="both">Both</button>
+    </div>
+  </div>
+  <div class="progress" id="progress" aria-live="polite" hidden>
+    <div class="bar"><i id="bar"></i></div>
+    <p id="progress-text"></p>
+  </div>
+
+  <div class="modules">
+
+  <details data-m="0" id="module-0-the-big-picture-5-minutes-no-setup">
+  <summary><h3>Module 0: The big picture (5 minutes, no setup)</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> the learner understands what the pieces are and how they fit.</p>
+    <p>Explain in plain words:</p>
+    <ul>
+      <li><strong>Claude Code</strong> is an AI agent that can read and edit code, run commands and use GitHub. It runs on the web at <code>claude.ai/code</code>, in the Claude phone and desktop apps, and as a <code>claude</code> command on a computer.</li>
+      <li><strong>A cloud session</strong> is a fresh, temporary computer that Claude gets for one conversation. It copies (clones) a repository, works on it, and must <strong>push</strong> the work back to GitHub before the session ends, or the work is lost.</li>
+      <li><strong>GitHub</strong> stores code and its full history. Work happens on a <strong>branch</strong>, a separate line of changes. A <strong>pull request (PR)</strong> proposes merging a branch into <code>main</code>, and a person reviews and approves it.</li>
+      <li><strong>The loop the club uses:</strong> describe a change → the agent works on a branch → the agent runs automatic checks (<code>npm test</code>) → the agent opens a PR → a person reviews it → merge. For a website on GitHub Pages, merging publishes it. Google apps are deployed separately, on purpose (module 7).</li>
+    </ul>
+    <p class="check"><span class="label">Check:</span> the learner can say in their own words what a branch and a pull request are for.</p>
+  </div>
+  </details>
+
+  <details data-m="C1" id="module-c1-explore-the-clubs-project">
+  <summary><h3>Module C1: Explore the club's project</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> the learner knows what's in the club's repository and how it's run, without changing anything. They don't need an account for this.</p>
+    <ol>
+      <li>Open the live site, <a href="https://concordtabletennisclub.com">https://concordtabletennisclub.com</a>, and the repository, <a href="https://github.com/jb-cttc/concordtabletennisclub">https://github.com/jb-cttc/concordtabletennisclub</a>.</li>
+      <li>Take a tour of the repository:
+        <div class="table-wrap"><table>
+          <thead><tr><th>Where</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr><td><code>README.md</code></td><td>Overview, how results and ratings work, how to contribute</td></tr>
+            <tr><td><code>AGENTS.md</code></td><td>The rules agents follow in this repository</td></tr>
+            <tr><td><code>*.html</code>, <code>style.css</code></td><td>The public website</td></tr>
+            <tr><td><code>apps-script/</code></td><td>The desk's code (Google Apps Script)</td></tr>
+            <tr><td><code>coaching-app/</code>, <code>staffing-app/</code>, <code>turnout-app/</code></td><td>Smaller Google apps</td></tr>
+            <tr><td><code>docs/</code></td><td>How each app works, and where things can get stuck</td></tr>
+            <tr><td><code>scripts/</code></td><td>Data import, publishing, and the checks behind <code>npm test</code></td></tr>
+            <tr><td><code>.claude/</code>, <code>.github/skills/</code></td><td>The session-start hook and written procedures for agents</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+      <li>Explore it with Claude:
+        <ul>
+          <li><strong>In a plain chat that can read web pages:</strong> read <code>README.md</code> and <code>AGENTS.md</code> on GitHub and talk them through it.</li>
+          <li><strong>In a Claude Code session:</strong> a public repository can usually be cloned with no setup: <code>git clone https://github.com/jb-cttc/concordtabletennisclub</code>. Then run <code>npm install</code>, and <code>npm test</code> to run the club's checks (they don't touch the network). Run <code>npm start</code> to preview the website at <code>http://localhost:3000</code>, and <code>npm run preview:desk</code> to see the desk with made-up players and no Google. If the clone is refused, fork the repository first (module C2, step 1) and start a session on the fork.</li>
+          <li>Let them ask questions, such as "How does the leaderboard page get its numbers?"</li>
+        </ul>
+      </li>
+      <li>Look at the open <strong>Issues</strong> to see what the club wants done.</li>
+    </ol>
+    <p><span class="label">What a contributor can't reach:</span> the desk, the private Sheet, card payments and club email run under the club's Google account. Their credentials live only in the owner's environment. The "What this session can access" list in the club's <code>AGENTS.md</code> describes the owner's sessions. In anyone else's session, those commands won't work. That's expected, not something to fix.</p>
+    <p class="check"><span class="label">Check:</span> the learner can say which folder holds the website and which holds the desk, and what <code>AGENTS.md</code> is for.</p>
+  </div>
+  </details>
+
+  <details data-m="C2" id="module-c2-propose-a-change-to-the-clubs-project">
+  <summary><h3>Module C2: Propose a change to the club's project</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> a pull request on the club's repository that the owner can review.</p>
+    <ol>
+      <li><strong>Get a copy you can push to.</strong> Either:
+        <ul>
+          <li><strong>Fork it (no permission needed):</strong> on the club's repository, click <em>Fork</em>. That makes a copy under the learner's own account. Start with this.</li>
+          <li><strong>Become a collaborator (the owner decides):</strong> ask the person who sent this file to add your GitHub username as a collaborator, then accept the invitation from GitHub's notifications or email. Collaborators can push branches to the club's repository directly.</li>
+        </ul>
+      </li>
+      <li><strong>Link it to Claude:</strong> do <a href="#module-2-connect-claude-code-to-github">module 2</a> with the fork, or with the club's repository if they're a collaborator.</li>
+      <li><strong>Read the club's rules first.</strong> In the session, ask Claude to read <code>AGENTS.md</code> and the README's <em>Contributing</em> section and summarize them. The main ones:
+        <ul>
+          <li>Work on a branch and open a pull request to <code>main</code>.</li>
+          <li>Run <code>npm test</code> first.</li>
+          <li>The repository is public, so no member names, contact details or payments.</li>
+          <li>Leave <code>data/</code> and the <code>CNAME</code> file alone.</li>
+          <li>Merging doesn't deploy the Google apps.</li>
+        </ul>
+      </li>
+      <li><strong>Pick something small:</strong> an open issue, or a wording or layout fix on the website. An idea that needs discussion starts as an issue: <a href="https://github.com/jb-cttc/concordtabletennisclub/issues/new">https://github.com/jb-cttc/concordtabletennisclub/issues/new</a>.</li>
+      <li><strong>Make the change and open the pull request.</strong> Claude works on a branch, runs <code>npm test</code>, and checks pages with <code>npm start</code>. Then it opens a pull request against <code>main</code> of <code>jb-cttc/concordtabletennisclub</code>. From a fork, GitHub offers this under <em>Contribute → Open pull request</em>. The description says what changed, why, and how it was tested, with screenshots for visual changes.</li>
+      <li><strong>Review.</strong> The owner reviews it. The learner answers comments with Claude's help. The owner merges and handles any Google release.</li>
+    </ol>
+    <p class="check"><span class="label">Check:</span> a pull request is open on the club's repository, and <code>npm test</code> passes.</p>
+    <p><span class="label">AGENTS.md candidates:</span> none for the club's repository. If the learner also has their own repository, the club's rules are a good source of candidates for it.</p>
+  </div>
+  </details>
+
+  <details data-m="1" id="module-1-a-github-account-and-a-first-repository">
+  <summary><h3>Module 1: A GitHub account and a first repository</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> a GitHub account and, on the own path, an empty repository.</p>
+    <ol>
+      <li>Sign up at <a href="https://github.com/signup">https://github.com/signup</a> (skip this if they already have an account). Choose a username they're happy to have seen in public. Turn on two-factor authentication under <em>Settings → Password and authentication</em>, because it protects everything built later.</li>
+      <li><strong>Own path only:</strong> create a repository from the <strong>+</strong> menu at the top right → <em>New repository</em>.
+        <ul>
+          <li>Name: short, lowercase, with hyphens (for example <code>my-club-site</code>).</li>
+          <li><strong>Public or private?</strong> A public repository gets free GitHub Pages websites and lets others see and suggest changes. A private one stays hidden. Help them choose. Either works with Claude Code.</li>
+          <li>Tick <em>Add a README file</em>, so the repository isn't empty. An agent can't clone an empty repository cleanly.</li>
+        </ul>
+      </li>
+      <li>Explain what they're looking at: the file list, the <em>Commits</em> history, the <em>Issues</em> tab (a to-do and discussion list) and the <em>Pull requests</em> tab.</li>
+    </ol>
+    <p class="check"><span class="label">Check:</span> they're signed in to GitHub. On the own path, the repository page shows a README.</p>
+    <p><span class="label">Options:</span> a club or team may later want an <em>organization</em> account to own shared repositories. They don't need one to start.</p>
+  </div>
+  </details>
+
+  <details data-m="2" id="module-2-connect-claude-code-to-github">
+  <summary><h3>Module 2: Connect Claude Code to GitHub</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> a Claude Code cloud session that can read a repository and push branches to it, linked the way the club's is. On the own path that's their new repository. On the contributor path it's their fork, or the club's repository if they're a collaborator.</p>
+    <ol>
+      <li>Make sure their Claude plan includes Claude Code. Open <a href="https://claude.ai/code">https://claude.ai/code</a> (or the <em>Code</em> section of the Claude app) and sign in.</li>
+      <li>Connect GitHub: go to <a href="https://claude.ai/connect-github">https://claude.ai/connect-github</a> and authorize with their GitHub account.</li>
+      <li>Install the <strong>Claude GitHub App</strong> on their repository. The connect flow offers this, or they can go to <a href="https://github.com/apps/claude/installations/select_target">https://github.com/apps/claude/installations/select_target</a>. Recommend <em>Only select repositories</em> and pick just that one. They can add more later from GitHub <em>Settings → Applications</em>. A collaborator on the club's repository skips this step, because the club has already installed the app there.</li>
+      <li>Start a new Claude Code session with that repository selected, and attach this file again so the session has the tutorial. A session's repositories are chosen when it starts, so if one is missing, the fix is usually a new session with it selected.</li>
+      <li>In the session, they ask: <em>"List the files in this repository and tell me which branch you're on."</em></li>
+    </ol>
+    <p class="check"><span class="label">Check:</span> Claude lists the files and names a branch.</p>
+    <p><span class="label">If it doesn't work:</span> reconnect at <a href="https://claude.ai/connect-github">https://claude.ai/connect-github</a>, and check that the GitHub App has access to that repository. A repository owned by an organization may need one of its owners to approve the app.</p>
+    <p><span class="label">Options:</span></p>
+    <ul>
+      <li><strong>Phone only:</strong> everything up to module 4 works from the Claude app. Reviewing pull requests is easier in the GitHub app.</li>
+      <li><strong>Local instead of cloud:</strong> install Claude Code on their computer (see <a href="#references">References</a> for the current install steps), install Git, and sign in to GitHub (<code>gh auth login</code>, or Git's own sign-in). Then run <code>claude</code> inside a cloned folder. Local suits people who want their own editor. The cloud suits working from anywhere with nothing to install.</li>
+    </ul>
+  </div>
+  </details>
+
+  <details data-m="3" id="module-3-the-first-change-start-to-finish">
+  <summary><h3>Module 3: The first change, start to finish</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> the learner has gone through branch → commit → push → PR → merge once, in their own repository.</p>
+    <ol>
+      <li>The learner asks for something small and visible. For example: <em>"Add a line to the README saying what this project is for."</em></li>
+      <li>Claude makes the edit on a branch, commits it and pushes it. Point out the branch name and the commit message.</li>
+      <li>Claude opens a pull request. Show them the PR on GitHub: the <em>Files changed</em> tab shows exactly what changed, with removed lines in red and added lines in green.</li>
+      <li>The learner merges it on GitHub (<em>Merge pull request</em>). Explain that the merge is their decision, not the agent's.</li>
+    </ol>
+    <p class="check"><span class="label">Check:</span> the README on <code>main</code> shows the new line, and the PR says <em>Merged</em>.</p>
+    <p><span class="label">Teach here:</span> a good request names the <em>behavior</em> wanted and <em>how to tell it worked</em>. "Make the page nicer" is vague. "On phones, the header text overlaps the logo. Make it wrap under the logo" is a request Claude can check.</p>
+    <p><span class="label">AGENTS.md candidates:</span> this is a good moment to create the file, with a line or two. For example: always work on a branch and open a PR, and the learner merges, never the agent.</p>
+  </div>
+  </details>
+
+  <details data-m="4" id="module-4-publish-a-website-with-github-pages-optional">
+  <summary><h3>Module 4: Publish a website with GitHub Pages (optional)</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> a live website served from their repository, the way <code>concordtabletennisclub.com</code> is.</p>
+    <ol>
+      <li>Claude creates a simple <code>index.html</code> (and <code>style.css</code>) on a branch and opens a PR, and the learner merges it.</li>
+      <li>On GitHub: <em>Settings → Pages</em> → <em>Deploy from a branch</em> → <code>main</code>, folder <code>/ (root)</code> → <em>Save</em>. Pages on a private repository needs a paid GitHub plan.</li>
+      <li>After a minute or two the site appears at <code>https://&lt;username&gt;.github.io/&lt;repository&gt;/</code>.</li>
+      <li>Optional: a custom domain. They add it under <em>Settings → Pages</em> and follow GitHub's DNS instructions at their domain registrar. Claude can explain each DNS record, but the learner makes the change at the registrar.</li>
+    </ol>
+    <p class="check"><span class="label">Check:</span> the URL opens their page on a computer and on a phone.</p>
+    <p>From now on, merging to <code>main</code> updates the site, which is why reviewing the PR matters.</p>
+    <p><span class="label">AGENTS.md candidates:</span> merging to <code>main</code> publishes the site, and where it's live. Check visible changes at a phone width and a wide width.</p>
+  </div>
+  </details>
+
+  <details data-m="5" id="module-5-make-the-repository-agent-ready">
+  <summary><h3>Module 5: Make the repository agent-ready</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> every new session starts already knowing the project's rules, without the learner repeating them.</p>
+    <ol>
+      <li><strong>Review <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) together.</strong> Claude reads it at the start of every session. If it doesn't exist yet, create it now. Use the <a href="#template-agentsmd">template</a> as a menu, not a form: pick the parts that fit this project and leave the rest out. It's about <em>how to work here</em>: what the project is, how to test, what never to do, and who approves what. Teach the habit: whenever the learner repeats an instruction, it may belong in <code>AGENTS.md</code>.</li>
+      <li><strong>Automatic checks (<code>npm test</code>).</strong> Even a website benefits from a script that fails when something breaks: a page missing its title, a link that points nowhere, a number computed wrong. Claude adds a first check. The club runs about twenty before each review.</li>
+      <li><strong>A session-start hook.</strong> This is a script that runs when each cloud session starts. It installs the project's packages and prints what the session can reach. It lives in <code>.claude/hooks/session-start.sh</code> and is switched on in <code>.claude/settings.json</code>. See the <a href="#template-session-start-hook">template</a>.</li>
+      <li><strong>Skills for repeated procedures.</strong> When a multi-step task keeps coming back (for example "preview and release the Google app"), write it up once as a skill file the agent follows. The club keeps one at <code>.github/skills/cttc-dev-preview/SKILL.md</code> in its repository.</li>
+    </ol>
+    <p class="check"><span class="label">Check:</span> start a <em>new</em> session and ask <em>"What are the rules for working in this repository?"</em> Claude should answer from <code>AGENTS.md</code> without being told.</p>
+    <p><span class="label">AGENTS.md candidates:</span> run <code>npm test</code> before every PR and report the result. If there's a hook, add a short "What this session can access" list.</p>
+  </div>
+  </details>
+
+  <details data-m="6" id="module-6-the-cloud-environment-secrets-network-setup">
+  <summary><h3>Module 6: The cloud environment (secrets, network, setup)</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> the learner understands where a session's access comes from, and can give it a credential safely when a project needs one.</p>
+    <p>A cloud session runs in an <strong>environment</strong>. The learner edits it from the environment menu in the session's title bar, then <em>Edit</em>. Labels change over time, so describe what to look for. An environment holds:</p>
+    <ul>
+      <li><strong>Environment variables and secrets:</strong> values the session can read, such as an API key. This is the <em>only</em> place credentials go: never in chat, never in the repository. A new session picks up changes.</li>
+      <li><strong>Network access:</strong> which websites the session may reach. Start with the default and widen it only when a step needs it.</li>
+      <li><strong>A setup script:</strong> commands run when the environment is prepared. It can't read the saved variables, so anything that needs a secret belongs in the session-start hook instead.</li>
+    </ul>
+    <p>How the club uses it. This is a pattern, not a requirement:</p>
+    <ul>
+      <li>A credential that's a whole file, such as Google's <code>clasp</code> sign-in, is stored as one base64-encoded variable. The session-start hook decodes it into the home folder at startup, checks that it's valid, and never prints it.</li>
+      <li>Where possible, each credential is <strong>read-only</strong> and limited to one thing, such as a Google service account that can only read one spreadsheet.</li>
+      <li><code>AGENTS.md</code> and the hook both list what the session can reach, so the agent doesn't wrongly say "I can't access that".</li>
+    </ul>
+    <p class="check"><span class="label">Check:</span> the learner can explain where a new API key would go, and why it never goes in chat or in the repository.</p>
+    <p><span class="label">Options:</span> most beginner projects, such as a static website, need no secrets at all. Skip this module until a project needs one.</p>
+    <p><span class="label">AGENTS.md candidates:</span> for each credential added, one line on what it reaches and the command that uses it. Never the value itself.</p>
+  </div>
+  </details>
+
+  <details data-m="7" id="module-7-google-sheets-and-apps-script-advanced-optional">
+  <summary><h3>Module 7: Google Sheets and Apps Script (advanced, optional)</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p><span class="label">Goal:</span> edit a Google Apps Script project from GitHub, preview it safely and release it on purpose, the way the club's desk works.</p>
+    <p>Concepts to explain first:</p>
+    <ul>
+      <li><strong>Apps Script</strong> is code that runs on Google's servers, often attached to a Google Sheet. A <strong>web app</strong> deployment gives it a URL.</li>
+      <li><strong><code>clasp</code></strong> is Google's command-line tool for copying Apps Script code between a folder in the repository and Google.</li>
+      <li><strong><code>/dev</code> and <code>/exec</code>:</strong> <code>/dev</code> always runs the latest pushed code, as a preview for editors. <code>/exec</code> runs a numbered version, the live app. Pushing changes <code>/dev</code>. Releasing means making a version and redeploying <code>/exec</code>.</li>
+      <li><strong>A GitHub merge doesn't deploy Google.</strong> That's a separate step, done only from merged code.</li>
+    </ul>
+    <p>Steps. Go slowly, and the learner does the Google clicks:</p>
+    <ol>
+      <li>Create or choose a test Google Sheet and its Apps Script project (<em>Extensions → Apps Script</em>). Use made-up data while learning.</li>
+      <li>Turn on the Apps Script API for their account at <a href="https://script.google.com/home/usersettings">https://script.google.com/home/usersettings</a>.</li>
+      <li>On their own computer (a cloud session can't open a Google sign-in window): install Node.js, then <code>npm install -g @google/clasp</code>, then <code>clasp login</code>. That writes a sign-in file, <code>~/.clasprc.json</code>.</li>
+      <li>Store that file in the cloud environment as one base64 variable (for example <code>CLASPRC_B64</code>), and have Claude write the session-start hook code that restores it. The learner encodes it on their computer (<code>base64 &lt; ~/.clasprc.json</code> on macOS or Linux) and pastes the result <strong>only</strong> into the environment's settings screen.</li>
+      <li>In a session: <code>clasp clone &lt;script id&gt;</code> into an <code>apps-script/</code> folder, then commit, open a PR and merge. From then on, GitHub is the source of truth.</li>
+      <li>The working loop: branch → edit → <code>npm test</code> → <code>clasp push</code> (updates <code>/dev</code>) → look at <code>/dev</code> → PR → merge → push the merged code → version and redeploy <code>/exec</code> → look at the live page.</li>
+    </ol>
+    <p>Lessons the club learned the hard way. These are strong <strong>AGENTS.md candidates</strong> for any Apps Script project, adapted to the learner's setup:</p>
+    <ul>
+      <li><code>/dev</code> uses the <strong>real</strong> Sheet. Preview with read-only checks or throwaway rows, never real records.</li>
+      <li>Before pushing, check whether someone edited the code in Google's editor, and bring those edits into GitHub instead of overwriting them.</li>
+      <li>After pushing, clone the code back and compare, because <code>clasp</code> can skip a push without saying so.</li>
+      <li><strong>Look at the page, don't just trust the tests.</strong> The club uses a headless browser (Playwright) script to screenshot the real page at a wide width and at a phone width.</li>
+      <li>All the scripts under one Google account <strong>share its daily limits</strong> for emails, run time and web calls. Add up usage before adding a timer or an email. Timers should wake only when there's work to do.</li>
+      <li>Data people need to correct gets a control in the app, not "edit the Sheet on your phone".</li>
+    </ul>
+    <p class="check"><span class="label">Check:</span> a small visible change goes through <code>/dev</code>, a PR, the merge and <code>/exec</code>, and the learner looks at it at both widths.</p>
+  </div>
+  </details>
+
+  <details data-m="8" id="module-8-working-habits-that-make-it-go-well">
+  <summary><h3>Module 8: Working habits that make it go well</h3><span class="tag">To do</span></summary>
+  <div class="fold">
+    <p>Go over these once the learner has made a few changes:</p>
+    <ol>
+      <li><strong>Small, specific requests.</strong> One behavior per request, with a way to check it.</li>
+      <li><strong>Ask the agent to read first.</strong> "Find the code that does X and the tests near it, then propose a change" catches wrong assumptions early.</li>
+      <li><strong>Review every PR.</strong> Read <em>Files changed</em>, ask Claude to explain anything unclear, and ask what it checked and what it didn't.</li>
+      <li><strong>See it, don't just trust it.</strong> For anything visible, ask for screenshots, or open it yourself on a phone and on a big screen.</li>
+      <li><strong>Write down what you learn.</strong> When something goes wrong, decide together whether the lesson belongs in <code>AGENTS.md</code>, so the next session doesn't repeat it. Now and then, reread <code>AGENTS.md</code> and remove lines that no longer apply.</li>
+      <li><strong>Use issues as a to-do list.</strong> Ideas and bugs go in GitHub Issues, with no private details in a public repository. "Work on issue #12" is a good request.</li>
+      <li><strong>Keep it private.</strong> Use made-up examples when describing a bug that involves real people.</li>
+    </ol>
+  </div>
+  </details>
+
+  </div>
+</section>
+
+<hr>
+
+<section id="progress-checklist">
+  <h2>Progress checklist</h2>
+  <p>The agent keeps this up to date: in the learner's copy of this file once they have a repository, and in the chat until then.</p>
+  <p>Path: <em>(contribute, own, or both)</em><br>Goal: <em>(what the learner wants to build or change)</em><br>Route: <em>(modules chosen)</em></p>
+  <ul class="checklist">
+    <li><label><input type="checkbox" id="done-0" data-m="0"> <span><b>0</b> Big picture: branch, PR and cloud session explained</span></label></li>
+    <li><label><input type="checkbox" id="done-C1" data-m="C1"> <span><b>C1</b> Explored the club's repository and website</span></label></li>
+    <li><label><input type="checkbox" id="done-C2" data-m="C2"> <span><b>C2</b> A pull request open on the club's repository</span></label></li>
+    <li><label><input type="checkbox" id="done-1" data-m="1"> <span><b>1</b> GitHub account (two-factor on); own path: first repository</span></label></li>
+    <li><label><input type="checkbox" id="done-2" data-m="2"> <span><b>2</b> Claude linked to a repository; a session lists its files</span></label></li>
+    <li><label><input type="checkbox" id="done-3" data-m="3"> <span><b>3</b> First change merged through a PR; AGENTS.md started</span></label></li>
+    <li><label><input type="checkbox" id="done-4" data-m="4"> <span><b>4</b> (optional) Website live on GitHub Pages</span></label></li>
+    <li><label><input type="checkbox" id="done-5" data-m="5"> <span><b>5</b> AGENTS.md reviewed, a first automatic check, session-start hook</span></label></li>
+    <li><label><input type="checkbox" id="done-6" data-m="6"> <span><b>6</b> (when needed) Environment secrets and network understood</span></label></li>
+    <li><label><input type="checkbox" id="done-7" data-m="7"> <span><b>7</b> (optional) Apps Script with clasp, /dev and /exec</span></label></li>
+    <li><label><input type="checkbox" id="done-8" data-m="8"> <span><b>8</b> Working habits reviewed</span></label></li>
+  </ul>
+  <p>Notes and next idea:</p>
+  <p class="note" id="saved-note" hidden>Ticks on this page are saved in this browser only.</p>
+</section>
+
+<hr>
+
+<section id="templates">
+  <h2>Templates</h2>
+
+  <h3 id="template-agentsmd">Template: AGENTS.md</h3>
+  <p>A menu, not a form. Start with only the lines that fit the project, and add more as the learner reaches the modules that call for them.</p>
+<pre><code># &lt;Project name&gt;: how to work here
+
+&lt;One or two sentences: what this project is and who uses it.&gt;
+
+## Rules
+- Work on a branch and open a pull request to `main`. I review and merge; never
+  merge yourself.
+- Run `npm test` before opening a PR and report the result.
+- This repository is public: never commit names, contact details, payments or
+  credentials. Use made-up examples.
+- For visible changes, check the page at a phone width and a wide width.
+- Ask before anything hard to undo (deleting files, publishing, sending email,
+  changing live data).
+
+## What this session can access
+- GitHub: this repository (read, push branches, open PRs).
+- &lt;Add each credential or service here as you add it, and how to use it.&gt;
+
+## Project notes
+- &lt;Things you had to tell the agent twice go here.&gt;</code></pre>
+
+  <h3 id="template-session-start-hook">Template: session-start hook</h3>
+  <p><code>.claude/settings.json</code>:</p>
+<pre><code>{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command",
+        "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh" } ] }
+    ]
+  }
+}</code></pre>
+  <p><code>.claude/hooks/session-start.sh</code> (make it executable with <code>chmod +x .claude/hooks/session-start.sh</code>):</p>
+<pre><code>#!/bin/bash
+# Prepares a Claude Code cloud session: installs packages and lists what the session can reach.
+set -euo pipefail
+
+# Only run in cloud sessions, not on a local computer.
+if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
+  exit 0
+fi
+
+cd "$CLAUDE_PROJECT_DIR"
+if [ -f package.json ]; then
+  npm install --no-audit --no-fund --loglevel=error
+fi
+
+# Example: restore a file-shaped credential stored as a base64 environment variable.
+# The value never goes in the repository and is never printed.
+# if [ -n "${CLASPRC_B64:-}" ]; then
+#   umask 077
+#   printf '%s' "$CLASPRC_B64" | base64 -d &gt; "$HOME/.clasprc.json"
+# fi
+
+echo "Access in this session (see AGENTS.md):"
+echo "- GitHub (this repository): read, push branches, open PRs"</code></pre>
+</section>
+
+<hr>
+
+<section id="references">
+  <h2>References</h2>
+  <p>Check these for current steps, because products change faster than this seed.</p>
+  <ul>
+    <li>Claude Code docs: <a href="https://code.claude.com/docs">https://code.claude.com/docs</a>. Cloud sessions and environments: <a href="https://code.claude.com/docs/en/claude-code-on-the-web">https://code.claude.com/docs/en/claude-code-on-the-web</a></li>
+    <li>Connect GitHub to Claude: <a href="https://claude.ai/connect-github">https://claude.ai/connect-github</a></li>
+    <li>Claude GitHub App: <a href="https://github.com/apps/claude">https://github.com/apps/claude</a></li>
+    <li>GitHub's beginner docs: <a href="https://docs.github.com/en/get-started">https://docs.github.com/en/get-started</a></li>
+    <li>Forking and pull requests from a fork: <a href="https://docs.github.com/en/pull-requests/collaborating-with-pull-requests">https://docs.github.com/en/pull-requests/collaborating-with-pull-requests</a></li>
+    <li>GitHub Pages: <a href="https://docs.github.com/en/pages">https://docs.github.com/en/pages</a></li>
+    <li>clasp (Google Apps Script command-line tool): <a href="https://github.com/google/clasp">https://github.com/google/clasp</a></li>
+    <li>The club's repository, a working example of all of this: <a href="https://github.com/jb-cttc/concordtabletennisclub">https://github.com/jb-cttc/concordtabletennisclub</a>. See <code>AGENTS.md</code>, <code>README.md</code> (<em>Contributing</em>) and <code>.claude/</code>.</li>
+    <li>The latest version of this seed: <a href="https://github.com/jb-cttc/concordtabletennisclub/blob/main/docs/claude-code-starter-seed.md">https://github.com/jb-cttc/concordtabletennisclub/blob/main/docs/claude-code-starter-seed.md</a> (and <code>.html</code>)</li>
+  </ul>
+</section>
+
+</main>
+
+<script>
+(function () {
+  var KEY = 'cttc-starter-seed';
+  var routes = {
+    all: null,
+    look: ['0', 'C1'],
+    contribute: ['0', 'C1', '1', 'C2', '8'],
+    first: ['0', '1', '2', '3'],
+    site: ['0', '1', '2', '3', '4'],
+    club: ['0', '1', '2', '3', '5', '6', '8'],
+    google: ['0', '1', '2', '3', '5', '6', '7', '8'],
+    both: ['0', 'C1', '1', '2', '3', '5', '6', '8', 'C2']
+  };
+  var state = { done: {}, route: 'all' };
+  try {
+    var saved = JSON.parse(localStorage.getItem(KEY));
+    if (saved && typeof saved === 'object') { state.done = saved.done || {}; if (routes.hasOwnProperty(saved.route)) state.route = saved.route; }
+  } catch (e) {}
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  var mods = Array.prototype.slice.call(document.querySelectorAll('details[data-m]'));
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.checklist input'));
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+
+  function render() {
+    var list = routes[state.route];
+    var shown = list || mods.map(function (d) { return d.dataset.m; });
+    var count = 0;
+    mods.forEach(function (d) {
+      var m = d.dataset.m, done = !!state.done[m], on = shown.indexOf(m) !== -1;
+      d.classList.toggle('done', done);
+      d.classList.toggle('off', !on);
+      d.querySelector('.tag').textContent = done ? 'Done' : (on ? 'To do' : 'Not on this route');
+      if (done && on) count++;
+    });
+    boxes.forEach(function (b) { b.checked = !!state.done[b.dataset.m]; });
+    document.getElementById('bar').style.width = (count / shown.length * 100) + '%';
+    document.getElementById('progress-text').textContent = count + ' of ' + shown.length + (list ? ' modules on this route done' : ' modules done');
+    chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c.dataset.route === state.route)); });
+  }
+
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () { state.route = c.dataset.route; save(); render(); });
+  });
+  boxes.forEach(function (b) {
+    b.addEventListener('change', function () { state.done[b.dataset.m] = b.checked; save(); render(); });
+  });
+  ['route-picker', 'progress', 'saved-note'].forEach(function (id) { document.getElementById(id).hidden = false; });
+  render();
+})();
+</script>
+</body>
+</html>
