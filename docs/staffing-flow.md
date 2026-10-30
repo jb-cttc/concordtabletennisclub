@@ -46,6 +46,16 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   masked (`s•••@gmail.com`). A player with no email on file asks the club to
   approve one, once (section 5).
 
+**Share to WhatsApp.** Each open night's panel has a *Share to WhatsApp*
+button. It opens WhatsApp with a message already typed: the night, what is
+still needed (or "Covered"/"Fully staffed" and a thank-you), who is confirmed
+in each position (first names, as on the calendar; waiting picks are left
+out) and the sign-up link. WhatsApp offers no link that opens a chosen group,
+so the sender picks the club group (*General*) and taps Send. On a phone the
+WhatsApp app opens directly (`whatsapp://send`); on a computer `wa.me` offers
+the app or WhatsApp Web. Nothing is sent by the club's apps and no Google
+limit is used.
+
 **How the website shows it.** The home page's Volunteer signups button opens
 the site's own copy of the page, `volunteer-app.html`, which the deploy
 workflow publishes from `staffing-app/Index.html`. That copy calls the app at

@@ -101,6 +101,9 @@
   .mine-state { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 9px; font-size: 0.75rem; font-weight: 700; background: #e3f1e7; color: #1f4a2b; }
   .mine-state.wait { background: #fff4d6; color: #6b4b00; }
   .mine-off > span { text-decoration: line-through; color: #8b1a1a; }
+  /* Share a night's crew to the club's WhatsApp group: WhatsApp opens with the message typed; the sender picks the group. */
+  a.share { display: inline-block; margin: 0 0 10px; padding: 7px 14px; border-radius: 4px; background: #1f6b3a; color: #fff; font-weight: 600; font-size: 0.9rem; text-decoration: none; }
+  a.share:focus-visible { outline: 3px solid #1f4f8f; outline-offset: 2px; }
   .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 </style>
 </head>
@@ -293,6 +296,7 @@
     }
     // Open with changes (closures.json: reduced play area, or a holiday): still needs volunteers.
     if (night.note) panel.appendChild(el('p', { 'class': 'night-note', text: '\u2139 ' + night.note }));
+    panel.appendChild(shareLink(night));
     if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
     else if (night.status === 'covered') panel.appendChild(el('p', { 'class': 'muted', text: 'The minimum crew is confirmed. A backup or extra spot is still open.' }));
     if (!night.bookable) panel.appendChild(el('p', { 'class': 'why', text: 'Sign-ups for this night have closed (they close an hour before the club opens).' }));
@@ -336,6 +340,33 @@
     row.appendChild(dropBox);
     return row;
   }
+  // ----- Share to WhatsApp -----
+  // A night's crew as a WhatsApp message: what is still needed first, then who is confirmed (first names, as the calendar shows
+  // them; waiting picks are left out). No link can open a chosen group, so WhatsApp opens with the message typed and the sender
+  // picks the group. On a phone the app opens straight away (whatsapp://); elsewhere wa.me offers the app or WhatsApp Web.
+  var SITE_URL = 'https://concordtabletennisclub.com/';
+  function shareText(night) {
+    var names = function (spec) { return night.slots[spec.id].filter(function (slot) { return !slot.pending; }).map(function (slot) { return slot.name; }); };
+    var lines = ['🏓 *CTTC volunteers: ' + night.day + '*', night.time];
+    if (night.note) lines.push('ℹ️ ' + night.note);
+    if (night.missing.length) lines.push('', '⚠️ *Still needed:* ' + night.missing.join(', '));
+    else lines.push('', night.status === 'full' ? '★ Fully staffed. Thank you all!' : '✅ Covered. Thank you all! A backup or extra spot is still open.');
+    ['open', 'close'].forEach(function (part) {
+      var rows = board.positions.filter(function (spec) { return spec.part === part && names(spec).length; })
+        .map(function (spec) { return '• ' + spec.label + ': ' + names(spec).join(', '); });
+      lines.push('', '*' + (part === 'open' ? 'Opening, ' + time12(night.start) : 'Closing, ' + time12(night.end)) + '*');
+      lines.push.apply(lines, rows.length ? rows : ['• Nobody yet']);
+    });
+    lines.push('', (night.missing.length ? 'Can you help? ' : 'Sign up for another night: ') + SITE_URL + ' → Volunteer signups');
+    return lines.join('\n');
+  }
+  function shareLink(night) {
+    var text = encodeURIComponent(shareText(night));
+    var phone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return el('a', { 'class': 'share', href: phone ? 'whatsapp://send?text=' + text : 'https://wa.me/?text=' + text,
+      target: phone ? '_top' : '_blank', rel: 'noopener', 'aria-label': 'Share ' + night.day + ' to WhatsApp' }, ['Share to WhatsApp']);
+  }
+
   // "This is me": the page never knows whose shift it is. We email the address that confirmed it; a YES there drops it.
   function dropOffer(box, night, spec, slot) {
     empty(box);

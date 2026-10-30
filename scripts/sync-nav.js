@@ -34,6 +34,19 @@ const NAV_LINKS = [
 
 const FOOTER_TEXT = 'Concord Table Tennis Club, Walnut Creek, CA. Open since 1972. A 501(c)(3) nonprofit, sanctioned by USATT.';
 
+// "Add to Home Screen", next to the menu button on phones and tablets only (navtoggle.js shows it and does the work).
+const HOME_SCREEN_BUTTON = '      <button class="home-screen" type="button" aria-label="Add CTTC to your Home Screen" title="Add to Home Screen" hidden>'
+  + '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path d="M8 9H6.5A1.5 1.5 0 0 0 5 10.5v9A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 17.5 9H16"/>'
+  + '<path d="M12 14V3"/><path d="M8.5 6.5 12 3l3.5 3.5"/></svg></button>';
+
+// The Home Screen icon and its name (assets/site.webmanifest for Android, the apple-* tags for iPhone and iPad).
+const HEAD_ICONS = '\n  <link rel="icon" href="assets/logo.png" type="image/png">'
+  + '\n  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">'
+  + '\n  <link rel="manifest" href="assets/site.webmanifest">'
+  + '\n  <meta name="apple-mobile-web-app-title" content="CTTC">'
+  + '\n  <meta name="theme-color" content="#FAF8F3">';
+
 const NAV_HREFS = new Set(NAV_LINKS.map(function (l) { return l.href; }));
 
 function buildNavBlock(activeHref) {
@@ -45,7 +58,7 @@ function buildNavBlock(activeHref) {
     return '      <a ' + attrs.join(' ') + '>' + (link.icon ? link.icon + ' ' : '') + link.label + '</a>';
   });
   var toggle = '      <button class="nav-toggle" aria-label="Open navigation" aria-expanded="false">&#9776;</button>';
-  return '    <nav>\n' + toggle + '\n' + links.join('\n') + '\n    </nav>';
+  return '    <nav>\n' + HOME_SCREEN_BUTTON + '\n' + toggle + '\n' + links.join('\n') + '\n    </nav>';
 }
 
 function buildFooterBlock() {
@@ -65,7 +78,7 @@ htmlFiles.forEach(function (filename) {
   var newFooter = buildFooterBlock();
 
   var result = original
-    .replace(/(<link rel="stylesheet" href="style\.css">)(\s*<link rel="icon"[^>]*>)?/, '$1\n  <link rel="icon" href="assets/logo.png" type="image/png">')
+    .replace(/(<link rel="stylesheet" href="style\.css[^"]*">(?:\s*<link rel="preconnect"[^>]*>)*)(\s*<link rel="(?:icon|apple-touch-icon|manifest)"[^>]*>|\s*<meta name="(?:apple-mobile-web-app-title|theme-color)"[^>]*>)*/, function (all, sheet) { return sheet + HEAD_ICONS; })
     .replace(/(\s*<meta property="og:image"[^>]*>)?(\s*<\/head>)/, '\n  <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">$2')
     .replace(/<div class="site-title"><a href="index\.html">(?:Concord Table Tennis Club|<img[^>]*>)<\/a><\/div>/, '<div class="site-title"><a href="index.html"><img src="assets/logo-transparent.png" alt="Concord Table Tennis Club" class="site-logo"></a></div>')
     .replace(/[ \t]*<nav>[\s\S]*?<\/nav>/, newNav)
