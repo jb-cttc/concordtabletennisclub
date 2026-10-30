@@ -1596,11 +1596,34 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.match(cellFor('2026-10-21').getAttribute('aria-label'), /^Wednesday, October 21, 2026: Needs people/, 'status in words, not only color');
   assert.equal(cellFor('2026-10-21').querySelector('.mark').textContent, '!');
   assert.ok(cellFor('2026-10-24').classList.contains('closed'), 'closures show in the grid');
+  cellFor('2026-10-24').click();
+  assert.equal(document.querySelector('#night a.share'), null, 'a closed night has nothing to share');
+  cellFor('2026-10-24').click();
   assert.equal(cellFor('2026-10-20'), null, 'Tuesdays are not offered');
   assert.equal(document.querySelector('span.day.past').textContent, '2', 'past nights are greyed out');
   cellFor('2026-12-02').click();
   const panel = document.getElementById('night');
   assert.match(panel.textContent, /Wednesday, December 2, 2026/);
+  // Share to WhatsApp: the message is typed in WhatsApp, which opens straight away on a phone (no layout here: a desktop).
+  const share = panel.querySelector('a.share');
+  assert.equal(share.textContent, 'Share to WhatsApp');
+  assert.match(share.href, /^https:\/\/wa\.me\/\?text=/);
+  assert.equal(share.target, '_blank');
+  const shared = decodeURIComponent(share.href.split('?text=')[1]);
+  assert.match(shared, /^🏓 \*CTTC volunteers: Wednesday, December 2, 2026\*\n7:00 PM to 10:00 PM\n\n⚠️ \*Still needed:\* a desk organizer, a money collector/);
+  assert.match(shared, /\*Opening, 7:00 PM\*\n• Nobody yet\n\n\*Closing, 10:00 PM\*\n• Nobody yet\n\nCan you help\? https:\/\/concordtabletennisclub\.com\/ → Volunteer signups$/);
+  {
+    // Confirmed names only, by position, first names as the calendar shows them; a waiting pick is left out.
+    const night = { day: 'Friday, December 4, 2026', time: '7:00 PM to 10:00 PM', start: '19:00', end: '22:00', status: 'covered', missing: [], note: '',
+      slots: { desk: [{ name: 'Ann' }], 'desk-backup': [], money: [{ name: 'Bo' }], 'money-backup': [{ name: 'Cy', pending: true }], tables: [{ name: 'Ann' }, { name: 'Di K.' }], lockup: [{ name: 'Ed', finalize: true }], close: [{ name: 'Flo' }] } };
+    assert.equal(dom.window.shareText(night), [
+      '🏓 *CTTC volunteers: Friday, December 4, 2026*', '7:00 PM to 10:00 PM', '',
+      '✅ Covered. Thank you all! A backup or extra spot is still open.', '',
+      '*Opening, 7:00 PM*', '• Desk organizer: Ann', '• Money collector (Front Desk): Bo', '• Table/barrier setup: Ann, Di K.', '',
+      '*Closing, 10:00 PM*', '• Lock-up: Ed', '• Put tables and barriers away: Flo', '',
+      'Sign up for another night: https://concordtabletennisclub.com/ → Volunteer signups'].join('\n'));
+    assert.match(dom.window.shareText(Object.assign({}, night, { status: 'full' })), /\n★ Fully staffed\. Thank you all!\n/);
+  }
   const addFor = label => [...panel.querySelectorAll('button.add')].find(button => button.getAttribute('aria-label').startsWith('Add me as ' + label + ' on'));
   addFor('Desk organizer').click();
   assert.match(document.getElementById('bar').textContent, /My picks: 1/);
