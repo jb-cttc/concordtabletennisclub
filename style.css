@@ -113,6 +113,92 @@ nav {
   margin-left: auto;
 }
 
+/* Add to Home Screen (navtoggle.js shows it on phones and tablets), next to the menu button. */
+.home-screen {
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 2px 4px;
+  margin-left: auto;
+  line-height: 0;
+}
+
+.home-screen + .nav-toggle {
+  margin-left: 6px;
+}
+
+/* Phones and tablets with the menu button only; a wide tablet shows the full menu instead. */
+nav.nav-open .home-screen {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .home-screen {
+    display: none;
+  }
+}
+
+.home-screen-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.home-screen-box {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 8px 8px;
+  padding: 20px 20px 16px;
+  border-radius: 14px;
+  background: var(--bg);
+  text-align: center;
+}
+
+.home-screen-box img {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
+
+.home-screen-box h2 {
+  margin: 8px 0 10px;
+  font-size: 1.15rem;
+}
+
+.home-screen-box ol {
+  margin: 0 0 16px;
+  padding-left: 22px;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.home-screen-box li + li {
+  margin-top: 6px;
+}
+
+.home-screen-box svg {
+  vertical-align: -3px;
+  color: #1f4f8f;
+}
+
+.home-screen-box button {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--red);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 nav a {
   color: var(--text);
   text-decoration: none;
