@@ -32,14 +32,13 @@
 (function () {
   // Add to Home Screen. Android (Chrome, Edge, Samsung) hands the page an install prompt, so one tap shows the browser's own
   // "Install" box. iPhone and iPad have no such prompt: a page can't add itself, so the button shows the taps to make in
-  // the browser's Share menu, with an arrow toward where that browser keeps it (the words stay the same in every browser).
-  // The icon and name come from the <head> tags and assets/site.webmanifest; the saved icon opens the home page. Phones
+  // the browser's Share menu. No arrow: a page can't see where the browser's toolbar is (people move it), so it never
+  // guesses. The icon and name come from the <head> tags and assets/site.webmanifest; the saved icon opens the home page. Phones
   // and tablets only, and never inside the saved app itself.
   var btn = document.querySelector('.home-screen');
   if (!btn) return;
   var ua = navigator.userAgent;
-  var ipad = /iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  var ios = ipad || /iPhone|iPod/.test(ua);
+  var ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var android = /Android/.test(ua);
   var saved = navigator.standalone || ['standalone', 'minimal-ui', 'fullscreen'].some(function (mode) {
     return window.matchMedia && window.matchMedia('(display-mode: ' + mode + ')').matches;
@@ -56,19 +55,6 @@
   if (/[?&](from=)?home-screen(&|$)/.test(params) && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname);
   if (!(ios || android) || saved) return;
 
-  // Where the browser keeps Share (iPhone) or its menu (Android), for the arrow. Safari 26 moved Share under the ... button.
-  function arrowAt() {
-    if (ipad) return 'top-right';
-    if (ios) {
-      if (/CriOS/.test(ua)) return 'top-right';
-      if (/EdgiOS|FxiOS/.test(ua)) return 'bottom-right';
-      var safari = /Version\/(\d+)/.exec(ua);
-      if (safari && /Safari/.test(ua)) return Number(safari[1]) >= 26 ? 'bottom-right' : 'bottom-center';
-      return '';
-    }
-    return /SamsungBrowser/.test(ua) ? 'bottom-right' : 'top-right';
-  }
-
   var prompt = null;
   window.addEventListener('beforeinstallprompt', function (event) { event.preventDefault(); prompt = event; });
   window.addEventListener('appinstalled', function () { markAdded(true); });
@@ -78,7 +64,7 @@
   btn.hidden = false;
 
   var sheet = null;
-  function close() { if (sheet) { sheet.remove(); sheet = null; document.body.classList.remove('home-screen-open'); btn.focus(); } }
+  function close() { if (sheet) { sheet.remove(); sheet = null; btn.focus(); } }
   function node(tag, className, html) { var el = document.createElement(tag); if (className) el.className = className; if (html) el.innerHTML = html; return el; }
   function button(text, className, onClick) { var el = node('button', className); el.type = 'button'; el.textContent = text; el.addEventListener('click', onClick); return el; }
   var SHARE = '<svg width="18" height="18" viewBox="0 0 24 24" aria-label="Share" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9H6.5A1.5 1.5 0 0 0 5 10.5v9A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 17.5 9H16"/><path d="M12 14V3"/><path d="M8.5 6.5 12 3l3.5 3.5"/></svg>';
@@ -122,17 +108,11 @@
       actions.appendChild(button('Not now', 'plain', close));
       actions.appendChild(first = button('I added it', '', function () { markAdded(true); close(); }));
       box.appendChild(actions);
-      var at = arrowAt();
-      if (at) {
-        sheet.setAttribute('data-arrow', at);
-        sheet.appendChild(node('div', 'home-screen-arrow', '<svg width="44" height="44" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17"/><path d="M5 13l7 7 7-7"/></svg>'));
-      }
     }
     sheet.appendChild(box);
     sheet.addEventListener('click', function (event) { if (event.target === sheet) close(); });
     sheet.addEventListener('keydown', function (event) { if (event.key === 'Escape') close(); });
     document.body.appendChild(sheet);
-    document.body.classList.add('home-screen-open');
     first.focus();
   }
 

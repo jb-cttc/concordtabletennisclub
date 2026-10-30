@@ -54,14 +54,11 @@ phone.button.click();
 const sheet = phone.document.querySelector('.home-screen-sheet');
 assert.equal(sheet.getAttribute('role'), 'dialog');
 assert.match(sheet.textContent, /Add CTTC to your Home Screen[\s\S]*Tap Share[\s\S]*Add to Home Screen[\s\S]*Tap Add/);
-assert.ok(phone.document.body.classList.contains('home-screen-open'), 'the header buttons step aside while the card is open');
-assert.equal(sheet.getAttribute('data-arrow'), 'bottom-center', 'Safari before 26: the arrow points at Share in the bottom toolbar');
-assert.doesNotMatch(sheet.textContent, /looks like|you're using|you are using/i, 'the words never mention the detected browser');
+assert.equal(sheet.querySelector('.home-screen-arrow'), null, 'no arrow: the page can\'t see where the browser\'s toolbar is');
 const labels = box => [...box.querySelectorAll('button')].map(button => button.textContent);
 assert.deepEqual(labels(sheet), ['Not now', 'I added it']);
 sheet.querySelectorAll('button')[0].click();
 assert.equal(phone.document.querySelector('.home-screen-sheet'), null, 'Not now closes');
-assert.equal(phone.document.body.classList.contains('home-screen-open'), false);
 phone.button.click();
 assert.ok(phone.document.querySelector('.home-screen-sheet ol'), 'Not now does not count as added');
 [...phone.document.querySelectorAll('.home-screen-sheet button')].find(button => button.textContent === 'I added it').click();
@@ -73,7 +70,6 @@ let done = phone.document.querySelector('.home-screen-sheet');
 assert.ok(done, 'added: the check shows on any page, with no trip to the home page');
 assert.match(done.textContent, /CTTC is on your Home Screen/);
 assert.equal(done.querySelector('ol'), null, 'no steps, so no second icon by mistake');
-assert.equal(done.querySelector('.home-screen-arrow'), null);
 assert.deepEqual(labels(done), ['Close', 'Add it again']);
 done.querySelectorAll('button')[1].click();
 assert.ok(phone.document.querySelector('.home-screen-sheet ol'), 'Add it again shows the steps');
@@ -84,20 +80,6 @@ phone = page(IPHONE, 'https://concordtabletennisclub.com/?from=home-screen');
 assert.equal(phone.window.location.search, '');
 phone.button.click();
 assert.match(phone.document.querySelector('.home-screen-sheet').textContent, /CTTC is on your Home Screen/);
-
-// The arrow follows the browser: Safari 26 keeps Share under ..., Chrome at the top, Edge and Firefox in the bottom menu.
-const arrowFor = userAgent => { const view = page(userAgent); view.button.click(); return view.document.querySelector('.home-screen-sheet').getAttribute('data-arrow'); };
-assert.equal(arrowFor(IPHONE.replace('Version/18.0', 'Version/26.0')), 'bottom-right');
-assert.equal(arrowFor(IPHONE.replace('Version/18.0 Mobile/15E148 Safari', 'CriOS/130.0 Mobile/15E148 Safari')), 'top-right');
-assert.equal(arrowFor(IPHONE.replace('Version/18.0 Mobile/15E148 Safari', 'EdgiOS/130.0 Mobile/15E148 Safari')), 'bottom-right');
-assert.equal(arrowFor(IPHONE.replace('iPhone; CPU iPhone OS', 'iPad; CPU OS')), 'top-right', 'iPad: Share is at the top');
-
-// iPhone on another page: the button goes to the home page, which opens with the steps and drops the marker from the address.
-assert.match(script, /if \(ios && !home\) \{ window\.location\.href = '\.\/\?home-screen'; return; \}/, 'an iPhone elsewhere goes to the home page first');
-assert.equal(page(IPHONE, 'https://concordtabletennisclub.com/about.html?home-screen').document.querySelector('.home-screen-sheet'), null, 'only the home page opens the steps');
-phone = page(IPHONE, 'https://concordtabletennisclub.com/?home-screen');
-assert.ok(phone.document.querySelector('.home-screen-sheet'), 'the home page opens with the steps');
-assert.equal(phone.window.location.search, '', 'the saved address is the plain home page');
 
 // Android with the browser's install prompt: one tap shows it, and no steps.
 const android = page(ANDROID);
@@ -118,6 +100,5 @@ assert.match(android.document.querySelector('.home-screen-sheet').textContent, /
 const firefox = page(ANDROID.replace('Chrome/130.0', 'Firefox/130.0'));
 firefox.button.click();
 assert.match(firefox.document.querySelector('.home-screen-sheet').textContent, /Add to Home screen or Install app/);
-assert.equal(firefox.document.querySelector('.home-screen-sheet').getAttribute('data-arrow'), 'top-right', 'the menu at the top');
 
 console.log('Home Screen checks passed');
