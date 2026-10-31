@@ -2531,7 +2531,6 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 
 @media (max-width: 760px) {
   .eq-steps { grid-template-columns: repeat(2, 1fr); }
-  .eq-group-matches { grid-template-columns: minmax(0, 1fr); }
   .eq-field { grid-template-columns: 1fr; }
   .eq-podium { grid-template-columns: 1fr; }
 }
@@ -2574,4 +2573,31 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 
 .eq-group-matches .eq-match {
   font-size: 0.72rem;
+}
+
+/* After .eq-group-matches above, so it wins on phones: one match card per row. */
+@media (max-width: 760px) {
+  .eq-group-matches { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The Field once the event is over: everyone's place in one list, across the full width. */
+.eq-field-final {
+  list-style: none;
+  columns: 3 240px;
+  column-gap: 24px;
+  font-size: 0.86rem;
+}
+
+.eq-field-final li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  break-inside: avoid;
+}
+
+.eq-field-final .eq-name {
+  flex: 1;
+  font-weight: normal;
 }

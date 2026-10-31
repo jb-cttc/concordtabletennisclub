@@ -51,6 +51,7 @@
     "check:usatt-coaches": "node scripts/check-usatt-coaches.js",
     "check:nights": "node scripts/check-desk-nights.js",
     "desk:google": "node scripts/desk-google-view.js",
+    "equalizer:screenshots": "node scripts/equalizer-screenshots.js",
     "sheet:read": "node scripts/sheet-read.js"
   },
   "dependencies": {

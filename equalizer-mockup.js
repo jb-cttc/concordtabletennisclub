@@ -33,6 +33,7 @@
   var tab = "live";
   var autoTimer = null;
   var lastStatus = {};
+  var lastStep = -1;
   var SOURCE_BY_ID = {};
 
   // ---- Randomness: one stream per match, so entering one result by hand does not reshuffle the others ----
@@ -475,19 +476,27 @@
       var live = st.playing.filter(function (e) { return e.players.indexOf(id) >= 0; })[0];
       var place = st.view.places[id];
       var s = st.view.status[id];
-      var fresh = lastStatus[id] !== undefined && lastStatus[id] !== s ? " fresh" : "";
+      // Highlight only what one result just changed; a jump along the timeline would light up everything.
+      var fresh = Math.abs(st.k - lastStep) === 1 && lastStatus[id] !== undefined && lastStatus[id] !== s ? " fresh" : "";
       var lives = event.format === "groups" ? balls(1, s === "out" ? 0 : 1) : balls(2, s === "main" ? 2 : s === "trail" || s === "champion" ? 1 : 0);
       var where = live ? '<span class="eq-place"><span class="live-dot" style="display:inline-block;background:#1f6b3a"></span> T' + live.table + "</span>"
         : s === "champion" ? '<span class="eq-place">1st</span>' : place ? '<span class="eq-place">' + placeText(place) + "</span>"
         : event.format === "groups" && s === "groups" ? '<span class="eq-place">Group ' + groupOf(id) + "</span>" : "";
       return '<li class="' + fresh + '">' + lives + '<span class="eq-name" title="' + esc(name(id)) + '">' + (s === "champion" ? "🏆 " : "") + esc(name(id)) + '<span class="eq-rating">' + rating(id) + "</span></span>" + where + "</li>";
     }
-    document.getElementById("tab-field").innerHTML =
-      "<h2>The Field</h2>" + hint("Every " + (doubles() ? "team" : "player") + ", by how they stand. Watch names move right as the afternoon goes on.") +
-      '<div class="eq-field">' + columnsFor.map(function (col) {
-        return "<div><h3>" + balls(col.balls[0], col.balls[1]) + " " + (col.key === "out" && st.view.finished ? "Final places" : col.title) + " (" + lists[col.key].length + ")</h3><ul>" + lists[col.key].map(row).join("") + "</ul></div>";
-      }).join("") + "</div>";
+    var html = "<h2>The Field</h2>";
+    if (st.view.finished) {
+      // At the end there is one list: everyone's place, across the full width.
+      html += hint("How everyone finished.") + '<ul class="eq-field-final">' + lists.out.map(row).join("") + "</ul>";
+    } else {
+      html += hint("Every " + (doubles() ? "team" : "player") + ", by how they stand. Watch names move right as the afternoon goes on.") +
+        '<div class="eq-field">' + columnsFor.map(function (col) {
+          return "<div><h3>" + balls(col.balls[0], col.balls[1]) + " " + col.title + " (" + lists[col.key].length + ")</h3><ul>" + lists[col.key].map(row).join("") + "</ul></div>";
+        }).join("") + "</div>";
+    }
+    document.getElementById("tab-field").innerHTML = html;
     lastStatus = Object.assign({}, st.view.status);
+    lastStep = st.k;
   }
 
   // ---- Results: the champion, the podium, the awards, and everyone's afternoon ----
@@ -551,7 +560,8 @@
   }
 
   // ---- Head starts: the table, a calculator, and how the memory moves ----
-  var demo = { history: [], resets: [] };
+  // The memory demo: matches and resets in the order they happened.
+  var demo = [];
   var calcMode = "singles";
   function renderHeadStarts(st) {
     var steps = [];
@@ -577,7 +587,7 @@
       '<div style="overflow-x:auto"><table class="session-group-table"><tbody><tr><th>Rating gap</th>' + steps.join("") + "</tr><tr><th>Starts every game at</th>" + startsRow.join("") + "</tr></tbody></table></div>" +
       '<h3>Find a head start</h3><div class="eq-sim-row" id="eq-calc-mode"></div><div class="eq-calc">' + calcInputs + '<span id="eq-calc-out"></span></div>' +
       "<h3>The memory</h3><p>When the same two players (or the same two teams) meet again, the head start remembers. A win by the lower-rated side takes a point off its next head start against that side; a win by the higher-rated side gives one back, never more than the rating gap allows. It carries over from one Saturday to the next until the club resets it. Doubles partners are drawn fresh each time, so in doubles it mostly matters for a rematch the same afternoon.</p>" +
-      '<div class="eq-calc"><span>1590 vs 1800 (base 5):</span><button class="small-button" type="button" data-demo="lower">Lower-rated wins</button><button class="small-button" type="button" data-demo="higher">Higher-rated wins</button><button class="small-button" type="button" data-demo="reset">Owner reset</button><div class="eq-memory" id="eq-demo" style="flex-basis:100%"></div></div>' +
+      '<div class="eq-calc"><span>1590 vs 1800 (base 5):</span><button class="small-button" type="button" data-demo="lower">Lower-rated wins</button><button class="small-button" type="button" data-demo="higher">Higher-rated wins</button><button class="small-button" type="button" data-demo="reset">Reset memory</button><button class="small-button" type="button" data-demo="clear">Start over</button><div class="eq-memory" id="eq-demo" style="flex-basis:100%"></div></div>' +
       (memory ? "<h3>Memory in this simulated field</h3><ul class=\"eq-list\">" + memory + "</ul>" : "");
     chips("eq-calc-mode", PLAYS, calcMode, function (mode) { calcMode = mode; renderHeadStarts(stateAt(step)); });
     calc();
@@ -595,14 +605,18 @@
     var totals = calcMode === "doubles" ? " (" + r1 + " vs " + r2 + " average, " : " (";
     out.innerHTML = flip(String(you) + String(them)) + " " + (base ? (you ? "You start" : "They start") + " every game at " + base + "–0" + totals + Math.abs(r1 - r2) + " points apart)." : "No head start: less than 40 points apart.");
   }
+  // Each step shows the head start for the next meeting, counting only what had happened by then.
   function renderDemo() {
     var ratings = { hi: 1800, lo: 1590 };
     var line = ["<span>Start: " + H.pairState("hi", "lo", ratings, [], []).headStart + "</span>"];
-    demo.history.forEach(function (m, i) {
-      var after = H.pairState("hi", "lo", ratings, demo.history.slice(0, i + 1), demo.resets).headStart;
-      line.push("<span>" + (m.winnerId === "lo" ? "Lower wins" : "Higher wins") + " &rarr; " + after + "</span>");
+    demo.forEach(function (step, i) {
+      var sofar = demo.slice(0, i + 1);
+      var matches = sofar.filter(function (e) { return e.kind === "match"; });
+      var resets = sofar.filter(function (e) { return e.kind === "reset"; }).map(function (e) { return { at: e.at, pair: "all" }; });
+      var after = H.pairState("hi", "lo", ratings, matches, resets).headStart;
+      var label = step.kind === "reset" ? "Reset" : step.winnerId === "lo" ? "Lower wins" : "Higher wins";
+      line.push("<span>" + label + " &rarr; " + after + "</span>");
     });
-    if (demo.resets.length) line.push("<span>Reset after match " + demo.resets[demo.resets.length - 1].count + "</span>");
     document.getElementById("eq-demo").innerHTML = line.join("");
   }
 
@@ -731,8 +745,10 @@
     var demoButton = e.target.closest("[data-demo]");
     if (demoButton) {
       var kind = demoButton.dataset.demo;
-      if (kind === "reset") demo.resets.push({ at: "m" + (100 + demo.history.length), pair: "all", count: demo.history.length });
-      else demo.history.push({ at: "m" + (101 + demo.history.length), playerOneId: "hi", playerTwoId: "lo", winnerId: kind === "lower" ? "lo" : "hi", forfeit: false, ratings: { hi: 1800, lo: 1590 } });
+      var at = "m" + (100 + demo.length);
+      if (kind === "clear") demo = [];
+      else if (kind === "reset") demo.push({ kind: "reset", at: at });
+      else demo.push({ kind: "match", at: at, playerOneId: "hi", playerTwoId: "lo", winnerId: kind === "lower" ? "lo" : "hi", forfeit: false, ratings: { hi: 1800, lo: 1590 } });
       renderDemo();
       return;
     }
