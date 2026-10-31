@@ -354,13 +354,14 @@
   fetch("data/site-status.json")
     .then(function (r) { return r.json(); })
     .then(function (status) {
-      if (!status.latestSessionDate) return;
-      var date = status.latestSessionDate;
+      // The newest round robin (an Equalizer has its own results).
+      var date = status.latestRoundRobinDate || status.latestSessionDate;
+      if (!date) return;
       var year = date.split("-")[0];
       return fetch("data/session-details-" + year + ".json")
         .then(function (r) { return r.json(); })
         .then(function (sessions) {
-          var session = sessions.find(function (s) { return s.date === date; });
+          var session = sessions.find(function (s) { return s.date === date && s.variant !== "equalizer"; });
           if (!session || !session.groups || !session.groups.length) return;
 
           document.getElementById("latest-results-date").textContent = formatDate(date);

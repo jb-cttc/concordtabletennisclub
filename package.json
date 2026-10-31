@@ -17,7 +17,7 @@
     "desk-log": "node scripts/desk-log.js",
     "check:app": "for f in apps-script/check-*; do node \"$f\" || exit 1; done",
     "check:ratings": "node scripts/check-rating-engine.js",
-    "check:equalizer": "node scripts/check-equalizer.js",
+    "check:equalizer": "node scripts/check-equalizer.js && node scripts/check-equalizer-publication.js",
     "check:standings": "node scripts/check-standings.js",
     "check:email": "node scripts/check-session-email.js",
     "check:subscribe": "node subscribe-app/check-subscribe.cjs",

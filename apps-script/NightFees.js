@@ -43,8 +43,8 @@ function firstVisitFinder_(playerRows, sessionRows, openRows, choiceRows) {
   var earliest = {};
   var night = function (playerId, date) { if (date && (!earliest[playerId] || date < earliest[playerId])) earliest[playerId] = date; };
   (sessionRows || rows_('SessionPlayers')).forEach(function (row) {
-    var match = /^session-(\d{4}-\d{2}-\d{2})$/.exec(String(row.session_id));
-    if (match) night(String(row.player_id), match[1]);
+    // A round robin or an Equalizer: either is a night at the club (SessionIds.js).
+    night(String(row.player_id), sessionDateOf_(row.session_id));
   });
   (openRows || cashRows_('OpenPlay')).forEach(function (row) { night(String(row.player_id), displayDate_(row.session_date).slice(0, 10)); });
   var createdOn = {};

@@ -210,7 +210,7 @@
       chevron.className = "session-chevron";
       chevron.textContent = "▶";
       dateCell.appendChild(chevron);
-      dateCell.appendChild(document.createTextNode(formatLongDate(entry.date)));
+      dateCell.appendChild(document.createTextNode(formatLongDate(entry.date) + (entry.variant === "equalizer" ? " · Equalizer" : "")));
       row.appendChild(dateCell);
 
       var ratingCell = document.createElement("td");
@@ -247,7 +247,8 @@
         var year = entry.date.split("-")[0];
         loadYearDetails(year)
           .then(function (sessions) {
-            var session = sessions.find(function (s) { return s.date === entry.date; });
+            // The round robin or the Equalizer that this rating came from (both can share a date).
+            var session = sessions.find(function (s) { return s.date === entry.date && (s.variant === "equalizer") === (entry.variant === "equalizer"); });
             if (!session) { detailCell.textContent = "Session data not available."; return; }
             var playerData = null;
             session.groups.forEach(function (group) {

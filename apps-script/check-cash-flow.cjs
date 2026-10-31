@@ -117,6 +117,15 @@ assert.deepEqual(plain(totals.kinds), { rr: { players: 7, expected: 40, outstand
 assert.deepEqual(plain(totals.cash), { expected: 65, counted: 0, difference: 0, countedDays: 0 });
 assert.deepEqual(cashFlow(TUE, WED).days, [], 'a range with no activity has no days');
 
+// A Saturday with a round robin and an Equalizer: both rosters are the day's players, and someone in both counts once.
+const SAT = '2026-10-24';
+roster(SAT, ['Ava', 'Ben']);
+ctx.appendObjects_('SessionPlayers', ['Ben', 'Cy'].map(name => ({ session_id: 'session-' + SAT + '-equalizer', player_id: id(name), group_number: 1, starting_rating: 1500, promotion_from_group: '' })));
+pay(SAT, 'Cy', 'cash');
+const sat = cashFlow(SAT, SAT).days[0];
+assert.deepEqual(sat.playerList.map(player => [player.name, player.kind]), [['Ava Example', 'rr'], ['Ben Example', 'rr'], ['Cy Example', 'rr']], 'the Equalizer roster counts with the day\'s players');
+assert.equal(who(MON, 'Ava').method, 'cash', 'other days are unchanged');
+
 // The Zeffy coverage read once for the range gives the desk's own answer on every date.
 const coverage = ctx.cashZeffyCoverage_(ctx.rows_('Players'), ctx.listPlayers(), ctx.nameLinkRows_());
 for (const date of ['2026-09-28', '2026-09-30', '2026-10-01', MON, FRI, '2026-11-01', '2026-11-02', '2026-12-31']) {

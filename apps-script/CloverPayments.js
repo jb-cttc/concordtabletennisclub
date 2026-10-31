@@ -574,7 +574,8 @@ function cloverNight_(sessionDate) {
   var roster = {};
   var sessionRows = rows_('SessionPlayers');
   var openRows = cashRows_('OpenPlay');
-  sessionRows.forEach(function (row) { if (String(row.session_id) === sessionId) roster[String(row.player_id)] = true; });
+  // Everyone in the day's round robin or Equalizer (SessionIds.js); payments stay keyed by the day.
+  sessionRows.forEach(function (row) { if (sessionDateOf_(row.session_id) === sessionDate) roster[String(row.player_id)] = true; });
   openRows.forEach(function (row) { if (displayDate_(row.session_date).slice(0, 10) === sessionDate) roster[String(row.player_id)] = true; });
   var hand = {};
   cashRows_('SessionPayments').forEach(function (row) { if (String(row.session_id) === sessionId && row.method) hand[String(row.player_id)] = String(row.method); });
@@ -945,7 +946,7 @@ function getCloverReport(fromDate, toDate) {
   var openRows = cashRows_('OpenPlay');
   var firstVisitsOn = firstVisitFinder_(playerRows, sessionRows, openRows);
   sessionRows.forEach(function (row) {
-    var date = dateOfSession(row.session_id);
+    var date = sessionDateOf_(row.session_id);
     if (inRange(date)) (rosters[date] || (rosters[date] = {}))[String(row.player_id)] = true;
   });
   openRows.forEach(function (row) {

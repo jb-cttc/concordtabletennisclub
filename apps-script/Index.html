@@ -1203,10 +1203,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   function fetchHistory(sessionDate) {
     return siteJson('sessions.json').then(function (sessions) {
-      var previous = O.previousSameWeekday(sessions.map(function (session) { return session.date; }), sessionDate);
+      // Promotions come from the previous round robin on the same weekday, never an Equalizer.
+      var previous = O.previousSameWeekday(sessions.filter(function (session) { return session.variant !== 'equalizer'; }).map(function (session) { return session.date; }), sessionDate);
       if (!previous) return null;
       return siteJson('session-details-' + previous.slice(0, 4) + '.json').then(function (details) {
-        return { previous: previous, details: details.find(function (session) { return session.date === previous; }) };
+        return { previous: previous, details: details.find(function (session) { return session.date === previous && session.variant !== 'equalizer'; }) };
       });
     }).then(function (value) { return { value: value }; }, function (error) { return { error: error }; });
   }
