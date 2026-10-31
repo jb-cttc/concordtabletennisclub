@@ -1284,7 +1284,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var equalizer = state.event === 'equalizer';
     document.querySelector('.workspace').classList.toggle('locked', isLocked);
     renderEventSwitch();
-    ['group-size', 'rebuild', 'print-sheets', 'device-save', 'save', 'promotion-context', 'matches'].forEach(function (id) { document.getElementById(id).hidden = equalizer; });
+    ['group-size', 'rebuild', 'device-save', 'save', 'promotion-context', 'matches'].forEach(function (id) { document.getElementById(id).hidden = equalizer; });
+    document.getElementById('print-sheets').textContent = equalizer ? 'Print EQ Sheets' : 'Print RR Sheets';
     document.getElementById('eq-options').hidden = !equalizer;
     document.getElementById('equalizer').hidden = !equalizer;
     if (equalizer) {
@@ -1294,6 +1295,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in the Equalizer';
       summary.classList.remove('warn');
       document.getElementById('clear-roster').disabled = !state.roster.length || isLocked || eqDesk.hasResults();
+      document.getElementById('print-sheets').disabled = !eqDesk.printData();
       renderGroups();
       eqDesk.render();
       renderDirectory();
@@ -1839,6 +1841,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     event: function () { return state.event === 'equalizer' ? { short: 'EQ', placed: 'In EQ', target: 'the Equalizer' } : { short: 'RR', placed: 'In RR', target: 'the RR draft' }; },
     print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
     needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
+    // On an Equalizer night, its draw and results for printing (EqualizerPrint.html); null on a round robin night.
+    equalizerPrint: function () { return state.event === 'equalizer' ? eqDesk.printData() : null; },
     // True while a round robin change on this page has not reached Google yet (it is sent a moment after each change).
     // Not while the save is stuck (a conflict, or retries used up), so nothing waits on it for good.
     draftPending: function () { return saveInFlight || (canAutoSync() && syncFailures < AUTO_RETRY_LIMIT); },
@@ -4058,6 +4062,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 })();
 </script>
 <?!= include('Print') ?>
+<?!= include('EqualizerPrint') ?>
 <style>
 .tour-shield,.tour-shade,.tour-outline,.tour-dialog{position:fixed}.tour-shield{inset:0;z-index:1998}.tour-shade{background:rgba(10,19,17,.74);z-index:1999;pointer-events:none}.tour-outline{z-index:2000;pointer-events:none;border:3px solid #d4a544;border-radius:6px;box-shadow:0 0 0 3px #fff9}.tour-dialog{z-index:2001;width:min(380px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:20px;background:#fff;color:var(--ink);border:1px solid #b8c5bc;border-radius:6px;box-shadow:0 16px 45px #0006;font:15px/1.5 Arial,sans-serif}.tour-dialog h2{font:700 21px/1.25 Georgia,serif;margin:0 25px 10px 0}.tour-dialog p{margin:0 0 16px}.tour-dialog footer{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:13px}.tour-dialog .tour-progress{margin-right:auto;color:var(--muted);font-size:12px}.tour-dialog button{font:13px Arial,sans-serif}.tour-dialog .tour-close{position:absolute;right:12px;top:10px;background:transparent;border:0;color:var(--muted);font-size:22px;line-height:1}.tour-dialog .tour-next{background:var(--green);color:#fff;border:1px solid var(--green);border-radius:4px;padding:8px 12px}.tour-dialog .tour-next:disabled{opacity:.55;cursor:wait}.tour-dialog .tour-back,.tour-dialog .tour-skip{background:transparent;border:0;padding:8px 4px;color:var(--green)}.tour-dialog button:focus-visible,.tour-launch:focus-visible{outline:3px solid var(--gold);outline-offset:2px}body.tour-active{overflow:hidden}
 .tour-shade,.tour-outline{animation:tour-enter .35s ease-out both}body.tour-positioned .tour-shade,body.tour-positioned .tour-outline{transition:left .35s ease-in-out,top .35s ease-in-out,width .35s ease-in-out,height .35s ease-in-out}
@@ -4085,7 +4090,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change. Coaches and students with a lesson confirmed in the coaching app are listed here automatically, and their texts are left out of Voice signups.', target: '.open-play-section' },
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'If the connection drops', text: 'Nothing to do: changes sync to Google Sheets by themselves. If Google cannot be reached, a yellow notice says your draft is kept on this device and syncs automatically when the connection returns. Changes this device had not yet sent are put back when the tab is opened again, and scores entered on another tab or device are combined with yours. Only if the same match was recorded two different ways does the desk stop and ask which to keep.', target: '#save' },
-    { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
+    { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline. On an Equalizer night the same button prints its group sheets and brackets.', target: '#print-sheets' },
     { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in, and the scores sync to Google Sheets automatically. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site in 2 minutes; once the site is updated, a second 2-minute countdown sends the results email. Reopen the session before publishing to correct it, or press Publish now or Send now to skip a wait. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },

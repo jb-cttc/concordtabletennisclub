@@ -125,11 +125,28 @@ const firstVisitsOn = function (date) {
   const roster = session ? [].concat.apply([], session.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); })) : [];
   return firstVisits[date] || (firstVisits[date] = roster.slice(2, 3));
 };
+const equalizers = {};
 const rpc = {
   getAppState: function (date) {
     return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString() };
   },
   listPlayers: function () { return players; },
+  // The Equalizer, kept in memory only: enough to switch a night to it, draw it, and print its sheets.
+  getEqualizerState: function (date) { return equalizers[date] || { session: null, roster: [], setup: null, results: {}, history: [] }; },
+  switchDayEvent: function (date, to) { return { revision: 1, status: 'draft', sessionId: 'session-' + date + '-' + to }; },
+  saveEqualizerSetup: function (date, setup) {
+    const state = equalizers[date] = equalizers[date] || { session: { sessionId: 'session-' + date + '-equalizer', status: 'draft', revision: 0 }, roster: [], setup: null, results: {}, history: [] };
+    state.roster = setup.roster.slice();
+    state.setup = setup;
+    state.session.revision += 1;
+    return { revision: state.session.revision, status: 'draft', sessionId: state.session.sessionId };
+  },
+  saveEqualizerResult: function (date, matchId, result) {
+    const state = equalizers[date];
+    if (result) state.results[matchId] = result; else delete state.results[matchId];
+    state.session.revision += 1;
+    return { revision: state.session.revision, status: 'draft', sessionId: state.session.sessionId };
+  },
   addPlayer: function (name, rating) {
     name = String(name || '').trim().replace(/\s+/g, ' ');
     rating = Number(rating);

@@ -4,7 +4,7 @@ const path = require('node:path');
 
 // A syntax slip in one inline script silently disables only that feature in the browser, so parse every block.
 let blocks = 0;
-for (const file of ['Index.html', 'Organizer.html', 'Print.html', 'Standings.html', 'Clover.html']) {
+for (const file of ['Index.html', 'Organizer.html', 'Print.html', 'EqualizerPrint.html', 'Equalizer.html', 'Standings.html', 'Clover.html']) {
   const html = fs.readFileSync(path.join(__dirname, file), 'utf8');
   for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
     blocks += 1;

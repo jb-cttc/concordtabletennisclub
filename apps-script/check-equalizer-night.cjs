@@ -168,6 +168,49 @@ const cases = {
     assert.ok(draw.teams.some(team => team.length === 3), 'a team of three');
     assert.equal(googleEq(world).setup.oddPlayer, 'team-of-three');
     assert.deepEqual(tab.errors, []);
+  },
+
+  // Print EQ Sheets: a group sheet per group with each match's head start, then the Finals bracket; Double Elimination
+  // prints the Main Draw with the Final and the Survivor Trail. Results and names fill in as they are known.
+  async printedSheets() {
+    const world = sim.createWorld({ seed: 37 });
+    const tab = await deskWith(world, world.device(), 10);
+    const button = tab.$('#print-sheets');
+    assert.equal(button.textContent, 'Print RR Sheets');
+    switchTo(tab, 'equalizer');
+    assert.ok(shown(tab, 'print-sheets') && !button.disabled, 'the Equalizer has its own print button');
+    assert.equal(button.textContent, 'Print EQ Sheets');
+    scoreNext(tab);
+    tab.click(button);
+    const sheets = () => [...tab.window.document.querySelectorAll('#print-root .print-sheet')];
+    assert.equal(sheets().length, 4, '3 group sheets and the Finals');
+    const first = sheets()[0];
+    assert.match(first.textContent, /The Equalizer · Group Sheet/);
+    assert.match(first.textContent, /Group 1/);
+    assert.equal(first.querySelectorAll('.tournament-match').length, 6, 'a group of 4 plays 6 matches');
+    assert.ok(first.querySelectorAll('.eq-head-start').length === 6 && /\+\d|Even/.test(first.querySelector('.eq-head-start').textContent), 'each match shows its head start');
+    assert.deepEqual([...first.querySelectorAll('.tournament-match-result span')].slice(0, 2).map(s => s.textContent), ['2', '1'], 'a recorded result is printed');
+    const finals = sheets()[3];
+    assert.ok(finals.classList.contains('print-bracket-sheet'), 'the Finals print as a bracket');
+    assert.equal(finals.querySelectorAll('.eqb-match').length, 3, '3 group winners: a bye, a semifinal and the Final');
+    assert.match(finals.textContent, /Best group winner/);
+    assert.equal(finals.querySelectorAll('path').length, 2, 'lines join both semifinal boxes to the Final');
+    tab.window.document.querySelector('#print-root .print-preview-toolbar button').click();
+    assert.equal(sheets().length, 0, 'Close preview');
+    assert.equal(button.textContent, 'Print EQ Sheets');
+
+    // Clear the result, then Double Elimination: 10 players, a 16 draw, so two bracket pages.
+    tab.click(tab.$('#equalizer .match.match-complete [data-side="0"][data-games="0"]'));
+    choose(tab, 'format', 'double');
+    await run(world, 20000);
+    tab.click(button);
+    assert.equal(sheets().length, 2, 'the Main Draw with the Final, and the Survivor Trail');
+    assert.match(sheets()[0].textContent, /Main Draw and Final/);
+    assert.match(sheets()[0].textContent, /GF2 · replay, only if needed/);
+    assert.match(sheets()[1].textContent, /Survivor Trail/);
+    assert.match(sheets()[1].textContent, /Loser of W1-/, 'Survivor Trail slots say who drops in');
+    assert.equal(sheets()[0].querySelectorAll('.eqb-match').length, 8 + 4 + 2 + 1 + 2, 'every Main Draw match and both Finals');
+    assert.deepEqual(tab.errors, []);
   }
 };
 

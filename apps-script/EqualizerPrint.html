@@ -1,0 +1,324 @@
+<style id="eq-print-style">
+/* The Equalizer's printed sheets: group sheets in the round robin sheet's layout (Print.html), and landscape bracket
+   pages in the same style: Arial, gray ruled lines, bold names, a box for games won, and the club's logo and name. */
+.eq-group-heading { display: grid; grid-template-columns: minmax(0, 1fr) 0.78in; align-items: end; margin-bottom: 0.1in; }
+.eq-group-heading strong { border-bottom: 1.5px solid #111; font-size: 11pt; line-height: 1.1; }
+.eq-group-heading span { font-size: 6.5pt; font-style: italic; line-height: 1.05; text-align: center; }
+.eq-head-start { display: flex; align-items: center; justify-content: center; min-width: 0; padding: 0 2px; font-size: 7pt; text-align: center; line-height: 1.05; }
+.eq-head-start b { margin-right: 2px; font-size: 9pt; }
+.eq-team-ratings { font-size: 8pt; }
+.print-sheet.print-bracket-sheet {
+  width: min(11in, 100%);
+  min-height: 8.5in;
+  padding: 0.38in 0.4in 0.3in;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8pt;
+}
+.eqb-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.3in; margin-bottom: 0.12in; }
+.eqb-brand { display: grid; grid-template-columns: 0.5in minmax(0, 1fr); align-items: center; gap: 0.14in; }
+.eqb-brand img { width: 0.5in; height: 0.58in; object-fit: contain; filter: grayscale(1) contrast(1.2); }
+.eqb-brand > div { display: flex; flex-direction: column; gap: 1px; font-family: Georgia, "Times New Roman", serif; font-style: italic; line-height: 1.1; }
+.eqb-brand span { font-size: 12pt; }
+.eqb-brand strong { font-size: 11pt; font-weight: normal; }
+.eqb-meta { display: flex; flex-direction: column; gap: 0.05in; font-size: 9.5pt; text-align: right; }
+.eqb-meta .eqb-sitout { font-size: 8pt; }
+.eqb-rules { margin: 0.06in 0 0; padding-top: 0.05in; border-top: 1px solid #777; font-size: 7.5pt; line-height: 1.3; }
+.eqb-block-title { margin: 0.04in 0 0.02in; border-bottom: 1.5px solid #111; font-size: 10.5pt; font-weight: 700; }
+.eqb-block { position: relative; }
+.eqb-block svg { position: absolute; inset: 0; overflow: visible; }
+.eqb-block path { fill: none; stroke: #777; stroke-width: 1.5px; }
+.eqb-col-title { position: absolute; top: 0; font-size: 7pt; font-style: italic; text-align: center; }
+.eqb-caption { position: absolute; font-size: 6pt; color: #333; white-space: nowrap; overflow: hidden; }
+.eqb-match { position: absolute; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr) 0.28in; grid-template-rows: repeat(2, minmax(0, 1fr)); border: 1.5px solid #777; background: #fff; }
+.eqb-side { display: flex; align-items: center; gap: 3px; min-width: 0; padding: 0 3px; font-size: 7.5pt; font-weight: 700; line-height: 1; white-space: nowrap; overflow: hidden; }
+.eqb-side > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.eqb-side:first-child, .eqb-games:nth-child(2) { border-bottom: 1.5px solid #777; }
+.eqb-side .eqb-chip { margin-left: auto; font-size: 7.5pt; }
+.eqb-side.eqb-from { font-size: 6.5pt; font-weight: 400; font-style: italic; color: #555; }
+.eqb-games { display: flex; align-items: center; justify-content: center; border-left: 1.5px solid #777; font-size: 10pt; font-weight: 600; }
+.eqb-match.eqb-bye { border-style: dashed; border-color: #aaa; }
+.eqb-match.eqb-bye .eqb-side { color: #888; font-weight: 400; }
+.eqb-match.eqb-bye .eqb-side:first-child, .eqb-match.eqb-bye .eqb-games { border-color: #ccc; border-style: dashed; }
+.eqb-small .eqb-side { font-size: 6.5pt; }
+.eqb-small .eqb-side.eqb-from { font-size: 5.8pt; }
+.eqb-small .eqb-games { font-size: 8pt; }
+@page eq-bracket { size: letter landscape; margin: 0 }
+@media print {
+  .print-root .print-sheet.print-bracket-sheet { page: eq-bracket; width: 11in; min-height: 8.5in; }
+}
+</style>
+<script>
+// Printed sheets for the Equalizer, from the Print EQ Sheets button (Print.html calls window.cttcEqualizerPrint).
+// RR -> Finals: one sheet per group like the round robin's, with each match's head start where the round robin sheet
+// shows rating adjustments, then the Finals bracket. Double Elimination: the Main Draw with the Final, and the Survivor
+// Trail (on one page when the field is small). Names, head starts and results are filled in as far as they are known,
+// so a sheet printed later in the evening shows the matches decided so far.
+(function () {
+  var P = window.cttcPrint;
+  var el = P.el;
+  var BYE = window.CTTCBracket.BYE;
+  var PAGE = { width: 10.2, height: 6.55 };
+  function inch(value) { return value.toFixed(3) + 'in'; }
+  function firstNames(names) { return names.map(function (n) { return n.split(' ')[0]; }).join(' & '); }
+  // Bracket boxes are narrow: doubles teams show first names and last initials.
+  function shortName(names) {
+    if (names.length === 1) return names[0];
+    return names.map(function (n) { var parts = n.split(' '); return parts.length > 1 ? parts[0] + ' ' + parts[parts.length - 1][0] + '.' : n; }).join(' & ');
+  }
+  function sideWord(ev) { return ev.play === 'doubles' ? 'team' : 'player'; }
+  function gamesText(m, side) {
+    if (m.status !== 'done' || !m.result) return '';
+    if (m.result.forfeitedBy) return m.result.forfeitedBy === m.players[side] ? 'F' : '';
+    return m.result.games ? String(m.result.games[side]) : '';
+  }
+  function headStartCell(data, m) {
+    var cell = el('span', 'eq-head-start');
+    var hs = data.headStart(m);
+    if (hs.lowerId && hs.headStart) cell.append(el('b', '', '+' + hs.headStart), firstNames(data.names(hs.lowerId)));
+    else cell.textContent = 'Even';
+    return cell;
+  }
+
+  // ---- Group sheets (RR -> Finals): the round robin sheet's layout ----
+  function groupSheet(data, group) {
+    var ev = data.event;
+    var sheet = el('article', 'print-sheet print-score-sheet print-tournament-sheet eq-group-sheet');
+    var columns = el('div', 'tournament-sheet-columns');
+    var left = el('div', 'tournament-sheet-left');
+    var meta = el('div', 'tournament-metadata');
+    meta.append(el('span', '', 'Date:  ' + P.longDate(data.date)), el('span', '', 'Group ' + group.number + '        Table # ______'));
+    var register = el('section', 'tournament-player-register');
+    register.appendChild(el('div', 'tournament-player-key', ev.play === 'doubles' ? 'Team [Player ratings → Team rating, the average]' : 'Player [Club Rating]'));
+    group.sides.forEach(function (sideId) {
+      var side = ev.sideById[sideId];
+      var row = el('div', 'tournament-player-row');
+      row.appendChild(el('strong', 'tournament-player-name', data.names(sideId).join(' & ')));
+      if (side.members.length > 1) row.appendChild(el('span', 'eq-team-ratings', ' [' + side.members.map(function (id) { return ev.ratings[id]; }).join(' + ') + ' → ' + side.rating + ']'));
+      else row.append(' [' + side.rating + ']');
+      register.appendChild(row);
+    });
+    var rules = [
+      'No pre-match warm-ups! All warm-ups must be done before the start of the competition.',
+      'Play each opponent a best-of-' + group.matches[0].bestOf + ' 11-point-game match.',
+      'The lower-rated ' + sideWord(ev) + ' starts every game with the head start shown: +3 means they start each game at 3–0.',
+      'Record games won and lost.',
+      'Winners are responsible for recording match results.',
+      'The group winner goes on to the Finals. Bring this sheet to the desk after your last match.'
+    ];
+    if (ev.sides.some(function (side) { return side.members.length > 2; })) rules.splice(3, 0, 'A team of three rotates each game: the player who sat out comes in for the one who has played longest.');
+    var list = el('ul', 'tournament-instructions');
+    rules.forEach(function (text) {
+      var item = el('li');
+      item.append(el('span', 'tournament-checkbox'), el('span', '', text));
+      list.appendChild(item);
+    });
+    left.append(meta, register, list);
+
+    var right = el('div', 'tournament-sheet-right');
+    var schedule = el('section', 'tournament-schedule');
+    var heading = el('div', 'eq-group-heading');
+    heading.append(el('strong', '', 'Match Schedules/Results'), el('span', '', 'Head start'));
+    var rows = el('div', 'tournament-matches');
+    data.view.matches.filter(function (m) { return m.bracket === 'G' && m.group === group.number; }).forEach(function (m) {
+      var match = el('div', 'tournament-match');
+      var names = el('div', 'tournament-match-names');
+      names.append(el('span', '', data.names(m.players[0]).join(' & ')), el('span', '', data.names(m.players[1]).join(' & ')));
+      var result = el('div', 'tournament-match-result');
+      result.append(el('span', '', gamesText(m, 0)), el('span', '', gamesText(m, 1)));
+      match.append(names, result, headStartCell(data, m));
+      rows.appendChild(match);
+    });
+    schedule.append(heading, rows);
+    right.append(P.brand('tournament-brand', 'The Equalizer · Group Sheet'), schedule);
+    columns.append(left, right);
+    sheet.appendChild(columns);
+    return sheet;
+  }
+
+  // ---- Brackets: columns of match boxes joined by lines, each box placed level with the matches that feed it ----
+  function structureOf(ev) {
+    var byId = {};
+    ev.bracket.matches.forEach(function (m) { byId[m.id] = m; });
+    return byId;
+  }
+  function sideCell(data, m, side, hs) {
+    var ev = data.event;
+    var id = m.players[side];
+    var structure = structureOf(ev)[m.id];
+    var source = structure.sources[side];
+    var cell = el('div', 'eqb-side');
+    if (id && id !== BYE) {
+      cell.appendChild(el('span', '', shortName(data.names(id))));
+      if (hs && hs.lowerId === id && hs.headStart) cell.appendChild(el('span', 'eqb-chip', '+' + hs.headStart));
+      cell.title = data.names(id).join(' & ');
+      return cell;
+    }
+    cell.classList.add('eqb-from');
+    if (id === BYE) { cell.textContent = 'Bye'; return cell; }
+    if (source.seed) cell.textContent = ev.format === 'groups' ? (source.seed <= ev.bracket.byes ? (source.seed === 1 ? 'Best group winner' : 'Next-best group winner') : 'Group winner') : '';
+    else if (m.bracket === 'F') cell.textContent = side ? 'Survivor Trail winner' : 'Main Draw winner';
+    else if (source.winner && data.view.byId[source.winner].status === 'bye') return byeWinner(data, data.view.byId[source.winner], cell);
+    else cell.textContent = (source.winner ? 'Winner of ' : 'Loser of ') + (source.winner || source.loser);
+    return cell;
+  }
+  // A slot fed by a bye is the one real entrant of that bye: by name once known, or as that entrant's slot says.
+  function byeWinner(data, bye, cell) {
+    var side = bye.players[0] === BYE ? 1 : 0;
+    var described = sideCell(data, bye, side, null);
+    cell.className = described.className;
+    cell.replaceChildren.apply(cell, [].slice.call(described.childNodes));
+    if (described.title) cell.title = described.title;
+    return cell;
+  }
+  function matchBox(data, m, x, y, w, h) {
+    var hs = m.players[0] && m.players[1] && m.players[0] !== BYE && m.players[1] !== BYE ? data.headStart(m) : null;
+    var box = el('div', 'eqb-match' + (m.status === 'bye' || m.status === 'skipped' ? ' eqb-bye' : ''));
+    box.style.left = inch(x);
+    box.style.top = inch(y);
+    box.style.width = inch(w);
+    box.style.height = inch(h);
+    box.setAttribute('data-eqb-match', m.id);
+    box.append(sideCell(data, m, 0, hs), el('span', 'eqb-games', gamesText(m, 0)), sideCell(data, m, 1, hs), el('span', 'eqb-games', gamesText(m, 1)));
+    return box;
+  }
+  // columns: [{ title, matches: [resolved matches, top to bottom], stack, caption }]. Each match sits level with the two
+  // matches that feed it in the column before (or with the one, when a column has as many matches as the last). A
+  // stack column (the Final and its replay) keeps its matches together around the middle. options: { width, height }.
+  function bracketBlock(data, columns, options) {
+    var width = options.width;
+    var height = options.height;
+    var block = el('div', 'eqb-block');
+    block.style.width = inch(width);
+    block.style.height = inch(height);
+    var top = 0.17;
+    var gap = 0.24;
+    // A small bracket keeps boxes a readable size and sits in the middle of the page rather than stretching across it.
+    var colW = Math.min(2.6, width / columns.length);
+    var boxW = colW - gap;
+    var most = Math.max.apply(null, columns.map(function (c) { return c.matches.length; }));
+    var used = Math.min(height - top, most * 1.05);
+    var down = top + (height - top - used) / 2;
+    var left = (width - colW * columns.length) / 2;
+    var boxH = Math.min(0.44, used / most - 0.14);
+    if (boxH < 0.34) block.classList.add('eqb-small');
+    var place = {};
+    columns.forEach(function (column, c) {
+      var x = left + c * colW + gap / 2;
+      var title = el('div', 'eqb-col-title', column.title);
+      title.style.left = inch(x);
+      title.style.top = inch(Math.max(0, down - 0.17));
+      title.style.width = inch(boxW);
+      block.appendChild(title);
+      var each = used / column.matches.length;
+      column.matches.forEach(function (m, i) {
+        var y = column.stack ? down + used / 2 - boxH / 2 + i * (boxH + 0.3)
+          : down + (i + 0.5) * each - boxH / 2 + 0.05;
+        place[m.id] = { x: x, y: y, w: boxW, h: boxH };
+        var caption = el('div', 'eqb-caption', column.caption ? column.caption(m) : m.id + (m.status === 'bye' ? ' · bye' : ' · best of ' + m.bestOf));
+        caption.style.left = inch(x);
+        caption.style.top = inch(y - 0.12);
+        caption.style.width = inch(boxW);
+        block.append(caption, matchBox(data, m, x, y, boxW, boxH));
+      });
+    });
+    // Lines from each match to the one its winner goes on to, when both are on this block.
+    var structure = structureOf(data.event);
+    var paths = [];
+    Object.keys(place).forEach(function (id) {
+      var to = place[id];
+      structure[id].sources.forEach(function (source, side) {
+        var from = source.winner && place[source.winner];
+        // The replay is between the same two as the Final: no second line into it.
+        if (!from || id === 'GF2') return;
+        var x1 = from.x + from.w;
+        var y1 = from.y + from.h / 2;
+        var x2 = to.x;
+        var y2 = to.y + to.h * (side ? 0.75 : 0.25);
+        var mid = x2 - Math.min(0.12, (x2 - x1) / 2);
+        paths.push('M' + [x1, y1].map(hundredths).join(' ') + 'H' + hundredths(mid) + 'V' + hundredths(y2) + 'H' + hundredths(x2));
+      });
+    });
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + hundredths(width) + ' ' + hundredths(height));
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.width = inch(width);
+    svg.style.height = inch(height);
+    paths.forEach(function (d) {
+      var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('vector-effect', 'non-scaling-stroke');
+      svg.appendChild(path);
+    });
+    block.insertBefore(svg, block.firstChild);
+    return block;
+  }
+  function hundredths(value) { return Math.round(value * 100); }
+  function rounds(data, bracket) {
+    var list = {};
+    data.view.matches.filter(function (m) { return m.bracket === bracket; }).forEach(function (m) { (list[m.round] = list[m.round] || []).push(m); });
+    return Object.keys(list).map(Number).sort(function (a, b) { return a - b; }).map(function (round) {
+      var matches = list[round].sort(function (a, b) { return a.index - b.index; });
+      var title = data.roundName(matches[0]).replace(/^(Main Draw|Survivor Trail|Finals) · /, '').replace(/^Main Draw /, '');
+      return { title: title.charAt(0).toUpperCase() + title.slice(1), matches: matches };
+    });
+  }
+  function bracketSheet(data, subtitle, rules, blocks) {
+    var ev = data.event;
+    var sheet = el('article', 'print-sheet print-bracket-sheet');
+    var header = el('div', 'eqb-header');
+    var meta = el('div', 'eqb-meta');
+    meta.append(el('span', '', 'Date:  ' + P.longDate(data.date)), el('span', '', (ev.format === 'groups' ? 'RR → Finals' : 'Double Elimination') + ' · ' + (ev.play === 'doubles' ? 'Doubles' : 'Singles') + ' · best of ' + ev.bestOf));
+    if (ev.sitOut.length) meta.appendChild(el('span', 'eqb-sitout', 'Sitting out (Open Play): ' + ev.sitOut.map(data.playerName).join(', ')));
+    header.append(P.brand('eqb-brand', 'The Equalizer · ' + subtitle), meta);
+    sheet.appendChild(header);
+    blocks.forEach(function (block) {
+      if (block.title) sheet.appendChild(el('div', 'eqb-block-title', block.title));
+      sheet.appendChild(block.node);
+    });
+    sheet.appendChild(el('p', 'eqb-rules', rules));
+    return sheet;
+  }
+  function commonRules(ev) {
+    return 'Best of ' + ev.bestOf + ', 11-point games. In each box the lower-rated ' + sideWord(ev) + ' has its head start (+3: it starts every game at 3–0); ' +
+      'a box whose ' + sideWord(ev) + 's are not known yet gets its head start from the desk. Winners write the games won in the boxes and report the result at the desk.';
+  }
+  function finalsSheet(data) {
+    var columns = rounds(data, 'W');
+    return bracketSheet(data, 'Finals', 'Each group winner plays on; the best group winners get any byes. ' + commonRules(data.event),
+      [{ node: bracketBlock(data, columns, { width: PAGE.width, height: PAGE.height }) }]);
+  }
+  function doubleSheets(data) {
+    var ev = data.event;
+    var main = rounds(data, 'W');
+    var trail = rounds(data, 'L');
+    var gf = data.view.byId.GF;
+    var gf2 = data.view.byId.GF2;
+    var rules = 'Main Draw: a first loss drops a ' + sideWord(ev) + ' to the Survivor Trail. Survivor Trail: a second loss ends the day. ' +
+      'Final: the Main Draw winner against the Survivor Trail winner' + (gf2 ? '; if the Survivor Trail winner wins it, a best-of-' + gf2.bestOf + ' Final replay decides' : '') + '. ' + commonRules(ev);
+    var small = ev.bracket.size <= 8;
+    var finals = { title: 'Final', stack: true, matches: gf2 ? [gf, gf2] : [gf], caption: function (m) {
+      return m.id === 'GF2' ? 'GF2 · replay, only if needed · best of ' + m.bestOf : 'GF · best of ' + m.bestOf;
+    } };
+    var mainBlock = bracketBlock(data, main.concat([finals]), { width: PAGE.width, height: small ? PAGE.height * 0.46 : PAGE.height });
+    var trailBlock = bracketBlock(data, trail, { width: PAGE.width, height: small ? PAGE.height * 0.46 : PAGE.height });
+    if (small) {
+      return [bracketSheet(data, 'Double Elimination', rules, [
+        { title: 'Main Draw and Final', node: mainBlock },
+        { title: 'Survivor Trail', node: trailBlock }
+      ])];
+    }
+    return [
+      bracketSheet(data, 'Main Draw and Final', rules, [{ node: mainBlock }]),
+      bracketSheet(data, 'Survivor Trail', rules, [{ node: trailBlock }])
+    ];
+  }
+
+  function sheets(data) {
+    var ev = data.event;
+    return ev.format === 'groups' ? ev.groups.map(function (group) { return groupSheet(data, group); }).concat([finalsSheet(data)]) : doubleSheets(data);
+  }
+  window.cttcEqualizerPrint = function (data) { P.show(sheets(data), '', 'Equalizer sheet preview'); };
+  window.cttcEqualizerPrint.sheets = sheets;
+})();
+</script>

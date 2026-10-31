@@ -229,6 +229,17 @@
   function longDate(value) {
     return new Date(value + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   }
+  // The club logo and name over a sheet's title, as on every printed sheet.
+  function brandBlock(className, title) {
+    var brand = el('div', className);
+    var logo = el('img');
+    logo.src = 'https://concordtabletennisclub.com/assets/logo-transparent.png';
+    logo.alt = '';
+    var name = el('div');
+    name.append(el('span', '', 'Concord Table Tennis Club'), el('strong', '', title));
+    brand.append(logo, name);
+    return brand;
+  }
   function tournamentSheets(desk, records) {
     return desk.groups.map(function (group) {
       var sheet = el('article', 'print-sheet print-score-sheet print-tournament-sheet' + (group.playerIds.length > 6 ? ' tournament-seven' : ''));
@@ -256,13 +267,7 @@
       left.append(meta, register, list);
 
       var right = el('div', 'tournament-sheet-right');
-      var brand = el('div', 'tournament-brand');
-      var logo = el('img');
-      logo.src = 'https://concordtabletennisclub.com/assets/logo-transparent.png';
-      logo.alt = '';
-      var name = el('div');
-      name.append(el('span', '', 'Concord Table Tennis Club'), el('strong', '', 'Tournament Sheet'));
-      brand.append(logo, name);
+      var brand = brandBlock('tournament-brand', 'Tournament Sheet');
       var schedule = el('section', 'tournament-schedule');
       var heading = el('div', 'tournament-schedule-heading');
       var adj = el('span');
@@ -287,6 +292,8 @@
     });
   }
   async function print() {
+    // On an Equalizer night the same button prints the Equalizer's group sheets and brackets (EqualizerPrint.html).
+    if (window.cttcDesk.equalizerPrint && window.cttcDesk.equalizerPrint()) return window.cttcEqualizerPrint(window.cttcDesk.equalizerPrint());
     var desk = window.cttcDesk.print();
     if (!desk.groups.length) return;
     if (window.cttcDesk.needsPrintSave() && confirm('Save draft changes before printing RR sheets?')) {
@@ -309,6 +316,12 @@
       if (fetched) result = fetched;
       else recordsUnavailable = true;
     }
+    var warning = recordsUnavailable ? 'Club/year records unavailable. Print now; save to Google Sheets when connected.' :
+      result.missing ? result.missing + ' player record(s) unavailable in the archive.' : '';
+    show(tournamentSheets(desk, result.records), warning, 'RR sheet preview');
+  }
+  // The preview: the sheets on screen with Close preview and Print, ready for the browser's print.
+  function show(sheets, warning, label) {
     var toolbar = el('div', 'print-preview-toolbar');
     var close = el('button', '', 'Close preview');
     var printButton = el('button', '', 'Print');
@@ -320,12 +333,11 @@
       document.getElementById('print-sheets').focus();
     });
     printButton.addEventListener('click', function () { window.print(); });
-    if (recordsUnavailable) toolbar.appendChild(el('span', 'print-preview-warning', 'Club/year records unavailable. Print now; save to Google Sheets when connected.'));
-    else if (result.missing) toolbar.appendChild(el('span', 'print-preview-warning', result.missing + ' player record(s) unavailable in the archive.'));
+    if (warning) toolbar.appendChild(el('span', 'print-preview-warning', warning));
     toolbar.append(close, printButton);
-    root.replaceChildren.apply(root, [toolbar].concat(tournamentSheets(desk, result.records)));
+    root.replaceChildren.apply(root, [toolbar].concat(sheets));
     root.setAttribute('role', 'dialog');
-    root.setAttribute('aria-label', 'RR sheet preview');
+    root.setAttribute('aria-label', label);
     root.setAttribute('aria-modal', 'true');
     document.body.classList.add('printing');
     root.classList.add('previewing');
@@ -343,5 +355,6 @@
     }
   });
   document.getElementById('print-sheets').addEventListener('click', print);
+  window.cttcPrint = { el: el, longDate: longDate, brand: brandBlock, show: show };
 })();
 </script>
