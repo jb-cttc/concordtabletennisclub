@@ -1178,6 +1178,16 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
 
   function renderGroups() {
+    if (state.event === 'equalizer') {
+      var fixed = eqDesk.hasResults() || eqDesk.locked();
+      var ids = state.roster.slice().sort(function (a, b) { return player(b).currentRating - player(a).currentRating; });
+      groups.innerHTML = !ids.length ? '' : '<article class="group eq-roster"><div class="group-head"><strong>Equalizer players</strong><span class="count">' + ids.length + ' players</span></div><ul class="group-list">' + ids.map(function (id) {
+        var p = player(id);
+        var where = eqDesk.where(id);
+        return '<li><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + (where ? ' \u00b7 ' + esc(where) : '') + '</span></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from the Equalizer" aria-label="Remove ' + esc(p.name) + ' from the Equalizer"' + (fixed ? ' disabled' : '') + '>\u00d7</button></li>';
+      }).join('') + '</ul></article>';
+      return;
+    }
     var sizes = state.groups.map(function (group) { return group.playerIds.length; });
     var unbalanced = sizes.some(function (size) { return O.outOfRange(size, groupSize()); });
     summaryRow.hidden = !state.roster.length;
@@ -1274,14 +1284,17 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var equalizer = state.event === 'equalizer';
     document.querySelector('.workspace').classList.toggle('locked', isLocked);
     renderEventSwitch();
-    ['group-size', 'rebuild', 'print-sheets', 'device-save', 'save', 'promotion-context', 'organizer-fold', 'matches'].forEach(function (id) { document.getElementById(id).hidden = equalizer; });
+    ['group-size', 'rebuild', 'print-sheets', 'device-save', 'save', 'promotion-context', 'matches'].forEach(function (id) { document.getElementById(id).hidden = equalizer; });
     document.getElementById('eq-options').hidden = !equalizer;
     document.getElementById('equalizer').hidden = !equalizer;
     if (equalizer) {
       document.getElementById('session-meta').textContent = 'The Equalizer · ' + (eqDesk.state().session ? 'status ' + eqDesk.state().session.status : 'new') + ' · changes save to Google Sheets by themselves';
       document.getElementById('empty').hidden = true;
-      summaryRow.hidden = true;
+      summaryRow.hidden = !state.roster.length;
+      summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in the Equalizer';
+      summary.classList.remove('warn');
       document.getElementById('clear-roster').disabled = !state.roster.length || isLocked || eqDesk.hasResults();
+      renderGroups();
       eqDesk.render();
       renderDirectory();
       renderFinalizeButton();
@@ -1821,6 +1834,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     playerEdited: playerEdited,
     remove: removeFromRoster,
     has: function (id) { return state.roster.indexOf(id) >= 0; },
+    // What the sidebar calls the event the roster feeds: the round robin or the Equalizer.
+    event: function () { return state.event === 'equalizer' ? { short: 'EQ', placed: 'In EQ', target: 'the Equalizer' } : { short: 'RR', placed: 'In RR', target: 'the RR draft' }; },
     print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
     needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
     saveDraft: save
@@ -2411,8 +2426,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
     [].forEach.call(document.querySelectorAll('#open-roster .roster-row, #groups .group-list li'), function (row) {
-      var action = row.querySelector('[data-open-remove], [data-move]');
-      var playerId = action ? action.getAttribute('data-open-remove') || action.getAttribute('data-move') : row.getAttribute('data-coaching');
+      var action = row.querySelector('[data-open-remove], [data-move], [data-drop]');
+      var playerId = action ? action.getAttribute('data-open-remove') || action.getAttribute('data-move') || action.getAttribute('data-drop') : row.getAttribute('data-coaching');
       if (!playerId || row.querySelector('.payment-control')) return;
       var control = document.createElement('div');
       control.className = 'payment-control';
@@ -2570,8 +2585,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var LABELS = { member: 'M', visitor: 'V', junior: 'J' };
   window.cttcStatusOf = function (playerId) { return statuses[playerId]; };
   function playerIdFor(row) {
-    var action = row.querySelector('[data-move], [data-open-remove]');
-    return action ? action.getAttribute('data-move') || action.getAttribute('data-open-remove') : row.getAttribute('data-coaching');
+    var action = row.querySelector('[data-move], [data-open-remove], [data-drop]');
+    return action ? action.getAttribute('data-move') || action.getAttribute('data-open-remove') || action.getAttribute('data-drop') : row.getAttribute('data-coaching');
   }
   function tipFor(playerId) {
     var current = statuses[playerId];
@@ -3303,10 +3318,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         status.className = 'roster-status';
         actions.appendChild(status);
       }
-      var inRoundRobin = !!groups.querySelector('[data-move="' + CSS.escape(playerId) + '"]');
+      var inRoundRobin = !!groups.querySelector('[data-move="' + CSS.escape(playerId) + '"], [data-drop="' + CSS.escape(playerId) + '"]');
+      var deskEvent = window.cttcDesk.event();
       var coached = inCoaching(playerId);
       var inOpen = open.indexOf(playerId) >= 0 || coached;
-      if (rr.textContent !== 'RR') rr.textContent = 'RR';
+      if (rr.textContent !== deskEvent.short) { rr.textContent = deskEvent.short; rr.title = 'Add to ' + deskEvent.target; }
       rr.hidden = inRoundRobin || inOpen;
       rr.disabled = rr.hidden;
       var openButton = actions.querySelector('[data-open-add]');
@@ -3314,7 +3330,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       openButton.hidden = inRoundRobin || inOpen;
       openButton.disabled = openButton.hidden;
       var status = actions.querySelector('.roster-status');
-      var label = inRoundRobin ? 'In RR' : coached ? 'Coaching' : inOpen ? 'In Open' : '';
+      var label = inRoundRobin ? deskEvent.placed : coached ? 'Coaching' : inOpen ? 'In Open' : '';
       if (status.textContent !== label) status.textContent = label;
       status.hidden = !label;
     });
@@ -3613,7 +3629,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   }
 
   function rostered(playerId) {
-    return window.cttcDesk.has(playerId) ? 'In RR' : open.querySelector('[data-coaching="' + CSS.escape(playerId) + '"]') ? 'Coaching' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
+    return window.cttcDesk.has(playerId) ? window.cttcDesk.event().placed : open.querySelector('[data-coaching="' + CSS.escape(playerId) + '"]') ? 'Coaching' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
   }
 
   function candidateRow(playerId, senderPlaced, senderKey) {
@@ -3634,8 +3650,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'small';
-      button.textContent = 'RR';
-      button.title = 'Add ' + names[playerId] + ' to the RR draft';
+      button.textContent = window.cttcDesk.event().short;
+      button.title = 'Add ' + names[playerId] + ' to ' + window.cttcDesk.event().target;
       button.setAttribute('data-voice-add', playerId);
       button.setAttribute('data-voice-sender', senderKey || '');
       row.appendChild(button);
@@ -3723,7 +3739,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     addAll.hidden = !loaded || !suggestions.some(function (suggestion) { return suggestion.validated; });
     addAll.disabled = !ready.length;
     addAll.textContent = ready.length ? 'Add all \u2713 (' + ready.length + ')' : 'All \u2713 added';
-    addAll.title = ready.length ? 'Add ' + ready.map(function (suggestion) { return names[suggestion.linkedPlayerId]; }).join(', ') + ' to the RR draft' : '';
+    addAll.title = ready.length ? 'Add ' + ready.map(function (suggestion) { return names[suggestion.linkedPlayerId]; }).join(', ') + ' to ' + window.cttcDesk.event().target : '';
     pollingShown = polling();
     if (loaded) {
       message.textContent = (!suggestions.length ? 'No texts received on this date.' : lists.waiting.length ? 'Texts received on this date. Choose who to add to RR.' : 'Everyone who texted is added or hidden.') +
@@ -3882,7 +3898,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var requestNumber = 0;
 
   function placed(playerId) {
-    return window.cttcDesk.has(playerId) ? 'In RR' : open.querySelector('[data-coaching="' + CSS.escape(playerId) + '"]') ? 'Coaching' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
+    return window.cttcDesk.has(playerId) ? window.cttcDesk.event().placed : open.querySelector('[data-coaching="' + CSS.escape(playerId) + '"]') ? 'Coaching' : open.querySelector('[data-open-remove="' + CSS.escape(playerId) + '"]') ? 'In Open' : '';
   }
 
   function button(label, attribute, playerId, title) {
@@ -3922,7 +3938,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         actions.appendChild(status);
       } else {
         actions.append(
-          button('RR', 'data-volunteer-rr', volunteer.playerId, 'Add ' + volunteer.name + ' to the RR draft'),
+          button(window.cttcDesk.event().short, 'data-volunteer-rr', volunteer.playerId, 'Add ' + volunteer.name + ' to ' + window.cttcDesk.event().target),
           button('Open', 'data-volunteer-open', volunteer.playerId, 'Add ' + volunteer.name + ' to Open Play')
         );
       }

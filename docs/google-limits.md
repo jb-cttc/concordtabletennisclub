@@ -27,6 +27,11 @@ Limits from [Google's quota page](https://developers.google.com/apps-script/guid
 Run time is measured from when our code starts, so Google's start-up time for each
 run is not included: the real total is somewhat higher than `JobRuntime` shows.
 
+The Equalizer ([operations](equalizer-operations.md)) adds no timers, Gmail reads,
+emails or web requests: each change at the desk (the setup, a result, the Round
+robin | Equalizer switch) is one page call, like a round robin save, and a page call
+does not count toward timer run time.
+
 ## Scheduled jobs
 
 Google can repeat a timer only at a fixed rate (1, 5, 10, 15 or 30 minutes, or

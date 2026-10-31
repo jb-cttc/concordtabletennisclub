@@ -1,5 +1,7 @@
 <style>
 .event-switch{margin-right:4px}
+#group-size[hidden],#eq-options[hidden],#matches[hidden],#promotion-context[hidden],#equalizer[hidden]{display:none!important}
+.eq-roster .group-list li{grid-template-columns:minmax(0,1fr) auto auto auto}
 .eq-options{display:inline-flex;gap:9px;flex-wrap:wrap;align-items:center}
 .eq-options[hidden]{display:none}
 .equalizer[hidden]{display:none}
@@ -12,7 +14,7 @@
 .eq-notice{font:13px Arial,sans-serif;background:#fff8e6;border:1px solid #ecd9a4;border-radius:6px;padding:10px 12px;margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .eq-notice select{padding:5px;border:1px solid #aeb7b1;border-radius:4px;font:13px Arial,sans-serif}
 .eq-champion{font:15px Arial,sans-serif;background:#eef6f0;border:1px solid #b9d6c3;border-radius:6px;padding:12px 14px;margin:0 0 12px}
-.eq-places{font:13px Arial,sans-serif;margin:6px 0 0;padding-left:18px;columns:2 220px}
+.eq-places{font:13px Arial,sans-serif;margin:6px 0 0;padding:0;list-style:none;columns:2 220px}.eq-places b{display:inline-block;min-width:64px;color:var(--muted);font-weight:400}
 .eq-section-note{font:12px Arial,sans-serif;color:var(--muted);padding:8px 14px 0;margin:0}
 .eq-sitout{font:13px Arial,sans-serif;color:var(--muted);margin:0 0 12px}
 </style>
@@ -287,7 +289,8 @@ window.CTTCEqualizerDesk = function (desk) {
   function matchRow(ev, view, m) {
     if (m.status === 'waiting') {
       var placeholder = function (side) { return m.players[side] ? '<strong>' + sideName(ev, m.players[side]).map(esc).join(' &amp; ') + '</strong>' : esc(sourceText(ev, m, side)); };
-      return '<div class="match eq-waiting"><div class="player-cell player-one">' + placeholder(0) + '</div><span class="dash">–</span><div class="player-cell player-two">' + placeholder(1) + '</div><div class="match-foot"><span class="eq-foot">' + esc(m.id) + ' · waiting</span></div></div>';
+      // The same grid as a playable row (name, score, dash, score, name), with the scores left empty.
+      return '<div class="match eq-waiting"><div class="player-cell player-one">' + placeholder(0) + '</div><div class="score-set score-one"></div><span class="dash">–</span><div class="score-set score-two"></div><div class="player-cell player-two">' + placeholder(1) + '</div><div class="match-foot"><span class="eq-foot">' + esc(m.id) + ' · waiting for earlier results</span></div></div>';
     }
     var hs = headStartFor(ev, view, m);
     var winnerId = m.status === 'done' ? m.winnerId : null;
@@ -334,7 +337,8 @@ window.CTTCEqualizerDesk = function (desk) {
     var estimate = E.estimate(ev).minutes;
     return estimate >= 60 ? Math.floor(estimate / 60) + ' h ' + (estimate % 60 ? (estimate % 60) + ' min' : '') : estimate + ' min';
   }
-  function placeText(p) { return p.to > p.place ? p.place + '–' + p.to : String(p.place); }
+  function ordinal(n) { var s = ['th', 'st', 'nd', 'rd']; var v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function placeText(p) { return ordinal(p.place) + (p.to > p.place ? '–' + ordinal(p.to) : ''); }
   function render() {
     renderOptions();
     var ev = event();
@@ -357,7 +361,7 @@ window.CTTCEqualizerDesk = function (desk) {
     if (view.finished) {
       var places = ev.sides.map(function (side) { return { side: side, place: view.places[side.id] }; }).filter(function (x) { return x.place; }).sort(function (a, b) { return a.place.place - b.place.place; });
       html += '<div class="eq-champion">🏆 <strong>' + esc(sideName(ev, view.champion).join(' & ')) + '</strong> ' + (ev.play === 'doubles' ? 'win' : 'wins') + ' the Equalizer.' + (finalized() ? ' Finalized.' : ' Check the results, then Finalize Equalizer.') +
-        '<ol class="eq-places">' + places.map(function (x) { return '<li>' + placeText(x.place) + ': ' + esc(sideName(ev, x.side.id).join(' & ')) + '</li>'; }).join('') + '</ol></div>';
+        '<ul class="eq-places">' + places.map(function (x) { return '<li><b>' + placeText(x.place) + '</b>' + esc(sideName(ev, x.side.id).join(' & ')) + '</li>'; }).join('') + '</ul></div>';
     }
     if (ev.format === 'groups') {
       html += view.tables.map(function (table) { return groupSection(ev, view, table); }).join('');
@@ -480,7 +484,20 @@ window.CTTCEqualizerDesk = function (desk) {
     if (key) choose(key, key === 'bestOf' ? Number(button.getAttribute('data-value')) : button.getAttribute('data-value'));
   });
 
+  // Where a player is in the draw, for the roster card: their group, their partners, or sitting out.
+  function where(id) {
+    var ev = event();
+    if (!ev) return '';
+    if (ev.sitOut.indexOf(id) >= 0) return 'sits out';
+    var side = ev.sides.filter(function (s) { return s.members.indexOf(id) >= 0; })[0];
+    if (!side) return '';
+    var partners = side.members.filter(function (m) { return m !== id; }).map(function (m) { return player(m).name.split(' ')[0]; });
+    var group = ev.groups.filter(function (g) { return g.sides.indexOf(side.id) >= 0; })[0];
+    return (partners.length ? 'with ' + partners.join(' & ') : '') + (group ? (partners.length ? ', ' : '') + 'Group ' + group.number : '');
+  }
+
   return {
+    where: where,
     load: load,
     render: render,
     add: add,

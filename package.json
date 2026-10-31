@@ -52,6 +52,7 @@
     "check:nights": "node scripts/check-desk-nights.js",
     "desk:google": "node scripts/desk-google-view.js",
     "equalizer:screenshots": "node scripts/equalizer-screenshots.js",
+    "equalizer:desk-screenshots": "node scripts/equalizer-desk-screenshots.js",
     "sheet:read": "node scripts/sheet-read.js"
   },
   "dependencies": {

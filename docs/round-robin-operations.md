@@ -425,6 +425,13 @@ email as Monday and Wednesday; only the clock differs:
   published it expects 20 players with no ratings (see
   [Tonight page and turnout app](turnout-flow.md)).
 
+## The Equalizer
+
+The desk's second event, chosen with the **Round robin | Equalizer** switch:
+head starts by rating, RR → Finals or Double Elimination, singles or doubles,
+best of 3 or 5. It shares the roster, sidebar, payments and publication; see
+[Equalizer operations](equalizer-operations.md).
+
 ## Finalizing and reopening
 
 **Finalize RR Results** checks that every match is complete, updates every
