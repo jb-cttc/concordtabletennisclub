@@ -273,21 +273,9 @@ function finalizeLocked_(sessionId, expectedRevision) {
   validateCompleteRoundRobin_(sessionPlayers, matches);
 
   var players = indexBy_(rows_('Players'), 'player_id');
-  // Ledger rows from an earlier run that did not finish. Each player is either still at rating_before or already
-  // at rating_after; this run starts again from rating_before. Anything else means a rating moved since, and an
-  // automatic repair could double-count, so it stops.
-  var leftovers = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
-  var restored = {};
-  leftovers.forEach(function (row) {
-    var playerId = String(row.player_id);
-    var player = players[playerId];
-    if (!player) throw new Error('Player no longer exists: ' + playerId);
-    var current = Number(player.current_rating);
-    if (current !== Number(row.rating_before) && current !== Number(row.rating_after)) {
-      throw new Error('An earlier finalize of this session did not finish, and the rating of ' + player.display_name + ' has changed since (' + Number(row.rating_before) + ' before, ' + Number(row.rating_after) + ' after, ' + current + ' now). It cannot be repaired automatically: keep the paper sheets and ask the desk maintainer to fix the Players and RatingLedger sheets.');
-    }
-    restored[playerId] = Number(row.rating_before);
-  });
+  var earlier = finalizeLeftovers_(sessionId, players);
+  var leftovers = earlier.leftovers;
+  var restored = earlier.restored;
 
   var starts = {};
   var adjustments = {};
@@ -336,20 +324,50 @@ function finalizeLocked_(sessionId, expectedRevision) {
       created_at: now
     };
   });
-  // Rating writes, each with the value to restore on a rollback. A player left out of the session after an
-  // interrupted run goes back to their rating before it.
+  commitFinalize_(session, sessionId, sessionDate, ledger, finalizeRatingWrites_(ledger, restored, adjustments, players), startFixes, leftovers, now);
+  return getSession(sessionId);
+}
+
+// Ledger rows from an earlier finalize of this session that did not finish. Each player is either still at
+// rating_before or already at rating_after; the next run starts again from rating_before. Anything else means a rating
+// moved since, and an automatic repair could double-count, so it stops. Shared by round robins and the Equalizer.
+function finalizeLeftovers_(sessionId, players) {
+  var leftovers = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
+  var restored = {};
+  leftovers.forEach(function (row) {
+    var playerId = String(row.player_id);
+    var player = players[playerId];
+    if (!player) throw new Error('Player no longer exists: ' + playerId);
+    var current = Number(player.current_rating);
+    if (current !== Number(row.rating_before) && current !== Number(row.rating_after)) {
+      throw new Error('An earlier finalize of this session did not finish, and the rating of ' + player.display_name + ' has changed since (' + Number(row.rating_before) + ' before, ' + Number(row.rating_after) + ' after, ' + current + ' now). It cannot be repaired automatically: keep the paper sheets and ask the desk maintainer to fix the Players and RatingLedger sheets.');
+    }
+    restored[playerId] = Number(row.rating_before);
+  });
+  return { leftovers: leftovers, restored: restored };
+}
+
+// Rating writes, each with the value to restore on a rollback. A player left out of the session after an interrupted
+// run goes back to their rating before it. adjustments: { playerId: points } for every player in the session.
+function finalizeRatingWrites_(ledger, restored, adjustments, players) {
   var ratingWrites = ledger.map(function (row) { return { playerId: row.player_id, to: row.rating_after }; });
   Object.keys(restored).forEach(function (playerId) {
     if (adjustments[playerId] === undefined) ratingWrites.push({ playerId: playerId, to: restored[playerId] });
   });
-  ratingWrites = ratingWrites.filter(function (write) {
+  return ratingWrites.filter(function (write) {
     var player = players[write.playerId];
     write.row = player.__row;
     write.from = player.current_rating;
     write.fromUpdatedAt = player.updated_at;
     return Number(write.from) !== write.to;
   });
+}
 
+// Writes a finalize: the ledger first (so an interrupted run always leaves rows that show what it did), then any
+// starting-rating repairs, the ratings, and last the session status; a failure is rolled back where Google allows.
+// Shared by round robins and the Equalizer.
+function commitFinalize_(session, sessionId, sessionDate, ledger, ratingWrites, startFixes, leftovers, now) {
+  now = now || new Date();
   safeAudit_('finalize_started', 'session', sessionId, { revision: Number(session.revision), players: ledger.length, repairing: leftovers.length });
   var step = 'rating ledger';
   var attempted = { ledger: false, starts: [], ratings: [], session: false };
@@ -377,7 +395,6 @@ function finalizeLocked_(sessionId, expectedRevision) {
   }
   safeAudit_('session_finalized', 'session', sessionId, { revision: Number(session.revision) + 1, ratingEvents: ledger.length, repaired: leftovers.length });
   try { schedulePublish_(sessionId, sessionDate); } catch (error) { /* finalizing already succeeded; the workflow's scheduled run still publishes it */ }
-  return getSession(sessionId);
 }
 
 // Puts back everything a failed finalize attempted and returns the error to show. Each step is tried on its own,
@@ -481,11 +498,14 @@ function referenceCode_(eventId) {
 
 var PUBLIC_SESSIONS_URL = 'https://concordtabletennisclub.com/data/sessions.json';
 
-// A session the site already lists cannot be reopened: the site refuses to change a published session.
-function sessionOnSite_(sessionDate) {
+// A session the site already lists cannot be reopened: the site refuses to change a published session. Desk sessions
+// are listed by id (a round robin and an Equalizer can share a date); older reports only by date.
+function sessionOnSite_(sessionDate, sessionId) {
   var response = UrlFetchApp.fetch(PUBLIC_SESSIONS_URL + '?t=' + Date.now(), { muteHttpExceptions: true });
   if (response.getResponseCode() !== 200) throw new Error('Could not check whether the club site already lists this session (HTTP ' + response.getResponseCode() + '). Try again.');
-  return JSON.parse(response.getContentText()).some(function (entry) { return String(entry.date) === sessionDate; });
+  return JSON.parse(response.getContentText()).some(function (entry) {
+    return entry.sessionId ? String(entry.sessionId) === String(sessionId || 'session-' + sessionDate) : String(entry.date) === sessionDate;
+  });
 }
 
 // Reopens the most recent finalized session: restores each player's rating from the ledger, makes the session
@@ -510,9 +530,15 @@ function reopenLocked_(sessionId, expectedRevision) {
   }
   if (Number(session.revision) !== Number(expectedRevision)) throw new Error(CHANGED_ELSEWHERE_MESSAGE);
   var sessionDate = displayDate_(session.session_date);
-  var later = rows_('Sessions').filter(function (row) { return String(row.status) === 'finalized' && displayDate_(row.session_date) > sessionDate; });
-  if (later.length) throw new Error('The ' + displayDate_(later[0].session_date) + ' session is already finalized. Reopen the most recent session first.');
-  if (sessionOnSite_(sessionDate)) throw new Error('The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.');
+  // The most recent first, also between a round robin and an Equalizer on the same date (by when each was finalized).
+  var finalizedAt = new Date(session.finalized_at).getTime() || 0;
+  var later = rows_('Sessions').filter(function (row) {
+    if (String(row.status) !== 'finalized' || String(row.session_id) === sessionId) return false;
+    var date = displayDate_(row.session_date);
+    return date > sessionDate || (date === sessionDate && (new Date(row.finalized_at).getTime() || 0) > finalizedAt);
+  });
+  if (later.length) throw new Error('The ' + displayDate_(later[0].session_date) + (isEqualizerSessionId_(later[0].session_id) ? ' Equalizer' : ' session') + ' is already finalized. Reopen the most recent session first.');
+  if (sessionOnSite_(sessionDate, sessionId)) throw new Error('The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.');
 
   var ledger = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
   var players = indexBy_(rows_('Players'), 'player_id');

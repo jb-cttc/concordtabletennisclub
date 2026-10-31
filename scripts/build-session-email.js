@@ -38,15 +38,17 @@ function formatDate(dateStr) {
   return DAYS[dt.getDay()] + ', ' + MONTHS[m - 1] + ' ' + d + ', ' + y;
 }
 
+// The round robin on a date (an Equalizer on the same date is not this email's: it gets its own later).
 function findSession(date) {
   const year = date.slice(0, 4);
   const sessions = loadJson(path.join(DATA_DIR, 'session-details-' + year + '.json'), []);
-  return sessions.find(function (s) { return s.date === date; }) || null;
+  return sessions.find(function (s) { return s.date === date && s.variant !== 'equalizer'; }) || null;
 }
 
+// The newest round robin (site-status.json names it once Equalizers are published; before that, the newest session).
 function latestSessionDate() {
   const status = loadJson(path.join(DATA_DIR, 'site-status.json'), {});
-  return status.latestSessionDate || null;
+  return status.latestRoundRobinDate !== undefined ? status.latestRoundRobinDate || null : status.latestSessionDate || null;
 }
 
 // The note is the same text the Round Robins page shows under the group (shared standings.js), so any

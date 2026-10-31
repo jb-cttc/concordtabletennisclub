@@ -21,6 +21,7 @@ const context = {
   appendObjects_: (name, rows) => tables[name].push(...rows)
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(__dirname + '/SessionIds.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync(__dirname + '/OpenPlay.js', 'utf8'), context);
 const date = '2026-09-24';
 assert.equal(context.setOpenPlayParticipant(date, 'a', true), true);

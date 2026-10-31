@@ -12,7 +12,11 @@ var TABLES = {
   RecordArchiveEvents: ['event_date', 'player_id', 'wins', 'losses', 'source'],
   RatingLedger: ['event_id', 'session_id', 'player_id', 'rating_before', 'adjustment', 'rating_after', 'rule_version', 'created_at'],
   AuditLog: ['event_id', 'event_time', 'actor', 'action', 'entity_type', 'entity_id', 'details_json'],
-  Subscribers: ['email', 'added_at']
+  Subscribers: ['email', 'added_at'],
+  // The Equalizer (EqualizerService.js): one row per event (the organizer's choices and the saved draw), and one row
+  // per match result. Made by the first Equalizer save; the event's roster is in SessionPlayers like a round robin's.
+  Brackets: ['session_id', 'rule_version', 'format', 'play', 'best_of', 'odd_player', 'sit_out_id', 'draw_json', 'drawn_at', 'updated_at'],
+  BracketMatches: ['match_id', 'session_id', 'stage', 'side_one_id', 'side_two_id', 'head_start_side_id', 'head_start_points', 'best_of', 'side_one_games', 'side_two_games', 'won_by', 'forfeited_by', 'table_number', 'called_at', 'finished_at', 'updated_at']
 };
 
 // Trailing columns that older Sheets lack, in order; ensureHeader_ appends what is missing and never reorders.

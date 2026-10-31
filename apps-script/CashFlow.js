@@ -181,7 +181,8 @@ function getCashFlow(fromDate, toDate) {
   var seen = function (playerId, date) { if (date && (!firstSeen[playerId] || date < firstSeen[playerId])) firstSeen[playerId] = date; };
   var dayFor = function (date) { return days[date] || (days[date] = { rr: {}, open: {}, paid: {}, count: null }); };
   sessionRows.forEach(function (row) {
-    var date = dateOfSession(row.session_id);
+    // The day's round robin and Equalizer rosters both count (SessionIds.js).
+    var date = sessionDateOf_(row.session_id);
     seen(String(row.player_id), date);
     if (date && inWindow(date)) dayFor(date).rr[String(row.player_id)] = true;
   });

@@ -123,15 +123,18 @@ function answer_(now) {
     });
   }
 
-  var session = table_(desk, 'Sessions').filter(function (row) { return day_(row.session_date) === night.date; })[0];
-  if (session) {
-    table_(desk, 'SessionPlayers').forEach(function (row) {
-      if (String(row.session_id) !== String(session.session_id)) return;
-      var id = String(row.player_id);
-      var rating = row.starting_rating !== '' && row.starting_rating !== null ? Number(row.starting_rating) : ratingOf(id);
-      people.push({ key: id, rating: rating, status: 'here' });
-    });
-  }
+  // Everyone signed in for the date, in the round robin or the Equalizer (both can run on one day; the desk's ids are
+  // session-YYYY-MM-DD and session-YYYY-MM-DD-equalizer). Someone in both counts once.
+  var sessionIds = {};
+  table_(desk, 'Sessions').forEach(function (row) { if (day_(row.session_date) === night.date) sessionIds[String(row.session_id)] = true; });
+  var here = {};
+  table_(desk, 'SessionPlayers').forEach(function (row) {
+    var id = String(row.player_id);
+    if (!sessionIds[String(row.session_id)] || here[id]) return;
+    here[id] = true;
+    var rating = row.starting_rating !== '' && row.starting_rating !== null ? Number(row.starting_rating) : ratingOf(id);
+    people.push({ key: id, rating: rating, status: 'here' });
+  });
 
   if (night.date === clock.date) {
     voiceSenders_(desk, night.date).forEach(function (sender) {

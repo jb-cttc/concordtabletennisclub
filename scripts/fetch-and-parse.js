@@ -400,22 +400,29 @@ function recordHeadToHead(player, opponentName, won, lost) {
 function buildPlayers(sessions) {
   const playersByName = new Map();
 
+  // Oldest first; on a shared date the round robin before the Equalizer (the order they were finalized in).
   sessions.slice().sort(function (a, b) {
-    return a.date.localeCompare(b.date);
+    return a.date.localeCompare(b.date) || (a.variant === 'equalizer' ? 1 : 0) - (b.variant === 'equalizer' ? 1 : 0);
   }).forEach(function (session) {
+    // An Equalizer moves ratings like any session, but its wins, losses and head-to-head are kept apart from round
+    // robin records (GitHub issue #104), so here it only adds to the rating history.
+    const equalizer = session.variant === 'equalizer';
     session.groups.forEach(function (group) {
       group.players.forEach(function (playerResult) {
         const player = ensurePlayer(playersByName, playerResult.name);
-        player.sessionsPlayed += 1;
-        player.totalWins += playerResult.wins;
-        player.totalLosses += playerResult.losses;
+        if (!equalizer) {
+          player.sessionsPlayed += 1;
+          player.totalWins += playerResult.wins;
+          player.totalLosses += playerResult.losses;
+        }
 
         if (Number.isFinite(playerResult.ratingAfter)) {
           player.currentRating = playerResult.ratingAfter;
           player.peakRating = Math.max(player.peakRating || playerResult.ratingAfter, playerResult.ratingAfter);
-          player.ratingHistory.push({ date: session.date, rating: playerResult.ratingAfter });
+          player.ratingHistory.push(equalizer ? { date: session.date, rating: playerResult.ratingAfter, variant: 'equalizer' } : { date: session.date, rating: playerResult.ratingAfter });
         }
 
+        if (equalizer) return;
         playerResult.matches.forEach(function (match) {
           recordHeadToHead(player, match.opponent, match.gamesWon, match.gamesLost);
         });

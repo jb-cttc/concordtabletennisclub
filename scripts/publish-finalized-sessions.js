@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { fetchSheetRows } = require('./lib/google-sheets');
 const { projectFinalizedSession } = require('./lib/finalized-session');
+const { projectFinalizedEqualizer } = require('./lib/finalized-equalizer');
 const { buildPlayers } = require('./fetch-and-parse');
 
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
@@ -17,8 +18,14 @@ const HEADERS = {
 
 // Sheets created before these trailing columns existed are still accepted.
 const ADDED_COLUMNS = { Matches: ['forfeited_by', 'won_by'] };
-// Name corrections made at the desk (apps-script/PlayerEdits.js). The tab is made by the first correction.
-const OPTIONAL_HEADERS = { NameChanges: ['player_id', 'old_name', 'new_name', 'changed_at'] };
+// Name corrections made at the desk (apps-script/PlayerEdits.js), and the Equalizer's draw and results
+// (apps-script/EqualizerService.js). Each tab is made by the first change that needs it.
+const OPTIONAL_HEADERS = {
+  NameChanges: ['player_id', 'old_name', 'new_name', 'changed_at'],
+  Brackets: ['session_id', 'rule_version', 'format', 'play', 'best_of', 'odd_player', 'sit_out_id', 'draw_json', 'drawn_at', 'updated_at'],
+  BracketMatches: ['match_id', 'session_id', 'stage', 'side_one_id', 'side_two_id', 'head_start_side_id', 'head_start_points', 'best_of', 'side_one_games', 'side_two_games', 'won_by', 'forfeited_by', 'table_number', 'called_at', 'finished_at', 'updated_at']
+};
+const isEqualizer = function (session) { return /-equalizer$/.test(String(session.session_id || session.sessionId || '')); };
 
 function parseTable(table, rows) {
   const headers = HEADERS[table] || OPTIONAL_HEADERS[table];
@@ -91,7 +98,9 @@ function withCorrectedNames(session, corrected) {
           const fixed = { ...player, name: fix(player.name) };
           if (Array.isArray(player.matches)) {
             fixed.matches = player.matches.map(function (match) {
-              const named = { ...match, opponent: fix(match.opponent) };
+              const named = { ...match, opponent: Array.isArray(match.opponents) ? match.opponents.map(fix).join(' & ') : fix(match.opponent) };
+              if (Array.isArray(match.opponents)) named.opponents = match.opponents.map(fix);
+              if (Array.isArray(match.partners)) named.partners = match.partners.map(fix);
               if (match.forfeitedBy !== undefined && match.forfeitedBy !== 'both') named.forfeitedBy = fix(match.forfeitedBy);
               return named;
             });
@@ -99,7 +108,19 @@ function withCorrectedNames(session, corrected) {
           return fixed;
         })
       };
-    })
+    }),
+    ...(session.equalizer ? { equalizer: fixEqualizerNames(session.equalizer, fix) } : {})
+  };
+}
+
+function fixEqualizerNames(block, fix) {
+  const all = function (names) { return names.map(fix); };
+  return {
+    ...block,
+    sides: block.sides.map(function (side) { return { ...side, names: all(side.names) }; }),
+    sitOut: all(block.sitOut),
+    champion: all(block.champion),
+    matches: block.matches.map(function (match) { return { ...match, sides: match.sides.map(all) }; })
   };
 }
 
@@ -119,7 +140,7 @@ function buildPublication(existing, tables, startDate) {
     return session.status === 'finalized' && String(session.session_date) >= startDate;
   });
   const dates = new Set();
-  const live = finalized.map(function (session) {
+  const live = finalized.filter(function (session) { return !isEqualizer(session); }).map(function (session) {
     const id = String(session.session_id);
     const date = String(session.session_date);
     if (dates.has(date)) throw new Error('More than one finalized session for ' + date);
@@ -132,15 +153,39 @@ function buildPublication(existing, tables, startDate) {
       tables.Players
     );
   });
-  const publishedByDate = new Map(live.map(function (session) { return [session.date, session]; }));
+  // Equalizers are published in their own step: one that cannot be checked is left out (and reported), never stopping
+  // the round robins. An Equalizer already on the site stays as published.
+  const skipped = [];
+  const previousEqualizers = new Map(later.filter(isEqualizer).map(function (session) { return [session.sessionId, session]; }));
+  finalized.filter(isEqualizer).forEach(function (session) {
+    const id = String(session.session_id);
+    try {
+      live.push(projectFinalizedEqualizer(
+        session,
+        (tables.Brackets || []).find(function (row) { return String(row.session_id) === id; }),
+        (tables.BracketMatches || []).filter(function (row) { return String(row.session_id) === id; }),
+        tables.RatingLedger.filter(function (row) { return String(row.session_id) === id; }),
+        tables.Players
+      ));
+    } catch (error) {
+      skipped.push({ sessionId: id, date: String(session.session_date), reason: error.message });
+      if (previousEqualizers.has(id)) live.push(previousEqualizers.get(id));
+    }
+  });
+  const publishedById = new Map(live.map(function (session) { return [session.sessionId, session]; }));
   later.forEach(function (session) {
-    const replacement = publishedByDate.get(session.date);
+    const replacement = publishedById.get(session.sessionId);
     if (!replacement || JSON.stringify(session) !== JSON.stringify(replacement)) {
+      if (isEqualizer(session) && skipped.some(function (entry) { return entry.sessionId === session.sessionId; })) return;
       throw new Error('Previously published session missing or changed: ' + session.date);
     }
   });
-  const details = historical.concat(live).sort(function (left, right) { return right.date.localeCompare(left.date); });
-  return { details, live };
+  // Newest first; on a shared date the round robin comes before the Equalizer (it was finalized first), so a lookup by
+  // date finds the round robin and the rating history runs in order.
+  const details = historical.concat(live).sort(function (left, right) {
+    return right.date.localeCompare(left.date) || (isEqualizer(left) ? 1 : 0) - (isEqualizer(right) ? 1 : 0);
+  });
+  return { details, live, skipped };
 }
 
 async function publish(tables, dataDir, startDate) {
@@ -158,16 +203,21 @@ async function publish(tables, dataDir, startDate) {
     await fs.writeFile(path.join(dataDir, 'session-details-' + year + '.json'), JSON.stringify(sessions, null, 2) + '\n');
   }
   await fs.writeFile(path.join(dataDir, 'sessions.json'), JSON.stringify(publication.details.map(function (session) {
-    return session.source === 'app'
-      ? { date: session.date, sessionId: session.sessionId, source: 'app' }
-      : { date: session.date, fileId: session.fileId };
+    if (session.source !== 'app') return { date: session.date, fileId: session.fileId };
+    return session.variant === 'equalizer'
+      ? { date: session.date, sessionId: session.sessionId, source: 'app', variant: 'equalizer' }
+      : { date: session.date, sessionId: session.sessionId, source: 'app' };
   }), null, 2) + '\n');
   await fs.writeFile(path.join(dataDir, 'players.json'), JSON.stringify({
     generatedAt,
     latestSessionDate,
     players: buildPlayers(publication.details)
   }, null, 2) + '\n');
-  await fs.writeFile(path.join(dataDir, 'site-status.json'), JSON.stringify({ generatedAt, latestSessionDate }, null, 2) + '\n');
+  // The newest round robin, for the results email and the home page (Equalizer results have their own pages).
+  const latestRoundRobin = publication.details.find(function (session) { return session.variant !== 'equalizer'; });
+  const status = { generatedAt, latestSessionDate, latestRoundRobinDate: latestRoundRobin ? latestRoundRobin.date : null };
+  if (publication.skipped.length) status.equalizerNotPublished = publication.skipped.map(function (entry) { return entry.date; });
+  await fs.writeFile(path.join(dataDir, 'site-status.json'), JSON.stringify(status, null, 2) + '\n');
   return publication;
 }
 
@@ -183,6 +233,12 @@ async function main() {
   const publication = await publish(tables, DATA_DIR, startDate);
   console.log('Verified ' + publication.live.length + ' finalized live session(s). Latest: ' +
     (publication.details[0] ? publication.details[0].date : 'none'));
+  // Round robins are published by now; an Equalizer that could not be checked fails the run afterwards, so the usual
+  // GitHub failure email says so.
+  publication.skipped.forEach(function (entry) {
+    console.error('Equalizer ' + entry.date + ' was not published: ' + entry.reason);
+  });
+  if (publication.skipped.length) process.exitCode = 1;
 }
 
 if (require.main === module) {

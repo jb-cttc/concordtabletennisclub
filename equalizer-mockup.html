@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Equalizer (mockup) - Concord Table Tennis Club</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="style.css?v=20261031eq">
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="assets/site.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="CTTC">
+  <meta name="theme-color" content="#FAF8F3">
+  <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="site-title"><a href="index.html"><img src="assets/logo-transparent.png" alt="Concord Table Tennis Club" class="site-logo"></a></div>
+    <nav>
+      <button class="home-screen" type="button" aria-label="Add CTTC to your Home Screen" title="Add to Home Screen" hidden><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9H6.5A1.5 1.5 0 0 0 5 10.5v9A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 17.5 9H16"/><path d="M12 14V3"/><path d="M8.5 6.5 12 3l3.5 3.5"/></svg></button>
+      <button class="nav-toggle" aria-label="Open navigation" aria-expanded="false">&#9776;</button>
+      <a href="index.html">Home</a>
+      <a href="firstvisit.html">First Visit</a>
+      <a href="about.html">About</a>
+      <a href="roundrobins.html"><svg class="nav-icon" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><line x1="9.8" y1="10.4" x2="13.6" y2="14.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="6" cy="7" r="5.4" fill="var(--red)"/><circle cx="13.8" cy="2.4" r="1.9" fill="#fff" stroke="currentColor" stroke-width="0.8"/></svg> Round Robins</a>
+      <a href="leaderboard.html">Leaderboard</a>
+      <a href="halloffame.html">Hall of Fame</a>
+      <a href="membership.html">Membership</a>
+      <a href="coaching.html">Coaching</a>
+      <a href="rules.html">Rules</a>
+      <a href="pictures.html">Pictures</a>
+      <a href="https://docs.google.com/forms/d/e/1FAIpQLSdbpyuHfnAEMRjwcA4fM1cgb75ieaa8xzXpKImt8ljRoC1WZA/viewform" target="_blank" rel="noopener">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <p class="notice"><strong>Mockup.</strong> Made-up players on a simulated Saturday, run on the real Equalizer rules (<code>handicap.js</code>, <code>bracket.js</code>) and the club's rating engine. Nothing here is live or saved.</p>
+
+  <div class="page-title-row">
+    <h1>The Equalizer</h1>
+    <a class="organizer-launch" href="roundrobins.html">Rated Games</a>
+  </div>
+  <p class="eq-lede">Same club, same players, a new way to play: a head start in every game evens up every match, in singles or doubles.</p>
+  <p class="tonight-eyebrow">Saturdays &middot; sign up 2:45&ndash;3:15&nbsp;PM &middot; play starts 3:30 &middot; same fee as a round robin</p>
+
+  <ol class="eq-steps">
+    <li class="eq-step"><div class="eq-step-art"><span class="ball on"></span><span class="ball on"></span><span class="ball on"></span><span class="ball on"></span></div><strong>The draw</strong>Everyone who signs up goes into a random draw, for singles or random doubles partners. No seeds: you could meet anyone.</li>
+    <li class="eq-step"><div class="eq-step-art"><span class="scoreboard"><span class="flip">5</span><span class="flip">0</span></span></div><strong>Your head start</strong>Every full 40 rating points between you is 1 point at the start of every game, up to 8.</li>
+    <li class="eq-step"><div class="eq-step-art"><span class="ball on"></span><span class="ball on"></span></div><strong>Two ways to play</strong><em>Double Elimination:</em> lose once and you play on along the Survivor Trail. <em>RR &rarr; Finals:</em> win your group of 4 to reach the Finals; the best group winners get byes.</li>
+    <li class="eq-step"><div class="eq-step-art"><span class="scoreboard"><span class="flip">&plus;</span><span class="flip">8</span></span></div><strong>8 points on the line</strong>Every match is worth 8 rating points, whoever you play: win and gain 8, lose and give 8. In doubles, both partners.</li>
+  </ol>
+
+  <section class="eq-sim" aria-label="Mockup controls">
+    <h2>Simulate a Saturday</h2>
+    <div class="eq-sim-row" id="eq-format"><span class="archive-filter-label">Format</span></div>
+    <div class="eq-sim-row" id="eq-play"><span class="archive-filter-label">Play</span></div>
+    <div class="eq-sim-row" id="eq-size"><span class="archive-filter-label">Players</span></div>
+    <div class="eq-sim-row" id="eq-mode"><span class="archive-filter-label">Outcomes</span></div>
+    <div class="eq-sim-row">
+      <span class="archive-filter-label">Run it</span>
+      <button class="small-button" type="button" id="eq-first" title="Back to the draw">&#9198; Draw</button>
+      <button class="small-button" type="button" id="eq-back">&#9664; Back</button>
+      <button class="small-button" type="button" id="eq-next">Next result &#9654;</button>
+      <button class="small-button" type="button" id="eq-auto">&#9654; Auto-play</button>
+      <button class="small-button" type="button" id="eq-end">Play to the end &#9197;</button>
+      <button class="small-button" type="button" id="eq-redraw">New draw</button>
+    </div>
+    <div class="eq-sim-row">
+      <span class="archive-filter-label">Timeline</span>
+      <input type="range" id="eq-slider" min="0" value="0" aria-label="Results so far">
+      <span class="eq-step-count" id="eq-step-count"></span>
+    </div>
+    <p class="hint" style="font-size:0.8rem;color:var(--muted)">Tap a match that is on a table or ready to enter its result yourself with the desk's balls; the rest of the afternoon plays out from there.</p>
+  </section>
+
+  <div class="tonight-stats eq-stats" id="eq-stats"></div>
+  <p class="eq-headline" id="eq-headline"></p>
+
+  <div class="leaderboard-tabs eq-tabs" role="tablist" id="eq-tabs">
+    <button class="leaderboard-tab" type="button" data-tab="live">Live</button>
+    <button class="leaderboard-tab" type="button" data-tab="bracket">Bracket</button>
+    <button class="leaderboard-tab" type="button" data-tab="field">The Field</button>
+    <button class="leaderboard-tab" type="button" data-tab="results">Results</button>
+    <button class="leaderboard-tab" type="button" data-tab="head-starts">Head starts</button>
+  </div>
+
+  <section id="tab-live" data-panel="live"></section>
+  <section id="tab-bracket" data-panel="bracket" class="eq-wide"></section>
+  <section id="tab-field" data-panel="field"></section>
+  <section id="tab-results" data-panel="results"></section>
+  <section id="tab-head-starts" data-panel="head-starts"></section>
+
+  <dialog class="eq-dialog" id="eq-score" aria-label="Enter a result">
+    <form method="dialog" id="eq-score-form">
+      <h3 id="eq-score-title" style="margin-top:0"></h3>
+      <p id="eq-score-note" style="font-size:0.85rem;color:var(--muted)"></p>
+      <div id="eq-score-rows"></div>
+      <p id="eq-score-error" style="font-size:0.85rem;color:var(--red)" role="alert"></p>
+      <p style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button class="small-button" type="button" id="eq-score-cancel">Cancel</button>
+        <button class="organizer-launch" type="submit">Save result</button>
+      </p>
+    </form>
+  </dialog>
+</main>
+
+<footer>
+  Concord Table Tennis Club, Walnut Creek, CA. Open since 1972. A 501(c)(3) nonprofit, sanctioned by USATT.
+</footer>
+
+<script src="navtoggle.js"></script>
+
+<script src="rating-engine.js"></script>
+<script src="handicap.js"></script>
+<script src="bracket.js"></script>
+<script src="round-robin.js"></script>
+<script src="standings.js"></script>
+<script src="equalizer.js"></script>
+<script src="navtoggle.js"></script>
+<script src="equalizer-mockup.js"></script>
+</body>
+</html>

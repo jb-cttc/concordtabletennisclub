@@ -511,7 +511,8 @@
     fetch("data/sessions.json", { cache: "no-cache" }).then(function (r) { return r.json(); }),
     fetch("data/session-summaries.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).catch(function () { return null; })
   ]).then(function (results) {
-    var sessions = results[0];
+    // Round robins only here for now; Equalizer results get their own page (GitHub issue #104).
+    var sessions = results[0].filter(function (s) { return s.variant !== "equalizer"; });
     summaries = results[1];
     allSessions = sessions;
 
@@ -744,6 +745,7 @@
   fetch("data/sessions.json", { cache: "no-cache" })
     .then(function (r) { return r.json(); })
     .then(function (sessions) {
+      sessions = sessions.filter(function (s) { return s.variant !== "equalizer"; });
       var latest = {};
       for (var i = 0; i < sessions.length; i++) {
         var d = dayOfWeekRR(sessions[i].date);
@@ -763,7 +765,7 @@
         var s = latest[day.day];
         if (!s) return null;
         return loadYear(s.date.split("-")[0]).then(function (details) {
-          return details.find(function (d) { return d.date === s.date; }) || null;
+          return details.find(function (d) { return d.date === s.date && d.variant !== "equalizer"; }) || null;
         });
       })).then(function (resolved) {
         var shown = resolved.map(function (session) {

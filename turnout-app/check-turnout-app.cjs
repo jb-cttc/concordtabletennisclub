@@ -58,11 +58,14 @@ const tabs = {
   Aliases: [['alias', 'player_id', 'created_at'], ['Faye A', 'p-fay', '']],
   Sessions: [['session_id', 'session_date', 'status', 'revision', 'created_at', 'updated_at', 'finalized_at'],
     ['s-old', new FakeDate('2026-10-21T19:00:00Z'), 'finalized', 3, '', '', ''],
-    ['s-now', new FakeDate('2026-10-26T19:00:00Z'), 'draft', 1, '', '', '']],
+    ['s-now', new FakeDate('2026-10-26T19:00:00Z'), 'draft', 1, '', '', ''],
+    // The same night's Equalizer: Cy signed in there only, Ada in both (counted once).
+    ['s-now-equalizer', new FakeDate('2026-10-26T19:00:00Z'), 'draft', 1, '', '', '']],
   SessionPlayers: [['session_id', 'player_id', 'group_number', 'starting_rating', 'promotion_from_group'],
     ['s-old', 'p-bo', 1, 640, ''],
-    ['s-now', 'p-cy', 1, 1080, ''],
-    ['s-now', 'p-ada', 1, 1240, '']]
+    ['s-now-equalizer', 'p-cy', 1, 1080, ''],
+    ['s-now', 'p-ada', 1, 1240, ''],
+    ['s-now-equalizer', 'p-ada', 1, 1240, '']]
 };
 const opened = [];
 const SpreadsheetApp = {

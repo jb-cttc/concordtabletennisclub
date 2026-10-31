@@ -2018,3 +2018,586 @@ tr.hof-gold td:nth-child(2) {
   .scoreboard.is-flipping .flip,
   .body.is-arriving { animation: none; }
 }
+
+/* ---- Orange ball: the desk's game balls (apps-script/Index.html .ball), the same look on the site ---- */
+
+.ball {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #c9d0cb;
+  background: #fff;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.ball.on {
+  background: radial-gradient(circle at 35% 30%, #ffc98a, #f58220 55%, #d96a0f);
+  border-color: #c95f0a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.ball.lost {
+  background: #ece8e1;
+  border-color: #d4cdc2;
+}
+
+button.ball {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #8a948d;
+  font: 700 12px/1 Arial, sans-serif;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+button.ball:hover { border-color: #f58220; }
+button.ball:active { transform: scale(0.9); }
+button.ball.on { color: #fff; }
+button.ball.zero { width: 24px; height: 24px; border-style: dashed; font-size: 11px; }
+button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f6b3a; box-shadow: none; }
+
+.balls {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+/* ---- The Equalizer (equalizer-mockup.html while it is a mockup) ---- */
+
+.eq-lede {
+  font-size: 1.08rem;
+  margin: -14px 0 8px;
+}
+
+.eq-steps {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 22px 0 8px;
+}
+
+.eq-step {
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--red);
+  background: #fff;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.eq-step strong {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: normal;
+  font-size: 1.1rem;
+  color: var(--red);
+  margin: 8px 0 4px;
+}
+
+.eq-step-art {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+}
+
+.eq-sim {
+  border: 1px dashed #c9b9a0;
+  background: #fffdf8;
+  padding: 14px 16px;
+  margin: 30px 0 16px;
+}
+
+.eq-sim h2 {
+  margin-top: 0;
+}
+
+.eq-sim-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 8px 0;
+  font-size: 0.86rem;
+}
+
+.eq-sim-row .archive-filter-label {
+  min-width: 70px;
+  color: var(--muted);
+}
+
+.eq-sim input[type="range"] {
+  flex: 1 1 200px;
+  accent-color: #f58220;
+}
+
+.eq-step-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  min-width: 110px;
+}
+
+.eq-stats .tonight-stat strong {
+  font-size: 1.9rem;
+}
+
+.eq-stats .scoreboard {
+  margin: 4px 0 2px;
+}
+
+.eq-headline {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.2rem;
+  margin: 4px 0 14px;
+}
+
+.eq-tabs {
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.eq-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.eq-tile {
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.eq-tile:hover {
+  border-color: #f58220;
+}
+
+.eq-tile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.eq-tile-head .live-dot {
+  display: inline-block;
+  background: #1f6b3a;
+  margin-right: 5px;
+}
+
+.eq-tile-body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  align-items: center;
+}
+
+.eq-tile-body .scoreboard {
+  grid-row: span 2;
+}
+
+.eq-tile-foot {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.eq-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eq-rating {
+  color: var(--muted);
+  font-size: 0.8em;
+  font-weight: normal;
+  margin-left: 4px;
+}
+
+.eq-chip {
+  display: inline-block;
+  border-radius: 9px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 6px;
+}
+
+.eq-tag {
+  display: inline-block;
+  border-radius: 3px;
+  background: #f58220;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 5px;
+  vertical-align: middle;
+}
+
+.eq-list {
+  list-style: none;
+  margin: 0 0 18px;
+  font-size: 0.9rem;
+}
+
+.eq-list li {
+  border-bottom: 1px solid var(--border);
+  padding: 7px 0;
+}
+
+.eq-list .eq-when {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: 8px;
+}
+
+/* The bracket uses more of the screen than the page's text column, and scrolls sideways on a phone. */
+.eq-wide {
+  width: min(1240px, calc(100vw - 40px));
+  margin-left: calc(50% - min(620px, 50vw - 20px));
+}
+
+.eq-bracket {
+  position: relative;
+  display: flex;
+  gap: 34px;
+  overflow-x: auto;
+  padding: 4px 2px 14px;
+  scroll-snap-type: x proximity;
+}
+
+.eq-bracket svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.eq-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 10px;
+  flex: 0 0 196px;
+  scroll-snap-align: start;
+}
+
+.eq-col h3 {
+  margin: 0 0 2px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.eq-match {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 0.8rem;
+  cursor: default;
+}
+
+.eq-match[data-open] {
+  cursor: pointer;
+}
+
+.eq-match[data-open]:hover {
+  border-color: #f58220;
+}
+
+.eq-match.playing {
+  border-color: #1f6b3a;
+  box-shadow: 0 0 0 2px rgba(31, 107, 58, 0.15);
+}
+
+.eq-match.waiting {
+  border-style: dashed;
+  background: transparent;
+}
+
+.eq-match.bye {
+  opacity: 0.55;
+}
+
+.eq-match-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 0.66rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.eq-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  min-height: 24px;
+}
+
+.eq-row + .eq-row {
+  border-top: 1px solid #f0ece5;
+}
+
+.eq-row .eq-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: normal;
+}
+
+.eq-row.won .eq-name {
+  font-weight: 700;
+}
+
+.eq-row.lost .eq-name {
+  color: var(--muted);
+}
+
+.eq-row .ball {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+
+.eq-pending {
+  color: var(--muted);
+  font-style: italic;
+  flex: 1;
+}
+
+.eq-field {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.eq-field h3 {
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eq-field ul {
+  list-style: none;
+  font-size: 0.86rem;
+}
+
+.eq-field li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.4s ease;
+}
+
+.eq-field li.fresh {
+  background: #fff1e3;
+}
+
+.eq-field .eq-name {
+  flex: 1;
+  font-weight: normal;
+}
+
+.eq-place {
+  color: var(--muted);
+  font-size: 0.78rem;
+  min-width: 52px;
+}
+
+.eq-champion {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid var(--border);
+  border-top: 4px solid #f58220;
+  background: #fff;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.eq-champion .ball {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  border-width: 3px;
+}
+
+.eq-champion strong {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: normal;
+  font-size: 1.7rem;
+  color: var(--red);
+  line-height: 1.15;
+}
+
+.eq-podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.eq-awards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.eq-calc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.eq-calc input {
+  width: 90px;
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+}
+
+.eq-memory {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.eq-memory span {
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 2px 6px;
+}
+
+.eq-dialog {
+  border: 1px solid var(--border);
+  padding: 18px 20px;
+  max-width: 420px;
+  width: calc(100vw - 40px);
+  margin: auto;
+}
+
+.eq-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.eq-score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.eq-score-row .eq-name {
+  flex: 1;
+}
+
+@media (max-width: 760px) {
+  .eq-steps { grid-template-columns: repeat(2, 1fr); }
+  .eq-field { grid-template-columns: 1fr; }
+  .eq-podium { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-field li { transition: none; }
+}
+
+.eq-colon {
+  font: 700 1.25rem/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  padding: 0 1px;
+}
+
+.eq-stats .tonight-stat > span {
+  display: block;
+}
+
+.eq-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+}
+
+.eq-group {
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.eq-group h3 {
+  margin: 0 0 6px;
+}
+
+.eq-group-matches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.eq-group-matches .eq-match {
+  font-size: 0.72rem;
+}
+
+/* After .eq-group-matches above, so it wins on phones: one match card per row. */
+@media (max-width: 760px) {
+  .eq-group-matches { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The Field once the event is over: everyone's place in one list, across the full width. */
+.eq-field-final {
+  list-style: none;
+  columns: 3 240px;
+  column-gap: 24px;
+  font-size: 0.86rem;
+}
+
+.eq-field-final li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  break-inside: avoid;
+}
+
+.eq-field-final .eq-name {
+  flex: 1;
+  font-weight: normal;
+}

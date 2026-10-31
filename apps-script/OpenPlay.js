@@ -35,8 +35,8 @@ function setOpenPlayParticipant(sessionDate, playerId, attending) {
     var player = findRow_('Players', 'player_id', playerId);
     if (!player || !asBoolean_(player.active)) throw new Error('Unknown or inactive player');
     if (attending && rows_('SessionPlayers').some(function (row) {
-      return String(row.session_id) === 'session-' + sessionDate && String(row.player_id) === playerId;
-    })) throw new Error('Player is already in the saved round robin');
+      return sessionDateOf_(row.session_id) === sessionDate && String(row.player_id) === playerId;
+    })) throw new Error('Player is already in the saved round robin or Equalizer');
     var matches = rows_('OpenPlay').filter(function (row) {
       return displayDate_(row.session_date) === sessionDate && String(row.player_id) === playerId;
     });
