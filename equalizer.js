@@ -136,14 +136,15 @@
   }
 
   // Group winners, best first, for Finals byes: the best share of games won in their group (fair to groups of 3 and
-  // 4), then fewer games lost, then the lower rating, as the club's round robin tie-break does.
+  // 4), then fewer games lost, then the higher rating, so a tie leaves the lower-rated winner playing the extra round
+  // (more games rather than a free pass).
   function finalsRank(event, tables) {
     return tables.map(function (t) {
       var row = t.rows.filter(function (r) { return r.id === t.winnerId; })[0];
       var played = row.gamesWon + row.gamesLost;
       return { id: t.winnerId, ratio: played ? row.gamesWon / played : 0, lost: row.gamesLost, rating: event.sideRatings[t.winnerId] };
     }).sort(function (a, b) {
-      return b.ratio - a.ratio || a.lost - b.lost || a.rating - b.rating || (a.id < b.id ? -1 : 1);
+      return b.ratio - a.ratio || a.lost - b.lost || b.rating - a.rating || (a.id < b.id ? -1 : 1);
     }).map(function (entry) { return entry.id; });
   }
 

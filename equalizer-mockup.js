@@ -408,7 +408,7 @@
       var knockout = st.view.matches.filter(function (m) { return m.bracket === "W"; });
       html = "<h2>Groups</h2>" + hint("Round robin groups of " + E.GROUP_SIZE + " (3 when the numbers need it), ranked by the club's round robin rules. Each group winner goes through to the Finals.") +
         '<div class="eq-groups">' + st.view.tables.map(function (t) { return groupBlock(t, st); }).join("") + "</div>" +
-        "<h2>Finals</h2>" + hint(balls(1, 1) + " Single elimination for the " + event.groups.length + " group winners, once every group is decided." + (event.bracket.byes ? " The best " + plural(event.bracket.byes, "group winner gets a bye", "group winners get byes") + " (best share of games won in their group, then fewer games lost, then the lower rating); the rest are placed at random." : " Places are drawn at random.") + " Lose once and you're out.") +
+        "<h2>Finals</h2>" + hint(balls(1, 1) + " Single elimination for the " + event.groups.length + " group winners, once every group is decided." + (event.bracket.byes ? " The best " + plural(event.bracket.byes, "group winner gets a bye", "group winners get byes") + " (best share of games won in their group, then fewer games lost, then the higher rating); the rest are placed at random." : " Places are drawn at random.") + " Lose once and you're out.") +
         '<div class="eq-bracket" data-connect="W">' + columns(knockout, st, false) + "</div>";
     } else {
       var main = st.view.matches.filter(function (m) { return m.bracket === "W"; });

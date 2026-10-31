@@ -222,14 +222,14 @@ assert.equal(six.bracket.byes, 2);
 const partial = {};
 six.groups[0].matches.forEach(function (m) { partial[m.id] = { winnerId: m.players[0], games: [3, 0] }; });
 assert.ok(E.resolve(six, partial).matches.filter(function (m) { return m.bracket === 'W'; }).every(function (m) { return m.status !== 'ready'; }), 'no Finals match before every group is decided');
-// Games ratio decides the byes, then fewer games lost, then the lower rating.
+// Games ratio decides the byes, then fewer games lost, then the higher rating (the lower-rated winner plays on).
 const fakeTables = [
   { winnerId: 'a', rows: [{ id: 'a', gamesWon: 9, gamesLost: 3 }] },
   { winnerId: 'b', rows: [{ id: 'b', gamesWon: 6, gamesLost: 0 }] },
   { winnerId: 'c', rows: [{ id: 'c', gamesWon: 9, gamesLost: 0 }] },
   { winnerId: 'd', rows: [{ id: 'd', gamesWon: 9, gamesLost: 3 }] }
 ];
-assert.deepEqual(E.finalsRank({ sideRatings: { a: 1500, b: 900, c: 1200, d: 1400 } }, fakeTables), ['b', 'c', 'd', 'a'], 'a perfect group of 3 ranks with a perfect group of 4');
+assert.deepEqual(E.finalsRank({ sideRatings: { a: 1500, b: 900, c: 1200, d: 1400 } }, fakeTables), ['c', 'b', 'a', 'd'], 'a perfect group of 3 ties a perfect group of 4; ties go to the higher rating');
 
 // Odd numbers in doubles: the organizer's choice.
 const seven = pool.slice(0, 13);
