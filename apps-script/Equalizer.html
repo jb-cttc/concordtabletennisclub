@@ -1,0 +1,502 @@
+<style>
+.event-switch{margin-right:4px}
+.eq-options{display:inline-flex;gap:9px;flex-wrap:wrap;align-items:center}
+.eq-options[hidden]{display:none}
+.equalizer[hidden]{display:none}
+.eq-chip{display:inline-block;border-radius:9px;background:var(--red);color:#fff;font:700 11px Arial,sans-serif;line-height:1;padding:3px 6px;margin-left:6px;vertical-align:1px}
+.eq-rating{font:12px Arial,sans-serif;color:var(--muted);font-weight:400;margin-left:5px}
+.eq-team{display:block}
+.match.eq-waiting{color:var(--muted);background:#fafbfa}
+.match.eq-waiting .player-cell{font-style:italic}
+.eq-foot{font:12px Arial,sans-serif;color:var(--muted)}
+.eq-notice{font:13px Arial,sans-serif;background:#fff8e6;border:1px solid #ecd9a4;border-radius:6px;padding:10px 12px;margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.eq-notice select{padding:5px;border:1px solid #aeb7b1;border-radius:4px;font:13px Arial,sans-serif}
+.eq-champion{font:15px Arial,sans-serif;background:#eef6f0;border:1px solid #b9d6c3;border-radius:6px;padding:12px 14px;margin:0 0 12px}
+.eq-places{font:13px Arial,sans-serif;margin:6px 0 0;padding-left:18px;columns:2 220px}
+.eq-section-note{font:12px Arial,sans-serif;color:var(--muted);padding:8px 14px 0;margin:0}
+.eq-sitout{font:13px Arial,sans-serif;color:var(--muted);margin:0 0 12px}
+</style>
+<script>
+// The Equalizer workspace on the desk (plan: GitHub issue #104). The desk keeps one roster and one sidebar (directory,
+// Voice signups, payments); the Round robin | Equalizer switch only decides what the roster feeds. Everything about an
+// Equalizer is worked out on this page from its draw and results with the shared rules (EqualizerRules.html), so
+// changing the format, singles or doubles, or best of 3 or 5 redraws at once with no wait. Changes save through the
+// desk's outbox (setup, each result, the switch), which keeps them on this device and syncs them in the background.
+window.CTTCEqualizerDesk = function (desk) {
+  'use strict';
+  var E = window.CTTCEqualizer;
+  var B = window.CTTCBracket;
+  var outbox = desk.outbox;
+  var root = document.getElementById('equalizer');
+  var options = document.getElementById('eq-options');
+  var LABELS = { groups: 'RR → Finals', double: 'Double Elimination', singles: 'Singles', doubles: 'Doubles' };
+  var RESULT_REFUSED = /changed on another device|depends on this one|not ready to play|is finalized|has not been drawn|There is no Equalizer|games|forfeited must lose|not in this match/;
+  var SETUP_REFUSED = /has started|does not match its players|is finalized|not on the roster|Unknown or inactive player|twice/;
+
+  var eq = blank('');
+  function blank(date) {
+    return { date: date, session: null, roster: [], setup: Object.assign({ oddPlayer: '', sitOutId: '' }, E.DEFAULT_SETUP), draw: null, results: {}, known: {}, history: [], drafts: {}, seed: freshSeed() };
+  }
+  function freshSeed() { return Math.floor(Math.random() * 2147483646) + 1; }
+  function rng(seed) {
+    var value = seed;
+    return function () { value = (value * 16807) % 2147483647; return (value - 1) / 2147483646; };
+  }
+  var esc = desk.esc;
+  function player(id) { return desk.player(id) || { name: id, currentRating: 0 }; }
+  function event() { return eq.draw ? E.fromSnapshot(eq.draw) : null; }
+  function finalized() { return !!eq.session && eq.session.status === 'finalized'; }
+  function hasResults() { return Object.keys(eq.results).length > 0; }
+  function sideName(ev, sideId) { return ev.sideById[sideId].members.map(function (id) { return player(id).name; }); }
+  function pending(fn) { return outbox.entries(fn).filter(function (entry) { return entry.args[0] === eq.date; }); }
+
+  // ---- Loading: Google's copy, then this device's changes not yet confirmed on top (the outbox keeps them) ----
+  function load(date, data) {
+    eq = blank(date);
+    data = data || {};
+    eq.session = data.session || null;
+    eq.history = data.history || [];
+    eq.roster = (data.roster || []).slice();
+    if (data.setup) {
+      eq.setup = { format: data.setup.format, play: data.setup.play, bestOf: data.setup.bestOf, oddPlayer: data.setup.oddPlayer || '', sitOutId: data.setup.sitOutId || '' };
+      eq.draw = data.setup.draw || null;
+    }
+    eq.results = Object.assign({}, data.results || {});
+    Object.keys(eq.results).forEach(function (id) { eq.known[id] = [eq.results[id]]; });
+    pending('saveEqualizerSetup').forEach(function (entry) {
+      var setup = entry.args[1];
+      eq.roster = setup.roster.slice();
+      eq.setup = { format: setup.format, play: setup.play, bestOf: setup.bestOf, oddPlayer: setup.oddPlayer || '', sitOutId: setup.sitOutId || '' };
+      eq.draw = setup.draw;
+    });
+    pending('saveEqualizerResult').forEach(function (entry) {
+      var id = entry.args[1];
+      if (entry.args[2]) eq.results[id] = entry.args[2]; else delete eq.results[id];
+      eq.known[id] = (eq.known[id] || [null]).concat([entry.args[2]]);
+    });
+  }
+
+  // ---- The draw: redone at once whenever the players or the organizer's choices change, until the first result ----
+  function redraw(newSeed) {
+    if (hasResults() || finalized()) return;
+    if (newSeed) eq.seed = freshSeed();
+    var setup = eq.setup;
+    var players = eq.roster.map(function (id) { return { id: id, rating: Number(player(id).currentRating) || 0 }; });
+    var odd = setup.play === 'doubles' && players.length % 2 === 1;
+    if (!odd) { setup.oddPlayer = ''; setup.sitOutId = ''; }
+    if (setup.sitOutId && eq.roster.indexOf(setup.sitOutId) < 0) setup.sitOutId = '';
+    eq.draw = players.length >= E.minimumPlayers(setup.format, setup.play) && players.length <= E.MAX_PLAYERS
+      ? E.draw({ format: setup.format, play: setup.play, bestOf: setup.bestOf, oddPlayer: setup.oddPlayer || 'sit-out', sitOutId: setup.sitOutId, players: players }, rng(eq.seed))
+      : null;
+    saveSetup();
+  }
+  function saveSetup() {
+    var setup = eq.setup;
+    outbox.enqueue('eq-setup:' + eq.date, 'saveEqualizerSetup', [eq.date, { roster: eq.roster.slice(), format: setup.format, play: setup.play, bestOf: setup.bestOf, oddPlayer: setup.oddPlayer, sitOutId: setup.sitOutId, draw: eq.draw }]);
+  }
+
+  // ---- Roster changes from the desk's sidebar (directory, Voice, Clear) ----
+  function blockedReason() {
+    if (finalized()) return 'The Equalizer is finalized. Its lock reopens it.';
+    if (hasResults()) return 'The Equalizer has started (a result is in), so its players are fixed. Late arrivals can play Open Play.';
+    return '';
+  }
+  function add(id) {
+    var reason = blockedReason();
+    if (reason) { desk.setStatus(reason, 'error'); return false; }
+    if (eq.roster.indexOf(id) >= 0) return false;
+    if (eq.roster.length >= E.MAX_PLAYERS) { desk.setStatus('The Equalizer takes at most ' + E.MAX_PLAYERS + ' players.', 'error'); return false; }
+    eq.roster.push(id);
+    redraw(false);
+    return true;
+  }
+  function remove(id) {
+    var reason = blockedReason();
+    if (reason) { desk.setStatus(reason, 'error'); return false; }
+    if (eq.roster.indexOf(id) < 0) return false;
+    eq.roster = eq.roster.filter(function (other) { return other !== id; });
+    redraw(false);
+    return true;
+  }
+  function clear() { return blockedReason() ? (desk.setStatus(blockedReason(), 'error'), false) : (eq.roster = [], redraw(false), true); }
+  // The switch moved the day's players here, or away again.
+  function adopt(roster) { eq.roster = roster.slice(); eq.results = {}; eq.known = {}; redraw(true); }
+  function release() { eq.roster = []; eq.draw = null; eq.results = {}; eq.known = {}; }
+
+  // ---- The organizer's choices ----
+  function choose(key, value) {
+    if (blockedReason()) { desk.setStatus(blockedReason(), 'error'); return; }
+    if (eq.setup[key] === value) return;
+    eq.setup[key] = value;
+    redraw(false);
+    desk.changed();
+    var words = key === 'bestOf' ? 'Best of ' + value : LABELS[value];
+    desk.setStatus(words + (eq.draw ? ': drawn again.' : '.'));
+  }
+  function chooseOdd(value) {
+    if (blockedReason()) return;
+    if (value === 'team-of-three') { eq.setup.oddPlayer = 'team-of-three'; eq.setup.sitOutId = ''; }
+    else { eq.setup.oddPlayer = 'sit-out'; eq.setup.sitOutId = value === 'drawn' ? '' : value; }
+    redraw(false);
+    desk.changed();
+  }
+
+  // ---- Results: taps on the balls build a score; a complete, valid score is saved at once ----
+  function history(ev, view) {
+    var mine = view.matches.filter(function (m) { return m.status === 'done'; }).sort(function (a, b) { return a.wave - b.wave; }).map(function (m, index) {
+      var ratings = {};
+      ratings[m.players[0]] = ev.sideRatings[m.players[0]];
+      ratings[m.players[1]] = ev.sideRatings[m.players[1]];
+      return { at: '~' + ('000' + index).slice(-4), playerOneId: m.players[0], playerTwoId: m.players[1], winnerId: m.winnerId, forfeit: !!(m.result && m.result.forfeitedBy), ratings: ratings };
+    });
+    return eq.history.concat(mine);
+  }
+  function headStartFor(ev, view, m) {
+    if (m.status === 'done' && m.result && m.result.headStart) return { lowerId: m.result.headStart.sideId, headStart: m.result.headStart.points, base: m.result.headStart.points, reduction: 0 };
+    return E.headStart(ev, m.players[0], m.players[1], history(ev, view));
+  }
+  function commit(matchId, result) {
+    var ev = event();
+    var view = E.resolve(ev, eq.results);
+    var match = view.byId[matchId];
+    var others = Object.assign({}, eq.results);
+    delete others[matchId];
+    var before = E.resolve(ev, others);
+    var changed = Object.assign({}, others);
+    if (result) changed[matchId] = result;
+    var after = E.resolve(ev, changed);
+    var blocked = Object.keys(others).filter(function (id) {
+      return !after.byId[id] || after.byId[id].status !== 'done' || after.byId[id].players.join('|') !== before.byId[id].players.join('|');
+    });
+    if (blocked.length) {
+      desk.setStatus('Match ' + blocked[0] + ' already has a result that depends on ' + matchId + '. Clear that one first.', 'error');
+      delete eq.drafts[matchId];
+      return false;
+    }
+    if (result) {
+      var hs = headStartFor(ev, before, before.byId[matchId] || match);
+      if (hs.lowerId && hs.headStart) result.headStart = { sideId: hs.lowerId, points: hs.headStart };
+      eq.results[matchId] = result;
+    } else delete eq.results[matchId];
+    delete eq.drafts[matchId];
+    eq.known[matchId] = (eq.known[matchId] || [null]).concat([]);
+    outbox.enqueue('eq-result:' + eq.date + ':' + matchId, 'saveEqualizerResult', [eq.date, matchId, result, eq.known[matchId].slice()]);
+    eq.known[matchId].push(result);
+    return true;
+  }
+  function need(m) { return (m.bestOf + 1) / 2; }
+  function draftOf(m) {
+    if (eq.drafts[m.id]) return eq.drafts[m.id];
+    var r = eq.results[m.id];
+    if (!r) return { games: [null, null], wonBy: '', forfeitedBy: '' };
+    return { games: r.forfeitedBy ? [null, null] : r.games.slice(), wonBy: r.wonBy || '', forfeitedBy: r.forfeitedBy || '' };
+  }
+  function resultFromDraft(m, draft) {
+    if (draft.forfeitedBy) return { winnerId: m.players[0] === draft.forfeitedBy ? m.players[1] : m.players[0], forfeitedBy: draft.forfeitedBy };
+    var g = draft.games;
+    if (g[0] === null || g[1] === null) return null;
+    var winner = g[0] > g[1] ? 0 : g[1] > g[0] ? 1 : -1;
+    if (winner < 0) return null;
+    var result = { winnerId: m.players[winner], games: g.slice() };
+    if (draft.wonBy) result.wonBy = draft.wonBy;
+    return E.scoreProblem(m, result) ? null : result;
+  }
+  function tapBall(matchId, side, games) {
+    if (finalized()) return;
+    var view = E.resolve(event(), eq.results);
+    var m = view.byId[matchId];
+    if (!m || (m.status !== 'ready' && m.status !== 'done')) return;
+    var draft = draftOf(m);
+    draft = { games: draft.games.slice(), wonBy: '', forfeitedBy: '' };
+    draft.games[side] = draft.games[side] === games && games !== 0 ? games - 1 : games;
+    // Like the round robin: the winner's games fill the other side with 0 until it is changed.
+    if (draft.games[side] === need(m) && draft.games[1 - side] === null) draft.games[1 - side] = 0;
+    eq.drafts[matchId] = draft;
+    var result = resultFromDraft(m, draft);
+    if (result) commit(matchId, result);
+    else if (eq.results[matchId]) commit(matchId, null);
+    desk.changed();
+  }
+  function tapWinner(matchId, side) {
+    var view = E.resolve(event(), eq.results);
+    var m = view.byId[matchId];
+    var draft = draftOf(m);
+    var id = m.players[side];
+    draft = { games: draft.games.slice(), wonBy: draft.wonBy === id ? '' : id, forfeitedBy: '' };
+    // As in round robins, the other side's games default to 0 (and can be changed to 1).
+    if (draft.wonBy && draft.games[1 - side] === null) draft.games[1 - side] = 0;
+    eq.drafts[matchId] = draft;
+    var result = resultFromDraft(m, draft);
+    if (result) commit(matchId, result);
+    else if (eq.results[matchId]) commit(matchId, null);
+    desk.changed();
+  }
+  function setForfeit(matchId, sideId) {
+    var view = E.resolve(event(), eq.results);
+    var m = view.byId[matchId];
+    if (!sideId) { commit(matchId, null); desk.changed(); return; }
+    commit(matchId, { winnerId: m.players[0] === sideId ? m.players[1] : m.players[0], forfeitedBy: sideId });
+    desk.changed();
+  }
+
+  // ---- Showing it ----
+  function roundName(ev, m) {
+    if (m.bracket === 'G') return 'Group ' + m.group + ' · round ' + m.round;
+    if (m.bracket === 'F') return m.round === 1 ? 'Final' : 'Final replay';
+    if (m.bracket === 'L') return m.round === ev.bracket.trailRounds ? 'Survivor Trail final' : 'Survivor Trail · round ' + m.round;
+    var fromEnd = ev.bracket.rounds - m.round;
+    var prefix = ev.format === 'groups' ? '' : 'Main Draw ';
+    return fromEnd === 0 ? (ev.format === 'groups' ? 'Final' : 'Main Draw final') : fromEnd === 1 ? prefix + 'Semifinals' : fromEnd === 2 ? prefix + 'Quarterfinals' : (ev.format === 'groups' ? 'Finals' : 'Main Draw') + ' · round ' + m.round;
+  }
+  function sourceText(ev, m, side) {
+    var source = (ev.bracket.matches.find(function (x) { return x.id === m.id; }) || { sources: [] }).sources[side];
+    if (!source) return '';
+    if (source.seed) return ev.format === 'groups' ? (source.seed <= ev.bracket.byes ? (source.seed === 1 ? 'Best group winner' : 'Next-best group winner') : 'A group winner') : 'Bye';
+    var from = ev.bracket.matches.find(function (x) { return x.id === (source.winner || source.loser); });
+    return (source.winner ? 'Winner of ' : 'Loser of ') + (from ? from.id : '');
+  }
+  function sideCell(ev, m, side, hs, winnerId) {
+    var id = m.players[side];
+    var cls = 'player-cell player-' + (side ? 'two' : 'one');
+    var names = sideName(ev, id).map(function (n) { return '<span class="eq-team">' + esc(n) + '</span>'; }).join('');
+    var chip = hs && hs.lowerId === id && hs.headStart ? '<span class="eq-chip" title="Starts every game at ' + hs.headStart + '">+' + hs.headStart + '</span>' : '';
+    return '<div class="' + cls + '"><strong>' + names + '</strong><span class="eq-rating">' + ev.sideRatings[id] + (ev.play === 'doubles' ? ' avg' : '') + chip + '</span>' + winnerBadge(m, side, winnerId) + '</div>';
+  }
+  function winnerBadge(m, side, winnerId) {
+    var id = m.players[side];
+    var draft = draftOf(m);
+    var attrs = ' data-eq-winner="' + esc(m.id) + '" data-side="' + side + '"';
+    if (winnerId) {
+      if (id !== winnerId) return '';
+      var badge = 'Winner <span class="check" aria-hidden="true">✓</span>';
+      return draft.wonBy === id ? '<button type="button" class="winner-badge on"' + attrs + ' aria-pressed="true" title="Best of 3 winner. Tap to undo.">' + badge + '</button>' : '<span class="winner-badge on">' + badge + '</span>';
+    }
+    if (m.bestOf === 5 && draft.games[side] === 2 && (draft.games[1 - side] === null || draft.games[1 - side] <= 1)) return '<button type="button" class="winner-badge"' + attrs + ' aria-pressed="false" title="Cut to best of 3: tap to record the winner">Winner</button>';
+    return '<span class="winner-badge">Winner</span>';
+  }
+  function balls(m, side, name) {
+    var draft = draftOf(m);
+    var value = draft.forfeitedBy ? null : draft.games[side];
+    var out = '<div class="score-set score-' + (side ? 'two' : 'one') + '" role="group" aria-label="Games won by ' + esc(name) + '"><span class="score-caption">Games won</span><div class="balls">';
+    for (var n = 0; n <= need(m); n += 1) {
+      var on = value != null && (n === 0 ? value === 0 : value >= n);
+      out += '<button type="button" class="ball' + (n === 0 ? ' zero' : '') + (on ? ' on' : '') + '" data-eq-score="' + esc(m.id) + '" data-side="' + side + '" data-games="' + n + '" aria-pressed="' + on + '" aria-label="' + esc(name) + ' won ' + n + (n === 1 ? ' game' : ' games') + '"' + (finalized() ? ' disabled' : '') + '>' + n + '</button>';
+    }
+    return out + '</div></div>';
+  }
+  function matchRow(ev, view, m) {
+    if (m.status === 'waiting') {
+      var placeholder = function (side) { return m.players[side] ? '<strong>' + sideName(ev, m.players[side]).map(esc).join(' &amp; ') + '</strong>' : esc(sourceText(ev, m, side)); };
+      return '<div class="match eq-waiting"><div class="player-cell player-one">' + placeholder(0) + '</div><span class="dash">–</span><div class="player-cell player-two">' + placeholder(1) + '</div><div class="match-foot"><span class="eq-foot">' + esc(m.id) + ' · waiting</span></div></div>';
+    }
+    var hs = headStartFor(ev, view, m);
+    var winnerId = m.status === 'done' ? m.winnerId : null;
+    var draft = draftOf(m);
+    var hsText = hs.lowerId && hs.headStart ? sideName(ev, hs.lowerId).map(function (n) { return n.split(' ')[0]; }).join(' & ') + ' start' + (ev.play === 'doubles' ? '' : 's') + ' every game at ' + hs.headStart + '–0' + (hs.reduction ? ' (' + hs.base + ' less ' + hs.reduction + ' from earlier wins)' : '') : 'No head start';
+    var forfeit = '<select data-eq-forfeit="' + esc(m.id) + '" aria-label="Who forfeited"' + (finalized() ? ' disabled' : '') + '><option value="">None</option>' + m.players.map(function (id) {
+      return '<option value="' + esc(id) + '"' + (draft.forfeitedBy === id ? ' selected' : '') + '>' + esc(sideName(ev, id).join(' & ')) + ' forfeited</option>';
+    }).join('') + '</select>';
+    return '<div class="match match-' + (m.status === 'done' ? 'complete' : 'pending') + '" data-eq-match="' + esc(m.id) + '">' + sideCell(ev, m, 0, hs, winnerId) + balls(m, 0, sideName(ev, m.players[0]).join(' & ')) + '<span class="dash">–</span>' + balls(m, 1, sideName(ev, m.players[1]).join(' & ')) + sideCell(ev, m, 1, hs, winnerId) +
+      '<div class="match-foot"><span class="eq-foot">' + esc(m.id) + ' · best of ' + m.bestOf + ' · ' + esc(hsText) + '</span><label class="forfeit">Forfeit ' + forfeit + '</label></div></div>';
+  }
+  function groupSection(ev, view, table) {
+    var rows = table.order.map(function (sideId) {
+      var row = table.rows.filter(function (r) { return r.id === sideId; })[0];
+      var won = table.complete && table.winnerId === sideId;
+      return '<tr' + (won ? ' class="leader"' : '') + '><td>' + (won ? '🏆 ' : '') + esc(sideName(ev, sideId).join(' & ')) + '</td><td>' + row.wins + '-' + row.losses + '</td><td>' + row.gamesWon + '-' + row.gamesLost + '</td><td>' + ev.sideRatings[sideId] + '</td></tr>';
+    }).join('');
+    var note = table.note ? '<p class="tiebreak-note">' + esc(ev.sides.reduce(function (text, side) { return text.split(side.id).join(sideName(ev, side.id).join(' & ')); }, table.note)) + '</p>' : '';
+    var matches = view.matches.filter(function (m) { return m.bracket === 'G' && m.group === table.number; });
+    return '<section class="match-group"><h3><span class="group-title">Group ' + table.number + '</span><span class="count">' + table.played + ' / ' + table.total + ' complete</span></h3>' +
+      '<table class="standings"><thead><tr><th>' + (ev.play === 'doubles' ? 'Team' : 'Player') + '</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + rows + '</tbody></table>' + note +
+      matches.map(function (m) { return matchRow(ev, view, m); }).join('') + '</section>';
+  }
+  function bracketSections(ev, view, bracket, title, note) {
+    var rounds = {};
+    view.matches.filter(function (m) { return m.bracket === bracket && m.status !== 'bye' && m.status !== 'skipped'; }).forEach(function (m) { (rounds[m.round] = rounds[m.round] || []).push(m); });
+    var keys = Object.keys(rounds).map(Number).sort(function (a, b) { return a - b; });
+    if (!keys.length) return '';
+    return keys.map(function (round, index) {
+      var list = rounds[round];
+      var done = list.filter(function (m) { return m.status === 'done'; }).length;
+      return '<section class="match-group"><h3><span class="group-title">' + esc(roundName(ev, list[0])) + '</span><span class="count">' + done + ' / ' + list.length + ' complete</span></h3>' + (index === 0 && note ? '<p class="eq-section-note">' + esc(note) + '</p>' : '') + list.map(function (m) { return matchRow(ev, view, m); }).join('') + '</section>';
+    }).join('');
+  }
+  function oddNotice(ev) {
+    var setup = eq.setup;
+    if (setup.play !== 'doubles' || eq.roster.length % 2 === 0 || hasResults() || finalized()) return '';
+    var options = '<option value="drawn"' + (!setup.sitOutId && setup.oddPlayer !== 'team-of-three' ? ' selected' : '') + '>Someone drawn at random sits out</option>' + eq.roster.map(function (id) {
+      return '<option value="' + esc(id) + '"' + (setup.sitOutId === id ? ' selected' : '') + '>' + esc(player(id).name) + ' sits out</option>';
+    }).join('') + '<option value="team-of-three"' + (setup.oddPlayer === 'team-of-three' ? ' selected' : '') + '>One team of three (rotates each game)</option>';
+    return '<div class="eq-notice"><strong>' + eq.roster.length + ' players for doubles:</strong> choose how to handle the odd player, or add someone to fill in. <select data-eq-odd aria-label="Odd player">' + options + '</select></div>';
+  }
+  function minutes(ev) {
+    var estimate = E.estimate(ev).minutes;
+    return estimate >= 60 ? Math.floor(estimate / 60) + ' h ' + (estimate % 60 ? (estimate % 60) + ' min' : '') : estimate + ' min';
+  }
+  function placeText(p) { return p.to > p.place ? p.place + '–' + p.to : String(p.place); }
+  function render() {
+    renderOptions();
+    var ev = event();
+    var setup = eq.setup;
+    if (!eq.roster.length) {
+      root.innerHTML = '<div class="empty"><strong>No players in the Equalizer yet.</strong><p class="hint">Add players from the directory or Voice signups. ' + esc(LABELS[setup.format]) + ', ' + esc(LABELS[setup.play].toLowerCase()) + ', best of ' + setup.bestOf + '; the draw happens as players are added.</p></div>';
+      return;
+    }
+    if (!ev) {
+      var min = E.minimumPlayers(setup.format, setup.play);
+      root.innerHTML = '<p class="group-summary">' + eq.roster.length + ' player' + (eq.roster.length === 1 ? '' : 's') + ' · ' + esc(LABELS[setup.format]) + ' · ' + esc(LABELS[setup.play]) + ' · best of ' + setup.bestOf + '</p><div class="empty"><strong>' + (eq.roster.length > E.MAX_PLAYERS ? 'The Equalizer takes at most ' + E.MAX_PLAYERS + ' players.' : 'Add ' + (min - eq.roster.length) + ' more for ' + esc(LABELS[setup.format]) + (setup.play === 'doubles' ? ' doubles' : '') + ' (at least ' + min + ').') + '</strong><p class="hint">Players: ' + eq.roster.map(function (id) { return esc(player(id).name); }).join(', ') + '</p></div>';
+      return;
+    }
+    var view = E.resolve(ev, eq.results);
+    var done = view.matches.filter(function (m) { return m.status === 'done'; }).length;
+    var total = view.matches.filter(function (m) { return m.status !== 'bye' && m.status !== 'skipped'; }).length;
+    var summary = eq.roster.length + ' players · ' + (ev.play === 'doubles' ? ev.sides.length + ' teams · ' : '') + (ev.format === 'groups' ? ev.groups.length + ' groups of ' + ev.groups.map(function (g) { return g.sides.length; }).join('/') : ev.bracket.size - ev.sides.length + ' byes') + ' · best of ' + ev.bestOf + ' · about ' + minutes(ev) + ' · ' + done + ' of ' + total + ' matches complete';
+    var html = '<p class="group-summary">' + esc(summary) + '</p>' + oddNotice(ev);
+    if (ev.sitOut.length) html += '<p class="eq-sitout">Sitting out (Open Play): ' + ev.sitOut.map(function (id) { return esc(player(id).name); }).join(', ') + '</p>';
+    if (view.finished) {
+      var places = ev.sides.map(function (side) { return { side: side, place: view.places[side.id] }; }).filter(function (x) { return x.place; }).sort(function (a, b) { return a.place.place - b.place.place; });
+      html += '<div class="eq-champion">🏆 <strong>' + esc(sideName(ev, view.champion).join(' & ')) + '</strong> ' + (ev.play === 'doubles' ? 'win' : 'wins') + ' the Equalizer.' + (finalized() ? ' Finalized.' : ' Check the results, then Finalize Equalizer.') +
+        '<ol class="eq-places">' + places.map(function (x) { return '<li>' + placeText(x.place) + ': ' + esc(sideName(ev, x.side.id).join(' & ')) + '</li>'; }).join('') + '</ol></div>';
+    }
+    if (ev.format === 'groups') {
+      html += view.tables.map(function (table) { return groupSection(ev, view, table); }).join('');
+      html += bracketSections(ev, view, 'W', 'Finals', 'The Finals start once every group is decided; the best group winners get any byes.');
+    } else {
+      html += bracketSections(ev, view, 'W', 'Main Draw', 'Main Draw: a first loss drops a ' + (ev.play === 'doubles' ? 'team' : 'player') + ' to the Survivor Trail.');
+      html += bracketSections(ev, view, 'L', 'Survivor Trail', 'Survivor Trail: a second loss ends the day.');
+      html += bracketSections(ev, view, 'F', 'Final', '');
+    }
+    root.innerHTML = html;
+  }
+  function segmented(name, label, values, current, locked) {
+    return '<div class="group-size" role="group" aria-label="' + esc(label) + '"><span>' + esc(label) + '</span>' + values.map(function (value) {
+      return '<button type="button" data-eq-choice="' + name + '" data-value="' + esc(String(value)) + '" aria-pressed="' + (String(current) === String(value)) + '"' + (locked ? ' disabled title="The Equalizer has started, so its format is fixed"' : '') + '>' + esc(LABELS[value] || String(value)) + '</button>';
+    }).join('') + '</div>';
+  }
+  function renderOptions() {
+    var locked = !!blockedReason();
+    options.innerHTML = segmented('format', 'Format', ['groups', 'double'], eq.setup.format, locked) + segmented('play', 'Play', ['singles', 'doubles'], eq.setup.play, locked) + segmented('bestOf', 'Best of', [3, 5], eq.setup.bestOf, locked) +
+      '<button id="eq-redraw" class="secondary" type="button"' + (locked || !eq.draw ? ' disabled' : '') + ' title="Shuffle the draw again (until the first result)">Draw again</button>';
+  }
+
+  // ---- Finalizing and reopening (online only, like round robins) ----
+  function canFinalize() {
+    var ev = event();
+    return !!ev && !!eq.session && !finalized() && E.resolve(ev, eq.results).finished;
+  }
+  async function finalize() {
+    var ev = event();
+    if (!ev || !E.resolve(ev, eq.results).finished) { desk.setStatus('The Equalizer is not finished yet.', 'error'); return; }
+    if (pending('saveEqualizerSetup').length || pending('saveEqualizerResult').length || pending('switchDayEvent').length) {
+      outbox.flush();
+      desk.setStatus('Still saving the last results to Google Sheets. Try again in a moment.', 'error');
+      return;
+    }
+    if (!desk.confirm('Finalize this Equalizer and update every player’s rating?\n\nEach player (both partners in doubles) gains or gives 8 points a match. Until it is published you can click the lock to reopen and correct it.')) return;
+    var stop = desk.busyStatus('Finalizing the Equalizer...');
+    try {
+      var fresh = await desk.call('getEqualizerState', eq.date);
+      if (JSON.stringify(fresh.results) !== JSON.stringify(eq.results)) {
+        stop();
+        load(eq.date, fresh);
+        desk.changed();
+        desk.setStatus('Google Sheets has different results from this page (another device?). The page now shows Google’s; check them and finalize again.', 'error');
+        return;
+      }
+      var state = await desk.call('finalizeEqualizer', eq.date, fresh.session.revision);
+      stop();
+      load(eq.date, state);
+      desk.changed();
+      desk.setStatus('Equalizer finalized. Ratings are updated, and it publishes to the club site shortly.');
+    } catch (error) {
+      stop();
+      desk.setStatus('Not finalized: ' + desk.sentence(error.message), 'error');
+      if (!/\(Reference [0-9A-F]{8}\)/.test(error.message)) desk.reportDeskProblem('equalizer finalize failed', error.message, {});
+      refetch();
+    }
+  }
+  async function reopen() {
+    if (!desk.confirm('Reopen this Equalizer?\n\nIts rating changes are reversed and the results can be corrected. Finalize it again afterwards.')) return;
+    var stop = desk.busyStatus('Reopening the Equalizer...');
+    try {
+      var state = await desk.call('reopenEqualizer', eq.date, eq.session.revision);
+      stop();
+      load(eq.date, state);
+      desk.changed();
+      desk.setStatus('Equalizer reopened and ratings restored. Correct the results, then finalize again.');
+    } catch (error) {
+      stop();
+      desk.setStatus('Not reopened: ' + desk.sentence(error.message), 'error');
+      refetch();
+    }
+  }
+  async function refetch() {
+    try {
+      var state = await desk.call('getEqualizerState', eq.date);
+      load(eq.date, state);
+      desk.changed();
+    } catch (error) { /* the next load shows Google's copy */ }
+  }
+
+  // ---- Outbox: what Google answered ----
+  function revision(result) {
+    if (result && eq.session && result.revision > eq.session.revision) eq.session = Object.assign({}, eq.session, { revision: result.revision, status: result.status || eq.session.status });
+    if (result && !eq.session && result.sessionId) eq.session = { sessionId: result.sessionId, status: result.status, revision: result.revision };
+  }
+  outbox.register('saveEqualizerSetup', {
+    rejected: SETUP_REFUSED,
+    describe: function () { return 'The Equalizer setup'; },
+    done: function (entry, result) { if (entry.args[0] === eq.date) revision(result); },
+    rejectedFn: function (entry) { if (entry.args[0] === eq.date) refetch(); }
+  });
+  outbox.register('saveEqualizerResult', {
+    rejected: RESULT_REFUSED,
+    describe: function (entry) { return 'Equalizer result ' + entry.args[1]; },
+    done: function (entry, result, current) {
+      if (entry.args[0] !== eq.date) return;
+      revision(result);
+      if (current) eq.known[entry.args[1]] = [entry.args[2]];
+    },
+    rejectedFn: function (entry) { if (entry.args[0] === eq.date) refetch(); }
+  });
+
+  // ---- Clicks inside the workspace and the options ----
+  root.addEventListener('click', function (e) {
+    var ball = e.target.closest('[data-eq-score]');
+    if (ball) { tapBall(ball.getAttribute('data-eq-score'), Number(ball.getAttribute('data-side')), Number(ball.getAttribute('data-games'))); return; }
+    var badge = e.target.closest('button[data-eq-winner]');
+    if (badge) tapWinner(badge.getAttribute('data-eq-winner'), Number(badge.getAttribute('data-side')));
+  });
+  root.addEventListener('change', function (e) {
+    if (e.target.matches('[data-eq-forfeit]')) setForfeit(e.target.getAttribute('data-eq-forfeit'), e.target.value);
+    if (e.target.matches('[data-eq-odd]')) chooseOdd(e.target.value);
+  });
+  options.addEventListener('click', function (e) {
+    var button = e.target.closest('button');
+    if (!button || button.disabled) return;
+    if (button.id === 'eq-redraw') { redraw(true); desk.changed(); desk.setStatus('Drawn again.'); return; }
+    var key = button.getAttribute('data-eq-choice');
+    if (key) choose(key, key === 'bestOf' ? Number(button.getAttribute('data-value')) : button.getAttribute('data-value'));
+  });
+
+  return {
+    load: load,
+    render: render,
+    add: add,
+    remove: remove,
+    clear: clear,
+    adopt: adopt,
+    release: release,
+    roster: function () { return eq.roster.slice(); },
+    hasResults: hasResults,
+    locked: finalized,
+    canFinalize: canFinalize,
+    finalize: finalize,
+    reopen: reopen,
+    refetch: refetch,
+    state: function () { return eq; },
+    setSession: function (session) { eq.session = session; }
+  };
+};
+</script>

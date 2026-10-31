@@ -24,8 +24,8 @@
   document.body.appendChild(cover);
 })();
 </script>
-<header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Round Robin Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div></section></div></main>
+<header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="event-switch" class="group-size event-switch" role="group" aria-label="Event"><button type="button" data-event="rr" aria-pressed="true" title="The usual round robin: groups by rating">Round robin</button><button type="button" data-event="equalizer" aria-pressed="false" title="The Equalizer: head starts by rating, RR → Finals or Double Elimination">Equalizer</button></div><div id="eq-options" class="eq-options" hidden></div><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div><div id="equalizer" class="equalizer matches" hidden></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -295,11 +295,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 </script>
 <?!= include('Standings') ?>
 <?!= include('Organizer') ?>
+<?!= include('EqualizerRules') ?>
+<?!= include('Equalizer') ?>
 <script>
 (function () {
   var O = window.CTTCOrganizer;
   var SITE = 'https://concordtabletennisclub.com';
-  var state = { players: [], archived: [], aliases: {}, session: null, roster: [], groups: [], matches: [], promotions: {}, winners: [], previousDate: null, customized: false, showArchived: false };
+  // event: which of the date's events the roster feeds, 'rr' (round robin) or 'equalizer' (the Equalizer workspace).
+  var state = { players: [], archived: [], aliases: {}, session: null, roster: [], groups: [], matches: [], promotions: {}, winners: [], previousDate: null, customized: false, showArchived: false, event: 'rr' };
   var byId = {};
   var byName = {};
   var siteCache = {};
@@ -354,6 +357,109 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var organizerToggle = document.getElementById('toggle-organizer');
   var collapsedGroups = {};
   var context = document.getElementById('promotion-context');
+
+  // ---- The Equalizer (Equalizer.html) and the Round robin | Equalizer switch ----
+  var eqDesk = window.CTTCEqualizerDesk({
+    player: function (id) { return byId[id]; },
+    esc: esc,
+    call: call,
+    outbox: window.cttcOutbox,
+    setStatus: setStatus,
+    busyStatus: busyStatus,
+    sentence: sentence,
+    reportDeskProblem: reportDeskProblem,
+    confirm: function (text) { return confirm(text); },
+    changed: function () { if (state.event === 'equalizer') state.roster = eqDesk.roster(); render(); }
+  });
+  var EVENT_KEY = 'cttc-event-v1:';
+  // Set when the Equalizer could not be read from Google as the date loaded: the desk stays on the round robin rather
+  // than save over an Equalizer it has not seen.
+  var equalizerUnavailable = false;
+  function rememberEvent(sessionDate, event) {
+    try { localStorage.setItem(EVENT_KEY + sessionDate, event); } catch (error) { /* the choice is only a convenience */ }
+  }
+  function rememberedEvent(sessionDate) {
+    try { return localStorage.getItem(EVENT_KEY + sessionDate) || ''; } catch (error) { return ''; }
+  }
+  function rrRoster() {
+    return [].concat.apply([], groupArrays());
+  }
+  // Which event a date opens on: a switch still on its way to Google, else the event that has players (the round
+  // robin when both do, unless this device last chose the Equalizer), else this device's last choice.
+  function openingEvent(sessionDate) {
+    var switches = window.cttcOutbox.entries('switchDayEvent').filter(function (entry) { return entry.args[0] === sessionDate; });
+    if (switches.length) return switches[switches.length - 1].args[1];
+    var rr = rrRoster().length;
+    var eq = eqDesk.roster().length;
+    var remembered = rememberedEvent(sessionDate);
+    if (eq && (!rr || remembered === 'equalizer')) return 'equalizer';
+    if (rr) return 'rr';
+    return remembered === 'equalizer' ? 'equalizer' : 'rr';
+  }
+  function renderEventSwitch() {
+    document.querySelectorAll('#event-switch [data-event]').forEach(function (button) {
+      button.setAttribute('aria-pressed', String(button.getAttribute('data-event') === state.event));
+      button.disabled = !!lockBusy || !!pendingRecovery || loadedDate !== date.value;
+    });
+  }
+  // The organizer changed their mind about the day's event. While the event being left has no results and the other has
+  // no players, everyone signed in moves across at once (the page redraws here; Google catches up through the outbox).
+  // Otherwise each event keeps its own players and the switch just shows the other one.
+  function switchEvent(to) {
+    if (to === state.event || lockBusy || pendingRecovery || loadedDate !== date.value) return;
+    if (equalizerUnavailable) { setStatus('The Equalizer could not be read from Google Sheets when this date loaded. Reload the page to use it.', 'error'); return; }
+    var from = state.event;
+    var started = from === 'rr' ? scoringStarted() || (!!state.session && state.session.status === 'finalized') : eqDesk.hasResults() || eqDesk.locked();
+    var target = to === 'rr' ? rrRoster() : eqDesk.roster();
+    var roster = state.roster.slice();
+    if (!started && !target.length && roster.length) {
+      window.cttcOutbox.enqueue('switch:' + loadedDate, 'switchDayEvent', [loadedDate, to, roster]);
+      if (to === 'equalizer') {
+        clearTimeout(autoSyncTimer);
+        clearDeviceDraft(loadedDate);
+        state.promotions = {};
+        state.event = 'equalizer';
+        state.groups = [];
+        state.matches = [];
+        eqDesk.adopt(roster);
+        state.roster = eqDesk.roster();
+        setStatus(roster.length + ' player' + (roster.length === 1 ? '' : 's') + ' moved to the Equalizer. Choose the format, singles or doubles, and best of 3 or 5 above.');
+      } else {
+        eqDesk.release();
+        state.event = 'rr';
+        state.roster = roster;
+        organize();
+        persistDeviceDraft();
+        setStatus(roster.length + ' player' + (roster.length === 1 ? '' : 's') + ' moved to the round robin and grouped by rating.');
+      }
+    } else {
+      state.event = to;
+      state.roster = to === 'rr' ? target : eqDesk.roster();
+      setStatus((to === 'rr' ? 'Showing the round robin' : 'Showing the Equalizer') + ' for ' + shortDate(loadedDate) + (started && roster.length ? '. The ' + (from === 'rr' ? 'round robin' : 'Equalizer') + ' has results, so its players stay there; each event keeps its own players.' : '.'));
+    }
+    rememberEvent(loadedDate, to);
+    render();
+  }
+  window.cttcOutbox.register('switchDayEvent', {
+    rejected: /already has results|has started|is finalized|Unknown event/,
+    describe: function () { return 'Switching between round robin and Equalizer'; },
+    done: function (entry, result) {
+      if (entry.args[0] !== loadedDate || !result) return;
+      if (result.rrSession) state.session = result.rrSession;
+      if (result.equalizer && result.equalizer.session) eqDesk.setSession(result.equalizer.session);
+    },
+    rejectedFn: function (entry) { if (entry.args[0] === loadedDate) load(); }
+  });
+  var hadSwitches = false;
+  window.cttcOutbox.onChange(function () {
+    var now = pendingSwitch();
+    if (hadSwitches && !now) scheduleAutoSync(0);
+    hadSwitches = now;
+  });
+  document.getElementById('event-switch').addEventListener('click', function (e) {
+    var button = e.target.closest('[data-event]');
+    if (button && !button.disabled) switchEvent(button.getAttribute('data-event'));
+  });
 
   function esc(value) {
     return String(value == null ? '' : value).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
@@ -465,6 +571,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return siteCache[file];
   }
   function locked() {
+    if (state.event === 'equalizer') return eqDesk.locked();
     return !!state.session && state.session.status === 'finalized';
   }
   function groupArrays() {
@@ -508,7 +615,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return navigator.onLine === false || syncFailures >= 2;
   }
   function canAutoSync() {
-    return deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && !window.cttcTab.retired() && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
+    return state.event !== 'equalizer' && !pendingSwitch() && deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && !window.cttcTab.retired() && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
   }
   function scheduleAutoSync(delay) {
     clearTimeout(autoSyncTimer);
@@ -561,7 +668,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
   }
   function persistDeviceDraft() {
-    if (loadedDate !== date.value || locked() || pendingRecovery || window.cttcTab.retired()) return false;
+    if (state.event === 'equalizer' || loadedDate !== date.value || locked() || pendingRecovery || window.cttcTab.retired()) return false;
     try {
       // base: what Google held when this page last synced, so a later load can tell this device's own edits apart.
       localStorage.setItem(draftKeyPrefix + loadedDate, JSON.stringify({
@@ -946,6 +1053,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
 
   function addToRoster(id, source) {
+    if (state.event === 'equalizer') {
+      if (!byId[id] || !eqDesk.add(id)) return false;
+      state.roster = eqDesk.roster();
+      render();
+      setStatus(player(id).name + ' added to the Equalizer' + (source ? ' from ' + source : '') + '.');
+      return true;
+    }
     if (!byId[id] || state.roster.indexOf(id) >= 0 || locked() || pendingRecovery) return false;
     var keep = keepArrangement();
     var stay = scoringStarted();
@@ -957,6 +1071,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return true;
   }
   function removeFromRoster(id) {
+    if (state.event === 'equalizer') {
+      if (!eqDesk.remove(id)) return false;
+      state.roster = eqDesk.roster();
+      render();
+      setStatus(player(id).name + ' removed from the Equalizer.');
+      return true;
+    }
     if (state.roster.indexOf(id) < 0 || locked() || pendingRecovery) return false;
     var keep = keepArrangement();
     state.roster = state.roster.filter(function (other) { return other !== id; });
@@ -983,6 +1104,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   function pendingActivations() {
     return window.cttcOutbox.entries('activatePlayer').length > 0;
+  }
+  // A Round robin | Equalizer switch not yet confirmed by Google: the round robin waits for it before saving.
+  function pendingSwitch() {
+    return window.cttcOutbox.entries('switchDayEvent').length > 0;
   }
   // The player is usable at once; Google catches up in the background (the outbox keeps it across reloads and offline spells).
   function activateLocally(p) {
@@ -1146,7 +1271,22 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   function render() {
     var isLocked = locked();
+    var equalizer = state.event === 'equalizer';
     document.querySelector('.workspace').classList.toggle('locked', isLocked);
+    renderEventSwitch();
+    ['group-size', 'rebuild', 'print-sheets', 'device-save', 'save', 'promotion-context', 'organizer-fold', 'matches'].forEach(function (id) { document.getElementById(id).hidden = equalizer; });
+    document.getElementById('eq-options').hidden = !equalizer;
+    document.getElementById('equalizer').hidden = !equalizer;
+    if (equalizer) {
+      document.getElementById('session-meta').textContent = 'The Equalizer · ' + (eqDesk.state().session ? 'status ' + eqDesk.state().session.status : 'new') + ' · changes save to Google Sheets by themselves';
+      document.getElementById('empty').hidden = true;
+      summaryRow.hidden = true;
+      document.getElementById('clear-roster').disabled = !state.roster.length || isLocked || eqDesk.hasResults();
+      eqDesk.render();
+      renderDirectory();
+      renderFinalizeButton();
+      return;
+    }
     document.getElementById('session-meta').textContent = (state.session ? 'Status: ' + state.session.status + ' · revision ' + state.session.revision : 'New unsaved session') + (ratingsThrough() ? ' · ratings current through ' + ratingsThrough() : '') + (state.ratingsCheckedAt ? ' (checked ' + new Date(state.ratingsCheckedAt).toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ')' : '');
     document.getElementById('empty').hidden = state.roster.length > 0;
     document.getElementById('clear-roster').disabled = !state.roster.length || isLocked;
@@ -1163,11 +1303,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   function renderFinalizeButton() {
     var finalizeButton = document.getElementById('finalize');
     var isLocked = locked();
-    finalizeButton.disabled = !state.session || !!lockBusy;
+    finalizeButton.disabled = state.event === 'equalizer' ? (!isLocked && !eqDesk.canFinalize()) || !!lockBusy : !state.session || !!lockBusy;
     document.querySelector('.workspace').classList.toggle('lock-busy', !!lockBusy);
     date.disabled = !!lockBusy;
     document.getElementById('load').disabled = !!lockBusy;
-    finalizeButton.textContent = lockBusy === 'reopen' ? 'Reopening\u2026' : lockBusy ? 'Finalizing\u2026' : isLocked ? '\uD83D\uDD12 Finalized' : 'Finalize RR Results';
+    finalizeButton.textContent = lockBusy === 'reopen' ? 'Reopening\u2026' : lockBusy ? 'Finalizing\u2026' : isLocked ? '\uD83D\uDD12 Finalized' : state.event === 'equalizer' ? 'Finalize Equalizer' : 'Finalize RR Results';
     finalizeButton.title = lockBusy ? 'Waiting for Google Sheets to confirm.' : isLocked ? 'Click to reopen this session and reverse its rating changes.' : '';
   }
 
@@ -1243,6 +1383,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     setStatus('Loading ' + sessionDate + '...', 'busy');
     try {
       var appStateRequest = call('getAppState', sessionDate);
+      var equalizerRequest = call('getEqualizerState', sessionDate).catch(function (error) { return { error: error }; });
       if (!window.cttcInitialPlayers) window.cttcInitialPlayers = appStateRequest.then(function (data) { return data.players; });
       var data = await appStateRequest;
       state.players = data.players;
@@ -1280,9 +1421,17 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       }
       groupSizeDate = sessionDate;
       savedGroupSize = groupSizeOf(groupsFromSession);
+      var equalizerData = await equalizerRequest;
+      if (sessionDate !== date.value) return;
+      equalizerUnavailable = !equalizerData || !!equalizerData.error;
+      eqDesk.load(sessionDate, equalizerUnavailable ? null : equalizerData);
+      state.event = 'rr';
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
+      state.event = equalizerUnavailable ? 'rr' : openingEvent(sessionDate);
+      if (state.event === 'equalizer') state.roster = eqDesk.roster();
+      render();
       saveNeedsReload = false;
       syncConflict = false;
       reconcileNeeded = false;
@@ -1929,6 +2078,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     setStatus('Groups rebuilt by rating in ' + range + (Object.keys(state.promotions).length ? ' with ' + Object.keys(state.promotions).length + ' promotion(s)' : '') + '.');
   });
   document.getElementById('clear-roster').addEventListener('click', function () {
+    if (state.event === 'equalizer') {
+      if (!confirm('Remove everyone from the ' + shortDate(date.value) + ' Equalizer?')) return;
+      if (eqDesk.clear()) { state.roster = []; render(); setStatus('Equalizer cleared.'); }
+      return;
+    }
     if (pendingRecovery) return;
     if (!confirm('Remove everyone from the ' + shortDate(date.value) + ' RR draft?')) return;
     state.roster = [];
@@ -1957,7 +2111,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     probeConnection(true);
     if (syncBlocked) scheduleAutoSync(0);
   });
-  document.getElementById('finalize').addEventListener('click', function () { return locked() ? reopen() : finalize(); });
+  document.getElementById('finalize').addEventListener('click', async function () {
+    if (state.event !== 'equalizer') return locked() ? reopen() : finalize();
+    if (lockBusy) return;
+    lockBusy = locked() ? 'reopen' : 'finalize';
+    renderFinalizeButton();
+    try { await (lockBusy === 'reopen' ? eqDesk.reopen() : eqDesk.finalize()); }
+    finally { lockBusy = ''; render(); }
+  });
   document.getElementById('new-player').addEventListener('submit', async function (e) {
     e.preventDefault();
     var name = document.getElementById('new-name').value.trim();

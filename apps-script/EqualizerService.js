@@ -219,8 +219,9 @@ function equalizerSaved_(session) {
   return { sessionId: String(session.session_id), status: String(session.status), revision: Number(session.revision) };
 }
 
-// One result (or null to clear it). base is the result this page last saw for the match: if Google holds something else
-// by now (another device), the change is refused rather than overwriting it. Sending the same result again is fine.
+// One result (or null to clear it). base is what this page knows Google may hold for the match: the result it last saw,
+// or a list of those (its own earlier sends may still be on the way). If Google holds anything else by now (another
+// device), the change is refused rather than overwriting it. Sending the same result again is fine.
 function saveEqualizerResult(sessionDate, matchId, result, base) {
   validateSessionDate_(sessionDate);
   var sessionId = equalizerSessionId_(sessionDate);
@@ -239,7 +240,8 @@ function saveEqualizerResult(sessionDate, matchId, result, base) {
       var results = equalizerResultsFor_(sessionId);
       var current = results[matchId] || null;
       if (sameResult_(current, result)) return equalizerSaved_(session);
-      if (!sameResult_(current, base)) throw new Error(EQUALIZER_RESULT_CHANGED_MESSAGE);
+      var bases = Array.isArray(base) ? base : [base];
+      if (!bases.some(function (known) { return sameResult_(current, known); })) throw new Error(EQUALIZER_RESULT_CHANGED_MESSAGE);
       var others = Object.assign({}, results);
       delete others[matchId];
       var view = E.resolve(event, others);

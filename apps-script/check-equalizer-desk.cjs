@@ -64,6 +64,10 @@ saved = run('saveEqualizerResult', DATE, first.id, win, null);
 const again = run('saveEqualizerResult', DATE, first.id, win, null);
 assert.equal(again.revision, saved.revision, 'sending the same result again changes nothing');
 refuses(/changed on another device/, () => run('saveEqualizerResult', DATE, first.id, { winnerId: first.players[1], games: [1, 3] }, null));
+// This page's own earlier send may have arrived: listing it as known lets the newer version through.
+const edited = { winnerId: first.players[0], games: [3, 2], headStart: win.headStart };
+run('saveEqualizerResult', DATE, first.id, edited, [null, win]);
+run('saveEqualizerResult', DATE, first.id, win, [edited]);
 const row = server.rows('BracketMatches').find(r => r.match_id === first.id);
 assert.equal(Number(row.head_start_points), 4);
 assert.equal(row.side_one_id, first.players[0]);

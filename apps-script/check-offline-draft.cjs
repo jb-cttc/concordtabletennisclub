@@ -78,6 +78,7 @@ const context = {
   byId: { 'player-example': { name: 'Example Player' } },
   locked: () => false,
   pendingActivations: () => false,
+  pendingSwitch: () => false,
   setGroups: arrays => { context.state.groups = arrays.map((playerIds, index) => ({ groupNumber: index + 1, playerIds })); },
   setStatus: message => { context.status = message; },
   confirm: () => true,
