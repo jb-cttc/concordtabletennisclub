@@ -40,7 +40,8 @@ This page is how to run one and how to fix things.
    where that sheet has rating adjustments, then the Finals bracket (landscape).
    Double Elimination: the Main Draw with the Final, then the Survivor Trail
    (one landscape page when there are 8 or fewer sides). Each bracket box has a
-   line per side and a box for games won; a slot not decided yet says where it
+   line per side and a box for games won, sized to fill the page (byes are not
+   drawn: the player shows in the next round); a slot not decided yet says where it
    comes from ("Winner of W1-2", "Loser of W2-1", "Best group winner"), and a
    box shows its head start once both sides are known. Print again later in the
    evening and the sheets show the names and results so far.

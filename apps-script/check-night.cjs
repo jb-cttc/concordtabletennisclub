@@ -788,6 +788,36 @@ const cases = {
     assert.deepEqual(tab.errors, []);
   },
 
+  // After adding someone from a search, the search clears itself 20 seconds after the last add; typing keeps it.
+  async searchClearsAfterAdding() {
+    const world = sim.createWorld({ seed: 33 });
+    const tab = await deskWith(world, world.device(), 2);
+    const search = tab.$('#search');
+    const type = text => { search.value = text; search.dispatchEvent(new tab.window.Event('input', { bubbles: true })); };
+    const [a, b, c, d] = world.players.slice(2, 6);
+    type(a.display_name);
+    tab.click(tab.$('[data-add="' + a.player_id + '"]'));
+    await run(world, 15000);
+    assert.equal(search.value, a.display_name, 'the search stays for a while');
+    type(b.display_name);
+    await run(world, 100);
+    tab.click(tab.$('[data-open-add="' + b.player_id + '"]'));
+    await run(world, 15000);
+    assert.equal(search.value, b.display_name, 'each add starts the 20 seconds again');
+    await run(world, 6000);
+    assert.equal(search.value, '', 'then it clears');
+    assert.ok(tab.$('#results').children.length > 4, 'and the whole directory shows again');
+    assert.ok(tab.roster().includes(a.player_id));
+
+    type(c.display_name);
+    tab.click(tab.$('[data-add="' + c.player_id + '"]'));
+    await run(world, 5000);
+    type(d.display_name);
+    await run(world, 30000);
+    assert.equal(search.value, d.display_name, 'typing a new search keeps it');
+    assert.deepEqual(tab.errors, []);
+  },
+
   // A new player: Open puts them in Open Play, not the round robin; Not tonight (or Escape) leaves them in the directory.
   async newPlayerOpenOrNotTonight() {
     const world = sim.createWorld({ seed: 31 });

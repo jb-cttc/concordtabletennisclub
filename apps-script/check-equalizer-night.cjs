@@ -192,9 +192,9 @@ const cases = {
     assert.deepEqual([...first.querySelectorAll('.tournament-match-result span')].slice(0, 2).map(s => s.textContent), ['2', '1'], 'a recorded result is printed');
     const finals = sheets()[3];
     assert.ok(finals.classList.contains('print-bracket-sheet'), 'the Finals print as a bracket');
-    assert.equal(finals.querySelectorAll('.eqb-match').length, 3, '3 group winners: a bye, a semifinal and the Final');
-    assert.match(finals.textContent, /Best group winner/);
-    assert.equal(finals.querySelectorAll('path').length, 2, 'lines join both semifinal boxes to the Final');
+    assert.equal(finals.querySelectorAll('.eqb-match').length, 2, '3 group winners: a semifinal and the Final (a bye is not drawn)');
+    assert.match(finals.textContent, /Best group winner/, 'the Final names who the bye went to');
+    assert.equal(finals.querySelectorAll('path').length, 1, 'a line joins the semifinal to the Final');
     tab.window.document.querySelector('#print-root .print-preview-toolbar button').click();
     assert.equal(sheets().length, 0, 'Close preview');
     assert.equal(button.textContent, 'Print EQ Sheets');
@@ -206,10 +206,13 @@ const cases = {
     tab.click(button);
     assert.equal(sheets().length, 2, 'the Main Draw with the Final, and the Survivor Trail');
     assert.match(sheets()[0].textContent, /Main Draw and Final/);
-    assert.match(sheets()[0].textContent, /GF2 · replay, only if needed/);
+    assert.match(sheets()[0].textContent, /GF2 · replay if needed/);
     assert.match(sheets()[1].textContent, /Survivor Trail/);
     assert.match(sheets()[1].textContent, /Loser of W1-/, 'Survivor Trail slots say who drops in');
-    assert.equal(sheets()[0].querySelectorAll('.eqb-match').length, 8 + 4 + 2 + 1 + 2, 'every Main Draw match and both Finals');
+    const view = tab.window.cttcDesk.equalizerPrint().view;
+    const drawn = view.matches.filter(m => (m.bracket === 'W' || m.bracket === 'F') && m.status !== 'bye').length;
+    assert.ok(drawn < 8 + 4 + 2 + 1 + 2, 'the draw has byes');
+    assert.equal(sheets()[0].querySelectorAll('.eqb-match').length, drawn, 'every Main Draw match but the byes, and both Finals');
     assert.deepEqual(tab.errors, []);
   }
 };

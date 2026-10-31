@@ -10,38 +10,36 @@
 .print-sheet.print-bracket-sheet {
   width: min(11in, 100%);
   min-height: 8.5in;
-  padding: 0.38in 0.4in 0.3in;
+  padding: 0.35in 0.4in 0.3in;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 8pt;
+  font-size: 10pt;
 }
-.eqb-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.3in; margin-bottom: 0.12in; }
-.eqb-brand { display: grid; grid-template-columns: 0.5in minmax(0, 1fr); align-items: center; gap: 0.14in; }
-.eqb-brand img { width: 0.5in; height: 0.58in; object-fit: contain; filter: grayscale(1) contrast(1.2); }
-.eqb-brand > div { display: flex; flex-direction: column; gap: 1px; font-family: Georgia, "Times New Roman", serif; font-style: italic; line-height: 1.1; }
-.eqb-brand span { font-size: 12pt; }
-.eqb-brand strong { font-size: 11pt; font-weight: normal; }
-.eqb-meta { display: flex; flex-direction: column; gap: 0.05in; font-size: 9.5pt; text-align: right; }
-.eqb-meta .eqb-sitout { font-size: 8pt; }
-.eqb-rules { margin: 0.06in 0 0; padding-top: 0.05in; border-top: 1px solid #777; font-size: 7.5pt; line-height: 1.3; }
-.eqb-block-title { margin: 0.04in 0 0.02in; border-bottom: 1.5px solid #111; font-size: 10.5pt; font-weight: 700; }
-.eqb-block { position: relative; }
+.eqb-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.3in; margin-bottom: 0.08in; }
+.eqb-brand { display: grid; grid-template-columns: 0.62in minmax(0, 1fr); align-items: center; gap: 0.16in; }
+.eqb-brand img { width: 0.62in; height: 0.72in; object-fit: contain; filter: grayscale(1) contrast(1.2); }
+.eqb-brand > div { display: flex; flex-direction: column; gap: 2px; font-family: Georgia, "Times New Roman", serif; font-style: italic; line-height: 1.1; }
+.eqb-brand span { font-size: 16pt; }
+.eqb-brand strong { font-size: 15pt; font-weight: normal; }
+.eqb-meta { display: flex; flex-direction: column; gap: 0.05in; font-size: 13pt; text-align: right; }
+.eqb-meta .eqb-sitout { font-size: 10pt; }
+.eqb-rules { margin: 0.06in 0 0; padding-top: 0.05in; border-top: 1px solid #777; font-size: 9.5pt; line-height: 1.3; }
+.eqb-block-title { margin: 0.02in 0 0.02in; border-bottom: 1.5px solid #111; font-size: 13pt; font-weight: 700; }
+/* Sizes come from the space each box has (bracketBlock sets these), so a small bracket prints large. */
+.eqb-block { position: relative; --side: 9pt; --games: 12pt; --cap: 7pt; --games-w: 0.32in; }
 .eqb-block svg { position: absolute; inset: 0; overflow: visible; }
 .eqb-block path { fill: none; stroke: #777; stroke-width: 1.5px; }
-.eqb-col-title { position: absolute; top: 0; font-size: 7pt; font-style: italic; text-align: center; }
-.eqb-caption { position: absolute; font-size: 6pt; color: #333; white-space: nowrap; overflow: hidden; }
-.eqb-match { position: absolute; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr) 0.28in; grid-template-rows: repeat(2, minmax(0, 1fr)); border: 1.5px solid #777; background: #fff; }
-.eqb-side { display: flex; align-items: center; gap: 3px; min-width: 0; padding: 0 3px; font-size: 7.5pt; font-weight: 700; line-height: 1; white-space: nowrap; overflow: hidden; }
+.eqb-col-title { position: absolute; top: 0; font-size: 11pt; font-weight: 700; font-style: italic; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.eqb-caption { position: absolute; font-size: var(--cap); color: #333; white-space: nowrap; overflow: hidden; }
+.eqb-match { position: absolute; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr) var(--games-w); grid-template-rows: repeat(2, minmax(0, 1fr)); border: 1.5px solid #777; background: #fff; }
+.eqb-side { display: flex; align-items: center; gap: 0.3em; min-width: 0; padding: 0 0.3em; font-size: var(--side); font-weight: 700; line-height: 1; white-space: nowrap; overflow: hidden; }
 .eqb-side > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .eqb-side:first-child, .eqb-games:nth-child(2) { border-bottom: 1.5px solid #777; }
-.eqb-side .eqb-chip { margin-left: auto; font-size: 7.5pt; }
-.eqb-side.eqb-from { font-size: 6.5pt; font-weight: 400; font-style: italic; color: #555; }
-.eqb-games { display: flex; align-items: center; justify-content: center; border-left: 1.5px solid #777; font-size: 10pt; font-weight: 600; }
+.eqb-side .eqb-chip { margin-left: auto; }
+.eqb-side.eqb-from { font-size: calc(var(--side) * 0.82); font-weight: 400; font-style: italic; color: #555; }
+.eqb-games { display: flex; align-items: center; justify-content: center; border-left: 1.5px solid #777; font-size: var(--games); font-weight: 600; }
 .eqb-match.eqb-bye { border-style: dashed; border-color: #aaa; }
 .eqb-match.eqb-bye .eqb-side { color: #888; font-weight: 400; }
 .eqb-match.eqb-bye .eqb-side:first-child, .eqb-match.eqb-bye .eqb-games { border-color: #ccc; border-style: dashed; }
-.eqb-small .eqb-side { font-size: 6.5pt; }
-.eqb-small .eqb-side.eqb-from { font-size: 5.8pt; }
-.eqb-small .eqb-games { font-size: 8pt; }
 @page eq-bracket { size: letter landscape; margin: 0 }
 @media print {
   .print-root .print-sheet.print-bracket-sheet { page: eq-bracket; width: 11in; min-height: 8.5in; }
@@ -57,7 +55,7 @@
   var P = window.cttcPrint;
   var el = P.el;
   var BYE = window.CTTCBracket.BYE;
-  var PAGE = { width: 10.2, height: 6.55 };
+  var PAGE = { width: 10.2, height: 6.3 };
   function inch(value) { return value.toFixed(3) + 'in'; }
   function firstNames(names) { return names.map(function (n) { return n.split(' ')[0]; }).join(' & '); }
   // Bracket boxes are narrow: doubles teams show first names and last initials.
@@ -184,40 +182,79 @@
   // columns: [{ title, matches: [resolved matches, top to bottom], stack, caption }]. Each match sits level with the two
   // matches that feed it in the column before (or with the one, when a column has as many matches as the last). A
   // stack column (the Final and its replay) keeps its matches together around the middle. options: { width, height }.
+  // A bye is not drawn: its player shows in the next round. A round of only byes takes no column.
+  function drawnColumns(columns) {
+    return columns.map(function (column) {
+      return Object.assign({}, column, { all: column.matches.length, drawn: column.matches.map(function (m, i) { return { m: m, i: i }; }).filter(function (x) { return x.m.status !== 'bye'; }) });
+    }).filter(function (column) { return column.drawn.length; });
+  }
+  // The room a box has: the distance to the nearest drawn box in its column (byes leave gaps a box can use).
+  function roomPerBox(columns, height) {
+    return Math.min.apply(null, drawnColumns(columns).map(function (c) {
+      var each = (height - 0.28) / c.all;
+      if (c.stack) return (height - 0.28) / Math.max(2, c.drawn.length + 1);
+      var nearest = c.all;
+      for (var k = 1; k < c.drawn.length; k += 1) nearest = Math.min(nearest, c.drawn[k].i - c.drawn[k - 1].i);
+      return each * nearest;
+    }));
+  }
   function bracketBlock(data, columns, options) {
+    columns = drawnColumns(columns);
     var width = options.width;
     var height = options.height;
     var block = el('div', 'eqb-block');
     block.style.width = inch(width);
     block.style.height = inch(height);
-    var top = 0.17;
-    var gap = 0.24;
-    // A small bracket keeps boxes a readable size and sits in the middle of the page rather than stretching across it.
-    var colW = Math.min(2.6, width / columns.length);
+    var top = 0.28;
+    var gap = 0.34;
+    var colW = width / columns.length;
     var boxW = colW - gap;
-    var most = Math.max.apply(null, columns.map(function (c) { return c.matches.length; }));
-    var used = Math.min(height - top, most * 1.05);
-    var down = top + (height - top - used) / 2;
-    var left = (width - colW * columns.length) / 2;
-    var boxH = Math.min(0.44, used / most - 0.14);
-    if (boxH < 0.34) block.classList.add('eqb-small');
+    var slot = options.slot || roomPerBox(columns, height);
+    var boxH = Math.min(1.1, slot * 0.74);
+    var gamesW = Math.max(0.28, Math.min(0.5, boxH * 0.6));
+    // A name line is half a box high; the font fills about half of it, but never so large that about 15 letters (22 for
+    // a doubles team) stop fitting across the box (a longer name ends in "…").
+    var letters = data.event.play === 'doubles' ? 22 : 15;
+    var sidePt = Math.max(6.5, Math.min(18, boxH / 2 * 72 * 0.52, (boxW - gamesW) * 72 / (letters * 0.56)));
+    var gamesPt = Math.max(8, Math.min(24, boxH / 2 * 72 * 0.7));
+    var capPt = Math.max(6, Math.min(11, (slot - boxH) * 72 * 0.5, sidePt * 0.8));
+    var capH = capPt / 72 * 1.35;
+    block.style.setProperty('--side', sidePt.toFixed(1) + 'pt');
+    block.style.setProperty('--games', gamesPt.toFixed(1) + 'pt');
+    block.style.setProperty('--cap', capPt.toFixed(1) + 'pt');
+    block.style.setProperty('--games-w', inch(gamesW));
+    // Rows are spread over the block; when a first or last box (beside byes, taller than its row) would stick out,
+    // the rows close up a little so every box and its caption stay inside.
+    var from = top;
+    var to = height;
+    function rowCenter(column, i) { return from + (i + 0.5) * (to - from) / column.all + capH / 2; }
+    var over = 0;
+    columns.forEach(function (column) {
+      if (column.stack) return;
+      column.drawn.forEach(function (entry) {
+        var center = rowCenter(column, entry.i);
+        over = Math.max(over, center + boxH / 2 - height, top - (center - boxH / 2 - capH));
+      });
+    });
+    from += over;
+    to -= over;
     var place = {};
     columns.forEach(function (column, c) {
-      var x = left + c * colW + gap / 2;
+      var x = c * colW + gap / 2;
       var title = el('div', 'eqb-col-title', column.title);
       title.style.left = inch(x);
-      title.style.top = inch(Math.max(0, down - 0.17));
       title.style.width = inch(boxW);
       block.appendChild(title);
-      var each = used / column.matches.length;
-      column.matches.forEach(function (m, i) {
-        var y = column.stack ? down + used / 2 - boxH / 2 + i * (boxH + 0.3)
-          : down + (i + 0.5) * each - boxH / 2 + 0.05;
+      column.drawn.forEach(function (entry) {
+        var m = entry.m;
+        var i = entry.i;
+        var y = column.stack ? top + (height - top) / 2 - boxH / 2 + (i - (column.all - 1) / 2) * (boxH + capH + 0.2)
+          : rowCenter(column, i) - boxH / 2;
         place[m.id] = { x: x, y: y, w: boxW, h: boxH };
         var caption = el('div', 'eqb-caption', column.caption ? column.caption(m) : m.id + (m.status === 'bye' ? ' · bye' : ' · best of ' + m.bestOf));
         caption.style.left = inch(x);
-        caption.style.top = inch(y - 0.12);
-        caption.style.width = inch(boxW);
+        caption.style.top = inch(y - capH);
+        caption.style.width = inch(boxW + gap / 2);
         block.append(caption, matchBox(data, m, x, y, boxW, boxH));
       });
     });
@@ -259,7 +296,7 @@
     data.view.matches.filter(function (m) { return m.bracket === bracket; }).forEach(function (m) { (list[m.round] = list[m.round] || []).push(m); });
     return Object.keys(list).map(Number).sort(function (a, b) { return a - b; }).map(function (round) {
       var matches = list[round].sort(function (a, b) { return a.index - b.index; });
-      var title = data.roundName(matches[0]).replace(/^(Main Draw|Survivor Trail|Finals) · /, '').replace(/^Main Draw /, '');
+      var title = data.roundName(matches[0]).replace(/^(Main Draw|Survivor Trail|Finals) · /, '').replace(/^Main Draw (?!final)/, '').replace(/^Survivor Trail final$/, 'Trail final');
       return { title: title.charAt(0).toUpperCase() + title.slice(1), matches: matches };
     });
   }
@@ -298,10 +335,14 @@
       'Final: the Main Draw winner against the Survivor Trail winner' + (gf2 ? '; if the Survivor Trail winner wins it, a best-of-' + gf2.bestOf + ' Final replay decides' : '') + '. ' + commonRules(ev);
     var small = ev.bracket.size <= 8;
     var finals = { title: 'Final', stack: true, matches: gf2 ? [gf, gf2] : [gf], caption: function (m) {
-      return m.id === 'GF2' ? 'GF2 · replay, only if needed · best of ' + m.bestOf : 'GF · best of ' + m.bestOf;
+      return m.id === 'GF2' ? 'GF2 · replay if needed · best of ' + m.bestOf : 'GF · best of ' + m.bestOf;
     } };
-    var mainBlock = bracketBlock(data, main.concat([finals]), { width: PAGE.width, height: small ? PAGE.height * 0.46 : PAGE.height });
-    var trailBlock = bracketBlock(data, trail, { width: PAGE.width, height: small ? PAGE.height * 0.46 : PAGE.height });
+    // Two blocks on one page share its height, less their two titles.
+    var height = small ? (PAGE.height - 0.6) / 2 : PAGE.height;
+    // Both brackets on one page print at the same size.
+    var slot = small ? Math.min(roomPerBox(main.concat([finals]), height), roomPerBox(trail, height)) : 0;
+    var mainBlock = bracketBlock(data, main.concat([finals]), { width: PAGE.width, height: height, slot: slot });
+    var trailBlock = bracketBlock(data, trail, { width: PAGE.width, height: height, slot: slot });
     if (small) {
       return [bracketSheet(data, 'Double Elimination', rules, [
         { title: 'Main Draw and Final', node: mainBlock },

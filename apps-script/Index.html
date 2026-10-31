@@ -2072,6 +2072,30 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     persistDeviceDraft();
   });
   search.addEventListener('input', renderDirectory);
+  // After someone is added from a search (RR, EQ or Open), the search clears itself 20 seconds later, so whoever comes
+  // back to the desk starts from the whole directory. Each add starts the 20 seconds again, so several people with
+  // similar names can be added in a row; typing in the search keeps it.
+  var SEARCH_CLEAR_MS = 20000;
+  var searchClearTimer = null;
+  var searchWhenAdded = '';
+  document.addEventListener('click', function (e) {
+    var button = e.target.closest && e.target.closest('#results [data-add], #results [data-open-add]');
+    if (!button || button.disabled || !search.value) return;
+    clearTimeout(searchClearTimer);
+    searchWhenAdded = search.value;
+    searchClearTimer = setTimeout(function () {
+      searchClearTimer = null;
+      if (!search.value) return;
+      search.value = '';
+      search.dispatchEvent(new Event('input'));
+    }, SEARCH_CLEAR_MS);
+  }, true);
+  // The page redraws the directory with input events of its own; only a changed search counts as typing.
+  search.addEventListener('input', function () {
+    if (!searchClearTimer || search.value === searchWhenAdded) return;
+    clearTimeout(searchClearTimer);
+    searchClearTimer = null;
+  });
   document.getElementById('load').addEventListener('click', load);
   date.addEventListener('change', load);
   document.getElementById('rebuild').addEventListener('click', function () {
