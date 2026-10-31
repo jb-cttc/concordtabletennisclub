@@ -214,6 +214,73 @@ const cases = {
     assert.ok(drawn < 8 + 4 + 2 + 1 + 2, 'the draw has byes');
     assert.equal(sheets()[0].querySelectorAll('.eqb-match').length, drawn, 'every Main Draw match but the byes, and both Finals');
     assert.deepEqual(tab.errors, []);
+  },
+
+  // Choosing the Equalizer shows a teaser under the switch; How it works (or ? on an Equalizer night) opens the guide,
+  // whose steps each spotlight part of a made-up screen. Nothing in it reaches the desk or Google.
+  async teaserAndGuide() {
+    const world = sim.createWorld({ seed: 41 });
+    const tab = await deskWith(world, world.device(), 6);
+    const doc = tab.window.document;
+    const teaser = tab.$('.eqg-teaser');
+    const guide = tab.$('.eqg');
+    assert.equal(teaser.hidden, true);
+    switchTo(tab, 'equalizer');
+    await run(world, 100);
+    assert.equal(teaser.hidden, false, 'choosing the Equalizer shows the teaser');
+    tab.click(teaser.querySelector('[data-teaser-close]'));
+    assert.equal(teaser.hidden, true, 'Got it closes it');
+    await run(world, 20000);
+    const googleBefore = JSON.stringify(googleEq(world));
+    const rosterBefore = tab.roster().join(',');
+
+    switchTo(tab, 'rr');
+    await run(world, 20000);
+    tab.click(tab.$('#show-tour'));
+    assert.ok(doc.querySelector('.tour-dialog'), 'on a round robin night ? opens the desk tour');
+    doc.querySelector('.tour-dialog .tour-close').click();
+    await run(world, 20000);
+    switchTo(tab, 'equalizer');
+    await run(world, 100);
+    assert.equal(teaser.hidden, false, 'the teaser shows each time the Equalizer is chosen');
+    tab.click(teaser.querySelector('[data-teaser-guide]'));
+    assert.equal(teaser.hidden, true);
+    assert.equal(guide.hidden, false, 'How it works opens the guide');
+    const { steps, chapters } = tab.window.cttcEqualizerGuide;
+    assert.ok(steps.length >= 25 && chapters.length === 9);
+    const title = () => guide.querySelector('.eqg-callout h2').textContent;
+    for (let i = 0; i < steps.length; i += 1) {
+      assert.equal(title(), steps[i].title);
+      assert.ok(guide.querySelector('.eqg-scene [data-g="' + steps[i].target + '"]'), steps[i].title + ': its spotlight target is on the screen');
+      assert.equal(guide.querySelector('[aria-current="true"]').getAttribute('data-eqg-chapter'), steps[i].scene);
+      tab.click(guide.querySelector('.eqg-next'));
+    }
+    assert.equal(guide.hidden, true, 'Finish closes the guide');
+    const scene = guide.querySelector('.eqg-scene');
+    tab.click(tab.$('#show-tour'));
+    assert.equal(guide.hidden, false, 'on an Equalizer night ? opens the guide');
+    assert.equal(doc.querySelector('.tour-dialog'), null, 'and not the desk tour');
+    tab.click(guide.querySelector('[data-eqg-chapter="double"]'));
+    assert.equal(title(), 'Double Elimination', 'a chapter jumps to its first step');
+    assert.ok(scene.querySelector('.print-bracket-sheet'), 'the made-up bracket is the real printout');
+    assert.match(scene.textContent, /Survivor Trail/);
+    guide.querySelector('.eqg-callout').dispatchEvent(new tab.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(guide.hidden, true, 'Escape closes it');
+
+    switchTo(tab, 'rr');
+    await run(world, 20000);
+    switchTo(tab, 'equalizer');
+    await run(world, 100);
+    teaser.querySelector('[data-teaser-off]').checked = true;
+    tab.click(teaser.querySelector('[data-teaser-close]'));
+    switchTo(tab, 'rr');
+    await run(world, 20000);
+    switchTo(tab, 'equalizer');
+    await run(world, 20000);
+    assert.equal(teaser.hidden, true, 'Don’t show this again keeps it away on this device');
+    assert.equal(tab.roster().join(','), rosterBefore, 'the guide changed nothing on the desk');
+    assert.deepEqual(googleEq(world).roster, JSON.parse(googleBefore).roster, 'or on Google');
+    assert.deepEqual(tab.errors, []);
   }
 };
 
