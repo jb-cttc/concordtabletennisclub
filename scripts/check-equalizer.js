@@ -274,4 +274,62 @@ assert.ok(E.estimate(sixteenSingles).minutes < E.estimate(sixteenSingles, { repl
 assert.ok(E.estimate(E.create({ format: 'groups', play: 'singles', players: pool.slice(0, 16) }, rng(5))).minutes < E.estimate(sixteenSingles).minutes);
 assert.throws(function () { E.create({ format: 'groups', play: 'doubles', players: pool.slice(0, 10) }, rng(1)); }, /at least 12/);
 
+// ---- The organizer's options: defaults, best of 3 or 5, the replay ----
+assert.deepEqual(E.DEFAULT_SETUP, { format: 'groups', play: 'singles', bestOf: 3 }, 'RR -> Finals, singles, best of 3');
+const byDefault = E.create({ players: pool.slice(0, 16) }, rng(4));
+assert.equal(byDefault.format, 'groups');
+assert.equal(byDefault.play, 'singles');
+const everyBestOf = function (event) {
+  const view = E.resolve(event, {});
+  return Array.from(new Set(view.matches.filter(function (m) { return m.status !== 'skipped'; }).map(function (m) { return m.bestOf; })));
+};
+assert.deepEqual(everyBestOf(byDefault), [3], 'every match best of 3 by default');
+assert.deepEqual(everyBestOf(E.create({ players: pool.slice(0, 16), bestOf: 5 }, rng(4))), [5], 'or best of 5 for every match');
+const de16 = E.create({ format: 'double', players: pool.slice(0, 16), bestOf: 5 }, rng(4));
+assert.equal(de16.settings.replay, true);
+assert.equal(de16.bracket.matches.find(function (m) { return m.id === 'GF2'; }).bestOf, 3, 'the replay is always best of 3');
+assert.equal(E.create({ format: 'double', players: pool.slice(0, 21) }, rng(4)).settings.replay, false, 'no replay above 20 sides');
+assert.equal(E.create({ format: 'double', players: pool.slice(0, 20) }, rng(4)).settings.replay, true);
+
+// ---- A saved draw rebuilds the same event ----
+['groups', 'double'].forEach(function (format) {
+  ['singles', 'doubles'].forEach(function (play) {
+    const setup = { format: format, play: play, players: pool.slice(0, 17), oddPlayer: 'team-of-three', bestOf: 5 };
+    const snapshot = E.draw(setup, rng(12));
+    const stored = JSON.parse(JSON.stringify(snapshot));
+    const a = E.fromSnapshot(snapshot);
+    const b = E.fromSnapshot(stored);
+    assert.deepEqual(b.sides, a.sides, format + ' ' + play + ': same teams');
+    assert.deepEqual(E.resolve(b, {}).matches.map(function (m) { return m.id + ':' + m.players.join(','); }), E.resolve(a, {}).matches.map(function (m) { return m.id + ':' + m.players.join(','); }), 'same matches');
+    assert.deepEqual(E.create(setup, rng(12)).snapshot, snapshot, 'create is draw then fromSnapshot');
+  });
+});
+assert.throws(function () { E.fromSnapshot({ version: 99 }); }, /different version/);
+
+// ---- Scores: the page, the server and publication all ask scoreProblem ----
+const bo3 = { players: ['x', 'y'], bestOf: 3 };
+const bo5 = { players: ['x', 'y'], bestOf: 5 };
+assert.equal(E.scoreProblem(bo3, { winnerId: 'x', games: [2, 1] }), '');
+assert.equal(E.scoreProblem(bo3, { winnerId: 'y', games: [0, 2] }), '');
+assert.match(E.scoreProblem(bo3, { winnerId: 'x', games: [2, 2] }), /best-of-3/);
+assert.match(E.scoreProblem(bo3, { winnerId: 'x', games: [3, 0] }), /best-of-3/);
+assert.equal(E.scoreProblem(bo5, { winnerId: 'x', games: [3, 2] }), '');
+assert.match(E.scoreProblem(bo5, { winnerId: 'x', games: [2, 1] }), /Winner/, 'a short win needs Winner');
+assert.equal(E.scoreProblem(bo5, { winnerId: 'x', games: [2, 1], wonBy: 'x' }), '', 'cut to best of 3, with Winner');
+assert.match(E.scoreProblem(bo5, { winnerId: 'x', games: [2, 2], wonBy: 'x' }), /best-of-5/);
+assert.equal(E.scoreProblem(bo3, { winnerId: 'x', forfeitedBy: 'y' }), '', 'a forfeit needs no score');
+assert.match(E.scoreProblem(bo3, { winnerId: 'x', forfeitedBy: 'x' }), /must lose/);
+assert.match(E.scoreProblem(bo3, { winnerId: 'z', games: [2, 0] }), /not in this match/);
+// raw: the points before the zero floor, applied at finalize to the rating the player has then.
+const floor = E.create({ format: 'double', players: [{ id: 'lo', rating: 4 }, { id: 'b', rating: 900 }, { id: 'c', rating: 905 }, { id: 'd', rating: 910 }] }, rng(1));
+const floorView = (function () { const res = {}; for (;;) { const v = E.resolve(floor, res); if (v.finished) return v; const m = E.callOrder(v)[0]; const loserFirst = m.players[0] === 'lo' ? 1 : 0; res[m.id] = { winnerId: m.players[loserFirst], games: loserFirst ? [0, 2] : [2, 0] }; } }());
+const floorResults = E.playerResults(floor, floorView);
+assert.equal(floorResults.lo.after, 0, 'never below 0');
+assert.equal(floorResults.lo.raw, -8 * floorResults.lo.losses, 'raw keeps the full points');
+
+// ---- The desk's copies are current (npm run sync:desk) ----
+const sync = require('./sync-desk-standings');
+assert.equal(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'EqualizerRules.html'), 'utf8'), sync.equalizerPageCopy(), 'apps-script/EqualizerRules.html is stale: run npm run sync:desk');
+assert.equal(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'EqualizerRules.js'), 'utf8'), sync.equalizerServerCopy(), 'apps-script/EqualizerRules.js is stale: run npm run sync:desk');
+
 console.log('Equalizer checks passed:', events, 'simulated brackets,', combos, 'simulated events');

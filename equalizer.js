@@ -5,7 +5,8 @@
 // - round-robin.js: the desk's group sizes and match order, for the RR -> Finals group stage;
 // - standings.js: the club's round robin group ranking (match points, head-to-head, games ratio, then rating).
 //
-// Formats: "double" (Double Elimination) or "groups" (round robin groups of 4, or 3 when the numbers need it; each
+// The organizer chooses a format, singles or doubles, and best of 3 or 5 (DEFAULT_SETUP: RR -> Finals, singles, best
+// of 3). Formats: "double" (Double Elimination) or "groups" (round robin groups of 4, or 3 when the numbers need it; each
 // group winner goes into a single-elimination Finals, the best group winners getting any byes). Play: "singles", or
 // "doubles", where the players are paired at random and a team's rating is the average of its players' ratings,
 // rounded to a whole point (as handicap doubles leagues do). Each player on a team gains or gives the full 8.
@@ -29,7 +30,11 @@
 
   var GROUP_SIZE = 4;
   var MAX_PLAYERS = 24;
-  var DEFAULTS = { bestOf: 3, finalsBestOf: 5, replay: true, replayBestOf: 3, groupBestOf: 3 };
+  // What the organizer starts with: RR -> Finals, singles, best of 3 for every match.
+  var DEFAULT_SETUP = { format: "groups", play: "singles", bestOf: 3 };
+  // The Final replay (Double Elimination) is skipped above this many sides, so a big field still ends by 6:00.
+  var REPLAY_MAX_SIDES = 20;
+  var SNAPSHOT_VERSION = 1;
 
   // The fewest players each format can run with: Double Elimination needs 4 sides, RR -> Finals 6 (two groups).
   function minimumPlayers(format, play) {
@@ -60,14 +65,20 @@
     return order;
   }
 
-  // players: [{ id, rating }]; rng: the saved draw's random numbers. Returns the event: its sides (players, or teams
-  // of two), the groups and the bracket.
-  function create(setup, rng) {
-    var format = setup.format === "groups" ? "groups" : "double";
+  // The organizer's choice of best of 3 or 5 applies to every match (a best-of-5 match cut short still counts with
+  // Winner, as in round robins). The replay is always best of 3. options can override any of it (estimates, tests).
+  function settingsFor(format, sideCount, bestOf, options) {
+    var b = Number(bestOf) === 5 ? 5 : 3;
+    return Object.assign({ groupBestOf: b, bestOf: b, finalsBestOf: b, replay: format === "double" && sideCount <= REPLAY_MAX_SIDES, replayBestOf: 3 }, options || {});
+  }
+
+  // The random draw for an event, as a plain snapshot to save: who is on which team, who sits out, the groups or the
+  // bracket order, and the Finals draw. players: [{ id, rating }] (ratings at the draw); rng: the draw's random numbers.
+  // setup: { format: "groups" | "double", play: "singles" | "doubles", bestOf: 3 | 5, oddPlayer, sitOutId, options }.
+  function draw(setup, rng) {
+    setup = setup || {};
+    var format = setup.format === "double" ? "double" : "groups";
     var play = setup.play === "doubles" ? "doubles" : "singles";
-    // RR -> Finals is short enough to play best of 5 throughout, like a round robin; Double Elimination needs best of 3
-    // until the finals to finish by 6:00.
-    var settings = Object.assign({}, DEFAULTS, format === "groups" ? { groupBestOf: 5, bestOf: 5, finalsBestOf: 5 } : {}, setup.options || {});
     var players = setup.players.map(function (p) { return { id: String(p.id), rating: Number(p.rating) }; });
     if (players.length > MAX_PLAYERS) throw new Error("The Equalizer takes at most " + MAX_PLAYERS + " players.");
     if (players.length < minimumPlayers(format, play)) throw new Error("This format needs at least " + minimumPlayers(format, play) + " players.");
@@ -79,7 +90,7 @@
     // team drawn at random.
     var order = B.draw(players.map(function (p) { return p.id; }), rng);
     var sitOut = [];
-    var sides = [];
+    var teams = [];
     if (play === "doubles") {
       var extra = null;
       if (order.length % 2) {
@@ -90,27 +101,63 @@
         } else if (odd === "sit-out") sitOut.push(order.pop());
         else extra = order.pop();
       }
-      var teams = [];
       for (var i = 0; i < order.length; i += 2) teams.push([order[i], order[i + 1]]);
       if (extra) teams[Math.floor(rng() * teams.length)].push(extra);
-      teams.forEach(function (members) {
-        sides.push({ id: teamId(members), members: members, rating: teamRating(members, ratings) });
-      });
     } else {
-      sides = order.map(function (id) { return { id: id, members: [id], rating: ratings[id] }; });
+      teams = order.map(function (id) { return [id]; });
     }
+    var sideIds = teams.map(function (members) { return members.length > 1 ? teamId(members) : members[0]; });
+    var snapshot = {
+      version: SNAPSHOT_VERSION,
+      ruleVersion: H.RULE_VERSION,
+      format: format,
+      play: play,
+      bestOf: Number(setup.bestOf) === 5 ? 5 : 3,
+      settings: settingsFor(format, teams.length, setup.bestOf, setup.options),
+      ratings: ratings,
+      teams: teams,
+      sitOut: sitOut,
+      groups: [],
+      entrants: [],
+      finalsDraw: []
+    };
+    if (format === "groups") {
+      var drawn = B.draw(sideIds, rng);
+      var at = 0;
+      RR.sizeGroups(drawn.length, GROUP_SIZE).forEach(function (size) {
+        snapshot.groups.push(drawn.slice(at, at + size));
+        at += size;
+      });
+      // The Finals: one slot per group winner. Any byes go to the best group winners (finalsRank); the rest are
+      // placed at random, drawn now so the draw is saved with the event. The Finals start once every group is decided.
+      var size = 1;
+      while (size < snapshot.groups.length) size *= 2;
+      var byes = size - snapshot.groups.length;
+      var rest = [];
+      for (var seed = byes + 1; seed <= snapshot.groups.length; seed += 1) rest.push(seed);
+      snapshot.finalsDraw = B.draw(rest.map(String), rng).map(Number);
+    } else {
+      snapshot.entrants = sideIds;
+    }
+    return snapshot;
+  }
+
+  // The event from a saved draw: everything else (team ratings, group matches, the bracket) is worked out again, so
+  // only the snapshot and the results need saving.
+  function fromSnapshot(snapshot) {
+    if (!snapshot || snapshot.version !== SNAPSHOT_VERSION) throw new Error("This Equalizer draw was saved by a different version of the desk.");
+    var settings = snapshot.settings;
+    var ratings = snapshot.ratings;
+    var sides = snapshot.teams.map(function (members) {
+      return { id: members.length > 1 ? teamId(members) : members[0], members: members.slice(), rating: teamRating(members, ratings) };
+    });
     var sideRatings = {};
     var sideById = {};
     sides.forEach(function (side) { sideRatings[side.id] = side.rating; sideById[side.id] = side; });
-
     var groups = [];
     var bracket;
-    if (format === "groups") {
-      var drawn = B.draw(sides.map(function (s) { return s.id; }), rng);
-      var at = 0;
-      RR.sizeGroups(drawn.length, GROUP_SIZE).forEach(function (size, index) {
-        var members = drawn.slice(at, at + size);
-        at += size;
+    if (snapshot.format === "groups") {
+      snapshot.groups.forEach(function (members, index) {
         var number = index + 1;
         var matches = [];
         RR.roundRobinRounds(members).forEach(function (pairs, round) {
@@ -118,21 +165,38 @@
             matches.push({ id: "G" + number + "-" + (matches.length + 1), group: number, round: round + 1, players: pair, bestOf: settings.groupBestOf });
           });
         });
-        groups.push({ number: number, sides: members, matches: matches });
+        groups.push({ number: number, sides: members.slice(), matches: matches });
       });
-      // The Finals: one slot per group winner. Any byes go to the best group winners (finalsRank); the rest are placed
-      // at random, drawn now so the draw is saved with the event. The Finals start once every group is decided.
       var slots = groups.map(function (g, n) { return "finals-" + (n + 1); });
       bracket = B.build(slots, { elimination: "single", bestOf: settings.bestOf, finalsBestOf: settings.finalsBestOf });
-      var byes = bracket.size - groups.length;
-      var rest = [];
-      for (var seed = byes + 1; seed <= groups.length; seed += 1) rest.push(seed);
-      bracket.finalsDraw = B.draw(rest.map(String), rng).map(Number);
-      bracket.byes = byes;
+      bracket.byes = bracket.size - groups.length;
+      bracket.finalsDraw = snapshot.finalsDraw.slice();
     } else {
-      bracket = B.build(sides.map(function (s) { return s.id; }), settings);
+      bracket = B.build(snapshot.entrants, settings);
     }
-    return { format: format, play: play, settings: settings, ratings: ratings, sides: sides, sideById: sideById, sideRatings: sideRatings, sitOut: sitOut, groups: groups, bracket: bracket };
+    return { format: snapshot.format, play: snapshot.play, bestOf: snapshot.bestOf, ruleVersion: snapshot.ruleVersion, settings: settings, ratings: ratings, sides: sides, sideById: sideById, sideRatings: sideRatings, sitOut: snapshot.sitOut.slice(), groups: groups, bracket: bracket, snapshot: snapshot };
+  }
+
+  function create(setup, rng) {
+    return fromSnapshot(draw(setup, rng));
+  }
+
+  // '' when a result is a valid score for the match, or what is wrong with it. A best-of-5 match cut short to best of
+  // 3 needs Winner (wonBy): 2 games to at most 1, as in round robins. A forfeit needs no score.
+  function scoreProblem(match, result) {
+    if (!result) return "";
+    var players = match.players;
+    var winner = String(result.winnerId || "");
+    if (players.indexOf(winner) < 0) return "The winner is not in this match.";
+    if (result.forfeitedBy) return players.indexOf(String(result.forfeitedBy)) >= 0 && String(result.forfeitedBy) !== winner ? "" : "The side that forfeited must lose.";
+    var games = result.games || [];
+    var need = (match.bestOf + 1) / 2;
+    var mine = Number(games[players.indexOf(winner)]);
+    var theirs = Number(games[1 - players.indexOf(winner)]);
+    if (!Number.isInteger(mine) || !Number.isInteger(theirs) || theirs < 0) return "Enter games won for both sides.";
+    if (mine === need && theirs < need) return "";
+    if (match.bestOf === 5 && result.wonBy === winner && mine === 2 && theirs <= 1) return "";
+    return match.bestOf === 5 ? "A best-of-5 winner needs 3 games (or 2, with Winner, when the match was cut to best of 3)." : "A best-of-3 winner needs 2 games, the other side at most 1.";
   }
 
   // Group winners, best first, for Finals byes: the best share of games won in their group (fair to groups of 3 and
@@ -270,6 +334,8 @@
       event.sideById[m.loserId].members.forEach(function (id) { out[id].losses += 1; out[id].change -= exchange; });
     });
     Object.keys(out).forEach(function (id) {
+      // raw: the points before the zero floor, to apply on top of the rating the player has when the event is finalized.
+      out[id].raw = out[id].change;
       var after = Math.max(0, event.ratings[id] + out[id].change);
       out[id].change = after - event.ratings[id];
       out[id].after = after;
@@ -312,12 +378,17 @@
   return {
     GROUP_SIZE: GROUP_SIZE,
     MAX_PLAYERS: MAX_PLAYERS,
+    DEFAULT_SETUP: DEFAULT_SETUP,
+    REPLAY_MAX_SIDES: REPLAY_MAX_SIDES,
     minimumPlayers: minimumPlayers,
     teamId: teamId,
     teamRating: teamRating,
     teamOfThreeOrder: teamOfThreeOrder,
     finalsRank: finalsRank,
     create: create,
+    draw: draw,
+    fromSnapshot: fromSnapshot,
+    scoreProblem: scoreProblem,
     resolve: resolve,
     callOrder: callOrder,
     headStart: headStart,
