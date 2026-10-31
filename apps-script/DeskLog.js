@@ -13,7 +13,7 @@ var DESK_LOG_HEADERS = ['at', 'level', 'what', 'session', 'ref', 'detail'];
 var DESK_LOG_KEEP = 2000;
 // Text values shown as they are, only for session and database entries: dates, times, versions and states. Numbers and
 // true/false are always shown. Anything else (a name, a payment method, a member status, a message) is left out.
-var DESK_LOG_TEXT_KEYS = ['through', 'dueAt', 'emailDueAt', 'version', 'status', 'serverStatus', 'mode', 'call', 'checkedAt'];
+var DESK_LOG_TEXT_KEYS = ['through', 'dueAt', 'emailDueAt', 'version', 'status', 'serverStatus', 'mode', 'call', 'checkedAt', 'variant', 'format', 'play', 'stage', 'match', 'to'];
 
 function deskLogFromAudit_(action, entityType, entityId, details, eventId) {
   try {

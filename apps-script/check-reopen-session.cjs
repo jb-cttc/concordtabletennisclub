@@ -33,6 +33,7 @@ const context = {
   TABLES: {}
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(__dirname + '/SessionIds.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync(__dirname + '/SessionService.js', 'utf8'), context);
 Object.assign(context, {
   rows_: name => tables[name].map((row, index) => ({ ...row, __row: index + 2 })),
