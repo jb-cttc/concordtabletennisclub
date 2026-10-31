@@ -198,7 +198,8 @@ function saveSessionDraft(payload) {
         });
       });
     });
-    if (!sessionPlayers.length) throw new Error('At least one player is required.');
+    // A draft may be left with no players (the last one removed, or Clear), so Google stops holding them in the round
+    // robin. Finalizing still needs players (validateCompleteRoundRobin_).
 
     var pairKeys = {};
     var matches = (payload.matches || []).map(function (match) {

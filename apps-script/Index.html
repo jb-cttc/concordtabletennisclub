@@ -241,7 +241,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }, function (error) {
       flushing = false;
       var message = error && error.message || String(error);
-      if (handler.rejected && handler.rejected.test(message)) {
+      if (handler.rejected && (typeof handler.rejected === 'function' ? handler.rejected(message, entry) : handler.rejected.test(message))) {
         failures = 0;
         if ((entry.version || 0) === sentVersion) {
           entries.splice(entries.indexOf(entry), 1);
@@ -615,7 +615,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return navigator.onLine === false || syncFailures >= 2;
   }
   function canAutoSync() {
-    return state.event !== 'equalizer' && !pendingSwitch() && deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && !window.cttcTab.retired() && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
+    return state.event !== 'equalizer' && !pendingSwitch() && deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && !window.cttcTab.retired() && loadedDate === date.value && !locked() && (state.roster.length > 0 || !!state.session) && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
   }
   function scheduleAutoSync(delay) {
     clearTimeout(autoSyncTimer);
@@ -1510,7 +1510,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         : 'Reload this session to check Google Sheets before saving again.', 'error');
       return null;
     }
-    if (!state.roster.length) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
+    // An empty roster is saved only to clear a session Google already holds (the last player removed, or Clear).
+    if (!state.roster.length && !state.session) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
     if (navigator.onLine === false) return auto ? null : saveOnDevice();
     if (pendingActivations()) {
       window.cttcOutbox.flush();
@@ -1838,6 +1839,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     event: function () { return state.event === 'equalizer' ? { short: 'EQ', placed: 'In EQ', target: 'the Equalizer' } : { short: 'RR', placed: 'In RR', target: 'the RR draft' }; },
     print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
     needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
+    // True while a round robin change on this page has not reached Google yet (it is sent a moment after each change).
+    // Not while the save is stuck (a conflict, or retries used up), so nothing waits on it for good.
+    draftPending: function () { return saveInFlight || (canAutoSync() && syncFailures < AUTO_RETRY_LIMIT); },
     saveDraft: save
   };
 
@@ -3338,7 +3342,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     });
   }
   outbox.register('setOpenPlayParticipant', {
-    rejected: /Unknown or inactive player|already in the saved round robin|Valid player and attendance|Invalid date|Duplicate open-play/,
+    // A player just taken out of the round robin is still in it on Google until the draft saves a moment later: Open
+    // waits for that save and tries again, instead of giving up.
+    rejected: function (message, entry) {
+      var desk = window.cttcDesk;
+      if (/already in the saved round robin/.test(message) && entry.args[2] && entry.args[0] === date.value &&
+        desk && !desk.has(entry.args[1]) && desk.draftPending()) return false;
+      return /Unknown or inactive player|already in the saved round robin|Valid player and attendance|Invalid date|Duplicate open-play/.test(message);
+    },
     describe: function (entry) { return (names[entry.args[1]] || 'A player') + ' in Open Play'; },
     rejectedFn: function (entry) {
       if (entry.args[0] !== date.value) return;
@@ -3492,7 +3503,19 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   document.addEventListener('cttc:players', function (event) {
     names[event.detail.playerId] = event.detail.name;
     ratings[event.detail.playerId] = event.detail.currentRating;
+    // A coaching student who was not in the directory is matched (and gets a Payment control) as soon as they are added
+    // or renamed, without reloading the page.
+    if (coaching.some(function (entry) { return !entry.playerId; })) refreshCoaching();
   });
+  function refreshCoaching() {
+    var sessionDate = date.value;
+    var current = requestNumber;
+    request('getCoachingParticipants', sessionDate).then(function (list) {
+      if (current !== requestNumber || sessionDate !== date.value) return;
+      coaching = list;
+      renderOpen();
+    }, function () { /* the list loaded with the page stays; a reload tries again */ });
+  }
   document.addEventListener('cttc:ratings', function (event) {
     Object.assign(ratings, event.detail);
     renderOpen();

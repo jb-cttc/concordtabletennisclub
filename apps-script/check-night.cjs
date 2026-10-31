@@ -824,6 +824,57 @@ const cases = {
     assert.equal(tab.roster().length, 6);
     await run(world, 30000);
     inStep(world, tab, 'new players');
+  },
+
+  // A coached student who is not in the directory yet, and a player moved from the round robin to Open: both as on the
+  // night of 2026-10-31, when the student was added and Open bounced him back out.
+  async coachedNewcomerAndRoundRobinToOpen() {
+    const world = sim.createWorld({ seed: 32 });
+    world.server.context.coachingLessons_ = () => [
+      { role: 'coach', name: world.players[0].display_name, phone: '', lesson: { start: '16:00', minutes: 60, coachLabel: 'D' } },
+      { role: 'student', name: 'Coached Newcomer', phone: '', lesson: { start: '16:00', minutes: 60, coachLabel: 'D' } }
+    ];
+    const tab = await deskWith(world, world.device(), 1);
+    const doc = tab.window.document;
+    const solo = world.players[1].player_id;
+    assert.deepEqual(tab.roster(), [world.players[0].player_id]);
+    const studentRow = () => [...doc.querySelectorAll('.coaching-row')].find(row => /Coached Newcomer/.test(row.textContent));
+    assert.equal(studentRow().getAttribute('data-coaching'), null, 'a student not in the directory has no player to pay for');
+    assert.equal(studentRow().querySelector('.payment-trigger'), null);
+
+    tab.$('#new-name').value = 'Coached Newcomer';
+    tab.$('#new-rating').value = '500';
+    tab.$('#new-player').dispatchEvent(new tab.window.Event('submit', { cancelable: true }));
+    await run(world, 15000);
+    tab.click(tab.$('.new-player-choice [data-place=""]'));
+    await run(world, 15000);
+    const newcomer = world.server.rows('Players').find(row => row.display_name === 'Coached Newcomer').player_id;
+    assert.equal(studentRow().getAttribute('data-coaching'), newcomer, 'adding them matches their lesson without a reload');
+    assert.ok(studentRow().querySelector('.payment-trigger'), 'and their payment can be recorded');
+    const search = tab.$('#search');
+    search.value = 'Coached Newcomer';
+    search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
+    await run(world, 100);
+    assert.equal(doc.querySelector('[data-open-add="' + newcomer + '"]').hidden, true, 'the directory shows them as coached');
+
+    // The only round robin player moves to Open: the empty round robin is saved, and Open waits for that save.
+    tab.addPlayer(solo);
+    await run(world, 20000);
+    tab.removePlayer(world.players[0].player_id);
+    await run(world, 20000);
+    assert.deepEqual(tab.roster(), [solo]);
+    tab.removePlayer(solo);
+    search.value = world.players[1].display_name;
+    search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
+    await Promise.resolve();
+    tab.click(doc.querySelector('[data-open-add="' + solo + '"]'));
+    assert.ok(doc.querySelector('#open-roster [data-open-remove="' + solo + '"]'), 'Open shows at once');
+    await run(world, 60000);
+    assert.ok(doc.querySelector('#open-roster [data-open-remove="' + solo + '"]'), 'and stays');
+    assert.ok(world.server.rows('OpenPlay').some(r => String(r.player_id) === solo), 'Open Play reached Google');
+    assert.equal(sim.googleSession(world, DATE).groups.length, 0, 'the empty round robin reached Google');
+    assert.equal(tab.syncNote(), '', 'nothing is left waiting or refused');
+    assert.deepEqual(tab.errors, []);
   }
 };
 
