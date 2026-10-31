@@ -8,6 +8,15 @@ This page is how to run one and how to fix things.
 
 ## Running an event
 
+**New to it?** Choosing **Equalizer** on the switch shows a short teaser
+under it (until "Don't show this again" on that device). Its **How it works**,
+or the **?** button while the desk is on the Equalizer, opens a guide: chapters
+of made-up desk screens (the mockup's players, on the real rules and the real
+printouts) walked through step by step with the tour's spotlight. It covers head
+starts and their memory, the desk controls, both formats, doubles, scoring and
+finishing, the printouts and how long a night takes. Nothing in it is saved. On a
+round robin night **?** opens the usual desk tour.
+
 1. **Open the date** as usual (Session date, Load session). Sign players in
    from the directory or Voice signups as for a round robin.
 2. **Choose the Equalizer** with the **Round robin | Equalizer** switch in the
