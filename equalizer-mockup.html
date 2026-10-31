@@ -43,22 +43,24 @@
     <h1>The Equalizer</h1>
     <a class="organizer-launch" href="roundrobins.html">Round robin results</a>
   </div>
-  <p class="eq-lede">Same club, same players, a new way to play: a head start in every game makes every match a fair fight, and you have two lives before you're out.</p>
+  <p class="eq-lede">Same club, same players, a new way to play: a head start in every game evens up every match, in singles or doubles.</p>
   <p class="tonight-eyebrow">Saturdays &middot; sign up 2:45&ndash;3:15&nbsp;PM &middot; play starts 3:30 &middot; same fee as a round robin</p>
 
   <ol class="eq-steps">
-    <li class="eq-step"><div class="eq-step-art"><span class="ball on"></span><span class="ball on"></span><span class="ball on"></span><span class="ball on"></span></div><strong>The draw</strong>Everyone who signs up goes into a random draw. No seeds: you could meet anyone.</li>
+    <li class="eq-step"><div class="eq-step-art"><span class="ball on"></span><span class="ball on"></span><span class="ball on"></span><span class="ball on"></span></div><strong>The draw</strong>Everyone who signs up goes into a random draw, for singles or random doubles partners. No seeds: you could meet anyone.</li>
     <li class="eq-step"><div class="eq-step-art"><span class="scoreboard"><span class="flip">5</span><span class="flip">0</span></span></div><strong>Your head start</strong>Every full 40 rating points between you is 1 point at the start of every game, up to 8.</li>
-    <li class="eq-step"><div class="eq-step-art"><span class="ball on"></span><span class="ball on"></span></div><strong>Two lives</strong>Lose once and you play on along the Survivor Trail. Lose twice and your day is done.</li>
-    <li class="eq-step"><div class="eq-step-art"><span class="scoreboard"><span class="flip">&plus;</span><span class="flip">8</span></span></div><strong>8 points on the line</strong>Every match is worth 8 rating points, whoever you play: win and gain 8, lose and give 8.</li>
+    <li class="eq-step"><div class="eq-step-art"><span class="ball on"></span><span class="ball on"></span></div><strong>Two ways to play</strong><em>Double Elimination:</em> lose once and you play on along the Survivor Trail. <em>RR &rarr; Finals:</em> win your group of 4 to reach the Finals.</li>
+    <li class="eq-step"><div class="eq-step-art"><span class="scoreboard"><span class="flip">&plus;</span><span class="flip">8</span></span></div><strong>8 points on the line</strong>Every match is worth 8 rating points, whoever you play: win and gain 8, lose and give 8. In doubles, both partners.</li>
   </ol>
 
   <section class="eq-sim" aria-label="Mockup controls">
     <h2>Simulate a Saturday</h2>
+    <div class="eq-sim-row" id="eq-format"><span class="archive-filter-label">Format</span></div>
+    <div class="eq-sim-row" id="eq-play"><span class="archive-filter-label">Play</span></div>
     <div class="eq-sim-row" id="eq-size"><span class="archive-filter-label">Players</span></div>
     <div class="eq-sim-row" id="eq-mode"><span class="archive-filter-label">Outcomes</span></div>
     <div class="eq-sim-row">
-      <span class="archive-filter-label">Play</span>
+      <span class="archive-filter-label">Run it</span>
       <button class="small-button" type="button" id="eq-first" title="Back to the draw">&#9198; Draw</button>
       <button class="small-button" type="button" id="eq-back">&#9664; Back</button>
       <button class="small-button" type="button" id="eq-next">Next result &#9654;</button>
@@ -114,6 +116,9 @@
 <script src="rating-engine.js"></script>
 <script src="handicap.js"></script>
 <script src="bracket.js"></script>
+<script src="round-robin.js"></script>
+<script src="standings.js"></script>
+<script src="equalizer.js"></script>
 <script src="navtoggle.js"></script>
 <script src="equalizer-mockup.js"></script>
 </body>

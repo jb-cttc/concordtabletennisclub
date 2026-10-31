@@ -6,6 +6,8 @@
 // Survivor Trail ("L"): a first loss drops a player here; a second ends their day. Drop-ins are crossed over (reversed,
 // then halves swapped, alternately) so nobody meets the player they just lost to.
 // Final ("F"): Main Draw winner against Survivor Trail winner; with a replay, a Trail winner who wins it forces one more.
+// Single elimination (the RR -> Finals knockout) is the Main Draw alone: its final decides it.
+// An entrant may be null until known (a group winner still playing): their matches wait, which a bye never does.
 (function (root, factory) {
   "use strict";
 
@@ -17,8 +19,9 @@
 
   var BYE = "BYE";
   var MIN_FIELD = 4;
+  var MIN_SINGLE = 2;
   var MAX_FIELD = 24;
-  var DEFAULTS = { bestOf: 3, finalsBestOf: 5, replay: true, replayBestOf: 3 };
+  var DEFAULTS = { elimination: "double", bestOf: 3, finalsBestOf: 5, replay: true, replayBestOf: 3 };
 
   // Bracket positions so seed 1 and 2 can only meet in the final: [1, 4, 2, 3] for 4.
   function seedOrder(size) {
@@ -49,7 +52,9 @@
   function build(entrants, options) {
     var settings = Object.assign({}, DEFAULTS, options || {});
     var field = entrants.map(String);
-    if (field.length < MIN_FIELD) throw new Error("The Equalizer needs at least " + MIN_FIELD + " players.");
+    var single = settings.elimination === "single";
+    var minimum = single ? MIN_SINGLE : MIN_FIELD;
+    if (field.length < minimum) throw new Error("This bracket needs at least " + minimum + " entries.");
     if (new Set(field).size !== field.length) throw new Error("A player is entered twice.");
     var size = 1;
     var rounds = 0;
@@ -71,6 +76,8 @@
           : [{ winner: main[r - 1][2 * i].id }, { winner: main[r - 1][2 * i + 1].id }]));
       }
     }
+    var mainFinal = main[rounds][0];
+    if (single) return finish(mainFinal, null, 0);
     var trail = [];
     var trailRound = 1;
     trail[1] = [];
@@ -94,13 +101,15 @@
         }
       }
     }
-    var mainFinal = main[rounds][0];
     var trailFinal = trail[trailRound][0];
     add("F", 1, 0, [{ winner: mainFinal.id }, { winner: trailFinal.id }]);
     if (settings.replay) add("F", 2, 0, [{ winner: mainFinal.id }, { winner: trailFinal.id }]);
+    return finish(mainFinal, trailFinal, trailRound);
+
+    function finish(mainFinalMatch, trailFinalMatch, trailRounds) {
     matches.forEach(function (match) {
       match.bestOf = match.id === "GF2" ? settings.replayBestOf
-        : (match.id === mainFinal.id || match.id === trailFinal.id || match.id === "GF") ? settings.finalsBestOf : settings.bestOf;
+        : (match.id === mainFinalMatch.id || (trailFinalMatch && match.id === trailFinalMatch.id) || match.id === "GF") ? settings.finalsBestOf : settings.bestOf;
     });
     var byId = {};
     matches.forEach(function (match) { byId[match.id] = match; });
@@ -117,12 +126,14 @@
       entrants: field,
       size: size,
       rounds: rounds,
-      trailRounds: trailRound,
-      mainFinal: mainFinal.id,
-      trailFinal: trailFinal.id,
+      single: single,
+      trailRounds: trailRounds,
+      mainFinal: mainFinalMatch.id,
+      trailFinal: trailFinalMatch ? trailFinalMatch.id : null,
       settings: settings,
       matches: matches
     };
+    }
   }
 
   // results: { matchId: { winnerId, games: [first, second], forfeitedBy } }. Returns every match with its players,
@@ -133,7 +144,7 @@
     var out = {};
     structure.matches.forEach(function (match) { byId[match.id] = match; });
     function occupant(source) {
-      if (source.seed) return structure.entrants[source.seed - 1] || BYE;
+      if (source.seed) return source.seed > structure.entrants.length ? BYE : structure.entrants[source.seed - 1] || null;
       var from = state(byId[source.winner || source.loser]);
       return source.winner ? from.winnerId : from.loserId;
     }
@@ -171,22 +182,26 @@
 
     // Places are fixed by the draw: everyone knocked out in one Survivor Trail round shares a place, after everyone
     // knocked out later. The champion and runner-up come from the Final.
+    // In single elimination the same goes for each Main Draw round, after the final.
+    var knockout = structure.single ? "W" : "L";
+    var lastRound = structure.single ? structure.rounds - 1 : structure.trailRounds;
     var realByRound = {};
     list.forEach(function (entry) {
-      if (entry.bracket === "L" && entry.status !== "bye") realByRound[entry.round] = (realByRound[entry.round] || 0) + 1;
+      // A match with an entrant not known yet counts as real unless the draw already made it a bye.
+      if (entry.bracket === knockout && entry.status !== "bye") realByRound[entry.round] = (realByRound[entry.round] || 0) + 1;
     });
     var places = {};
     var later = 2;
-    for (var round = structure.trailRounds; round >= 1; round -= 1) {
+    for (var round = lastRound; round >= 1; round -= 1) {
       var shared = realByRound[round] || 0;
       list.forEach(function (entry) {
-        if (entry.bracket === "L" && entry.round === round && entry.status === "done") {
+        if (entry.bracket === knockout && entry.round === round && entry.status === "done") {
           places[entry.loserId] = { place: later + 1, to: later + shared, round: round };
         }
       });
       later += shared;
     }
-    var gf = out.GF;
+    var gf = structure.single ? out[structure.mainFinal] : out.GF;
     var gf2 = out.GF2;
     var deciding = gf2 && gf2.status === "done" ? gf2 : gf && gf.status === "done" && (!gf2 || gf2.status === "skipped") ? gf : null;
     var champion = deciding ? deciding.winnerId : null;
@@ -196,12 +211,13 @@
     }
     // Lives: 2 until a first loss, 1 on the Survivor Trail, 0 when out.
     var losses = {};
-    structure.entrants.forEach(function (id) { losses[id] = 0; });
+    structure.entrants.forEach(function (id) { if (id) losses[id] = 0; });
     list.forEach(function (entry) {
       if (entry.status === "done" && entry.loserId !== BYE) losses[entry.loserId] += 1;
     });
     var lives = {};
-    structure.entrants.forEach(function (id) { lives[id] = places[id] && places[id].place > 1 ? 0 : Math.max(0, 2 - losses[id]); });
+    var start = structure.single ? 1 : 2;
+    structure.entrants.forEach(function (id) { if (id) lives[id] = places[id] && places[id].place > 1 ? 0 : Math.max(0, start - losses[id]); });
     return {
       matches: list,
       byId: out,
@@ -212,60 +228,14 @@
     };
   }
 
-  // Ready matches in the order to call them to tables: earliest wave first, Main Draw before the Trail.
-  function callOrder(resolved, busy) {
-    var playing = busy || {};
-    return resolved.matches.filter(function (entry) {
-      return entry.status === "ready" && !playing[entry.id] &&
-        !Object.keys(playing).some(function (id) { return playing[id].some(function (player) { return entry.players.indexOf(player) >= 0; }); });
-    }).sort(function (left, right) {
-      return left.wave - right.wave || (left.bracket === right.bracket ? 0 : left.bracket === "W" ? -1 : 1) || left.index - right.index;
-    });
-  }
-
-  // A rough finish time, in minutes from the start: every match takes its average, tables are filled in call order,
-  // and the higher seed always wins (the length of the day hardly depends on who wins, except for a replay).
-  function estimate(structure, options) {
-    var settings = Object.assign({ tables: 12, minutes: { 3: 15, 5: 22 }, replayPlayed: false }, options || {});
-    var results = {};
-    var clock = 0;
-    var running = {};
-    var free = settings.tables;
-    var played = 0;
-    for (var guard = 0; guard < 500; guard += 1) {
-      var resolved = resolve(structure, results);
-      if (resolved.finished) break;
-      var busy = {};
-      Object.keys(running).forEach(function (id) { busy[id] = running[id].players; });
-      callOrder(resolved, busy).forEach(function (entry) {
-        if (free <= 0) return;
-        if (Object.keys(running).some(function (id) { return running[id].players.some(function (p) { return entry.players.indexOf(p) >= 0; }); })) return;
-        running[entry.id] = { players: entry.players, ends: clock + (settings.minutes[entry.bestOf] || 15) };
-        free -= 1;
-      });
-      var ids = Object.keys(running);
-      if (!ids.length) break;
-      var next = ids.reduce(function (best, id) { return running[id].ends < running[best].ends ? id : best; }, ids[0]);
-      clock = running[next].ends;
-      var match = resolved.byId[next];
-      var winner = next === "GF" && settings.replayPlayed ? match.players[1] : match.players[0];
-      results[next] = { winnerId: winner };
-      delete running[next];
-      free += 1;
-      played += 1;
-    }
-    return { minutes: clock, matches: played };
-  }
-
   return {
     BYE: BYE,
     MIN_FIELD: MIN_FIELD,
+    MIN_SINGLE: MIN_SINGLE,
     MAX_FIELD: MAX_FIELD,
     seedOrder: seedOrder,
     draw: draw,
     build: build,
-    resolve: resolve,
-    callOrder: callOrder,
-    estimate: estimate
+    resolve: resolve
   };
 }));

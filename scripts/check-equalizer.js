@@ -1,10 +1,18 @@
 'use strict';
 
-// The Equalizer's shared rules (handicap.js, bracket.js). Made-up players only.
+// The Equalizer's shared rules (handicap.js, bracket.js, round-robin.js, equalizer.js). Made-up players only.
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 const H = require('../handicap');
 const B = require('../bracket');
+const RR = require('../round-robin');
+const E = require('../equalizer');
 const ratings = require('../rating-engine');
+
+// Any ready match, for playing a bracket out at random.
+function readyOf(view) { return view.matches.filter(function (m) { return m.status === 'ready'; }); }
 
 // ---- Head start: every full 40 points, at most 8 ----
 [[0, 0], [39, 0], [40, 1], [79, 1], [80, 2], [239, 5], [240, 6], [319, 7], [320, 8], [1000, 8]].forEach(function (testCase) {
@@ -50,6 +58,7 @@ assert.equal(H.pairState('hi', 'lo', start, twoWins, [{ at: '2026-11-09', pair: 
 // ---- Bracket ----
 assert.deepEqual(B.seedOrder(8), [1, 8, 4, 5, 2, 7, 3, 6]);
 assert.throws(function () { B.build(['a', 'b', 'c']); }, /at least 4/);
+assert.throws(function () { B.build(['a'], { elimination: 'single' }); }, /at least 2/);
 assert.throws(function () { B.build(['a', 'b', 'c', 'a']); }, /twice/);
 
 function rng(seed) {
@@ -69,7 +78,7 @@ for (let size = B.MIN_FIELD; size <= B.MAX_FIELD; size += 1) {
     for (let guard = 0; guard < 100; guard += 1) {
       const view = B.resolve(structure, results);
       if (view.finished) break;
-      const ready = B.callOrder(view);
+      const ready = readyOf(view);
       assert.ok(ready.length, 'never stuck: ' + size);
       const match = ready[Math.floor(random() * ready.length)];
       match.players.forEach(function (id) { playedBy[id] = (playedBy[id] || 0) + 1; });
@@ -102,7 +111,7 @@ results = {};
 for (;;) {
   const view = B.resolve(sixteen, results);
   if (view.finished) break;
-  const match = B.callOrder(view)[0];
+  const match = readyOf(view)[0];
   results[match.id] = { winnerId: match.players[0] };
 }
 const shares = {};
@@ -112,7 +121,108 @@ assert.deepEqual(shares, { '1-1': 1, '2-2': 1, '3-3': 1, '4-4': 1, '5-6': 2, '7-
 assert.equal(sixteen.matches.find(function (m) { return m.id === 'W1-1'; }).bestOf, 3);
 assert.equal(sixteen.matches.find(function (m) { return m.id === sixteen.mainFinal; }).bestOf, 5);
 assert.equal(sixteen.matches.find(function (m) { return m.id === 'GF2'; }).bestOf, 3);
-// The estimate grows with the field and the replay.
-assert.ok(B.estimate(sixteen).minutes < B.estimate(sixteen, { replayPlayed: true }).minutes);
 
-console.log('Equalizer checks passed:', events, 'simulated events');
+// ---- Single elimination (the RR -> Finals knockout) ----
+for (let size = 2; size <= 8; size += 1) {
+  const single = B.build(Array.from({ length: size }, function (_, n) { return 'k' + n; }), { elimination: 'single' });
+  assert.ok(single.matches.every(function (m) { return m.bracket === 'W'; }), 'no Survivor Trail');
+  let res = {};
+  for (;;) {
+    const view = B.resolve(single, res);
+    if (view.finished) break;
+    const m = readyOf(view)[0];
+    res[m.id] = { winnerId: m.players[1] };
+  }
+  const view = B.resolve(single, res);
+  assert.equal(Object.keys(res).length, size - 1, size + ': one match fewer than entries');
+  assert.equal(Object.keys(view.places).length, size, 'everyone placed');
+  assert.equal(single.matches.find(function (m) { return m.id === single.mainFinal; }).bestOf, 5);
+}
+// An entrant not known yet (a group still playing) makes its matches wait; a bye never does.
+const waiting = B.build(['x', 'y', 'z'], { elimination: 'single' });
+const pending = Object.assign({}, waiting, { entrants: ['x', null, 'z'] });
+assert.ok(B.resolve(pending, {}).matches.every(function (m) { return m.status !== 'ready' || m.players.indexOf(null) < 0; }));
+assert.equal(B.resolve(pending, {}).finished, false);
+
+// ---- round-robin.js gives the desk's answers (apps-script/Organizer.html) ----
+const desk = { window: {} };
+vm.createContext(desk);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'Organizer.html'), 'utf8').match(/<script>([\s\S]*)<\/script>/)[1], desk);
+const O = desk.window.CTTCOrganizer;
+for (let count = 1; count <= 60; count += 1) {
+  [5, 6, 7].forEach(function (size) { assert.deepEqual(RR.sizeGroups(count, size), Array.from(O.sizeGroups(count, size)), count + ' in groups of ' + size); });
+}
+for (let size = 2; size <= 8; size += 1) {
+  const ids = Array.from({ length: size }, function (_, n) { return 'r' + n; });
+  assert.deepEqual(RR.roundRobinPairs(ids), JSON.parse(JSON.stringify(O.roundRobinPairs(ids))), 'match order for ' + size);
+}
+assert.deepEqual(RR.sizeGroups(13, 4), [4, 3, 3, 3]);
+assert.deepEqual(RR.sizeGroups(24, 4), [4, 4, 4, 4, 4, 4]);
+assert.deepEqual(RR.roundRobinRounds(['a', 'b', 'c', 'd']).map(function (r) { return r.length; }), [2, 2, 2], 'a group of 4 plays 3 rounds on 2 tables');
+
+// ---- Events: both formats, singles and doubles ----
+const pool = Array.from({ length: 25 }, function (_, n) { return { id: 'e' + n, rating: 2150 - n * 75 }; });
+let combos = 0;
+['double', 'groups'].forEach(function (format) {
+  ['singles', 'doubles'].forEach(function (play) {
+    for (let size = E.minimumPlayers(format, play); size <= E.MAX_PLAYERS; size += 1) {
+      const random = rng(size * 7 + (format === 'groups' ? 1 : 0) + (play === 'doubles' ? 2 : 0));
+      const event = E.create({ format: format, play: play, players: pool.slice(0, size) }, random);
+      const seen = {};
+      event.sides.forEach(function (side) {
+        side.members.forEach(function (id) { assert.ok(!seen[id], 'one side each'); seen[id] = true; });
+        assert.equal(side.rating, side.members.reduce(function (sum, id) { return sum + event.ratings[id]; }, 0), 'a team is its ratings added together');
+        assert.equal(side.members.length, play === 'doubles' ? 2 : 1);
+      });
+      assert.equal(Object.keys(seen).length + event.sitOut.length, size, 'everyone plays, or sits out an odd doubles draw');
+      assert.equal(event.sitOut.length, play === 'doubles' ? size % 2 : 0);
+      if (format === 'groups') event.groups.forEach(function (g) { assert.ok(g.sides.length === 3 || g.sides.length === 4, 'groups of 4, or 3'); });
+      const results = {};
+      for (let guard = 0; guard < 200; guard += 1) {
+        const view = E.resolve(event, results);
+        if (view.finished) break;
+        const ready = E.callOrder(view);
+        assert.ok(ready.length, 'never stuck');
+        const m = ready[Math.floor(random() * ready.length)];
+        const side = random() < 0.5 ? 0 : 1;
+        const need = (m.bestOf + 1) / 2;
+        const games = side === 0 ? [need, Math.floor(random() * need)] : [Math.floor(random() * need), need];
+        results[m.id] = { winnerId: m.players[side], games: games };
+      }
+      const view = E.resolve(event, results);
+      assert.ok(view.finished, format + ' ' + play + ' ' + size + ' finishes');
+      const count = Object.keys(results).length;
+      const sides = event.sides.length;
+      if (format === 'double') assert.ok(count === 2 * sides - 2 || count === 2 * sides - 1);
+      else assert.equal(count, event.groups.reduce(function (sum, g) { return sum + g.matches.length; }, 0) + event.groups.length - 1, 'groups, then one knockout match per group winner but one');
+      assert.equal(Object.keys(view.places).length, sides, 'every side placed');
+      if (format === 'groups') view.tables.forEach(function (t) { assert.ok(view.places[t.winnerId].place <= event.groups.length, 'group winners place above everyone else'); });
+      const players = E.playerResults(event, view);
+      const total = Object.keys(players).reduce(function (sum, id) { return sum + players[id].change; }, 0);
+      Object.keys(players).forEach(function (id) {
+        const p = players[id];
+        if (event.ratings[id] - 8 * p.losses > 0) assert.equal(p.change, 8 * (p.wins - p.losses), 'each player, partners included, gains or gives 8 a match');
+      });
+      if (Object.keys(players).every(function (id) { return event.ratings[id] > 8 * players[id].losses; })) assert.equal(total, 0, 'ratings move as much up as down');
+      combos += 1;
+    }
+  });
+});
+// Doubles head starts use the two ratings added together; memory follows the same team.
+const pairs = E.create({ format: 'double', play: 'doubles', players: [{ id: 'a', rating: 2000 }, { id: 'b', rating: 1000 }, { id: 'c', rating: 1500 }, { id: 'd', rating: 1300 }, { id: 'f', rating: 900 }, { id: 'g', rating: 800 }, { id: 'h', rating: 700 }, { id: 'i', rating: 600 }] }, rng(3));
+const [t1, t2] = pairs.sides;
+const gap = Math.abs(t1.rating - t2.rating);
+assert.equal(E.headStart(pairs, t1.id, t2.id).base, Math.min(8, Math.floor(gap / 40)));
+assert.equal(E.teamId(['b', 'a']), 'a+b');
+// A forfeit moves nothing, for either partner.
+const firstMatch = E.resolve(pairs, {}).matches.find(function (m) { return m.status === 'ready'; });
+const forfeited = E.playerResults(pairs, E.resolve(pairs, { [firstMatch.id]: { winnerId: firstMatch.players[0], forfeitedBy: firstMatch.players[1] } }));
+assert.ok(Object.keys(forfeited).every(function (id) { return forfeited[id].change === 0; }));
+assert.equal(forfeited[pairs.sideById[firstMatch.players[0]].members[1]].wins, 1, 'but it is still a win');
+// The estimate grows with the replay and RR -> Finals is shorter than Double Elimination.
+const sixteenSingles = E.create({ format: 'double', play: 'singles', players: pool.slice(0, 16) }, rng(5));
+assert.ok(E.estimate(sixteenSingles).minutes < E.estimate(sixteenSingles, { replayPlayed: true }).minutes);
+assert.ok(E.estimate(E.create({ format: 'groups', play: 'singles', players: pool.slice(0, 16) }, rng(5))).minutes < E.estimate(sixteenSingles).minutes);
+assert.throws(function () { E.create({ format: 'groups', play: 'doubles', players: pool.slice(0, 10) }, rng(1)); }, /at least 12/);
+
+console.log('Equalizer checks passed:', events, 'simulated brackets,', combos, 'simulated events');

@@ -2363,6 +2363,7 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 
 .eq-row .eq-name {
   flex: 1;
+  min-width: 0;
   font-weight: normal;
 }
 
@@ -2530,6 +2531,7 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 
 @media (max-width: 760px) {
   .eq-steps { grid-template-columns: repeat(2, 1fr); }
+  .eq-group-matches { grid-template-columns: minmax(0, 1fr); }
   .eq-field { grid-template-columns: 1fr; }
   .eq-podium { grid-template-columns: 1fr; }
 }
@@ -2545,4 +2547,31 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 
 .eq-stats .tonight-stat > span {
   display: block;
+}
+
+.eq-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 14px;
+}
+
+.eq-group {
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.eq-group h3 {
+  margin: 0 0 6px;
+}
+
+.eq-group-matches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.eq-group-matches .eq-match {
+  font-size: 0.72rem;
 }
