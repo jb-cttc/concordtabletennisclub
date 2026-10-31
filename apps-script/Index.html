@@ -2147,12 +2147,61 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
       byId[added.playerId] = added;
       byName[added.name] = added.playerId;
-      addToRoster(added.playerId, 'new player');
       // The rest of the desk reads the new player too: their badge, and their first visit tonight.
       document.dispatchEvent(new CustomEvent('cttc:players', { detail: added }));
+      renderDirectory();
+      setStatus(added.name + ' saved to the player directory.');
+      choosePlace(added);
     } catch (error) {
       setStatus(error.message, 'error');
     }
+  });
+  // A new player is saved to the directory first; then a window asks whether they play in the round robin (or the
+  // Equalizer) or Open Play tonight, or neither. Escape or a click outside the window means neither.
+  var placeChoice = document.createElement('div');
+  placeChoice.className = 'new-player-choice';
+  placeChoice.hidden = true;
+  placeChoice.innerHTML = '<div class="new-player-choice-card" role="dialog" aria-modal="true" aria-labelledby="new-player-choice-title">' +
+    '<h2 id="new-player-choice-title"></h2>' +
+    '<p class="new-player-choice-lead"></p>' +
+    '<p class="new-player-choice-note hint" hidden></p>' +
+    '<footer><button type="button" class="secondary" data-place="">Not tonight</button><button type="button" class="primary" data-place="open">Open</button><button type="button" class="primary" data-place="rr"></button></footer>' +
+  '</div>';
+  document.body.appendChild(placeChoice);
+  var placing = null;
+  function choosePlace(added) {
+    placing = added;
+    var deskEvent = window.cttcDesk.event();
+    var rrButton = placeChoice.querySelector('[data-place="rr"]');
+    var blocked = locked() ? (state.event === 'equalizer' ? 'The Equalizer' : 'This round robin') + ' is finalized, so only Open Play can take new players.' :
+      pendingRecovery ? 'Choose what to do with the device copy first, then add them with ' + deskEvent.short + ' in the directory.' : '';
+    placeChoice.querySelector('h2').textContent = 'Where does ' + added.name + ' play tonight?';
+    placeChoice.querySelector('.new-player-choice-lead').textContent = added.name + ' is saved to the player directory. Add them to ' + deskEvent.target + ' (' + deskEvent.short + ') or to Open Play / Coaching (Open).';
+    var note = placeChoice.querySelector('.new-player-choice-note');
+    note.textContent = blocked;
+    note.hidden = !blocked;
+    rrButton.textContent = deskEvent.short;
+    rrButton.title = 'Add to ' + deskEvent.target;
+    rrButton.disabled = !!blocked;
+    placeChoice.hidden = false;
+    (blocked ? placeChoice.querySelector('[data-place="open"]') : rrButton).focus();
+  }
+  function placeNewPlayer(where) {
+    var added = placing;
+    if (!added) return;
+    placing = null;
+    placeChoice.hidden = true;
+    if (where === 'rr') addToRoster(added.playerId, 'new player');
+    else if (where === 'open' && window.cttcOpenPlay.add(added.playerId)) setStatus(added.name + ' added to Open Play.');
+    document.getElementById('new-name').focus();
+  }
+  placeChoice.addEventListener('click', function (e) {
+    var button = e.target.closest('[data-place]');
+    if (button) placeNewPlayer(button.getAttribute('data-place'));
+    else if (e.target === placeChoice) placeNewPlayer('');
+  });
+  placeChoice.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); placeNewPlayer(''); }
   });
 
   // A second device (a phone at the tables, a laptop at the front) saves to the same session. While this page has
@@ -4005,7 +4054,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Load a session', text: 'You can use this to load any saved sessions using the date picker and Load Session button.', target: '.date-tools label', also: '#load' },
     { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. When a search also matches archived players, press Show archived players to include them until the page reloads.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
-    { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
+    { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately, then a window asks where they play tonight: RR for the round robin, Open for Open Play / Coaching, or Not tonight.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. Anyone added folds into Added tonight below; press Hide to tuck a text away under Hidden tonight, where Unhide brings it back. Hiding lasts for the night on this device, and a new text from that person brings them back to the top. On Monday and Wednesday nights from 6:45 to 7:30, and Saturdays from 2:45 to 3:30, the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
     { title: 'Group size', text: 'Groups are built by rating in groups of 6 (or 5 when the numbers do not divide evenly). Choose 5 or 7 to rebuild in groups of 5 (or 4) or 7 (or 6). Like Rebuild by rating, it replaces manual moves and reapplies promotions. The choice is for this night on this device; a new night starts at 6.', target: '#group-size' },
@@ -4272,6 +4321,13 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .player-editor-notes .player-editor-warning{color:#6f241f}
 .player-editor-card footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);padding-top:13px}
 .player-editor-card footer .secondary{padding:9px 13px}
+.new-player-choice{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;padding:12px;background:rgba(10,19,17,.6)}
+.new-player-choice[hidden]{display:none}
+.new-player-choice-card{width:min(420px,100%);max-height:calc(100dvh - 24px);overflow:auto;padding:20px;background:#fff;color:var(--ink);border:1px solid #b8c5bc;border-radius:6px;box-shadow:0 16px 45px #0006;font:14px/1.45 Arial,sans-serif}
+.new-player-choice-card h2{font:700 21px/1.25 Georgia,serif;margin:0 0 14px}
+.new-player-choice-card .new-player-choice-note{margin:0 0 12px}
+.new-player-choice-card footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:13px}
+.new-player-choice-card footer .primary{min-width:64px}
 </style>
 <script>
 // The player editor: the pencil beside a name in the player directory opens a window to correct that player's name,

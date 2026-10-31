@@ -130,6 +130,14 @@ const rpc = {
     return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString() };
   },
   listPlayers: function () { return players; },
+  addPlayer: function (name, rating) {
+    name = String(name || '').trim().replace(/\s+/g, ' ');
+    rating = Number(rating);
+    if (!name || name.length > 80) throw new Error('Player name must be 1 through 80 characters.');
+    if (!Number.isInteger(rating) || rating < 0 || rating > 4000) throw new Error('Rating must be a whole number from 0 through 4000.');
+    if (byName[name]) throw new Error(name + ' is already in the player directory.');
+    return playerFor(name, rating);
+  },
   listArchivedPlayers: function () { return []; },
   syncRatingsFromPublicSite: function () { return { skipped: true, checkedAt: new Date().toISOString() }; },
   createSession: function (date) {
@@ -278,7 +286,7 @@ const cashPreview = (function () {
     HtmlService: {}, ScriptApp: {}
   };
   vm.createContext(context);
-  ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js', 'NightFees.js'].forEach(function (file) {
+  ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js', 'NightFees.js', 'SessionIds.js'].forEach(function (file) {
     vm.runInContext(fs.readFileSync(path.join(DESK, file), 'utf8'), context, { filename: file });
   });
   // A plain table stand-in: rows are objects, written and read as they are.
