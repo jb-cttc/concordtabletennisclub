@@ -34,12 +34,23 @@ This page is how to run one and how to fix things.
    whoever has been on longest, so nobody sits out twice in a row. All three
    gain or give the 8. To have someone fill in instead, add them before the
    first result.
-5. **Score** with the balls, as in round robins. Each match shows its head
+5. **Print EQ Sheets** (the round robin's print button, renamed on an
+   Equalizer night) prints the paper sheets. RR → Finals: one sheet per
+   group, laid out like the round robin sheet, with each match's head start
+   where that sheet has rating adjustments, then the Finals bracket (landscape).
+   Double Elimination: the Main Draw with the Final, then the Survivor Trail
+   (one landscape page when there are 8 or fewer sides). Each bracket box has a
+   line per side and a box for games won, sized to fill the page (byes are not
+   drawn: the player shows in the next round); a slot not decided yet says where it
+   comes from ("Winner of W1-2", "Loser of W2-1", "Best group winner"), and a
+   box shows its head start once both sides are known. Print again later in the
+   evening and the sheets show the names and results so far.
+6. **Score** with the balls, as in round robins. Each match shows its head
    start (the red **+N** and "starts every game at N–0"). Groups show live
    standings with the club's tie-break notes; the Finals start once every
    group is decided, with byes for the best group winners. **Collapse
    organizer** folds the player list away during play.
-6. **Finalize Equalizer** once it is finished. Every player's rating moves by
+7. **Finalize Equalizer** once it is finished. Every player's rating moves by
    8 a match on top of their rating at that moment. The lock reopens it, as
    for round robins.
 
@@ -91,7 +102,7 @@ by hand: fix things at the desk.
   email show round robins only, and Equalizer ratings appear in each
   player's rating history (labelled Equalizer on their profile).
 - The head-start memory reset (no automatic reset either), withdraw in one
-  step, best-of changes after the draw, printing, the TV board, and Voice
+  step, best-of changes after the draw, the TV board, and Voice
   automatic answers that name the Equalizer.
 - A release switch: the Equalizer appears on `/exec` with the release that
   includes it.

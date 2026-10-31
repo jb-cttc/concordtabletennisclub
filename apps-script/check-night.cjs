@@ -210,6 +210,15 @@ const cases = {
     b.$('#new-rating').value = '900';
     b.$('#new-player').dispatchEvent(new b.window.Event('submit', { cancelable: true }));
     await run(world, 15000);
+    const choice = b.$('.new-player-choice');
+    assert.equal(choice.hidden, false, 'a new player asks where they play tonight');
+    assert.equal(b.roster().length, 11, 'and is not put in the round robin until RR is chosen');
+    assert.match(choice.querySelector('h2').textContent, /Newcomer Example/);
+    assert.equal(b.window.document.activeElement, choice.querySelector('[data-place="rr"]'), 'RR has the focus');
+    b.click(choice.querySelector('[data-place="rr"]'));
+    assert.equal(choice.hidden, true);
+    assert.equal(b.roster().length, 12, 'RR adds them to the draft');
+    await run(world, 15000);
     a.scoreMatch(0, 'one', 1);
     await run(world, 90000);
     assert.equal(a.roster().length, 12, 'the laptop shows the player the phone added');
@@ -776,6 +785,125 @@ const cases = {
     assert.deepEqual(replies.sort(), world.players.slice(0, 3).map(p => p.display_name).sort(), 'every Confirmed. went out once Google answered');
     const saved = JSON.parse(sim.googleKey(world, DATE)).groups.join(',');
     world.players.slice(0, 3).forEach(player => assert.ok(saved.includes(player.player_id), 'the draft reached Google'));
+    assert.deepEqual(tab.errors, []);
+  },
+
+  // After adding someone from a search, the search clears itself 20 seconds after the last add; typing keeps it.
+  async searchClearsAfterAdding() {
+    const world = sim.createWorld({ seed: 33 });
+    const tab = await deskWith(world, world.device(), 2);
+    const search = tab.$('#search');
+    const type = text => { search.value = text; search.dispatchEvent(new tab.window.Event('input', { bubbles: true })); };
+    const [a, b, c, d] = world.players.slice(2, 6);
+    type(a.display_name);
+    tab.click(tab.$('[data-add="' + a.player_id + '"]'));
+    await run(world, 15000);
+    assert.equal(search.value, a.display_name, 'the search stays for a while');
+    type(b.display_name);
+    await run(world, 100);
+    tab.click(tab.$('[data-open-add="' + b.player_id + '"]'));
+    await run(world, 15000);
+    assert.equal(search.value, b.display_name, 'each add starts the 20 seconds again');
+    await run(world, 6000);
+    assert.equal(search.value, '', 'then it clears');
+    assert.ok(tab.$('#results').children.length > 4, 'and the whole directory shows again');
+    assert.ok(tab.roster().includes(a.player_id));
+
+    type(c.display_name);
+    tab.click(tab.$('[data-add="' + c.player_id + '"]'));
+    await run(world, 5000);
+    type(d.display_name);
+    await run(world, 30000);
+    assert.equal(search.value, d.display_name, 'typing a new search keeps it');
+    assert.deepEqual(tab.errors, []);
+  },
+
+  // A new player: Open puts them in Open Play, not the round robin; Not tonight (or Escape) leaves them in the directory.
+  async newPlayerOpenOrNotTonight() {
+    const world = sim.createWorld({ seed: 31 });
+    const tab = await deskWith(world, world.device(), 6);
+    const doc = tab.window.document;
+    const choice = tab.$('.new-player-choice');
+    const addNew = async name => {
+      tab.$('#new-name').value = name;
+      tab.$('#new-player').dispatchEvent(new tab.window.Event('submit', { cancelable: true }));
+      await run(world, 15000);
+      assert.equal(choice.hidden, false, name + ': the choice is shown');
+      return world.server.rows('Players').find(row => row.display_name === name).player_id;
+    };
+    const open = await addNew('Open Example');
+    assert.equal(tab.roster().length, 6);
+    tab.click(choice.querySelector('[data-place="open"]'));
+    assert.equal(choice.hidden, true);
+    assert.equal(tab.roster().length, 6, 'Open does not touch the round robin');
+    assert.ok(doc.querySelector('#open-roster [data-open-remove="' + open + '"]'), 'Open puts them in Open Play at once');
+    assert.equal(tab.status(), 'Open Example added to Open Play.');
+    await run(world, 30000);
+    assert.ok(world.server.rows('OpenPlay').some(r => String(r.player_id) === open), 'and Open Play reaches Google');
+
+    const later = await addNew('Later Example');
+    tab.click(choice.querySelector('[data-place=""]'));
+    assert.equal(choice.hidden, true);
+    assert.equal(tab.roster().length, 6, 'Not tonight adds them nowhere');
+    assert.equal(doc.querySelector('#open-roster [data-open-remove="' + later + '"]'), null);
+    assert.equal(doc.activeElement, tab.$('#new-name'), 'the name box is ready for the next player');
+
+    await addNew('Escape Example');
+    choice.dispatchEvent(new tab.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(choice.hidden, true, 'Escape closes it the same way');
+    assert.equal(tab.roster().length, 6);
+    await run(world, 30000);
+    inStep(world, tab, 'new players');
+  },
+
+  // A coached student who is not in the directory yet, and a player moved from the round robin to Open: both as on the
+  // night of 2026-10-31, when the student was added and Open bounced him back out.
+  async coachedNewcomerAndRoundRobinToOpen() {
+    const world = sim.createWorld({ seed: 32 });
+    world.server.context.coachingLessons_ = () => [
+      { role: 'coach', name: world.players[0].display_name, phone: '', lesson: { start: '16:00', minutes: 60, coachLabel: 'D' } },
+      { role: 'student', name: 'Coached Newcomer', phone: '', lesson: { start: '16:00', minutes: 60, coachLabel: 'D' } }
+    ];
+    const tab = await deskWith(world, world.device(), 1);
+    const doc = tab.window.document;
+    const solo = world.players[1].player_id;
+    assert.deepEqual(tab.roster(), [world.players[0].player_id]);
+    const studentRow = () => [...doc.querySelectorAll('.coaching-row')].find(row => /Coached Newcomer/.test(row.textContent));
+    assert.equal(studentRow().getAttribute('data-coaching'), null, 'a student not in the directory has no player to pay for');
+    assert.equal(studentRow().querySelector('.payment-trigger'), null);
+
+    tab.$('#new-name').value = 'Coached Newcomer';
+    tab.$('#new-rating').value = '500';
+    tab.$('#new-player').dispatchEvent(new tab.window.Event('submit', { cancelable: true }));
+    await run(world, 15000);
+    tab.click(tab.$('.new-player-choice [data-place=""]'));
+    await run(world, 15000);
+    const newcomer = world.server.rows('Players').find(row => row.display_name === 'Coached Newcomer').player_id;
+    assert.equal(studentRow().getAttribute('data-coaching'), newcomer, 'adding them matches their lesson without a reload');
+    assert.ok(studentRow().querySelector('.payment-trigger'), 'and their payment can be recorded');
+    const search = tab.$('#search');
+    search.value = 'Coached Newcomer';
+    search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
+    await run(world, 100);
+    assert.equal(doc.querySelector('[data-open-add="' + newcomer + '"]').hidden, true, 'the directory shows them as coached');
+
+    // The only round robin player moves to Open: the empty round robin is saved, and Open waits for that save.
+    tab.addPlayer(solo);
+    await run(world, 20000);
+    tab.removePlayer(world.players[0].player_id);
+    await run(world, 20000);
+    assert.deepEqual(tab.roster(), [solo]);
+    tab.removePlayer(solo);
+    search.value = world.players[1].display_name;
+    search.dispatchEvent(new tab.window.Event('input', { bubbles: true }));
+    await Promise.resolve();
+    tab.click(doc.querySelector('[data-open-add="' + solo + '"]'));
+    assert.ok(doc.querySelector('#open-roster [data-open-remove="' + solo + '"]'), 'Open shows at once');
+    await run(world, 60000);
+    assert.ok(doc.querySelector('#open-roster [data-open-remove="' + solo + '"]'), 'and stays');
+    assert.ok(world.server.rows('OpenPlay').some(r => String(r.player_id) === solo), 'Open Play reached Google');
+    assert.equal(sim.googleSession(world, DATE).groups.length, 0, 'the empty round robin reached Google');
+    assert.equal(tab.syncNote(), '', 'nothing is left waiting or refused');
     assert.deepEqual(tab.errors, []);
   }
 };

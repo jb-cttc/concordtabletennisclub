@@ -241,7 +241,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }, function (error) {
       flushing = false;
       var message = error && error.message || String(error);
-      if (handler.rejected && handler.rejected.test(message)) {
+      if (handler.rejected && (typeof handler.rejected === 'function' ? handler.rejected(message, entry) : handler.rejected.test(message))) {
         failures = 0;
         if ((entry.version || 0) === sentVersion) {
           entries.splice(entries.indexOf(entry), 1);
@@ -615,7 +615,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return navigator.onLine === false || syncFailures >= 2;
   }
   function canAutoSync() {
-    return state.event !== 'equalizer' && !pendingSwitch() && deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && !window.cttcTab.retired() && loadedDate === date.value && !locked() && state.roster.length > 0 && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
+    return state.event !== 'equalizer' && !pendingSwitch() && deviceDraftUnsynced && !pendingRecovery && !saveInFlight && !reconciling && !syncConflict && !window.cttcTab.retired() && loadedDate === date.value && !locked() && (state.roster.length > 0 || !!state.session) && !pendingActivations() && (!saveNeedsReload || reconcileNeeded);
   }
   function scheduleAutoSync(delay) {
     clearTimeout(autoSyncTimer);
@@ -1284,7 +1284,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var equalizer = state.event === 'equalizer';
     document.querySelector('.workspace').classList.toggle('locked', isLocked);
     renderEventSwitch();
-    ['group-size', 'rebuild', 'print-sheets', 'device-save', 'save', 'promotion-context', 'matches'].forEach(function (id) { document.getElementById(id).hidden = equalizer; });
+    ['group-size', 'rebuild', 'device-save', 'save', 'promotion-context', 'matches'].forEach(function (id) { document.getElementById(id).hidden = equalizer; });
+    document.getElementById('print-sheets').textContent = equalizer ? 'Print EQ Sheets' : 'Print RR Sheets';
     document.getElementById('eq-options').hidden = !equalizer;
     document.getElementById('equalizer').hidden = !equalizer;
     if (equalizer) {
@@ -1294,6 +1295,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in the Equalizer';
       summary.classList.remove('warn');
       document.getElementById('clear-roster').disabled = !state.roster.length || isLocked || eqDesk.hasResults();
+      document.getElementById('print-sheets').disabled = !eqDesk.printData();
       renderGroups();
       eqDesk.render();
       renderDirectory();
@@ -1510,7 +1512,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         : 'Reload this session to check Google Sheets before saving again.', 'error');
       return null;
     }
-    if (!state.roster.length) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
+    // An empty roster is saved only to clear a session Google already holds (the last player removed, or Clear).
+    if (!state.roster.length && !state.session) { if (!auto) setStatus('Add at least one player before saving.', 'error'); return null; }
     if (navigator.onLine === false) return auto ? null : saveOnDevice();
     if (pendingActivations()) {
       window.cttcOutbox.flush();
@@ -1838,6 +1841,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     event: function () { return state.event === 'equalizer' ? { short: 'EQ', placed: 'In EQ', target: 'the Equalizer' } : { short: 'RR', placed: 'In RR', target: 'the RR draft' }; },
     print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
     needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
+    // On an Equalizer night, its draw and results for printing (EqualizerPrint.html); null on a round robin night.
+    equalizerPrint: function () { return state.event === 'equalizer' ? eqDesk.printData() : null; },
+    // True while a round robin change on this page has not reached Google yet (it is sent a moment after each change).
+    // Not while the save is stuck (a conflict, or retries used up), so nothing waits on it for good.
+    draftPending: function () { return saveInFlight || (canAutoSync() && syncFailures < AUTO_RETRY_LIMIT); },
     saveDraft: save
   };
 
@@ -2064,6 +2072,30 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     persistDeviceDraft();
   });
   search.addEventListener('input', renderDirectory);
+  // After someone is added from a search (RR, EQ or Open), the search clears itself 20 seconds later, so whoever comes
+  // back to the desk starts from the whole directory. Each add starts the 20 seconds again, so several people with
+  // similar names can be added in a row; typing in the search keeps it.
+  var SEARCH_CLEAR_MS = 20000;
+  var searchClearTimer = null;
+  var searchWhenAdded = '';
+  document.addEventListener('click', function (e) {
+    var button = e.target.closest && e.target.closest('#results [data-add], #results [data-open-add]');
+    if (!button || button.disabled || !search.value) return;
+    clearTimeout(searchClearTimer);
+    searchWhenAdded = search.value;
+    searchClearTimer = setTimeout(function () {
+      searchClearTimer = null;
+      if (!search.value) return;
+      search.value = '';
+      search.dispatchEvent(new Event('input'));
+    }, SEARCH_CLEAR_MS);
+  }, true);
+  // The page redraws the directory with input events of its own; only a changed search counts as typing.
+  search.addEventListener('input', function () {
+    if (!searchClearTimer || search.value === searchWhenAdded) return;
+    clearTimeout(searchClearTimer);
+    searchClearTimer = null;
+  });
   document.getElementById('load').addEventListener('click', load);
   date.addEventListener('change', load);
   document.getElementById('rebuild').addEventListener('click', function () {
@@ -2147,12 +2179,61 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.players.sort(function (a, b) { return a.name.localeCompare(b.name); });
       byId[added.playerId] = added;
       byName[added.name] = added.playerId;
-      addToRoster(added.playerId, 'new player');
       // The rest of the desk reads the new player too: their badge, and their first visit tonight.
       document.dispatchEvent(new CustomEvent('cttc:players', { detail: added }));
+      renderDirectory();
+      setStatus(added.name + ' saved to the player directory.');
+      choosePlace(added);
     } catch (error) {
       setStatus(error.message, 'error');
     }
+  });
+  // A new player is saved to the directory first; then a window asks whether they play in the round robin (or the
+  // Equalizer) or Open Play tonight, or neither. Escape or a click outside the window means neither.
+  var placeChoice = document.createElement('div');
+  placeChoice.className = 'new-player-choice';
+  placeChoice.hidden = true;
+  placeChoice.innerHTML = '<div class="new-player-choice-card" role="dialog" aria-modal="true" aria-labelledby="new-player-choice-title">' +
+    '<h2 id="new-player-choice-title"></h2>' +
+    '<p class="new-player-choice-lead"></p>' +
+    '<p class="new-player-choice-note hint" hidden></p>' +
+    '<footer><button type="button" class="secondary" data-place="">Not tonight</button><button type="button" class="primary" data-place="open">Open</button><button type="button" class="primary" data-place="rr"></button></footer>' +
+  '</div>';
+  document.body.appendChild(placeChoice);
+  var placing = null;
+  function choosePlace(added) {
+    placing = added;
+    var deskEvent = window.cttcDesk.event();
+    var rrButton = placeChoice.querySelector('[data-place="rr"]');
+    var blocked = locked() ? (state.event === 'equalizer' ? 'The Equalizer' : 'This round robin') + ' is finalized, so only Open Play can take new players.' :
+      pendingRecovery ? 'Choose what to do with the device copy first, then add them with ' + deskEvent.short + ' in the directory.' : '';
+    placeChoice.querySelector('h2').textContent = 'Where does ' + added.name + ' play tonight?';
+    placeChoice.querySelector('.new-player-choice-lead').textContent = added.name + ' is saved to the player directory. Add them to ' + deskEvent.target + ' (' + deskEvent.short + ') or to Open Play / Coaching (Open).';
+    var note = placeChoice.querySelector('.new-player-choice-note');
+    note.textContent = blocked;
+    note.hidden = !blocked;
+    rrButton.textContent = deskEvent.short;
+    rrButton.title = 'Add to ' + deskEvent.target;
+    rrButton.disabled = !!blocked;
+    placeChoice.hidden = false;
+    (blocked ? placeChoice.querySelector('[data-place="open"]') : rrButton).focus();
+  }
+  function placeNewPlayer(where) {
+    var added = placing;
+    if (!added) return;
+    placing = null;
+    placeChoice.hidden = true;
+    if (where === 'rr') addToRoster(added.playerId, 'new player');
+    else if (where === 'open' && window.cttcOpenPlay.add(added.playerId)) setStatus(added.name + ' added to Open Play.');
+    document.getElementById('new-name').focus();
+  }
+  placeChoice.addEventListener('click', function (e) {
+    var button = e.target.closest('[data-place]');
+    if (button) placeNewPlayer(button.getAttribute('data-place'));
+    else if (e.target === placeChoice) placeNewPlayer('');
+  });
+  placeChoice.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.preventDefault(); placeNewPlayer(''); }
   });
 
   // A second device (a phone at the tables, a laptop at the front) saves to the same session. While this page has
@@ -3289,7 +3370,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     });
   }
   outbox.register('setOpenPlayParticipant', {
-    rejected: /Unknown or inactive player|already in the saved round robin|Valid player and attendance|Invalid date|Duplicate open-play/,
+    // A player just taken out of the round robin is still in it on Google until the draft saves a moment later: Open
+    // waits for that save and tries again, instead of giving up.
+    rejected: function (message, entry) {
+      var desk = window.cttcDesk;
+      if (/already in the saved round robin/.test(message) && entry.args[2] && entry.args[0] === date.value &&
+        desk && !desk.has(entry.args[1]) && desk.draftPending()) return false;
+      return /Unknown or inactive player|already in the saved round robin|Valid player and attendance|Invalid date|Duplicate open-play/.test(message);
+    },
     describe: function (entry) { return (names[entry.args[1]] || 'A player') + ' in Open Play'; },
     rejectedFn: function (entry) {
       if (entry.args[0] !== date.value) return;
@@ -3443,7 +3531,19 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   document.addEventListener('cttc:players', function (event) {
     names[event.detail.playerId] = event.detail.name;
     ratings[event.detail.playerId] = event.detail.currentRating;
+    // A coaching student who was not in the directory is matched (and gets a Payment control) as soon as they are added
+    // or renamed, without reloading the page.
+    if (coaching.some(function (entry) { return !entry.playerId; })) refreshCoaching();
   });
+  function refreshCoaching() {
+    var sessionDate = date.value;
+    var current = requestNumber;
+    request('getCoachingParticipants', sessionDate).then(function (list) {
+      if (current !== requestNumber || sessionDate !== date.value) return;
+      coaching = list;
+      renderOpen();
+    }, function () { /* the list loaded with the page stays; a reload tries again */ });
+  }
   document.addEventListener('cttc:ratings', function (event) {
     Object.assign(ratings, event.detail);
     renderOpen();
@@ -3986,6 +4086,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 })();
 </script>
 <?!= include('Print') ?>
+<?!= include('EqualizerPrint') ?>
 <style>
 .tour-shield,.tour-shade,.tour-outline,.tour-dialog{position:fixed}.tour-shield{inset:0;z-index:1998}.tour-shade{background:rgba(10,19,17,.74);z-index:1999;pointer-events:none}.tour-outline{z-index:2000;pointer-events:none;border:3px solid #d4a544;border-radius:6px;box-shadow:0 0 0 3px #fff9}.tour-dialog{z-index:2001;width:min(380px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;padding:20px;background:#fff;color:var(--ink);border:1px solid #b8c5bc;border-radius:6px;box-shadow:0 16px 45px #0006;font:15px/1.5 Arial,sans-serif}.tour-dialog h2{font:700 21px/1.25 Georgia,serif;margin:0 25px 10px 0}.tour-dialog p{margin:0 0 16px}.tour-dialog footer{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding-top:13px}.tour-dialog .tour-progress{margin-right:auto;color:var(--muted);font-size:12px}.tour-dialog button{font:13px Arial,sans-serif}.tour-dialog .tour-close{position:absolute;right:12px;top:10px;background:transparent;border:0;color:var(--muted);font-size:22px;line-height:1}.tour-dialog .tour-next{background:var(--green);color:#fff;border:1px solid var(--green);border-radius:4px;padding:8px 12px}.tour-dialog .tour-next:disabled{opacity:.55;cursor:wait}.tour-dialog .tour-back,.tour-dialog .tour-skip{background:transparent;border:0;padding:8px 4px;color:var(--green)}.tour-dialog button:focus-visible,.tour-launch:focus-visible{outline:3px solid var(--gold);outline-offset:2px}body.tour-active{overflow:hidden}
 .tour-shade,.tour-outline{animation:tour-enter .35s ease-out both}body.tour-positioned .tour-shade,body.tour-positioned .tour-outline{transition:left .35s ease-in-out,top .35s ease-in-out,width .35s ease-in-out,height .35s ease-in-out}
@@ -4005,7 +4106,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Load a session', text: 'You can use this to load any saved sessions using the date picker and Load Session button.', target: '.date-tools label', also: '#load' },
     { title: 'Find a player', text: 'Search the directory by name. Active players appear by default. When a search also matches archived players, press Show archived players to include them until the page reloads.', target: '.sidebar section.section:first-of-type' },
     { title: 'RR or Open', text: 'Choose RR to add a player to the round robin draft, or Open to put them in Open Play / Coaching. A player cannot be in both on the same date.', target: '#results .directory-actions' },
-    { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately; choose RR to add them to the round robin.', target: '#new-player' },
+    { title: 'Add a new player', text: 'Enter a name and rating to create a directory record. New players save immediately, then a window asks where they play tonight: RR for the round robin, Open for Open Play / Coaching, or Not tonight.', target: '#new-player' },
     { title: 'Voice signups', text: 'Forwarded signup messages appear here. A check mark on the envelope means the text says they are coming and the contact name matches one player; a question mark means look first (hover to see why). Choose RR to add one player, or Add all to add everyone with a check mark. Anyone added folds into Added tonight below; press Hide to tuck a text away under Hidden tonight, where Unhide brings it back. Hiding lasts for the night on this device, and a new text from that person brings them back to the top. On Monday and Wednesday nights from 6:45 to 7:30, and Saturdays from 2:45 to 3:30, the list checks for new texts every minute by itself.', target: '.voice-suggestions' },
     { title: 'Track payment', text: 'Each round robin roster row has a Payment control. Choose Venmo, Zelle, Cash, Credit, or Zeffy (or Unpaid to clear it); monthly Zeffy passes show as covered automatically. Payments, Open Play and membership changes are recorded on this device at once and sync to Google in the background, so they also work offline; a dashed outline or the note at the bottom left shows what is still waiting.', target: '#groups .payment-control' },
     { title: 'Group size', text: 'Groups are built by rating in groups of 6 (or 5 when the numbers do not divide evenly). Choose 5 or 7 to rebuild in groups of 5 (or 4) or 7 (or 6). Like Rebuild by rating, it replaces manual moves and reapplies promotions. The choice is for this night on this device; a new night starts at 6.', target: '#group-size' },
@@ -4013,7 +4114,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     { title: 'Open Play / Coaching', text: 'Players added with Open appear in this separate list below the round robin. Remove them here if their plans change. Coaches and students with a lesson confirmed in the coaching app are listed here automatically, and their texts are left out of Voice signups.', target: '.open-play-section' },
     { title: 'Save on this device', text: 'If the internet drops, keep this tab open and use Save on device. It keeps the roster, groups, and scores in this browser for this date without contacting Google; later edits also update this copy. Use the same device and browser to recover it.', target: '#device-save' },
     { title: 'If the connection drops', text: 'Nothing to do: changes sync to Google Sheets by themselves. If Google cannot be reached, a yellow notice says your draft is kept on this device and syncs automatically when the connection returns. Changes this device had not yet sent are put back when the tab is opened again, and scores entered on another tab or device are combined with yours. Only if the same match was recorded two different ways does the desk stop and ask which to keep.', target: '#save' },
-    { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline.', target: '#print-sheets' },
+    { title: 'Print the sheets', text: 'When the groups are ready, print the round robin sheets to record matches on paper. Printing also works from the device draft while offline. On an Equalizer night the same button prints its group sheets and brackets.', target: '#print-sheets' },
     { title: 'Record the scores', text: 'After play, tap the balls for the games each player won (tap the 3rd ball to fill all three; tap the dashed 0 if they won none; tap a filled ball again to clear it). The winner gets a green check under their name. If time runs short and you switch to best of 3, tap the 2 ball, then tap the gray Winner badge under that player\u2019s name. Standings and projected rating changes update as scores come in, and the scores sync to Google Sheets automatically. If a player forfeits, choose who under the match: the other player is recorded as the winner and no rating points move. If neither played, choose Both forfeited.', target: '#matches .match-group .match' },
     { title: 'Finalize RR Results', text: 'After checking every result, finalize to make ratings authoritative and lock the session. The button then shows a lock: click it to reopen the session, which reverses its rating changes (only until the club site publishes it). Finalize again after correcting. Do not use it for practice.', target: '#finalize' },
     { title: 'Publish results', text: 'After you finalize, a countdown starts and the results publish to the club site in 2 minutes; once the site is updated, a second 2-minute countdown sends the results email. Reopen the session before publishing to correct it, or press Publish now or Send now to skip a wait. Saving a draft or finishing this tour publishes nothing.', target: '#session-meta' },
@@ -4272,6 +4373,13 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .player-editor-notes .player-editor-warning{color:#6f241f}
 .player-editor-card footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);padding-top:13px}
 .player-editor-card footer .secondary{padding:9px 13px}
+.new-player-choice{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;padding:12px;background:rgba(10,19,17,.6)}
+.new-player-choice[hidden]{display:none}
+.new-player-choice-card{width:min(420px,100%);max-height:calc(100dvh - 24px);overflow:auto;padding:20px;background:#fff;color:var(--ink);border:1px solid #b8c5bc;border-radius:6px;box-shadow:0 16px 45px #0006;font:14px/1.45 Arial,sans-serif}
+.new-player-choice-card h2{font:700 21px/1.25 Georgia,serif;margin:0 0 14px}
+.new-player-choice-card .new-player-choice-note{margin:0 0 12px}
+.new-player-choice-card footer{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:13px}
+.new-player-choice-card footer .primary{min-width:64px}
 </style>
 <script>
 // The player editor: the pencil beside a name in the player directory opens a window to correct that player's name,

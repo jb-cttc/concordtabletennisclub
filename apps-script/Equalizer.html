@@ -513,7 +513,20 @@ window.CTTCEqualizerDesk = function (desk) {
     reopen: reopen,
     refetch: refetch,
     state: function () { return eq; },
-    setSession: function (session) { eq.session = session; }
+    setSession: function (session) { eq.session = session; },
+    // What the printed group sheets and brackets need (EqualizerPrint.html), or null before there is a draw.
+    printData: function () {
+      var ev = event();
+      if (!ev) return null;
+      var view = E.resolve(ev, eq.results);
+      return {
+        date: eq.date, event: ev, view: view,
+        names: function (sideId) { return sideName(ev, sideId); },
+        playerName: function (id) { return player(id).name; },
+        headStart: function (m) { return headStartFor(ev, view, m); },
+        roundName: function (m) { return roundName(ev, m); }
+      };
+    }
   };
 };
 </script>
