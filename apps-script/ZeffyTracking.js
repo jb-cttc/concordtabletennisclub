@@ -10,6 +10,8 @@ var ZEFFY_READER_VERSION_ = '2';
 var ZEFFY_SYNC_INTERVAL_MS_ = 10 * 60000;
 // A renewal retried a few days late still continues the streak.
 var ZEFFY_RENEWAL_GRACE_DAYS_ = 3;
+// Each payment covers sessions through 31 days after it was paid, whatever the month's length.
+var ZEFFY_PASS_DAYS_ = 31;
 var ZEFFY_EXPIRED_LIST_DAYS_ = 90;
 
 function zeffyEmail_(value) {
@@ -127,14 +129,8 @@ function zeffyNameResolver_(playerRows, aliases) {
   };
 }
 
-// Zeffy charges on the start date's day each month, or the month's last day when shorter.
-function zeffyMonthsLater_(anchor, months) {
-  var parts = anchor.split('-').map(Number);
-  var total = parts[0] * 12 + parts[1] - 1 + months;
-  var year = Math.floor(total / 12);
-  var month = total % 12;
-  var lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(year, month, Math.min(parts[2], lastDay))).toISOString().slice(0, 10);
+function zeffyDaysLater_(date, days) {
+  return new Date(Date.parse(date + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
 }
 
 function zeffyDaysBetween_(from, to) {
@@ -175,13 +171,13 @@ function zeffyPassesForDate_(payments, sessionDate, resolve) {
   });
   return Object.keys(people).map(function (key) {
     var person = people[key];
-    var anchor = '';
+    var renewsOn = '';
     var streak = 0;
     Object.keys(person.dates).sort().forEach(function (date) {
-      if (anchor && zeffyDaysBetween_(zeffyMonthsLater_(anchor, streak), date) <= ZEFFY_RENEWAL_GRACE_DAYS_) streak += 1;
-      else { anchor = date; streak = 1; }
+      if (renewsOn && zeffyDaysBetween_(renewsOn, date) <= ZEFFY_RENEWAL_GRACE_DAYS_) streak += 1;
+      else streak = 1;
+      renewsOn = zeffyDaysLater_(date, ZEFFY_PASS_DAYS_);
     });
-    var renewsOn = anchor ? zeffyMonthsLater_(anchor, streak) : '';
     var daysLeft = renewsOn ? zeffyDaysBetween_(sessionDate, renewsOn) : -1;
     var active = daysLeft >= 0;
     var endedOn = renewsOn || person.cancelledOn;
