@@ -79,12 +79,10 @@ for (const file of ['LinkedNames.js', 'PrivatePayments.js', 'ZeffyTracking.js', 
 const date = '2026-09-23';
 const names = () => context.getZeffyPlayers(null, date).map(p => p.name).join(',');
 
-assert.equal(context.zeffyMonthsLater_('2026-01-31', 1), '2026-02-28', 'a short month ends on its last day');
-assert.equal(context.zeffyMonthsLater_('2026-01-31', 2), '2026-03-31', 'later months return to the start day');
-assert.equal(context.zeffyMonthsLater_('2028-01-30', 1), '2028-02-29', 'leap years keep February 29');
-assert.equal(context.zeffyMonthsLater_('2026-12-15', 1), '2027-01-15');
-assert.equal(context.zeffyDaysBetween_('2026-02-05', context.zeffyMonthsLater_('2026-02-05', 1)), 28, 'a February pass lasts 28 days');
-assert.equal(context.zeffyDaysBetween_('2026-04-05', context.zeffyMonthsLater_('2026-04-05', 1)), 30);
+assert.equal(context.zeffyDaysLater_('2026-01-31', 31), '2026-03-03', 'a pass lasts 31 days, even across February');
+assert.equal(context.zeffyDaysLater_('2028-02-01', 31), '2028-03-03', 'leap years count February 29');
+assert.equal(context.zeffyDaysLater_('2026-12-15', 31), '2027-01-15');
+assert.equal(context.zeffyDaysLater_('2026-03-07', 31), '2026-04-07', 'daylight saving does not shift the date');
 assert.equal(context.parseZeffyEmail_('x <someone@example.com>', PASS, purchase('Avery Park', 'a@example.com', ['Avery Park']), date).length, 0, 'only Zeffy can report payments');
 assert.deepEqual(JSON.parse(JSON.stringify(context.parseZeffyEmail_('<contact@communication.mailer.zeffy.com>', PASS, purchase('Avery Park', 'A@example.com', ['Avery Park', 'Kid Park']), date))), [
   { paid_on: date, kind: 'purchase', payer_name: 'Avery Park', payer_email: 'a@example.com', participant_name: 'Avery Park' },
@@ -159,16 +157,16 @@ inbox = [
 const tracked = context.getZeffyPlayers(null, date);
 assert.deepEqual(JSON.parse(JSON.stringify(tracked)), [
   { playerId: 'a', name: 'Avery Park', active: false, daysLeft: null, streak: 1, renewsOn: '2026-09-01' },
-  { playerId: 'b', name: 'Dana Chen', active: true, daysLeft: 19, streak: 3, renewsOn: '2026-10-12' },
-  { playerId: '', name: 'Kim Tan', active: true, daysLeft: 27, streak: 1, renewsOn: '2026-10-20' },
-  { playerId: 'll', name: 'Mei Tan', active: true, daysLeft: 27, streak: 1, renewsOn: '2026-10-20' }
+  { playerId: 'b', name: 'Dana Chen', active: true, daysLeft: 20, streak: 3, renewsOn: '2026-10-13' },
+  { playerId: '', name: 'Kim Tan', active: true, daysLeft: 28, streak: 1, renewsOn: '2026-10-21' },
+  { playerId: 'll', name: 'Mei Tan', active: true, daysLeft: 28, streak: 1, renewsOn: '2026-10-21' }
 ], 'aliases, unlisted buyers, expired passes and streaks come from Zeffy mail');
 assert.equal(tables.ZeffyPayments.length, 8, 'one row per covered person, cancellations included');
 assert.equal(context.getPrivatePaymentState(date).a, 'zeffy', 'an expired pass leaves a recorded session payment alone');
 assert.equal(context.getPrivatePaymentState(date).b, 'zeffy');
 assert.equal(context.getPrivatePaymentState(date).ml, 'zeffy', 'linked names still share a pass');
-assert.equal(context.getPrivatePaymentOverview('2026-10-12').methods.b, 'zeffy', 'the renewal day is still covered');
-assert.equal(context.getPrivatePaymentOverview('2026-10-13').methods.b, '', 'a missed renewal expires the pass');
+assert.equal(context.getPrivatePaymentOverview('2026-10-13').methods.b, 'zeffy', 'day 31 after the last payment is still covered');
+assert.equal(context.getPrivatePaymentOverview('2026-10-14').methods.b, '', 'a missed renewal expires the pass');
 assert.equal(context.getZeffyPlayers(null, '2026-11-01').find(pass => pass.name === 'Mei Tan').streak, 2, 'renewals cover everyone the buyer bought for');
 const fullSearches = searches.length;
 context.getZeffyPlayers(null, date);

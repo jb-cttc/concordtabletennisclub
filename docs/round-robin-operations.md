@@ -229,9 +229,9 @@ and covered by hand. When the reader learns a new format
 (`ZEFFY_READER_VERSION_` in `apps-script/ZeffyTracking.js`), its first sync
 reads the whole mailbox again and picks up the emails it skipped before. Zeffy names
 match a directory player by display name or a private `Aliases` row; unmatched
-buyers still appear in the list. A payment covers sessions until the next
-charge date: the start day in each following month, or that month's last day
-when shorter, inclusive. The sidebar shows `(Nd left)` for active passes, a red
+buyers still appear in the list. A payment covers sessions through 31 days
+after it was paid, inclusive, whatever the month's length; a payment made
+before then (or up to 3 days late) continues the streak. The sidebar shows `(Nd left)` for active passes, a red
 **(Expired)** for passes that lapsed (or were cancelled) within the past 90
 days, and a superscript count of consecutive monthly payments. A cancellation
 does not end a month already paid. Manual holders in `ZeffyPasses` by player ID
