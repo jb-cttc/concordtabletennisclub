@@ -2,9 +2,10 @@
 // The desk (Apps Script) cannot require files from the repository root, so it carries generated copies, and the desk
 // runs the same code as the public site:
 // - apps-script/Standings.html: standings.js, for the page (apps-script/check-organizer.cjs fails when it is stale);
-// - apps-script/EqualizerRules.html and apps-script/EqualizerRules.js: the Equalizer's rules (rating-engine.js,
+// - apps-script/EqualizerRulesPage.html and apps-script/EqualizerRules.js: the Equalizer's rules (rating-engine.js,
 //   round-robin.js, bracket.js, handicap.js, equalizer.js, and standings.js on the server), in the order they need each
-//   other, for the page and for the server (scripts/check-equalizer.js fails when either is stale).
+//   other, for the page and for the server (scripts/check-equalizer.js fails when either is stale). Apps Script needs
+//   every file name to be different, whatever its type, so the page copy cannot also be called EqualizerRules.
 // Edit the files at the repository root, then run this script; never edit the copies.
 
 'use strict';
@@ -37,9 +38,9 @@ function equalizerServerCopy() {
 
 if (require.main === module) {
   fs.writeFileSync(path.join(ROOT, 'apps-script', 'Standings.html'), deskCopy());
-  fs.writeFileSync(path.join(ROOT, 'apps-script', 'EqualizerRules.html'), equalizerPageCopy());
+  fs.writeFileSync(path.join(ROOT, 'apps-script', 'EqualizerRulesPage.html'), equalizerPageCopy());
   fs.writeFileSync(path.join(ROOT, 'apps-script', 'EqualizerRules.js'), equalizerServerCopy());
-  console.log('apps-script/Standings.html, EqualizerRules.html and EqualizerRules.js updated');
+  console.log('apps-script/Standings.html, EqualizerRulesPage.html and EqualizerRules.js updated');
 }
 
 module.exports = { deskCopy, equalizerPageCopy, equalizerServerCopy };

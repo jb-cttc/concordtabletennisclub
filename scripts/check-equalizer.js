@@ -329,7 +329,7 @@ assert.equal(floorResults.lo.raw, -8 * floorResults.lo.losses, 'raw keeps the fu
 
 // ---- The desk's copies are current (npm run sync:desk) ----
 const sync = require('./sync-desk-standings');
-assert.equal(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'EqualizerRules.html'), 'utf8'), sync.equalizerPageCopy(), 'apps-script/EqualizerRules.html is stale: run npm run sync:desk');
+assert.equal(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'EqualizerRulesPage.html'), 'utf8'), sync.equalizerPageCopy(), 'apps-script/EqualizerRulesPage.html is stale: run npm run sync:desk');
 assert.equal(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'EqualizerRules.js'), 'utf8'), sync.equalizerServerCopy(), 'apps-script/EqualizerRules.js is stale: run npm run sync:desk');
 
 console.log('Equalizer checks passed:', events, 'simulated brackets,', combos, 'simulated events');
