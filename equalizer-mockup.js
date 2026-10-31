@@ -62,7 +62,7 @@
   function name(sideId) { return members(sideId).map(function (id) { return BY_ID[id].name; }).join(" & "); }
   function short(sideId) { return members(sideId).map(function (id) { return BY_ID[id].name.split(" ")[0]; }).join(" & "); }
   function rating(sideId) { return event.sideRatings[sideId]; }
-  function ratingText(sideId) { return doubles() ? rating(sideId) + " combined" : String(rating(sideId)); }
+  function ratingText(sideId) { return doubles() ? rating(sideId) + " average" : String(rating(sideId)); }
   function starts(sideId) { return short(sideId) + (doubles() ? " start" : " starts"); }
   function clock(minutes) {
     var total = Math.round(START_MINUTES + minutes);
@@ -261,7 +261,7 @@
     }
     if (!st.k) {
       var text = "The draw is in: " + plural(config.size, "player", "players") + (doubles() ? " paired at random into " + event.sides.length + " teams" : "");
-      if (event.format === "groups") return text + ", " + event.groups.length + " groups of " + event.groups.map(function (g) { return g.sides.length; }).join(", ") + ". Each group winner goes through to the Finals.";
+      if (event.format === "groups") return text + ", " + event.groups.length + " groups of " + event.groups.map(function (g) { return g.sides.length; }).join(", ") + ". Each group winner goes through to the Finals" + (event.bracket.byes ? "; the best " + event.bracket.byes + " get byes." : ".");
       var byes = event.bracket.size - event.sides.length;
       return text + (byes ? ", " + plural(byes, "bye", "byes") : "") + ", " + st.playing.length + " matches called to tables.";
     }
@@ -346,8 +346,9 @@
   // ---- Bracket: groups and their tables (RR -> Finals), then the classic tree ----
   function sourceText(source) {
     if (source.seed) {
-      var slot = event.bracket.entrants[source.seed - 1];
-      return slot && /^group-/.test(slot) ? "Winner, Group " + slot.slice(6) : "Bye";
+      if (source.seed > event.bracket.entrants.length) return "Bye";
+      if (event.format !== "groups") return "";
+      return source.seed <= event.bracket.byes ? (source.seed === 1 ? "Best group winner" : ordinal(source.seed) + "-best group winner") : "A group winner (drawn)";
     }
     var from = source.winner || source.loser;
     var m = SOURCE_BY_ID[from];
@@ -407,7 +408,7 @@
       var knockout = st.view.matches.filter(function (m) { return m.bracket === "W"; });
       html = "<h2>Groups</h2>" + hint("Round robin groups of " + E.GROUP_SIZE + " (3 when the numbers need it), ranked by the club's round robin rules. Each group winner goes through to the Finals.") +
         '<div class="eq-groups">' + st.view.tables.map(function (t) { return groupBlock(t, st); }).join("") + "</div>" +
-        "<h2>Finals</h2>" + hint(balls(1, 1) + " Single elimination for the " + event.groups.length + " group winners, drawn at random when the groups were. Lose once and you're out.") +
+        "<h2>Finals</h2>" + hint(balls(1, 1) + " Single elimination for the " + event.groups.length + " group winners, once every group is decided." + (event.bracket.byes ? " The best " + plural(event.bracket.byes, "group winner gets a bye", "group winners get byes") + " (best share of games won in their group, then fewer games lost, then the lower rating); the rest are placed at random." : " Places are drawn at random.") + " Lose once and you're out.") +
         '<div class="eq-bracket" data-connect="W">' + columns(knockout, st, false) + "</div>";
     } else {
       var main = st.view.matches.filter(function (m) { return m.bracket === "W"; });
@@ -568,11 +569,11 @@
       return "<li>" + esc(name(pair[0])) + " &amp; " + esc(name(pair[1])) + ": " + played.map(function (m) { return esc(short(m.winnerId)) + (m.at.indexOf("event") === 0 ? " (today)" : " (" + m.at.slice(5) + ")"); }).join(", ") + " &rarr; " + (now.headStart ? esc(starts(now.lowerId)) + " at " + now.headStart + " (base " + now.base + ")" : "no head start") + "</li>";
     }).join("");
     var calcInputs = calcMode === "doubles"
-      ? '<label>Your team <input type="number" id="eq-r1" value="1590" min="0" max="4000"> + <input type="number" id="eq-r1b" value="600" min="0" max="4000"></label><label>Opponents <input type="number" id="eq-r2" value="1800" min="0" max="4000"> + <input type="number" id="eq-r2b" value="1000" min="0" max="4000"></label>'
+      ? '<label>Your team <input type="number" id="eq-r1" value="1590" min="0" max="4000"> &amp; <input type="number" id="eq-r1b" value="600" min="0" max="4000"></label><label>Opponents <input type="number" id="eq-r2" value="1800" min="0" max="4000"> &amp; <input type="number" id="eq-r2b" value="1000" min="0" max="4000"></label>'
       : '<label>Your rating <input type="number" id="eq-r1" value="1590" min="0" max="4000"></label><label>Opponent <input type="number" id="eq-r2" value="1800" min="0" max="4000"></label>';
     document.getElementById("tab-head-starts").innerHTML =
       "<h2>Head starts</h2><p>Every full 40 rating points between two players gives the lower-rated player 1 point at the start of <em>every</em> game, up to 8. A 39-point gap is no head start; 40 is one. With 8, the lower-rated player still needs 3 points to win a game, and games are still to 11, win by 2.</p>" +
-      "<p>In <strong>doubles</strong>, partners are drawn at random and a team's rating is its two players' ratings added together; the same table applies to the gap between the two totals. Both partners gain or give the full 8.</p>" +
+      "<p>In <strong>doubles</strong>, partners are drawn at random and a team's rating is the average of its players' ratings, rounded to a whole point; the same table applies to the gap between the two averages. Both partners gain or give the full 8. With an odd number, the organizer chooses: someone sits out, someone fills in, or one team of three rotates game by game (whoever sat out comes in for whoever has been on longest).</p>" +
       '<div style="overflow-x:auto"><table class="session-group-table"><tbody><tr><th>Rating gap</th>' + steps.join("") + "</tr><tr><th>Starts every game at</th>" + startsRow.join("") + "</tr></tbody></table></div>" +
       '<h3>Find a head start</h3><div class="eq-sim-row" id="eq-calc-mode"></div><div class="eq-calc">' + calcInputs + '<span id="eq-calc-out"></span></div>' +
       "<h3>The memory</h3><p>When the same two players (or the same two teams) meet again, the head start remembers. A win by the lower-rated side takes a point off its next head start against that side; a win by the higher-rated side gives one back, never more than the rating gap allows. It carries over from one Saturday to the next until the club resets it. Doubles partners are drawn fresh each time, so in doubles it mostly matters for a rematch the same afternoon.</p>" +
@@ -584,14 +585,14 @@
   }
   function value(id) { var el = document.getElementById(id); return el ? Number(el.value) : 0; }
   function calc() {
-    var r1 = value("eq-r1") + (calcMode === "doubles" ? value("eq-r1b") : 0);
-    var r2 = value("eq-r2") + (calcMode === "doubles" ? value("eq-r2b") : 0);
+    var r1 = calcMode === "doubles" ? Math.round((value("eq-r1") + value("eq-r1b")) / 2) : value("eq-r1");
+    var r2 = calcMode === "doubles" ? Math.round((value("eq-r2") + value("eq-r2b")) / 2) : value("eq-r2");
     var base = H.baseHeadStart(r1, r2);
     var out = document.getElementById("eq-calc-out");
     if (base === null) { out.textContent = ""; return; }
     var you = r1 < r2 ? base : 0;
     var them = r2 < r1 ? base : 0;
-    var totals = calcMode === "doubles" ? " (" + r1 + " vs " + r2 + " combined, " : " (";
+    var totals = calcMode === "doubles" ? " (" + r1 + " vs " + r2 + " average, " : " (";
     out.innerHTML = flip(String(you) + String(them)) + " " + (base ? (you ? "You start" : "They start") + " every game at " + base + "–0" + totals + Math.abs(r1 - r2) + " points apart)." : "No head start: less than 40 points apart.");
   }
   function renderDemo() {

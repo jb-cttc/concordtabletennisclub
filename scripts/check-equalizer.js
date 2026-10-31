@@ -171,7 +171,7 @@ let combos = 0;
       const seen = {};
       event.sides.forEach(function (side) {
         side.members.forEach(function (id) { assert.ok(!seen[id], 'one side each'); seen[id] = true; });
-        assert.equal(side.rating, side.members.reduce(function (sum, id) { return sum + event.ratings[id]; }, 0), 'a team is its ratings added together');
+        assert.equal(side.rating, Math.round(side.members.reduce(function (sum, id) { return sum + event.ratings[id]; }, 0) / side.members.length), 'a team is the average of its ratings');
         assert.equal(side.members.length, play === 'doubles' ? 2 : 1);
       });
       assert.equal(Object.keys(seen).length + event.sitOut.length, size, 'everyone plays, or sits out an odd doubles draw');
@@ -196,7 +196,14 @@ let combos = 0;
       if (format === 'double') assert.ok(count === 2 * sides - 2 || count === 2 * sides - 1);
       else assert.equal(count, event.groups.reduce(function (sum, g) { return sum + g.matches.length; }, 0) + event.groups.length - 1, 'groups, then one knockout match per group winner but one');
       assert.equal(Object.keys(view.places).length, sides, 'every side placed');
-      if (format === 'groups') view.tables.forEach(function (t) { assert.ok(view.places[t.winnerId].place <= event.groups.length, 'group winners place above everyone else'); });
+      if (format === 'groups') {
+        view.tables.forEach(function (t) { assert.ok(view.places[t.winnerId].place <= event.groups.length, 'group winners place above everyone else'); });
+        // Byes go to the best group winners.
+        const ranked = E.finalsRank(event, view.tables);
+        const firstRound = view.matches.filter(function (m) { return m.bracket === 'W' && m.round === 1; });
+        const byed = firstRound.filter(function (m) { return m.status === 'bye'; }).map(function (m) { return m.winnerId; }).sort();
+        assert.deepEqual(byed, ranked.slice(0, event.bracket.byes).sort(), 'byes to the best group winners');
+      }
       const players = E.playerResults(event, view);
       const total = Object.keys(players).reduce(function (sum, id) { return sum + players[id].change; }, 0);
       Object.keys(players).forEach(function (id) {
@@ -208,12 +215,54 @@ let combos = 0;
     }
   });
 });
-// Doubles head starts use the two ratings added together; memory follows the same team.
+// The Finals wait for every group; with 6 groups the best 2 winners get byes (a bracket of 8).
+const six = E.create({ format: 'groups', play: 'singles', players: pool.slice(0, 24) }, rng(9));
+assert.equal(six.groups.length, 6);
+assert.equal(six.bracket.byes, 2);
+const partial = {};
+six.groups[0].matches.forEach(function (m) { partial[m.id] = { winnerId: m.players[0], games: [3, 0] }; });
+assert.ok(E.resolve(six, partial).matches.filter(function (m) { return m.bracket === 'W'; }).every(function (m) { return m.status !== 'ready'; }), 'no Finals match before every group is decided');
+// Games ratio decides the byes, then fewer games lost, then the lower rating.
+const fakeTables = [
+  { winnerId: 'a', rows: [{ id: 'a', gamesWon: 9, gamesLost: 3 }] },
+  { winnerId: 'b', rows: [{ id: 'b', gamesWon: 6, gamesLost: 0 }] },
+  { winnerId: 'c', rows: [{ id: 'c', gamesWon: 9, gamesLost: 0 }] },
+  { winnerId: 'd', rows: [{ id: 'd', gamesWon: 9, gamesLost: 3 }] }
+];
+assert.deepEqual(E.finalsRank({ sideRatings: { a: 1500, b: 900, c: 1200, d: 1400 } }, fakeTables), ['b', 'c', 'd', 'a'], 'a perfect group of 3 ranks with a perfect group of 4');
+
+// Odd numbers in doubles: the organizer's choice.
+const seven = pool.slice(0, 13);
+const sat = E.create({ format: 'double', play: 'doubles', players: seven, oddPlayer: 'sit-out', sitOutId: 'e4' }, rng(2));
+assert.deepEqual(sat.sitOut, ['e4'], 'a volunteer sits out');
+assert.equal(sat.sides.length, 6);
+const three = E.create({ format: 'double', play: 'doubles', players: seven, oddPlayer: 'team-of-three' }, rng(2));
+assert.equal(three.sitOut.length, 0, 'nobody sits out');
+const trio = three.sides.filter(function (side) { return side.members.length === 3; });
+assert.equal(trio.length, 1, 'one team of three');
+assert.equal(trio[0].rating, Math.round(trio[0].members.reduce(function (sum, id) { return sum + three.ratings[id]; }, 0) / 3), 'rated by the average of all three');
+const threeView = (function () {
+  const res = {};
+  for (;;) {
+    const v = E.resolve(three, res);
+    if (v.finished) return v;
+    const m = E.callOrder(v)[0];
+    res[m.id] = { winnerId: m.players[0], games: [2, 0] };
+  }
+}());
+const trioResults = E.playerResults(three, threeView);
+trio[0].members.forEach(function (id) { assert.equal(trioResults[id].change, 8 * (trioResults[id].wins - trioResults[id].losses), 'all three share each result'); });
+// The rotation: the player who sat out comes in for the one on longest; nobody sits out twice in a row.
+assert.deepEqual(E.teamOfThreeOrder(['a', 'b'], ['a', 'b', 'c'], 5), [['a', 'b'], ['b', 'c'], ['c', 'a'], ['a', 'b'], ['b', 'c']]);
+assert.deepEqual(E.teamOfThreeOrder(['c', 'a'], ['a', 'b', 'c'], 3), [['c', 'a'], ['a', 'b'], ['b', 'c']]);
+
+// Doubles head starts use the average of each team's ratings; memory follows the same team.
 const pairs = E.create({ format: 'double', play: 'doubles', players: [{ id: 'a', rating: 2000 }, { id: 'b', rating: 1000 }, { id: 'c', rating: 1500 }, { id: 'd', rating: 1300 }, { id: 'f', rating: 900 }, { id: 'g', rating: 800 }, { id: 'h', rating: 700 }, { id: 'i', rating: 600 }] }, rng(3));
 const [t1, t2] = pairs.sides;
 const gap = Math.abs(t1.rating - t2.rating);
 assert.equal(E.headStart(pairs, t1.id, t2.id).base, Math.min(8, Math.floor(gap / 40)));
 assert.equal(E.teamId(['b', 'a']), 'a+b');
+assert.equal(E.teamRating(['a', 'b'], { a: 1001, b: 1000 }), 1001, 'rounded to a whole point');
 // A forfeit moves nothing, for either partner.
 const firstMatch = E.resolve(pairs, {}).matches.find(function (m) { return m.status === 'ready'; });
 const forfeited = E.playerResults(pairs, E.resolve(pairs, { [firstMatch.id]: { winnerId: firstMatch.players[0], forfeitedBy: firstMatch.players[1] } }));

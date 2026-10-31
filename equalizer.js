@@ -6,8 +6,11 @@
 // - standings.js: the club's round robin group ranking (match points, head-to-head, games ratio, then rating).
 //
 // Formats: "double" (Double Elimination) or "groups" (round robin groups of 4, or 3 when the numbers need it; each
-// group winner goes into a single-elimination Finals). Play: "singles", or "doubles", where the players are paired at
-// random and a team's rating is its two ratings added together. Each player on a team gains or gives the full 8.
+// group winner goes into a single-elimination Finals, the best group winners getting any byes). Play: "singles", or
+// "doubles", where the players are paired at random and a team's rating is the average of its players' ratings,
+// rounded to a whole point (as handicap doubles leagues do). Each player on a team gains or gives the full 8.
+// An odd number in doubles is the organizer's call: someone sits out, someone fills in before the draw (an even
+// number again), or one team has three players who rotate game by game (see teamOfThreeOrder).
 // Only the draw (teams, groups, bracket order) and the results are saved; everything else is worked out here.
 (function (root, factory) {
   "use strict";
@@ -36,6 +39,27 @@
 
   function teamId(members) { return members.slice().sort().join("+"); }
 
+  // A team's rating: the average of its players' ratings, rounded to a whole point.
+  function teamRating(members, ratings) {
+    return Math.round(members.reduce(function (sum, id) { return sum + ratings[id]; }, 0) / members.length);
+  }
+
+  // Who plays each game for a team of three: the team picks the first pair, then the player who sat out comes in for
+  // the one who has been on longest (A B, then B C, then C A, ...), so nobody sits out twice in a row. The club's own
+  // rule: table tennis rules assume a doubles pair is fixed for the whole match.
+  function teamOfThreeOrder(firstPair, members, games) {
+    var resting = members.filter(function (id) { return firstPair.indexOf(id) < 0; })[0];
+    var on = firstPair.slice();
+    var order = [];
+    for (var game = 0; game < games; game += 1) {
+      order.push(on.slice());
+      var leaving = on.shift();
+      on.push(resting);
+      resting = leaving;
+    }
+    return order;
+  }
+
   // players: [{ id, rating }]; rng: the saved draw's random numbers. Returns the event: its sides (players, or teams
   // of two), the groups and the bracket.
   function create(setup, rng) {
@@ -50,16 +74,28 @@
     var ratings = {};
     players.forEach(function (p) { ratings[p.id] = p.rating; });
 
-    // Doubles: a random pairing. With an odd number, the last player drawn sits out (the desk asks first).
+    // Doubles: a random pairing. With an odd number the organizer has chosen (setup.oddPlayer): "sit-out" leaves out
+    // setup.sitOutId (a volunteer) or else the last player drawn; "team-of-three" puts the last player drawn into a
+    // team drawn at random.
     var order = B.draw(players.map(function (p) { return p.id; }), rng);
     var sitOut = [];
     var sides = [];
     if (play === "doubles") {
-      if (order.length % 2) sitOut.push(order.pop());
-      for (var i = 0; i < order.length; i += 2) {
-        var members = [order[i], order[i + 1]];
-        sides.push({ id: teamId(members), members: members, rating: ratings[members[0]] + ratings[members[1]] });
+      var extra = null;
+      if (order.length % 2) {
+        var odd = setup.oddPlayer === "team-of-three" ? "team-of-three" : "sit-out";
+        if (odd === "sit-out" && setup.sitOutId && order.indexOf(String(setup.sitOutId)) >= 0) {
+          order.splice(order.indexOf(String(setup.sitOutId)), 1);
+          sitOut.push(String(setup.sitOutId));
+        } else if (odd === "sit-out") sitOut.push(order.pop());
+        else extra = order.pop();
       }
+      var teams = [];
+      for (var i = 0; i < order.length; i += 2) teams.push([order[i], order[i + 1]]);
+      if (extra) teams[Math.floor(rng() * teams.length)].push(extra);
+      teams.forEach(function (members) {
+        sides.push({ id: teamId(members), members: members, rating: teamRating(members, ratings) });
+      });
     } else {
       sides = order.map(function (id) { return { id: id, members: [id], rating: ratings[id] }; });
     }
@@ -84,13 +120,31 @@
         });
         groups.push({ number: number, sides: members, matches: matches });
       });
-      // The Finals draw is made now too: which group's winner goes in which slot (byes fall at random).
-      var slots = B.draw(groups.map(function (g) { return "group-" + g.number; }), rng);
+      // The Finals: one slot per group winner. Any byes go to the best group winners (finalsRank); the rest are placed
+      // at random, drawn now so the draw is saved with the event. The Finals start once every group is decided.
+      var slots = groups.map(function (g, n) { return "finals-" + (n + 1); });
       bracket = B.build(slots, { elimination: "single", bestOf: settings.bestOf, finalsBestOf: settings.finalsBestOf });
+      var byes = bracket.size - groups.length;
+      var rest = [];
+      for (var seed = byes + 1; seed <= groups.length; seed += 1) rest.push(seed);
+      bracket.finalsDraw = B.draw(rest.map(String), rng).map(Number);
+      bracket.byes = byes;
     } else {
       bracket = B.build(sides.map(function (s) { return s.id; }), settings);
     }
     return { format: format, play: play, settings: settings, ratings: ratings, sides: sides, sideById: sideById, sideRatings: sideRatings, sitOut: sitOut, groups: groups, bracket: bracket };
+  }
+
+  // Group winners, best first, for Finals byes: the best share of games won in their group (fair to groups of 3 and
+  // 4), then fewer games lost, then the lower rating, as the club's round robin tie-break does.
+  function finalsRank(event, tables) {
+    return tables.map(function (t) {
+      var row = t.rows.filter(function (r) { return r.id === t.winnerId; })[0];
+      var played = row.gamesWon + row.gamesLost;
+      return { id: t.winnerId, ratio: played ? row.gamesWon / played : 0, lost: row.gamesLost, rating: event.sideRatings[t.winnerId] };
+    }).sort(function (a, b) {
+      return b.ratio - a.ratio || a.lost - b.lost || a.rating - b.rating || (a.id < b.id ? -1 : 1);
+    }).map(function (entry) { return entry.id; });
   }
 
   // A group's table from its results, ranked by the club's round robin rules (standings.js).
@@ -139,9 +193,14 @@
     });
     var structure = event.bracket;
     if (event.format === "groups") {
-      var winners = {};
-      tables.forEach(function (t) { winners["group-" + t.number] = t.winnerId; });
-      structure = Object.assign({}, event.bracket, { entrants: event.bracket.entrants.map(function (slot) { return winners[slot] || null; }) });
+      var entrants = event.bracket.entrants.map(function () { return null; });
+      if (tables.every(function (t) { return t.complete; })) {
+        var ranked = finalsRank(event, tables);
+        var byes = event.bracket.byes;
+        for (var b = 0; b < byes; b += 1) entrants[b] = ranked[b];
+        event.bracket.finalsDraw.forEach(function (seed, n) { entrants[seed - 1] = ranked[byes + n]; });
+      }
+      structure = Object.assign({}, event.bracket, { entrants: entrants });
     }
     var view = B.resolve(structure, given);
     var groupWaves = event.groups.length ? Math.max.apply(null, event.groups.map(function (g) { return g.matches[g.matches.length - 1].round; })) : 0;
@@ -190,7 +249,7 @@
     });
   }
 
-  // The head start for a match between two sides (players, or teams by their combined rating).
+  // The head start for a match between two sides (players, or teams by their average rating).
   function headStart(event, sideA, sideB, history, resets) {
     return H.pairState(sideA, sideB, event.sideRatings, history || [], resets || []);
   }
@@ -254,6 +313,9 @@
     MAX_PLAYERS: MAX_PLAYERS,
     minimumPlayers: minimumPlayers,
     teamId: teamId,
+    teamRating: teamRating,
+    teamOfThreeOrder: teamOfThreeOrder,
+    finalsRank: finalsRank,
     create: create,
     resolve: resolve,
     callOrder: callOrder,
