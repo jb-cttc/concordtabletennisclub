@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player Board (concept) - Concord Table Tennis Club</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+  <style>
+/* Layout: a lab page in the club site's own colors around a 16:9 "TV", drawn at 1920x1080 and scaled to fit. */
+:root {
+  --bg: #FAF8F3;
+  --fg: #1a1a1a;
+  --muted: #5f5a53;
+  --line: #ddd8d0;
+  --raised: #ffffff;
+  --red: #8B1A1A;
+  --red-ink: #ffffff;
+  --focus: #c95f0a;
+  --bezel: #1b1a19;
+  --bezel-edge: #3a3734;
+  /* The board's two looks: fixed palettes, painted by the board itself, so they read the same on any host theme. */
+  --night-bg: #0c1611;
+  --night-panel: #12231a;
+  --night-panel-2: #183024;
+  --night-line: #26402f;
+  --night-ink: #f3efe6;
+  --night-dim: #97a99d;
+  --night-head: #8B1A1A;
+  --night-head-ink: #fbeee9;
+  --paper-bg: #f3efe7;
+  --paper-panel: #ffffff;
+  --paper-panel-2: #f7f3ec;
+  --paper-line: #ddd8d0;
+  --paper-ink: #1a1a1a;
+  --paper-dim: #6b655d;
+  --paper-head: #8B1A1A;
+  --paper-head-ink: #fff8f2;
+  --ball: #f58220;
+  --ball-deep: #c95f0a;
+  --ball-hi: #ffc98a;
+  --paid-night: #3ccf7c;
+  --paid-paper: #1f7a4a;
+  --promo-night: #f0be4f;
+  --promo-paper: #8B1A1A;
+  --flip-bg: #1c1c1c;
+  --flip-ink: #ffffff;
+  --white: #ffffff;
+  --font-board: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+  --font-board-text: "Barlow", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-flip: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-ui: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161412; --fg: #ece7df; --muted: #a8a197; --line: #37322d; --raised: #201d1a;
+    --red: #d0675b; --red-ink: #1a0f0d; --focus: #f5a25a; --bezel: #050505; --bezel-edge: #2a2725;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161412; --fg: #ece7df; --muted: #a8a197; --line: #37322d; --raised: #201d1a;
+  --red: #d0675b; --red-ink: #1a0f0d; --focus: #f5a25a; --bezel: #050505; --bezel-edge: #2a2725;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+.board ol, .board ul { padding: 0; list-style: none; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 16px; line-height: 1.55; }
+.lab { max-width: 1240px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 22px; }
+.lab-head { display: grid; gap: 6px; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--red); font-weight: 700; }
+.lab h1 { font-family: var(--font-board); font-weight: 700; font-size: clamp(34px, 5vw, 52px); line-height: 1; letter-spacing: .01em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 70ch; }
+.lede strong { color: var(--fg); }
+
+.controls { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); }
+.control-row { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.control > .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--fg); padding: 7px 12px; font: 600 14px/1.2 var(--font-ui); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--red); color: var(--red-ink); }
+.seg button:hover:not([aria-pressed="true"]) { background: color-mix(in srgb, var(--red) 10%, transparent); }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+.check input { accent-color: var(--red); width: 16px; height: 16px; }
+.range { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.range input { accent-color: var(--red); width: 120px; }
+.range output { font-variant-numeric: tabular-nums; min-width: 3ch; font-weight: 700; }
+.desk-row { border-top: 1px dashed var(--line); padding-top: 10px; }
+.act { border: 1px solid var(--fg); background: transparent; color: var(--fg); border-radius: 6px; padding: 7px 12px; font: 600 14px/1.2 var(--font-ui); cursor: pointer; }
+.act:hover:not(:disabled) { background: var(--fg); color: var(--bg); }
+.act:disabled { opacity: .4; cursor: not-allowed; }
+.act.auto[aria-pressed="true"] { background: var(--red); border-color: var(--red); color: var(--red-ink); }
+.desk-note { font-size: 13px; color: var(--muted); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* The TV */
+.tv { display: grid; gap: 8px; }
+.tv-frame { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: var(--bezel); border: 1px solid var(--bezel-edge); border-radius: 10px; padding: 10px; box-shadow: 0 18px 40px -22px rgba(0,0,0,.55); }
+.tv-screen { position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: 3px; background: var(--night-bg); }
+.tv-frame:fullscreen { padding: 0; border: 0; border-radius: 0; background: var(--bezel); display: grid; place-items: center; }
+.tv-frame:fullscreen .tv-screen { width: 100vw; height: 56.25vw; max-height: 100vh; max-width: 177.78vh; border-radius: 0; }
+.tv-bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+.tv-bar button { border: 0; background: none; color: var(--red); font: 600 13px var(--font-ui); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Notes */
+.notes { display: grid; gap: 26px; }
+.notes h2 { font-family: var(--font-board); font-size: 30px; line-height: 1.1; font-weight: 700; text-wrap: balance; }
+.concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.concept { display: grid; gap: 6px; align-content: start; padding-top: 12px; border-top: 3px solid var(--fg); min-width: 0; }
+.concept h3 { font-family: var(--font-board); font-size: 24px; line-height: 1.1; }
+.concept p, .concept li { font-size: 15px; color: var(--muted); }
+.concept .pick { font-size: 13px; font-weight: 700; color: var(--red); letter-spacing: .04em; text-transform: uppercase; }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px; }
+.two-col > section { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.notes ul, .notes ol { padding-left: 1.2em; display: grid; gap: 8px; max-width: 68ch; }
+.notes li { font-size: 15px; }
+.notes code { font-family: var(--font-flip); font-size: .88em; background: color-mix(in srgb, var(--fg) 7%, transparent); padding: 1px 4px; border-radius: 3px; }
+.notes .fine { color: var(--muted); font-size: 14px; max-width: 70ch; }
+
+/* ---------------- The board (1920 x 1080, scaled) ---------------- */
+.board { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; display: grid; grid-template-rows: 124px 1fr 84px; font-family: var(--font-board-text); overflow: hidden;
+  --b-bg: var(--night-bg); --b-panel: var(--night-panel); --b-panel-2: var(--night-panel-2); --b-line: var(--night-line); --b-ink: var(--night-ink); --b-dim: var(--night-dim); --b-head: var(--night-head); --b-head-ink: var(--night-head-ink); --b-paid: var(--paid-night); --b-promo: var(--promo-night);
+  background: var(--b-bg); color: var(--b-ink); }
+.board[data-look="paper"] { --b-bg: var(--paper-bg); --b-panel: var(--paper-panel); --b-panel-2: var(--paper-panel-2); --b-line: var(--paper-line); --b-ink: var(--paper-ink); --b-dim: var(--paper-dim); --b-head: var(--paper-head); --b-head-ink: var(--paper-head-ink); --b-paid: var(--paid-paper); --b-promo: var(--promo-paper); }
+
+.b-top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 36px; padding: 0 56px; background: var(--b-head); color: var(--b-head-ink); }
+.b-brand { display: flex; align-items: center; gap: 22px; }
+.b-mark { width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--ball-hi), var(--ball) 55%, var(--ball-deep)); box-shadow: inset -4px -6px 0 rgba(0,0,0,.12); flex-shrink: 0; }
+.b-title { display: grid; line-height: 1; gap: 6px; }
+.b-title strong { font-family: var(--font-board); font-size: 52px; font-weight: 700; letter-spacing: .01em; }
+.b-title span { font-family: var(--font-board); font-size: 26px; font-weight: 500; opacity: .85; letter-spacing: .04em; text-transform: uppercase; }
+.b-stage { justify-self: center; display: inline-flex; align-items: center; gap: 14px; padding: 12px 24px; border-radius: 999px; background: rgba(0,0,0,.22); font-family: var(--font-board); font-size: 30px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; }
+.b-stage .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--promo-night); flex-shrink: 0; }
+.b-stage.live .dot { background: var(--paid-night); box-shadow: 0 0 0 0 rgba(60,207,124,.6); animation: live 1.8s infinite; }
+@keyframes live { 0% { box-shadow: 0 0 0 0 rgba(60,207,124,.55); } 70% { box-shadow: 0 0 0 16px rgba(60,207,124,0); } 100% { box-shadow: 0 0 0 0 rgba(60,207,124,0); } }
+.b-count { display: flex; align-items: center; gap: 18px; font-family: var(--font-board); font-size: 26px; text-transform: uppercase; letter-spacing: .06em; line-height: 1.05; }
+.b-count .scoreboard .flip { font-size: 54px; }
+.b-clock { font-family: var(--font-flip); font-size: 30px; font-weight: 600; opacity: .9; font-variant-numeric: tabular-nums; }
+
+.scoreboard { display: inline-flex; gap: 3px; }
+.scoreboard .flip { position: relative; display: inline-block; min-width: 1.15em; padding: 4px 4px 3px; border-radius: 4px; background: var(--flip-bg); color: var(--flip-ink); font: 600 1em/1 var(--font-flip); text-align: center; font-variant-numeric: tabular-nums; }
+.scoreboard .flip::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid rgba(255,255,255,.28); }
+.scoreboard.flipping .flip { animation: flip .5s ease-out; }
+@keyframes flip { 0% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+
+.b-body { position: relative; padding: 28px 56px 20px; min-height: 0; }
+.b-foot { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 30px; padding: 0 56px; border-top: 2px solid var(--b-line); background: var(--b-panel); }
+.ticker { display: flex; gap: 40px; overflow: hidden; white-space: nowrap; font-family: var(--font-board); font-size: 32px; font-weight: 500; min-width: 0; }
+.ticker .item { display: inline-flex; align-items: center; gap: 12px; color: var(--b-dim); }
+.ticker .item:first-child { color: var(--b-ink); animation: tick-in .6s ease-out; }
+.ticker .item b { font-weight: 700; color: var(--b-ink); }
+.ticker .when { font-size: 22px; letter-spacing: .06em; text-transform: uppercase; color: var(--ball); font-weight: 700; }
+.ticker .idle { color: var(--b-dim); }
+@keyframes tick-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.legend { display: flex; gap: 26px; font-size: 22px; color: var(--b-dim); white-space: nowrap; align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 10px; }
+.legend .pay { width: 30px; height: 30px; font-size: 22px; border-radius: 7px; }
+.legend .promo-arrow { color: var(--b-promo); font-weight: 700; font-size: 24px; }
+
+/* Panels */
+.panel { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; height: 100%; background: var(--b-panel); border: 2px solid var(--b-line); border-radius: 14px; overflow: hidden; }
+.p-head { display: flex; align-items: baseline; gap: 20px; padding: 18px 28px 14px; border-bottom: 2px solid var(--b-line); background: var(--b-panel-2); }
+.p-head h2 { font-family: var(--font-board); font-weight: 700; font-size: 58px; line-height: 1; letter-spacing: .01em; }
+.p-head .sub { font-family: var(--font-board); font-size: 28px; color: var(--b-dim); letter-spacing: .03em; }
+.p-head .right { margin-left: auto; font-family: var(--font-board); font-size: 28px; color: var(--b-dim); white-space: nowrap; }
+.p-head .right b { color: var(--b-ink); }
+.p-body { min-height: 0; padding: 10px 22px 16px; display: flex; flex-direction: column; }
+
+/* Player rows (sign-in) */
+.rows { list-style: none; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.row { position: relative; display: grid; grid-template-columns: 56px 1fr auto 64px; align-items: center; gap: 18px; flex: 1 1 0; max-height: 108px; min-height: 0; padding: 0 10px; border-bottom: 1px solid var(--b-line); border-radius: 8px; }
+.row:last-child { border-bottom: 0; }
+.row .seat { font-family: var(--font-board); font-size: 34px; color: var(--b-dim); text-align: right; font-variant-numeric: tabular-nums; }
+.row .who { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.row .name { font-family: var(--font-board); font-weight: 600; font-size: 54px; line-height: 1.02; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .tags { display: flex; gap: 10px; margin-top: 3px; }
+.row .tags:empty { display: none; }
+.chip { font-family: var(--font-board); font-size: 24px; font-weight: 600; letter-spacing: .03em; line-height: 1.2; padding: 1px 10px; border-radius: 6px; white-space: nowrap; }
+.chip.promo { color: var(--b-promo); border: 2px solid var(--b-promo); }
+.chip.first { color: var(--b-ink); background: var(--b-line); }
+.row .rating { font-family: var(--font-flip); font-size: 36px; font-weight: 500; color: var(--b-dim); font-variant-numeric: tabular-nums; }
+.pay { display: inline-grid; place-items: center; width: 56px; height: 56px; border-radius: 10px; border: 3px dashed var(--b-dim); color: transparent; font: 700 38px/1 var(--font-board-text); justify-self: end; }
+.pay.paid { background: var(--b-paid); border: 3px solid var(--b-paid); color: var(--white); }
+.board[data-look="night"] .pay.paid { color: var(--night-bg); }
+.pay.paid.flash-pay { animation: pop .7s cubic-bezier(.3,1.6,.5,1); }
+@keyframes pop { 0% { transform: scale(.4); } 100% { transform: scale(1); } }
+.board.no-pay .pay, .board.no-pay .legend .pay-key { display: none; }
+.board.no-rating .rating, .board.no-rating .col-rating { display: none; }
+.board.no-pay .row { grid-template-columns: 56px 1fr auto; }
+
+/* The orange "just changed" glow, continued across re-renders with a negative animation-delay */
+.fresh { animation: fresh 7s ease-out both; }
+@keyframes fresh { 0%, 8% { background: color-mix(in srgb, var(--ball) 55%, transparent); box-shadow: 0 0 0 3px var(--ball); } 100% { background: transparent; box-shadow: 0 0 0 3px transparent; } }
+.row.fresh::before { content: attr(data-why); position: absolute; right: 90px; top: 50%; transform: translateY(-50%); font-family: var(--font-board); font-size: 24px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--white); background: var(--ball-deep); padding: 2px 10px; border-radius: 6px; animation: why 7s ease-out both; animation-delay: inherit; }
+@keyframes why { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Crosstable (round robin, after printing) */
+.xt { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.xt th { font-family: var(--font-board); font-weight: 600; font-size: 24px; color: var(--b-dim); padding: 4px 0 8px; text-align: center; letter-spacing: .04em; }
+.xt th.n { text-align: left; padding-left: 8px; }
+.xt td { text-align: center; border-top: 1px solid var(--b-line); font-family: var(--font-flip); font-size: 26px; height: var(--xt-h, 92px); }
+.xt td.nm { text-align: left; font-family: var(--font-board); font-weight: 600; font-size: 40px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 8px; }
+.xt td.nm small { display: block; font-family: var(--font-flip); font-weight: 500; font-size: 20px; color: var(--b-dim); line-height: 1; }
+.xt td.self { background: repeating-linear-gradient(135deg, var(--b-line) 0 2px, transparent 2px 10px); }
+.xt td.w { color: var(--b-ink); font-weight: 700; }
+.xt td.l { color: var(--b-dim); }
+.xt td.pos { font-family: var(--font-board); font-size: 40px; font-weight: 700; }
+.xt td.wl { font-weight: 600; }
+.xt td.cell.fresh { border-radius: 8px; }
+.xt tr.lead td.nm { color: var(--b-promo); }
+.xt .trophy { color: var(--b-promo); }
+.p-foot { margin-top: auto; padding-top: 8px; font-family: var(--font-board); font-size: 24px; color: var(--b-dim); letter-spacing: .02em; }
+
+/* Standings (compact) */
+.st { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.st th { font-family: var(--font-board); font-weight: 600; font-size: 22px; color: var(--b-dim); text-align: right; padding: 0 8px 6px; letter-spacing: .04em; }
+.st th:nth-child(2) { text-align: left; }
+.st td { padding: 0 8px; border-top: 1px solid var(--b-line); text-align: right; font-family: var(--font-flip); font-size: 26px; height: var(--st-h, 64px); }
+.st td.pos { font-family: var(--font-board); font-size: 34px; font-weight: 700; text-align: center; }
+.st td.nm { text-align: left; font-family: var(--font-board); font-weight: 600; font-size: 38px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st tr.lead td.nm, .st tr.lead td.pos { color: var(--b-promo); }
+.st tr.out td { color: var(--b-dim); }
+
+/* Equalizer match lines */
+.mlist { list-style: none; display: flex; flex-direction: column; margin-top: 10px; flex: 1; min-height: 0; }
+.mline { display: grid; grid-template-columns: 52px 1fr 60px 1fr 92px; align-items: center; gap: 10px; flex: 1 1 0; max-height: 70px; border-top: 1px solid var(--b-line); padding: 0 6px; border-radius: 8px; }
+.mline .rd { font-family: var(--font-board); font-size: 22px; color: var(--b-dim); letter-spacing: .05em; }
+.mline .sd { display: flex; align-items: center; gap: 10px; min-width: 0; font-family: var(--font-board); font-weight: 600; font-size: 32px; white-space: nowrap; }
+.mline .sd span { overflow: hidden; text-overflow: ellipsis; }
+.mline .sd.b { justify-content: flex-end; text-align: right; }
+.mline .sd.won { color: var(--b-ink); }
+.mline .sd.lost { color: var(--b-dim); font-weight: 500; }
+.mline .vs { font-family: var(--font-board); font-size: 22px; color: var(--b-dim); text-align: center; }
+.mline .gm { font-family: var(--font-flip); font-size: 28px; font-weight: 600; text-align: right; }
+.mline .gm.wait { color: var(--b-dim); font-weight: 400; }
+.hs { font-size: 24px; flex-shrink: 0; }
+.hs .flip { background: var(--ball-deep); }
+.upset { font-family: var(--font-board); font-size: 20px; font-weight: 700; letter-spacing: .06em; color: var(--white); background: var(--ball-deep); border-radius: 5px; padding: 0 8px; text-transform: uppercase; }
+
+/* Mini bracket */
+.bk { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 18px; flex: 1; min-height: 0; }
+.bk-col { display: flex; flex-direction: column; justify-content: space-around; gap: 10px; min-width: 0; }
+.bk-col h3 { font-family: var(--font-board); font-size: 22px; font-weight: 600; color: var(--b-dim); letter-spacing: .06em; text-transform: uppercase; text-align: center; }
+.bk-box { border: 2px solid var(--b-line); border-radius: 8px; background: var(--b-panel-2); overflow: hidden; }
+.bk-box.ready { border-color: color-mix(in srgb, var(--ball) 70%, var(--b-line)); }
+.bk-ln { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 2px 10px; font-family: var(--font-board); font-weight: 600; font-size: var(--bk-fs, 28px); line-height: 1.25; min-width: 0; }
+.bk-ln + .bk-ln { border-top: 1px solid var(--b-line); }
+.bk-ln span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-ln.tbd { color: var(--b-dim); font-weight: 400; font-style: italic; }
+.bk-ln.won { color: var(--b-ink); }
+.bk-ln.lost { color: var(--b-dim); font-weight: 400; }
+.bk-ln .g { font-family: var(--font-flip); font-size: calc(var(--bk-fs, 28px) * .85); }
+.bk-ln .hs { font-size: calc(var(--bk-fs, 28px) * .7); }
+.bk-box.champ { border-color: var(--b-promo); }
+
+/* The field (Equalizer, before the draw) and lists */
+.field { list-style: none; display: grid; grid-template-columns: 1fr; flex: 1; min-height: 0; }
+.field.cols-2 { grid-template-columns: 1fr 1fr; column-gap: 30px; }
+.info { display: grid; gap: 22px; align-content: start; font-size: 34px; line-height: 1.3; padding: 12px 8px; }
+.info p { max-width: 30ch; }
+.info .big { font-family: var(--font-board); font-size: 64px; font-weight: 700; line-height: 1; }
+.info .scoreboard { font-size: 54px; vertical-align: middle; margin-right: 12px; }
+.info .rule { display: flex; align-items: center; gap: 14px; }
+.status-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; flex: 1; min-height: 0; }
+.status-cols h3 { font-family: var(--font-board); font-size: 30px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; }
+.status-cols ul { list-style: none; display: grid; gap: 4px; }
+.status-cols li { font-family: var(--font-board); font-size: 32px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status-cols .out li { color: var(--b-dim); font-weight: 400; text-decoration: line-through; text-decoration-thickness: 2px; }
+
+/* Carousel */
+.carousel { position: relative; height: 100%; display: grid; grid-template-rows: minmax(0, 1fr) 34px; gap: 14px; }
+.viewport { position: relative; overflow: hidden; min-height: 0; }
+.track { display: flex; gap: 40px; height: 100%; will-change: transform; }
+.track > .panel { flex: 0 0 calc((100% - 40px) / 2); }
+.track.sliding { transition: transform 1.1s cubic-bezier(.65,0,.35,1); }
+.pips { display: flex; justify-content: center; align-items: center; gap: 14px; }
+.pip { height: 12px; width: 44px; border-radius: 6px; background: var(--b-line); position: relative; overflow: hidden; }
+.pip.on { background: color-mix(in srgb, var(--b-ink) 55%, transparent); }
+.pip-label { font-family: var(--font-board); font-size: 22px; color: var(--b-dim); letter-spacing: .06em; text-transform: uppercase; margin-right: 8px; }
+.timer { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--b-line); border-radius: 2px; overflow: hidden; }
+.timer i { display: block; height: 100%; width: 100%; background: var(--ball); transform-origin: 0 50%; }
+
+/* Wall */
+.wall { display: grid; gap: 24px; height: 100%; }
+.wall .panel { --scale: 1; }
+.wall .p-head { padding: 10px 20px 8px; }
+.wall .p-head h2 { font-size: 40px; }
+.wall .p-head .sub, .wall .p-head .right { font-size: 22px; }
+.wall .p-body { padding: 4px 14px 8px; }
+.wall .row { grid-template-columns: 34px 1fr auto 38px; gap: 12px; max-height: 64px; }
+.board.no-pay .wall .row { grid-template-columns: 34px 1fr auto; }
+.wall .row .seat { font-size: 22px; }
+.wall .row .name { font-size: 34px; }
+.wall .row .rating { font-size: 24px; }
+.wall .chip { font-size: 18px; padding: 0 6px; }
+.wall .row .tags { margin-top: 0; }
+.wall .pay { width: 34px; height: 34px; font-size: 24px; border-width: 2px; border-radius: 7px; }
+.wall .row.fresh::before { right: 54px; font-size: 18px; }
+.wall .st td { font-size: 22px; }
+.wall .st td.nm { font-size: 30px; }
+.wall .st td.pos { font-size: 26px; }
+.wall .st th { font-size: 18px; }
+.wall .mline { grid-template-columns: 36px 1fr 40px 1fr 64px; max-height: 44px; }
+.wall .mline .sd { font-size: 24px; }
+.wall .mline .gm { font-size: 22px; }
+.wall .mline .rd, .wall .mline .vs { font-size: 18px; }
+.wall .hs { font-size: 18px; }
+.wall .info { font-size: 24px; gap: 12px; }
+.wall .info .big { font-size: 44px; }
+.wall .info .scoreboard { font-size: 36px; }
+.wall .status-cols li { font-size: 24px; }
+.wall .status-cols h3 { font-size: 22px; }
+
+/* Spotlight + names */
+.spot { display: grid; grid-template-columns: 1.6fr 1fr; gap: 40px; height: 100%; min-height: 0; }
+.spot-main { position: relative; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) 34px; gap: 14px; }
+.spot-stage { position: relative; min-height: 0; }
+.spot-stage > .panel { position: absolute; inset: 0; }
+.spot-stage > .panel.enter { animation: spot-in .9s cubic-bezier(.2,.8,.2,1) both; }
+.spot-stage > .panel.leave { animation: spot-out .7s ease-in both; }
+@keyframes spot-in { from { transform: translateX(80px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes spot-out { from { opacity: 1; } to { transform: translateX(-60px); opacity: 0; } }
+.index { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--b-panel); border: 2px solid var(--b-line); border-radius: 14px; overflow: hidden; min-height: 0; }
+.index .p-head h2 { font-size: 46px; }
+.idx { list-style: none; display: grid; grid-auto-flow: column; grid-template-rows: repeat(var(--idx-rows, 20), minmax(0, 1fr)); grid-template-columns: repeat(var(--idx-cols, 2), minmax(0, 1fr)); column-gap: 22px; padding: 10px 18px 14px; min-height: 0; }
+.idx li { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; min-width: 0; border-bottom: 1px solid var(--b-line); padding: 0 6px; border-radius: 6px; }
+.idx .nm { font-family: var(--font-board); font-weight: 600; font-size: var(--idx-fs, 30px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.idx .where { font-family: var(--font-board); font-weight: 700; font-size: calc(var(--idx-fs, 30px) * .8); color: var(--b-dim); letter-spacing: .03em; white-space: nowrap; }
+.idx .where.hot { color: var(--b-promo); }
+.idx .pay { width: calc(var(--idx-fs, 30px) * 1.05); height: calc(var(--idx-fs, 30px) * 1.05); font-size: calc(var(--idx-fs, 30px) * .75); border-width: 2px; border-radius: 6px; }
+.board.no-pay .idx li { grid-template-columns: 1fr auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .track.sliding { transition-duration: .01s; }
+  .fresh, .row.fresh::before, .spot-stage > .panel.enter, .spot-stage > .panel.leave, .scoreboard.flipping .flip, .ticker .item:first-child, .b-stage.live .dot, .pay.paid.flash-pay { animation-duration: .01s; }
+}
+  </style>
+</head>
+<body>
+<main class="lab">
+  <header class="lab-head">
+    <p class="eyebrow">Desk concept · made-up players</p>
+    <h1>Player Board</h1>
+    <p class="lede">A second window the desk opens and drags onto the gym TV. It shows <strong>which group each player is in, whether they're signed in, and whether their payment is recorded</strong>, and it follows every sign-in, move and score on the desk. Try the three layouts below with the round robin and both Equalizer formats, and use the desk buttons to watch changes come through.</p>
+  </header>
+
+  <section class="controls" aria-label="Board settings">
+    <div class="control-row">
+      <div class="control"><span class="label" id="l-concept">Layout</span><div class="seg" role="group" aria-labelledby="l-concept" data-set="concept">
+        <button type="button" id="c-carousel" data-value="carousel">A · Carousel</button><button type="button" id="c-wall" data-value="wall">B · Wall</button><button type="button" id="c-spot" data-value="spot">C · Spotlight + names</button></div></div>
+      <div class="control"><span class="label" id="l-event">Event</span><div class="seg" role="group" aria-labelledby="l-event" data-set="event">
+        <button type="button" id="e-rr" data-value="rr">Round robin</button><button type="button" id="e-groups" data-value="groups">Equalizer · RR → Finals</button><button type="button" id="e-double" data-value="double">Equalizer · Double Elim</button></div></div>
+    </div>
+    <div class="control-row">
+      <div class="control"><span class="label" id="l-stage">Stage</span><div class="seg" role="group" aria-labelledby="l-stage" data-set="stage">
+        <button type="button" id="s-signin" data-value="signin">Signing in</button><button type="button" id="s-printed" data-value="printed">Sheets printed · scores</button></div></div>
+      <div class="control"><span class="label" id="l-look">Look</span><div class="seg" role="group" aria-labelledby="l-look" data-set="look">
+        <button type="button" id="k-night" data-value="night">Night</button><button type="button" id="k-paper" data-value="paper">Paper</button></div></div>
+      <label class="range" for="secs">Slide every <input id="secs" type="range" min="10" max="20" step="1" value="14"> <output id="secs-out" for="secs">14s</output></label>
+      <label class="check" for="show-pay"><input id="show-pay" type="checkbox" checked> Payment checks</label>
+      <label class="check" for="show-rating"><input id="show-rating" type="checkbox" checked> Ratings</label>
+    </div>
+    <div class="control-row desk-row">
+      <div class="control"><span class="label">Desk</span>
+        <button type="button" class="act" id="do-signin">Sign someone in</button>
+        <button type="button" class="act" id="do-move">Move a player</button>
+        <button type="button" class="act" id="do-pay">Record a payment</button>
+        <button type="button" class="act" id="do-result">Enter a result</button>
+        <button type="button" class="act auto" id="do-auto" aria-pressed="false">Auto-play the desk</button>
+      </div>
+      <span class="desk-note" id="desk-note" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <section class="tv" aria-label="The TV">
+    <div class="tv-frame" id="tv-frame"><div class="tv-screen" id="tv-screen"><div class="board" id="board" data-look="night"></div></div></div>
+    <div class="tv-bar"><span>Drawn at 1920 × 1080, scaled to fit. On a laptop plugged into the TV, try it full screen.</span><button type="button" id="fullscreen">Full screen</button></div>
+  </section>
+
+  <section class="notes">
+    <div class="concepts">
+      <article class="concept">
+        <span class="pick">A · Carousel</span>
+        <h3>Two groups at a time, one slides in</h3>
+        <p>Your idea as described. Every few seconds the next group slides in from the right and the left one slides out. Names are big enough to read from across the gym. When the desk changes a group that's off screen, that group slides in next, so nobody waits a full lap to see a move.</p>
+        <p>Best for: round robin nights with 4–7 groups.</p>
+      </article>
+      <article class="concept">
+        <span class="pick">B · Wall</span>
+        <h3>Every group at once, nothing moves</h3>
+        <p>All groups on one screen, with smaller type. Nobody waits for their group to come round, but it's harder to read from the back of the gym once there are more than 6 groups. After printing, each group shrinks to a standings table.</p>
+        <p>Best for: a big TV near the desk, or small nights.</p>
+      </article>
+      <article class="concept">
+        <span class="pick">C · Spotlight + names</span>
+        <h3>One group large, everyone listed A–Z</h3>
+        <p>One group at a time on the left. On the right is every player A–Z with their group and a payment check. It answers "am I signed up, and where?" without waiting. After printing, the list shows each player's W-L, or where they stand in the Equalizer.</p>
+        <p>Best for: busy sign-in, and Equalizer afternoons.</p>
+      </article>
+    </div>
+
+    <div class="two-col">
+      <section>
+        <h2>How it would hook into the desk</h2>
+        <ul>
+          <li>A <strong>Player board</strong> button in the desk toolbar opens this as a second window. You drag it onto the TV (the desk laptop's second screen) and press Full screen.</li>
+          <li>The desk draws the board itself, so every sign-in, group move, payment and score shows up within a second, even before <em>Save to Sheets</em>. It makes no Google calls and reads nothing from the Sheet, so it doesn't count against the club's daily Google limits. I checked this on <code>/dev</code> today without saving anything: the desk opened its own window and updated it.</li>
+          <li>Stages follow the desk: <em>Signing in</em> until the sheets print, then scores. Round robin groups show the printed sheet's grid, filling in as the desk enters results. Equalizer groups show each match's head start and the Finals bracket. Double Elimination shows up next, the Main Draw, the Survivor Trail and who's still unbeaten.</li>
+          <li>It covers the "TV board" in the Equalizer plan (issue #104, step 5): on the tables, up next, group tables and a mini bracket. Both formats would share one board.</li>
+          <li>Payment shows only <em>recorded</em> (green check) or <em>not yet</em> (empty box), never how someone paid. Play-pass holders show as recorded. The ticker announces sign-ins, moves and results, but never payments.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>Things to decide</h2>
+        <ol>
+          <li><strong>Layout.</strong> One for both stages, or a mix (for example, the carousel while signing in and the spotlight once scores start)?</li>
+          <li><strong>Equalizer before the sheets print.</strong> The desk redraws the random groups with every sign-in, so this concept shows the field A–Z instead of draft groups that keep reshuffling. Groups appear once the sheets print.</li>
+          <li><strong>When it switches to scores:</strong> when the sheets print (as here), or at the first result.</li>
+          <li><strong>Payment checks:</strong> on by default? (There's a switch above.) Keep the "1st visit" welcome chip?</li>
+          <li><strong>Look:</strong> Night or Paper depends on the TV and the gym lights. It's worth trying both on the real screen.</li>
+          <li><strong>A TV not connected to the desk laptop</strong> (a smart TV or a stick) would need the board as its own Google page, reloading saved data every so often. That uses Google quota and shows only saved changes, so it would be a second step if wanted.</li>
+        </ol>
+        <p class="fine">Everything here runs on the club's real Equalizer rules (draw, head starts, groups, brackets) and round robin standings rules. Players, ratings, payments and results are made up.</p>
+      </section>
+    </div>
+  </section>
+</main>
+
+<script src="../rating-engine.js"></script>
+<script src="../handicap.js"></script>
+<script src="../bracket.js"></script>
+<script src="../round-robin.js"></script>
+<script src="../standings.js"></script>
+<script src="../equalizer.js"></script>
+<script src="player-board-mockup.js"></script>
+</body>
+</html>
