@@ -118,6 +118,42 @@ a named winner cannot be finalized.
 `rating-engine.js` (site) and `RatingEngine.js` (desk) use both players'
 session-start ratings for every match adjustment, with a zero floor.
 
+### Player board (the gym TV)
+
+**Player board** in the desk toolbar opens a second window for the TV plugged into
+the desk laptop: drag it to that screen and press **Full screen** in its settings
+strip (it appears when the mouse moves and fades after a few seconds). The window
+follows this desk as it changes, saved to Google or not: who is signed in, their
+group, a green payment check (never how they paid; a Zeffy pass counts), a
+"1st visit" welcome, and a trophy or ▲ beside a player pushed up a group (last
+time's group winner moved up, or a move up with the desk's arrows). After the
+sheets print, or once a score is entered, it shows each group's grid as on the
+printed sheet, filling in as scores are entered. A gold glow marks what just
+changed, and the bar at the bottom names sign-ins, moves and results, never
+payments.
+
+- **Layouts**, in the settings strip and remembered by the window: *Carousel* (two
+  groups at a time, the next sliding in every 10–20 seconds; a changed group slides
+  in next), *Wall* (every group at once) and *Spotlight + names* (one group large
+  beside everyone A–Z with their group number; above 32 players the list shows half
+  the alphabet at a time). *Desk* or *Dark* look; payment checks and ratings can be
+  turned off.
+- **Reprinting:** the desk remembers what it printed on this device. A group whose
+  players change afterwards shows **Updated · new sheet at the desk**, and the
+  print preview names those groups; printing again clears the tags. Another device's
+  prints are not known here.
+- **The Equalizer:** before the sheets print it shows the field A–Z (the random draw
+  changes with each sign-in); then the groups with each match's head start, the Road
+  to the Finals, and, once every group is decided, the single-elimination Finals with
+  byes, ending with the champion. Double Elimination shows the matches up next, the
+  Main Draw, the Survivor Trail and who is still unbeaten.
+- **It needs the desk open on that computer.** The window is drawn by the desk page
+  (`apps-script/PlayerBoard.html`), with no Google calls of its own. If the desk tab
+  closes or reloads, the board keeps its last picture and says so; **Player board**
+  reconnects it without opening a second window. A TV not plugged into the desk
+  laptop cannot follow it. If the browser blocks the window, the desk says so: allow
+  pop-ups for the desk and click again.
+
 ## Membership, linked names, juniors
 
 Name links are kept in the private `NameLinks` sheet of the round-robin

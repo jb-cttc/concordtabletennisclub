@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="event-switch" class="group-size event-switch" role="group" aria-label="Event"><button type="button" data-event="rr" aria-pressed="true" title="The usual round robin: groups by rating">Round robin</button><button type="button" data-event="equalizer" aria-pressed="false" title="The Equalizer: head starts by rating, RR → Finals or Double Elimination">Equalizer</button></div><div id="eq-options" class="eq-options" hidden></div><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div><div id="equalizer" class="equalizer matches" hidden></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="event-switch" class="group-size event-switch" role="group" aria-label="Event"><button type="button" data-event="rr" aria-pressed="true" title="The usual round robin: groups by rating">Round robin</button><button type="button" data-event="equalizer" aria-pressed="false" title="The Equalizer: head starts by rating, RR → Finals or Double Elimination">Equalizer</button></div><div id="eq-options" class="eq-options" hidden></div><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="player-board" class="secondary" type="button" title="Open a window for the gym TV that follows this desk: groups, sign-ins, payment checks and scores">Player board</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div><div id="equalizer" class="equalizer matches" hidden></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -1027,7 +1027,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       (scored ? ' Scores already entered stay only for players who stay in the same group together.' : '');
   }
 
+  // Players moved up with the arrows, by the group they started in (an index), for the Player board's ▲. A rebuild by
+  // rating starts again; a move back down to where they started clears it.
+  var movedUp = {};
   function organize() {
+    movedUp = {};
     var arrays = O.organize(state.roster, player, groupSize());
     state.promotions = O.applyPromotions(arrays, state.winners, player);
     state.customized = false;
@@ -1096,6 +1100,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (from < 0 || to < 0 || to >= arrays.length) return;
     arrays[from] = arrays[from].filter(function (other) { return other !== id; });
     arrays[to] = O.byRating(arrays[to].concat(id), player);
+    var started = id in movedUp ? movedUp[id] : from;
+    if (to < started) movedUp[id] = started; else delete movedUp[id];
     delete state.promotions[id];
     state.customized = true;
     setGroups(arrays);
@@ -1247,6 +1253,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return out + '</div></div>';
   }
   function renderMatches() {
+    if (window.cttcPlayerBoard) window.cttcPlayerBoard.changed();
     var done = 0;
     var total = state.matches.length;
     var html = state.groups.map(function (group) {
@@ -1280,6 +1287,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
 
   function render() {
+    // The Player board (PlayerBoard.html) follows every change; it rebuilds a moment later, after this render.
+    if (window.cttcPlayerBoard) window.cttcPlayerBoard.changed();
     var isLocked = locked();
     var equalizer = state.event === 'equalizer';
     document.querySelector('.workspace').classList.toggle('locked', isLocked);
@@ -1843,6 +1852,17 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     needsPrintSave: function () { return savedPrintState === null || savedPrintState !== printState(); },
     // On an Equalizer night, its draw and results for printing (EqualizerPrint.html); null on a round robin night.
     equalizerPrint: function () { return state.event === 'equalizer' ? eqDesk.printData() : null; },
+    // What the Player board (PlayerBoard.html) shows: this page's own state, saved to Google or not.
+    boardData: function () {
+      var eq = eqDesk.state();
+      return {
+        date: loadedDate || date.value, event: state.event, groups: state.groups, matches: state.matches, promotions: state.promotions,
+        player: player, locked: locked(), movedUp: movedUp, eq: state.event === 'equalizer' ? eqDesk.printData() : null,
+        eqRoster: eqDesk.roster(), eqSetup: eq && eq.setup
+      };
+    },
+    setStatus: setStatus,
+    report: function (kind, message) { reportDeskProblem(kind, message); },
     // True while a round robin change on this page has not reached Google yet (it is sent a moment after each change).
     // Not while the save is stuck (a conflict, or retries used up), so nothing waits on it for good.
     draftPending: function () { return saveInFlight || (canAutoSync() && syncFailures < AUTO_RETRY_LIMIT); },
@@ -2502,7 +2522,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     notes = Object.assign({}, byPlayer);
     changed.forEach(syncPayment);
   }
-  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function () { refreshPayments(); } };
+  // status: what the Player board shows, a payment recorded (any method, or a Zeffy pass) and a first visit; never how.
+  function paymentStatus(playerId) { return { paid: !!methods[playerId] || !!covered[playerId], first: !!firstVisits[playerId] }; }
+  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function () { refreshPayments(); }, status: paymentStatus };
   var initialPayment = window.cttcRequest('getPrivatePaymentOverview', dateField.value);
   window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
@@ -2563,6 +2585,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     });
   }
   function syncPayment(playerId) {
+    document.dispatchEvent(new CustomEvent('cttc:payments-changed'));
     var method = methods[playerId] || '';
     document.querySelectorAll('.payment-control').forEach(function (control) {
       if (control.getAttribute('data-payment-player') !== playerId) return;
@@ -4679,5 +4702,6 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 })();
 </script>
 <?!= include('EqualizerGuide') ?>
+<?!= include('PlayerBoard') ?>
 </body>
 </html>

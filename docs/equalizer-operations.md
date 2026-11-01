@@ -63,6 +63,11 @@ round robin night **?** opens the usual desk tour.
    8 a match on top of their rating at that moment. The lock reopens it, as
    for round robins.
 
+**Player board** (the TV window, see [round-robin operations](round-robin-operations.md#player-board-the-gym-tv))
+shows the field until the sheets print, then the groups with head starts, the
+Road to the Finals, the Finals bracket once every group is decided, or the
+Double Elimination draws.
+
 Payments, member badges, first visits, Clover matching, Open Play and the cash
 flow page work the same for Equalizer players: fees are per day, so someone in
 both the round robin and the Equalizer pays once.
@@ -111,8 +116,8 @@ by hand: fix things at the desk.
   email show round robins only, and Equalizer ratings appear in each
   player's rating history (labelled Equalizer on their profile).
 - The head-start memory reset (no automatic reset either), withdraw in one
-  step, best-of changes after the draw, the TV board, and Voice
-  automatic answers that name the Equalizer.
+  step, best-of changes after the draw, and Voice automatic answers that name
+  the Equalizer.
 - A release switch: the Equalizer appears on `/exec` with the release that
   includes it.
 
