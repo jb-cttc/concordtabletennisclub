@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-31",
-  "latestSessionDate": "2026-10-28",
+  "generatedAt": "2026-11-01",
+  "latestSessionDate": "2026-10-31",
   "players": [
     {
       "name": "Kai Zarehbin",
@@ -2739,6 +2739,698 @@
       }
     },
     {
+      "name": "Ngai-Chi Chung",
+      "currentRating": 1734,
+      "peakRating": 1971,
+      "sessionsPlayed": 119,
+      "totalWins": 345,
+      "totalLosses": 138,
+      "ratingHistory": [
+        {
+          "date": "2024-07-03",
+          "rating": 1871
+        },
+        {
+          "date": "2024-07-08",
+          "rating": 1826
+        },
+        {
+          "date": "2024-08-07",
+          "rating": 1829
+        },
+        {
+          "date": "2024-08-12",
+          "rating": 1781
+        },
+        {
+          "date": "2024-08-28",
+          "rating": 1766
+        },
+        {
+          "date": "2024-11-06",
+          "rating": 1738
+        },
+        {
+          "date": "2024-11-11",
+          "rating": 1763
+        },
+        {
+          "date": "2024-11-13",
+          "rating": 1765
+        },
+        {
+          "date": "2024-11-20",
+          "rating": 1759
+        },
+        {
+          "date": "2024-11-25",
+          "rating": 1761
+        },
+        {
+          "date": "2024-11-27",
+          "rating": 1763
+        },
+        {
+          "date": "2024-12-04",
+          "rating": 1804
+        },
+        {
+          "date": "2024-12-09",
+          "rating": 1822
+        },
+        {
+          "date": "2024-12-16",
+          "rating": 1846
+        },
+        {
+          "date": "2025-01-06",
+          "rating": 1815
+        },
+        {
+          "date": "2025-01-13",
+          "rating": 1836
+        },
+        {
+          "date": "2025-01-15",
+          "rating": 1838
+        },
+        {
+          "date": "2025-01-20",
+          "rating": 1848
+        },
+        {
+          "date": "2025-01-27",
+          "rating": 1831
+        },
+        {
+          "date": "2025-02-05",
+          "rating": 1833
+        },
+        {
+          "date": "2025-02-12",
+          "rating": 1831
+        },
+        {
+          "date": "2025-02-17",
+          "rating": 1847
+        },
+        {
+          "date": "2025-02-19",
+          "rating": 1814
+        },
+        {
+          "date": "2025-02-24",
+          "rating": 1805
+        },
+        {
+          "date": "2025-02-26",
+          "rating": 1800
+        },
+        {
+          "date": "2025-03-03",
+          "rating": 1804
+        },
+        {
+          "date": "2025-03-05",
+          "rating": 1813
+        },
+        {
+          "date": "2025-03-12",
+          "rating": 1819
+        },
+        {
+          "date": "2025-03-17",
+          "rating": 1808
+        },
+        {
+          "date": "2025-03-24",
+          "rating": 1816
+        },
+        {
+          "date": "2025-03-31",
+          "rating": 1772
+        },
+        {
+          "date": "2025-04-02",
+          "rating": 1767
+        },
+        {
+          "date": "2025-04-07",
+          "rating": 1786
+        },
+        {
+          "date": "2025-04-14",
+          "rating": 1801
+        },
+        {
+          "date": "2025-04-16",
+          "rating": 1805
+        },
+        {
+          "date": "2025-04-23",
+          "rating": 1809
+        },
+        {
+          "date": "2025-04-28",
+          "rating": 1794
+        },
+        {
+          "date": "2025-04-30",
+          "rating": 1800
+        },
+        {
+          "date": "2025-05-05",
+          "rating": 1812
+        },
+        {
+          "date": "2025-05-07",
+          "rating": 1832
+        },
+        {
+          "date": "2025-05-12",
+          "rating": 1853
+        },
+        {
+          "date": "2025-05-14",
+          "rating": 1850
+        },
+        {
+          "date": "2025-05-19",
+          "rating": 1852
+        },
+        {
+          "date": "2025-05-26",
+          "rating": 1862
+        },
+        {
+          "date": "2025-05-28",
+          "rating": 1841
+        },
+        {
+          "date": "2025-06-02",
+          "rating": 1860
+        },
+        {
+          "date": "2025-06-04",
+          "rating": 1866
+        },
+        {
+          "date": "2025-06-09",
+          "rating": 1862
+        },
+        {
+          "date": "2025-06-11",
+          "rating": 1862
+        },
+        {
+          "date": "2025-06-23",
+          "rating": 1864
+        },
+        {
+          "date": "2025-06-25",
+          "rating": 1879
+        },
+        {
+          "date": "2025-06-30",
+          "rating": 1881
+        },
+        {
+          "date": "2025-07-02",
+          "rating": 1892
+        },
+        {
+          "date": "2025-07-16",
+          "rating": 1851
+        },
+        {
+          "date": "2025-07-21",
+          "rating": 1840
+        },
+        {
+          "date": "2025-07-23",
+          "rating": 1811
+        },
+        {
+          "date": "2025-07-28",
+          "rating": 1824
+        },
+        {
+          "date": "2025-07-30",
+          "rating": 1829
+        },
+        {
+          "date": "2025-08-04",
+          "rating": 1840
+        },
+        {
+          "date": "2025-08-06",
+          "rating": 1857
+        },
+        {
+          "date": "2025-08-11",
+          "rating": 1866
+        },
+        {
+          "date": "2025-08-13",
+          "rating": 1880
+        },
+        {
+          "date": "2025-08-18",
+          "rating": 1888
+        },
+        {
+          "date": "2025-08-27",
+          "rating": 1887
+        },
+        {
+          "date": "2025-09-03",
+          "rating": 1885
+        },
+        {
+          "date": "2025-09-08",
+          "rating": 1835
+        },
+        {
+          "date": "2025-09-10",
+          "rating": 1837
+        },
+        {
+          "date": "2025-09-15",
+          "rating": 1838
+        },
+        {
+          "date": "2025-09-17",
+          "rating": 1839
+        },
+        {
+          "date": "2025-09-22",
+          "rating": 1830
+        },
+        {
+          "date": "2025-09-29",
+          "rating": 1811
+        },
+        {
+          "date": "2025-10-06",
+          "rating": 1819
+        },
+        {
+          "date": "2025-10-13",
+          "rating": 1821
+        },
+        {
+          "date": "2025-10-27",
+          "rating": 1875
+        },
+        {
+          "date": "2025-11-05",
+          "rating": 1932
+        },
+        {
+          "date": "2025-11-10",
+          "rating": 1971
+        },
+        {
+          "date": "2025-11-12",
+          "rating": 1909
+        },
+        {
+          "date": "2025-11-17",
+          "rating": 1928
+        },
+        {
+          "date": "2025-11-24",
+          "rating": 1891
+        },
+        {
+          "date": "2025-12-01",
+          "rating": 1904
+        },
+        {
+          "date": "2025-12-03",
+          "rating": 1908
+        },
+        {
+          "date": "2025-12-08",
+          "rating": 1934
+        },
+        {
+          "date": "2025-12-15",
+          "rating": 1939
+        },
+        {
+          "date": "2026-01-19",
+          "rating": 1939
+        },
+        {
+          "date": "2026-01-21",
+          "rating": 1942
+        },
+        {
+          "date": "2026-02-02",
+          "rating": 1892
+        },
+        {
+          "date": "2026-02-09",
+          "rating": 1891
+        },
+        {
+          "date": "2026-02-11",
+          "rating": 1894
+        },
+        {
+          "date": "2026-02-16",
+          "rating": 1943
+        },
+        {
+          "date": "2026-03-02",
+          "rating": 1940
+        },
+        {
+          "date": "2026-03-11",
+          "rating": 1947
+        },
+        {
+          "date": "2026-03-16",
+          "rating": 1868
+        },
+        {
+          "date": "2026-03-18",
+          "rating": 1880
+        },
+        {
+          "date": "2026-03-25",
+          "rating": 1940
+        },
+        {
+          "date": "2026-03-30",
+          "rating": 1940
+        },
+        {
+          "date": "2026-04-06",
+          "rating": 1942
+        },
+        {
+          "date": "2026-04-13",
+          "rating": 1939
+        },
+        {
+          "date": "2026-04-27",
+          "rating": 1964
+        },
+        {
+          "date": "2026-04-29",
+          "rating": 1959
+        },
+        {
+          "date": "2026-05-18",
+          "rating": 1958
+        },
+        {
+          "date": "2026-05-20",
+          "rating": 1961
+        },
+        {
+          "date": "2026-05-25",
+          "rating": 1959
+        },
+        {
+          "date": "2026-05-27",
+          "rating": 1922
+        },
+        {
+          "date": "2026-06-03",
+          "rating": 1922
+        },
+        {
+          "date": "2026-06-08",
+          "rating": 1924
+        },
+        {
+          "date": "2026-06-10",
+          "rating": 1875
+        },
+        {
+          "date": "2026-07-13",
+          "rating": 1880
+        },
+        {
+          "date": "2026-07-20",
+          "rating": 1928
+        },
+        {
+          "date": "2026-07-27",
+          "rating": 1900
+        },
+        {
+          "date": "2026-08-17",
+          "rating": 1882
+        },
+        {
+          "date": "2026-08-31",
+          "rating": 1854
+        },
+        {
+          "date": "2026-09-07",
+          "rating": 1810
+        },
+        {
+          "date": "2026-09-16",
+          "rating": 1813
+        },
+        {
+          "date": "2026-09-21",
+          "rating": 1811
+        },
+        {
+          "date": "2026-09-23",
+          "rating": 1826
+        },
+        {
+          "date": "2026-10-05",
+          "rating": 1828
+        },
+        {
+          "date": "2026-10-19",
+          "rating": 1783
+        },
+        {
+          "date": "2026-10-26",
+          "rating": 1718
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1734
+        }
+      ],
+      "headToHead": {
+        "Jafar Fatemi": {
+          "wins": 61,
+          "losses": 7
+        },
+        "Joe Zhou": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Eric Aki": {
+          "wins": 15,
+          "losses": 1
+        },
+        "Alec Savakus": {
+          "wins": 14,
+          "losses": 0
+        },
+        "Adeyinka Adeyemo": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Yuri Kretov": {
+          "wins": 8,
+          "losses": 0
+        },
+        "Li Long": {
+          "wins": 10,
+          "losses": 1
+        },
+        "Ilya Liberman": {
+          "wins": 18,
+          "losses": 0
+        },
+        "Olaf Surmann": {
+          "wins": 1,
+          "losses": 43
+        },
+        "William Craig": {
+          "wins": 22,
+          "losses": 11
+        },
+        "Michael Ramirez": {
+          "wins": 1,
+          "losses": 2
+        },
+        "Alan Wang": {
+          "wins": 9,
+          "losses": 9
+        },
+        "Marko Shafik": {
+          "wins": 45,
+          "losses": 13
+        },
+        "Alex Lam": {
+          "wins": 30,
+          "losses": 19
+        },
+        "Raymond Trinh": {
+          "wins": 19,
+          "losses": 2
+        },
+        "Greg Rogers": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Anthony Szumilo": {
+          "wins": 12,
+          "losses": 2
+        },
+        "Yaroslav Shneikin": {
+          "wins": 10,
+          "losses": 0
+        },
+        "Vladimir Lev": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Mostafa Mirzazadeh": {
+          "wins": 1,
+          "losses": 0
+        },
+        "David-A Katz": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Bob Zandipour": {
+          "wins": 4,
+          "losses": 0
+        },
+        "Alan Li": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Jiadi Jiang": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Chris Chidumije": {
+          "wins": 2,
+          "losses": 1
+        },
+        "Faith Matas": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Tadashi Moriguchi": {
+          "wins": 4,
+          "losses": 3
+        },
+        "Steven Alfred": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Tom (Xiaoyun) Zeng": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ruskin Dantra": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Ryan Wang": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Victor Lee": {
+          "wins": 7,
+          "losses": 0
+        },
+        "Jon Rego": {
+          "wins": 1,
+          "losses": 0
+        },
+        "J. B. Birch": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alexis Arellano": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Defrim Zejnullahi": {
+          "wins": 5,
+          "losses": 0
+        },
+        "Jay Smith": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Son Lu": {
+          "wins": 4,
+          "losses": 0
+        },
+        "Philip Lin": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Philip Lim": {
+          "wins": 5,
+          "losses": 1
+        },
+        "Adrian Lungu": {
+          "wins": 2,
+          "losses": 0
+        },
+        "David Ding": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Keith Bawa": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Nidhi Trivedi": {
+          "wins": 1,
+          "losses": 2
+        },
+        "Piotr Zajac": {
+          "wins": 3,
+          "losses": 12
+        },
+        "Vincent Cheng": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Dan Chung": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Kai Zarehbin": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Fu Qun Xing": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Rahul Chatwani": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Sandro Fuenzalida": {
+          "wins": 0,
+          "losses": 1
+        }
+      }
+    },
+    {
       "name": "Marko Shafik",
       "currentRating": 1730,
       "peakRating": 1922,
@@ -3425,1130 +4117,6 @@
           "losses": 0
         },
         "Brandon Van Buskirk": {
-          "wins": 1,
-          "losses": 0
-        }
-      }
-    },
-    {
-      "name": "Ngai-Chi Chung",
-      "currentRating": 1718,
-      "peakRating": 1971,
-      "sessionsPlayed": 118,
-      "totalWins": 340,
-      "totalLosses": 138,
-      "ratingHistory": [
-        {
-          "date": "2024-07-03",
-          "rating": 1871
-        },
-        {
-          "date": "2024-07-08",
-          "rating": 1826
-        },
-        {
-          "date": "2024-08-07",
-          "rating": 1829
-        },
-        {
-          "date": "2024-08-12",
-          "rating": 1781
-        },
-        {
-          "date": "2024-08-28",
-          "rating": 1766
-        },
-        {
-          "date": "2024-11-06",
-          "rating": 1738
-        },
-        {
-          "date": "2024-11-11",
-          "rating": 1763
-        },
-        {
-          "date": "2024-11-13",
-          "rating": 1765
-        },
-        {
-          "date": "2024-11-20",
-          "rating": 1759
-        },
-        {
-          "date": "2024-11-25",
-          "rating": 1761
-        },
-        {
-          "date": "2024-11-27",
-          "rating": 1763
-        },
-        {
-          "date": "2024-12-04",
-          "rating": 1804
-        },
-        {
-          "date": "2024-12-09",
-          "rating": 1822
-        },
-        {
-          "date": "2024-12-16",
-          "rating": 1846
-        },
-        {
-          "date": "2025-01-06",
-          "rating": 1815
-        },
-        {
-          "date": "2025-01-13",
-          "rating": 1836
-        },
-        {
-          "date": "2025-01-15",
-          "rating": 1838
-        },
-        {
-          "date": "2025-01-20",
-          "rating": 1848
-        },
-        {
-          "date": "2025-01-27",
-          "rating": 1831
-        },
-        {
-          "date": "2025-02-05",
-          "rating": 1833
-        },
-        {
-          "date": "2025-02-12",
-          "rating": 1831
-        },
-        {
-          "date": "2025-02-17",
-          "rating": 1847
-        },
-        {
-          "date": "2025-02-19",
-          "rating": 1814
-        },
-        {
-          "date": "2025-02-24",
-          "rating": 1805
-        },
-        {
-          "date": "2025-02-26",
-          "rating": 1800
-        },
-        {
-          "date": "2025-03-03",
-          "rating": 1804
-        },
-        {
-          "date": "2025-03-05",
-          "rating": 1813
-        },
-        {
-          "date": "2025-03-12",
-          "rating": 1819
-        },
-        {
-          "date": "2025-03-17",
-          "rating": 1808
-        },
-        {
-          "date": "2025-03-24",
-          "rating": 1816
-        },
-        {
-          "date": "2025-03-31",
-          "rating": 1772
-        },
-        {
-          "date": "2025-04-02",
-          "rating": 1767
-        },
-        {
-          "date": "2025-04-07",
-          "rating": 1786
-        },
-        {
-          "date": "2025-04-14",
-          "rating": 1801
-        },
-        {
-          "date": "2025-04-16",
-          "rating": 1805
-        },
-        {
-          "date": "2025-04-23",
-          "rating": 1809
-        },
-        {
-          "date": "2025-04-28",
-          "rating": 1794
-        },
-        {
-          "date": "2025-04-30",
-          "rating": 1800
-        },
-        {
-          "date": "2025-05-05",
-          "rating": 1812
-        },
-        {
-          "date": "2025-05-07",
-          "rating": 1832
-        },
-        {
-          "date": "2025-05-12",
-          "rating": 1853
-        },
-        {
-          "date": "2025-05-14",
-          "rating": 1850
-        },
-        {
-          "date": "2025-05-19",
-          "rating": 1852
-        },
-        {
-          "date": "2025-05-26",
-          "rating": 1862
-        },
-        {
-          "date": "2025-05-28",
-          "rating": 1841
-        },
-        {
-          "date": "2025-06-02",
-          "rating": 1860
-        },
-        {
-          "date": "2025-06-04",
-          "rating": 1866
-        },
-        {
-          "date": "2025-06-09",
-          "rating": 1862
-        },
-        {
-          "date": "2025-06-11",
-          "rating": 1862
-        },
-        {
-          "date": "2025-06-23",
-          "rating": 1864
-        },
-        {
-          "date": "2025-06-25",
-          "rating": 1879
-        },
-        {
-          "date": "2025-06-30",
-          "rating": 1881
-        },
-        {
-          "date": "2025-07-02",
-          "rating": 1892
-        },
-        {
-          "date": "2025-07-16",
-          "rating": 1851
-        },
-        {
-          "date": "2025-07-21",
-          "rating": 1840
-        },
-        {
-          "date": "2025-07-23",
-          "rating": 1811
-        },
-        {
-          "date": "2025-07-28",
-          "rating": 1824
-        },
-        {
-          "date": "2025-07-30",
-          "rating": 1829
-        },
-        {
-          "date": "2025-08-04",
-          "rating": 1840
-        },
-        {
-          "date": "2025-08-06",
-          "rating": 1857
-        },
-        {
-          "date": "2025-08-11",
-          "rating": 1866
-        },
-        {
-          "date": "2025-08-13",
-          "rating": 1880
-        },
-        {
-          "date": "2025-08-18",
-          "rating": 1888
-        },
-        {
-          "date": "2025-08-27",
-          "rating": 1887
-        },
-        {
-          "date": "2025-09-03",
-          "rating": 1885
-        },
-        {
-          "date": "2025-09-08",
-          "rating": 1835
-        },
-        {
-          "date": "2025-09-10",
-          "rating": 1837
-        },
-        {
-          "date": "2025-09-15",
-          "rating": 1838
-        },
-        {
-          "date": "2025-09-17",
-          "rating": 1839
-        },
-        {
-          "date": "2025-09-22",
-          "rating": 1830
-        },
-        {
-          "date": "2025-09-29",
-          "rating": 1811
-        },
-        {
-          "date": "2025-10-06",
-          "rating": 1819
-        },
-        {
-          "date": "2025-10-13",
-          "rating": 1821
-        },
-        {
-          "date": "2025-10-27",
-          "rating": 1875
-        },
-        {
-          "date": "2025-11-05",
-          "rating": 1932
-        },
-        {
-          "date": "2025-11-10",
-          "rating": 1971
-        },
-        {
-          "date": "2025-11-12",
-          "rating": 1909
-        },
-        {
-          "date": "2025-11-17",
-          "rating": 1928
-        },
-        {
-          "date": "2025-11-24",
-          "rating": 1891
-        },
-        {
-          "date": "2025-12-01",
-          "rating": 1904
-        },
-        {
-          "date": "2025-12-03",
-          "rating": 1908
-        },
-        {
-          "date": "2025-12-08",
-          "rating": 1934
-        },
-        {
-          "date": "2025-12-15",
-          "rating": 1939
-        },
-        {
-          "date": "2026-01-19",
-          "rating": 1939
-        },
-        {
-          "date": "2026-01-21",
-          "rating": 1942
-        },
-        {
-          "date": "2026-02-02",
-          "rating": 1892
-        },
-        {
-          "date": "2026-02-09",
-          "rating": 1891
-        },
-        {
-          "date": "2026-02-11",
-          "rating": 1894
-        },
-        {
-          "date": "2026-02-16",
-          "rating": 1943
-        },
-        {
-          "date": "2026-03-02",
-          "rating": 1940
-        },
-        {
-          "date": "2026-03-11",
-          "rating": 1947
-        },
-        {
-          "date": "2026-03-16",
-          "rating": 1868
-        },
-        {
-          "date": "2026-03-18",
-          "rating": 1880
-        },
-        {
-          "date": "2026-03-25",
-          "rating": 1940
-        },
-        {
-          "date": "2026-03-30",
-          "rating": 1940
-        },
-        {
-          "date": "2026-04-06",
-          "rating": 1942
-        },
-        {
-          "date": "2026-04-13",
-          "rating": 1939
-        },
-        {
-          "date": "2026-04-27",
-          "rating": 1964
-        },
-        {
-          "date": "2026-04-29",
-          "rating": 1959
-        },
-        {
-          "date": "2026-05-18",
-          "rating": 1958
-        },
-        {
-          "date": "2026-05-20",
-          "rating": 1961
-        },
-        {
-          "date": "2026-05-25",
-          "rating": 1959
-        },
-        {
-          "date": "2026-05-27",
-          "rating": 1922
-        },
-        {
-          "date": "2026-06-03",
-          "rating": 1922
-        },
-        {
-          "date": "2026-06-08",
-          "rating": 1924
-        },
-        {
-          "date": "2026-06-10",
-          "rating": 1875
-        },
-        {
-          "date": "2026-07-13",
-          "rating": 1880
-        },
-        {
-          "date": "2026-07-20",
-          "rating": 1928
-        },
-        {
-          "date": "2026-07-27",
-          "rating": 1900
-        },
-        {
-          "date": "2026-08-17",
-          "rating": 1882
-        },
-        {
-          "date": "2026-08-31",
-          "rating": 1854
-        },
-        {
-          "date": "2026-09-07",
-          "rating": 1810
-        },
-        {
-          "date": "2026-09-16",
-          "rating": 1813
-        },
-        {
-          "date": "2026-09-21",
-          "rating": 1811
-        },
-        {
-          "date": "2026-09-23",
-          "rating": 1826
-        },
-        {
-          "date": "2026-10-05",
-          "rating": 1828
-        },
-        {
-          "date": "2026-10-19",
-          "rating": 1783
-        },
-        {
-          "date": "2026-10-26",
-          "rating": 1718
-        }
-      ],
-      "headToHead": {
-        "Jafar Fatemi": {
-          "wins": 60,
-          "losses": 7
-        },
-        "Joe Zhou": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Eric Aki": {
-          "wins": 14,
-          "losses": 1
-        },
-        "Alec Savakus": {
-          "wins": 14,
-          "losses": 0
-        },
-        "Adeyinka Adeyemo": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Yuri Kretov": {
-          "wins": 8,
-          "losses": 0
-        },
-        "Li Long": {
-          "wins": 10,
-          "losses": 1
-        },
-        "Ilya Liberman": {
-          "wins": 18,
-          "losses": 0
-        },
-        "Olaf Surmann": {
-          "wins": 1,
-          "losses": 43
-        },
-        "William Craig": {
-          "wins": 21,
-          "losses": 11
-        },
-        "Michael Ramirez": {
-          "wins": 1,
-          "losses": 2
-        },
-        "Alan Wang": {
-          "wins": 9,
-          "losses": 9
-        },
-        "Marko Shafik": {
-          "wins": 45,
-          "losses": 13
-        },
-        "Alex Lam": {
-          "wins": 30,
-          "losses": 19
-        },
-        "Raymond Trinh": {
-          "wins": 18,
-          "losses": 2
-        },
-        "Greg Rogers": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Anthony Szumilo": {
-          "wins": 12,
-          "losses": 2
-        },
-        "Yaroslav Shneikin": {
-          "wins": 10,
-          "losses": 0
-        },
-        "Vladimir Lev": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Mostafa Mirzazadeh": {
-          "wins": 1,
-          "losses": 0
-        },
-        "David-A Katz": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Bob Zandipour": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Alan Li": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Jiadi Jiang": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Chris Chidumije": {
-          "wins": 2,
-          "losses": 1
-        },
-        "Faith Matas": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Tadashi Moriguchi": {
-          "wins": 4,
-          "losses": 3
-        },
-        "Steven Alfred": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Tom (Xiaoyun) Zeng": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ruskin Dantra": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Ryan Wang": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Victor Lee": {
-          "wins": 7,
-          "losses": 0
-        },
-        "Jon Rego": {
-          "wins": 1,
-          "losses": 0
-        },
-        "J. B. Birch": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Alexis Arellano": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Defrim Zejnullahi": {
-          "wins": 5,
-          "losses": 0
-        },
-        "Jay Smith": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Son Lu": {
-          "wins": 4,
-          "losses": 0
-        },
-        "Philip Lin": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Philip Lim": {
-          "wins": 5,
-          "losses": 1
-        },
-        "Adrian Lungu": {
-          "wins": 2,
-          "losses": 0
-        },
-        "David Ding": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Keith Bawa": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Nidhi Trivedi": {
-          "wins": 1,
-          "losses": 2
-        },
-        "Piotr Zajac": {
-          "wins": 3,
-          "losses": 12
-        },
-        "Vincent Cheng": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Dan Chung": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Kai Zarehbin": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Fu Qun Xing": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Rahul Chatwani": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Sandro Fuenzalida": {
-          "wins": 0,
-          "losses": 1
-        }
-      }
-    },
-    {
-      "name": "William Craig",
-      "currentRating": 1718,
-      "peakRating": 1939,
-      "sessionsPlayed": 64,
-      "totalWins": 160,
-      "totalLosses": 102,
-      "ratingHistory": [
-        {
-          "date": "2024-07-15",
-          "rating": 1900
-        },
-        {
-          "date": "2024-07-31",
-          "rating": 1865
-        },
-        {
-          "date": "2024-08-14",
-          "rating": 1866
-        },
-        {
-          "date": "2024-08-28",
-          "rating": 1874
-        },
-        {
-          "date": "2024-09-11",
-          "rating": 1933
-        },
-        {
-          "date": "2024-09-18",
-          "rating": 1938
-        },
-        {
-          "date": "2024-10-21",
-          "rating": 1939
-        },
-        {
-          "date": "2024-10-28",
-          "rating": 1899
-        },
-        {
-          "date": "2024-11-04",
-          "rating": 1870
-        },
-        {
-          "date": "2024-11-25",
-          "rating": 1869
-        },
-        {
-          "date": "2024-12-02",
-          "rating": 1858
-        },
-        {
-          "date": "2024-12-09",
-          "rating": 1848
-        },
-        {
-          "date": "2024-12-16",
-          "rating": 1849
-        },
-        {
-          "date": "2025-01-06",
-          "rating": 1850
-        },
-        {
-          "date": "2025-01-13",
-          "rating": 1862
-        },
-        {
-          "date": "2025-01-20",
-          "rating": 1846
-        },
-        {
-          "date": "2025-01-27",
-          "rating": 1829
-        },
-        {
-          "date": "2025-02-03",
-          "rating": 1833
-        },
-        {
-          "date": "2025-02-24",
-          "rating": 1872
-        },
-        {
-          "date": "2025-03-12",
-          "rating": 1886
-        },
-        {
-          "date": "2025-03-17",
-          "rating": 1855
-        },
-        {
-          "date": "2025-03-24",
-          "rating": 1853
-        },
-        {
-          "date": "2025-03-31",
-          "rating": 1869
-        },
-        {
-          "date": "2025-04-07",
-          "rating": 1809
-        },
-        {
-          "date": "2025-04-28",
-          "rating": 1834
-        },
-        {
-          "date": "2025-05-12",
-          "rating": 1870
-        },
-        {
-          "date": "2025-05-19",
-          "rating": 1824
-        },
-        {
-          "date": "2025-07-02",
-          "rating": 1860
-        },
-        {
-          "date": "2025-07-28",
-          "rating": 1824
-        },
-        {
-          "date": "2025-10-01",
-          "rating": 1818
-        },
-        {
-          "date": "2025-10-20",
-          "rating": 1807
-        },
-        {
-          "date": "2025-10-27",
-          "rating": 1864
-        },
-        {
-          "date": "2025-11-05",
-          "rating": 1855
-        },
-        {
-          "date": "2025-11-10",
-          "rating": 1885
-        },
-        {
-          "date": "2025-11-17",
-          "rating": 1876
-        },
-        {
-          "date": "2025-11-24",
-          "rating": 1901
-        },
-        {
-          "date": "2025-12-01",
-          "rating": 1879
-        },
-        {
-          "date": "2025-12-08",
-          "rating": 1895
-        },
-        {
-          "date": "2025-12-15",
-          "rating": 1805
-        },
-        {
-          "date": "2026-01-07",
-          "rating": 1808
-        },
-        {
-          "date": "2026-01-26",
-          "rating": 1786
-        },
-        {
-          "date": "2026-02-11",
-          "rating": 1747
-        },
-        {
-          "date": "2026-02-18",
-          "rating": 1721
-        },
-        {
-          "date": "2026-02-23",
-          "rating": 1681
-        },
-        {
-          "date": "2026-03-02",
-          "rating": 1691
-        },
-        {
-          "date": "2026-03-11",
-          "rating": 1703
-        },
-        {
-          "date": "2026-03-16",
-          "rating": 1709
-        },
-        {
-          "date": "2026-04-01",
-          "rating": 1700
-        },
-        {
-          "date": "2026-04-13",
-          "rating": 1711
-        },
-        {
-          "date": "2026-04-20",
-          "rating": 1720
-        },
-        {
-          "date": "2026-04-29",
-          "rating": 1715
-        },
-        {
-          "date": "2026-05-11",
-          "rating": 1720
-        },
-        {
-          "date": "2026-05-18",
-          "rating": 1716
-        },
-        {
-          "date": "2026-06-01",
-          "rating": 1708
-        },
-        {
-          "date": "2026-06-08",
-          "rating": 1739
-        },
-        {
-          "date": "2026-07-06",
-          "rating": 1753
-        },
-        {
-          "date": "2026-07-08",
-          "rating": 1720
-        },
-        {
-          "date": "2026-08-19",
-          "rating": 1720
-        },
-        {
-          "date": "2026-08-24",
-          "rating": 1715
-        },
-        {
-          "date": "2026-08-31",
-          "rating": 1765
-        },
-        {
-          "date": "2026-09-09",
-          "rating": 1737
-        },
-        {
-          "date": "2026-09-28",
-          "rating": 1757
-        },
-        {
-          "date": "2026-10-05",
-          "rating": 1749
-        },
-        {
-          "date": "2026-10-12",
-          "rating": 1718
-        }
-      ],
-      "headToHead": {
-        "Alec Savakus": {
-          "wins": 8,
-          "losses": 0
-        },
-        "Jafar Fatemi": {
-          "wins": 26,
-          "losses": 6
-        },
-        "Ilya Liberman": {
-          "wins": 5,
-          "losses": 0
-        },
-        "Marko Shafik": {
-          "wins": 9,
-          "losses": 18
-        },
-        "Petar Nedyalkov": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Olaf Surmann": {
-          "wins": 3,
-          "losses": 14
-        },
-        "Michael Ramirez": {
-          "wins": 5,
-          "losses": 0
-        },
-        "Ngai-Chi Chung": {
-          "wins": 11,
-          "losses": 21
-        },
-        "Joe Zhou": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Alan Wang": {
-          "wins": 5,
-          "losses": 3
-        },
-        "Avishy Schmidt": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Alex Lam": {
-          "wins": 8,
-          "losses": 19
-        },
-        "Li Long": {
-          "wins": 5,
-          "losses": 0
-        },
-        "Eric Aki": {
-          "wins": 9,
-          "losses": 0
-        },
-        "Raymond Trinh": {
-          "wins": 15,
-          "losses": 3
-        },
-        "Alex Varady": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Anthony Szumilo": {
-          "wins": 6,
-          "losses": 0
-        },
-        "Yaroslav Shneikin": {
-          "wins": 3,
-          "losses": 0
-        },
-        "David-A Katz": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Bob Zandipour": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Alan Li": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Tadashi Moriguchi": {
-          "wins": 3,
-          "losses": 4
-        },
-        "Steven Alfred": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Victor Lee": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Vladimir Lev": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Philip Lin": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Philip Lim": {
-          "wins": 2,
-          "losses": 1
-        },
-        "Son Lu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Adrian Lungu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "David Ding": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Chris Chidumije": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Defrim Zejnullahi": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Piotr Zajac": {
-          "wins": 0,
-          "losses": 9
-        },
-        "Jay Smith": {
-          "wins": 2,
-          "losses": 1
-        },
-        "J. B. Birch": {
-          "wins": 4,
-          "losses": 0
-        },
-        "Ernie Olatunji": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Faith Matas": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Tate Houston": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Yuri Kretov": {
-          "wins": 4,
-          "losses": 0
-        },
-        "Lawrence Tran": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Rahul Chatwani": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Nidhi Trivedi": {
           "wins": 1,
           "losses": 0
         }
@@ -5679,6 +5247,446 @@
       }
     },
     {
+      "name": "William Craig",
+      "currentRating": 1668,
+      "peakRating": 1939,
+      "sessionsPlayed": 65,
+      "totalWins": 163,
+      "totalLosses": 104,
+      "ratingHistory": [
+        {
+          "date": "2024-07-15",
+          "rating": 1900
+        },
+        {
+          "date": "2024-07-31",
+          "rating": 1865
+        },
+        {
+          "date": "2024-08-14",
+          "rating": 1866
+        },
+        {
+          "date": "2024-08-28",
+          "rating": 1874
+        },
+        {
+          "date": "2024-09-11",
+          "rating": 1933
+        },
+        {
+          "date": "2024-09-18",
+          "rating": 1938
+        },
+        {
+          "date": "2024-10-21",
+          "rating": 1939
+        },
+        {
+          "date": "2024-10-28",
+          "rating": 1899
+        },
+        {
+          "date": "2024-11-04",
+          "rating": 1870
+        },
+        {
+          "date": "2024-11-25",
+          "rating": 1869
+        },
+        {
+          "date": "2024-12-02",
+          "rating": 1858
+        },
+        {
+          "date": "2024-12-09",
+          "rating": 1848
+        },
+        {
+          "date": "2024-12-16",
+          "rating": 1849
+        },
+        {
+          "date": "2025-01-06",
+          "rating": 1850
+        },
+        {
+          "date": "2025-01-13",
+          "rating": 1862
+        },
+        {
+          "date": "2025-01-20",
+          "rating": 1846
+        },
+        {
+          "date": "2025-01-27",
+          "rating": 1829
+        },
+        {
+          "date": "2025-02-03",
+          "rating": 1833
+        },
+        {
+          "date": "2025-02-24",
+          "rating": 1872
+        },
+        {
+          "date": "2025-03-12",
+          "rating": 1886
+        },
+        {
+          "date": "2025-03-17",
+          "rating": 1855
+        },
+        {
+          "date": "2025-03-24",
+          "rating": 1853
+        },
+        {
+          "date": "2025-03-31",
+          "rating": 1869
+        },
+        {
+          "date": "2025-04-07",
+          "rating": 1809
+        },
+        {
+          "date": "2025-04-28",
+          "rating": 1834
+        },
+        {
+          "date": "2025-05-12",
+          "rating": 1870
+        },
+        {
+          "date": "2025-05-19",
+          "rating": 1824
+        },
+        {
+          "date": "2025-07-02",
+          "rating": 1860
+        },
+        {
+          "date": "2025-07-28",
+          "rating": 1824
+        },
+        {
+          "date": "2025-10-01",
+          "rating": 1818
+        },
+        {
+          "date": "2025-10-20",
+          "rating": 1807
+        },
+        {
+          "date": "2025-10-27",
+          "rating": 1864
+        },
+        {
+          "date": "2025-11-05",
+          "rating": 1855
+        },
+        {
+          "date": "2025-11-10",
+          "rating": 1885
+        },
+        {
+          "date": "2025-11-17",
+          "rating": 1876
+        },
+        {
+          "date": "2025-11-24",
+          "rating": 1901
+        },
+        {
+          "date": "2025-12-01",
+          "rating": 1879
+        },
+        {
+          "date": "2025-12-08",
+          "rating": 1895
+        },
+        {
+          "date": "2025-12-15",
+          "rating": 1805
+        },
+        {
+          "date": "2026-01-07",
+          "rating": 1808
+        },
+        {
+          "date": "2026-01-26",
+          "rating": 1786
+        },
+        {
+          "date": "2026-02-11",
+          "rating": 1747
+        },
+        {
+          "date": "2026-02-18",
+          "rating": 1721
+        },
+        {
+          "date": "2026-02-23",
+          "rating": 1681
+        },
+        {
+          "date": "2026-03-02",
+          "rating": 1691
+        },
+        {
+          "date": "2026-03-11",
+          "rating": 1703
+        },
+        {
+          "date": "2026-03-16",
+          "rating": 1709
+        },
+        {
+          "date": "2026-04-01",
+          "rating": 1700
+        },
+        {
+          "date": "2026-04-13",
+          "rating": 1711
+        },
+        {
+          "date": "2026-04-20",
+          "rating": 1720
+        },
+        {
+          "date": "2026-04-29",
+          "rating": 1715
+        },
+        {
+          "date": "2026-05-11",
+          "rating": 1720
+        },
+        {
+          "date": "2026-05-18",
+          "rating": 1716
+        },
+        {
+          "date": "2026-06-01",
+          "rating": 1708
+        },
+        {
+          "date": "2026-06-08",
+          "rating": 1739
+        },
+        {
+          "date": "2026-07-06",
+          "rating": 1753
+        },
+        {
+          "date": "2026-07-08",
+          "rating": 1720
+        },
+        {
+          "date": "2026-08-19",
+          "rating": 1720
+        },
+        {
+          "date": "2026-08-24",
+          "rating": 1715
+        },
+        {
+          "date": "2026-08-31",
+          "rating": 1765
+        },
+        {
+          "date": "2026-09-09",
+          "rating": 1737
+        },
+        {
+          "date": "2026-09-28",
+          "rating": 1757
+        },
+        {
+          "date": "2026-10-05",
+          "rating": 1749
+        },
+        {
+          "date": "2026-10-12",
+          "rating": 1718
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1668
+        }
+      ],
+      "headToHead": {
+        "Alec Savakus": {
+          "wins": 8,
+          "losses": 0
+        },
+        "Jafar Fatemi": {
+          "wins": 27,
+          "losses": 6
+        },
+        "Ilya Liberman": {
+          "wins": 5,
+          "losses": 0
+        },
+        "Marko Shafik": {
+          "wins": 9,
+          "losses": 18
+        },
+        "Petar Nedyalkov": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Olaf Surmann": {
+          "wins": 3,
+          "losses": 14
+        },
+        "Michael Ramirez": {
+          "wins": 5,
+          "losses": 0
+        },
+        "Ngai-Chi Chung": {
+          "wins": 11,
+          "losses": 22
+        },
+        "Joe Zhou": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alan Wang": {
+          "wins": 5,
+          "losses": 3
+        },
+        "Avishy Schmidt": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alex Lam": {
+          "wins": 8,
+          "losses": 19
+        },
+        "Li Long": {
+          "wins": 5,
+          "losses": 0
+        },
+        "Eric Aki": {
+          "wins": 9,
+          "losses": 1
+        },
+        "Raymond Trinh": {
+          "wins": 16,
+          "losses": 3
+        },
+        "Alex Varady": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Anthony Szumilo": {
+          "wins": 6,
+          "losses": 0
+        },
+        "Yaroslav Shneikin": {
+          "wins": 3,
+          "losses": 0
+        },
+        "David-A Katz": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Bob Zandipour": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Alan Li": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Tadashi Moriguchi": {
+          "wins": 3,
+          "losses": 4
+        },
+        "Steven Alfred": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Victor Lee": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Vladimir Lev": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Philip Lin": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Philip Lim": {
+          "wins": 2,
+          "losses": 1
+        },
+        "Son Lu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Adrian Lungu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "David Ding": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Chris Chidumije": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Defrim Zejnullahi": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Piotr Zajac": {
+          "wins": 0,
+          "losses": 9
+        },
+        "Jay Smith": {
+          "wins": 2,
+          "losses": 1
+        },
+        "J. B. Birch": {
+          "wins": 4,
+          "losses": 0
+        },
+        "Ernie Olatunji": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Faith Matas": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Tate Houston": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Yuri Kretov": {
+          "wins": 4,
+          "losses": 0
+        },
+        "Lawrence Tran": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Rahul Chatwani": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Nidhi Trivedi": {
+          "wins": 1,
+          "losses": 0
+        }
+      }
+    },
+    {
       "name": "Fu Qun Xing",
       "currentRating": 1667,
       "peakRating": 1699,
@@ -5844,11 +5852,11 @@
     },
     {
       "name": "Raymond Trinh",
-      "currentRating": 1655,
+      "currentRating": 1647,
       "peakRating": 1657,
-      "sessionsPlayed": 115,
-      "totalWins": 217,
-      "totalLosses": 243,
+      "sessionsPlayed": 116,
+      "totalWins": 218,
+      "totalLosses": 247,
       "ratingHistory": [
         {
           "date": "2024-01-07",
@@ -6309,11 +6317,15 @@
         {
           "date": "2026-10-28",
           "rating": 1655
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1647
         }
       ],
       "headToHead": {
         "Eric Aki": {
-          "wins": 19,
+          "wins": 20,
           "losses": 12
         },
         "Ben Kaliko": {
@@ -6466,7 +6478,7 @@
         },
         "William Craig": {
           "wins": 3,
-          "losses": 15
+          "losses": 16
         },
         "Marko Shafik": {
           "wins": 2,
@@ -6482,7 +6494,7 @@
         },
         "Ngai-Chi Chung": {
           "wins": 2,
-          "losses": 18
+          "losses": 19
         },
         "Anthony Szumilo": {
           "wins": 2,
@@ -6908,11 +6920,11 @@
     },
     {
       "name": "Jafar Fatemi",
-      "currentRating": 1593,
+      "currentRating": 1591,
       "peakRating": 1750,
-      "sessionsPlayed": 248,
-      "totalWins": 547,
-      "totalLosses": 445,
+      "sessionsPlayed": 249,
+      "totalWins": 550,
+      "totalLosses": 447,
       "ratingHistory": [
         {
           "date": "2024-01-07",
@@ -7905,6 +7917,10 @@
         {
           "date": "2026-10-28",
           "rating": 1593
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1591
         }
       ],
       "headToHead": {
@@ -7965,7 +7981,7 @@
           "losses": 1
         },
         "Eric Aki": {
-          "wins": 59,
+          "wins": 60,
           "losses": 10
         },
         "Joremie Fernandez": {
@@ -8046,7 +8062,7 @@
         },
         "Ngai-Chi Chung": {
           "wins": 7,
-          "losses": 60
+          "losses": 61
         },
         "Danny Yip": {
           "wins": 1,
@@ -8058,7 +8074,7 @@
         },
         "William Craig": {
           "wins": 6,
-          "losses": 26
+          "losses": 27
         },
         "David Stone": {
           "wins": 1,
@@ -8129,7 +8145,7 @@
           "losses": 3
         },
         "Bob Zandipour": {
-          "wins": 6,
+          "wins": 7,
           "losses": 0
         },
         "Ron Liu": {
@@ -10987,6 +11003,1318 @@
       }
     },
     {
+      "name": "Eric Aki",
+      "currentRating": 1501,
+      "peakRating": 1609,
+      "sessionsPlayed": 231,
+      "totalWins": 452,
+      "totalLosses": 474,
+      "ratingHistory": [
+        {
+          "date": "2024-01-07",
+          "rating": 1488
+        },
+        {
+          "date": "2024-01-11",
+          "rating": 1513
+        },
+        {
+          "date": "2024-01-18",
+          "rating": 1509
+        },
+        {
+          "date": "2024-01-25",
+          "rating": 1502
+        },
+        {
+          "date": "2024-01-28",
+          "rating": 1504
+        },
+        {
+          "date": "2024-02-01",
+          "rating": 1514
+        },
+        {
+          "date": "2024-02-08",
+          "rating": 1535
+        },
+        {
+          "date": "2024-02-11",
+          "rating": 1544
+        },
+        {
+          "date": "2024-02-15",
+          "rating": 1570
+        },
+        {
+          "date": "2024-02-18",
+          "rating": 1572
+        },
+        {
+          "date": "2024-02-22",
+          "rating": 1569
+        },
+        {
+          "date": "2024-03-03",
+          "rating": 1588
+        },
+        {
+          "date": "2024-03-07",
+          "rating": 1562
+        },
+        {
+          "date": "2024-03-14",
+          "rating": 1549
+        },
+        {
+          "date": "2024-03-21",
+          "rating": 1554
+        },
+        {
+          "date": "2024-03-24",
+          "rating": 1558
+        },
+        {
+          "date": "2024-03-28",
+          "rating": 1574
+        },
+        {
+          "date": "2024-03-31",
+          "rating": 1560
+        },
+        {
+          "date": "2024-04-04",
+          "rating": 1609
+        },
+        {
+          "date": "2024-04-11",
+          "rating": 1592
+        },
+        {
+          "date": "2024-04-18",
+          "rating": 1589
+        },
+        {
+          "date": "2024-04-21",
+          "rating": 1561
+        },
+        {
+          "date": "2024-04-25",
+          "rating": 1549
+        },
+        {
+          "date": "2024-04-28",
+          "rating": 1574
+        },
+        {
+          "date": "2024-05-02",
+          "rating": 1578
+        },
+        {
+          "date": "2024-05-05",
+          "rating": 1556
+        },
+        {
+          "date": "2024-05-09",
+          "rating": 1550
+        },
+        {
+          "date": "2024-05-16",
+          "rating": 1530
+        },
+        {
+          "date": "2024-05-19",
+          "rating": 1494
+        },
+        {
+          "date": "2024-05-23",
+          "rating": 1502
+        },
+        {
+          "date": "2024-05-26",
+          "rating": 1518
+        },
+        {
+          "date": "2024-06-06",
+          "rating": 1530
+        },
+        {
+          "date": "2024-06-09",
+          "rating": 1518
+        },
+        {
+          "date": "2024-06-13",
+          "rating": 1506
+        },
+        {
+          "date": "2024-06-16",
+          "rating": 1516
+        },
+        {
+          "date": "2024-06-20",
+          "rating": 1521
+        },
+        {
+          "date": "2024-06-23",
+          "rating": 1530
+        },
+        {
+          "date": "2024-06-27",
+          "rating": 1460
+        },
+        {
+          "date": "2024-06-30",
+          "rating": 1404
+        },
+        {
+          "date": "2024-07-01",
+          "rating": 1387
+        },
+        {
+          "date": "2024-07-03",
+          "rating": 1433
+        },
+        {
+          "date": "2024-07-08",
+          "rating": 1477
+        },
+        {
+          "date": "2024-07-10",
+          "rating": 1440
+        },
+        {
+          "date": "2024-07-15",
+          "rating": 1440
+        },
+        {
+          "date": "2024-07-17",
+          "rating": 1427
+        },
+        {
+          "date": "2024-07-24",
+          "rating": 1408
+        },
+        {
+          "date": "2024-07-29",
+          "rating": 1421
+        },
+        {
+          "date": "2024-08-05",
+          "rating": 1474
+        },
+        {
+          "date": "2024-08-07",
+          "rating": 1466
+        },
+        {
+          "date": "2024-08-12",
+          "rating": 1459
+        },
+        {
+          "date": "2024-08-14",
+          "rating": 1478
+        },
+        {
+          "date": "2024-08-26",
+          "rating": 1442
+        },
+        {
+          "date": "2024-08-28",
+          "rating": 1424
+        },
+        {
+          "date": "2024-09-04",
+          "rating": 1512
+        },
+        {
+          "date": "2024-09-09",
+          "rating": 1513
+        },
+        {
+          "date": "2024-09-11",
+          "rating": 1478
+        },
+        {
+          "date": "2024-09-16",
+          "rating": 1473
+        },
+        {
+          "date": "2024-09-18",
+          "rating": 1469
+        },
+        {
+          "date": "2024-09-23",
+          "rating": 1466
+        },
+        {
+          "date": "2024-09-25",
+          "rating": 1506
+        },
+        {
+          "date": "2024-09-30",
+          "rating": 1491
+        },
+        {
+          "date": "2024-10-16",
+          "rating": 1483
+        },
+        {
+          "date": "2024-10-21",
+          "rating": 1490
+        },
+        {
+          "date": "2024-10-23",
+          "rating": 1486
+        },
+        {
+          "date": "2024-10-28",
+          "rating": 1483
+        },
+        {
+          "date": "2024-11-04",
+          "rating": 1464
+        },
+        {
+          "date": "2024-11-06",
+          "rating": 1448
+        },
+        {
+          "date": "2024-11-25",
+          "rating": 1426
+        },
+        {
+          "date": "2024-11-27",
+          "rating": 1406
+        },
+        {
+          "date": "2024-12-02",
+          "rating": 1412
+        },
+        {
+          "date": "2024-12-04",
+          "rating": 1415
+        },
+        {
+          "date": "2024-12-09",
+          "rating": 1386
+        },
+        {
+          "date": "2024-12-11",
+          "rating": 1343
+        },
+        {
+          "date": "2024-12-30",
+          "rating": 1310
+        },
+        {
+          "date": "2025-01-06",
+          "rating": 1310
+        },
+        {
+          "date": "2025-01-08",
+          "rating": 1356
+        },
+        {
+          "date": "2025-01-13",
+          "rating": 1348
+        },
+        {
+          "date": "2025-01-15",
+          "rating": 1316
+        },
+        {
+          "date": "2025-01-20",
+          "rating": 1340
+        },
+        {
+          "date": "2025-01-22",
+          "rating": 1350
+        },
+        {
+          "date": "2025-01-27",
+          "rating": 1349
+        },
+        {
+          "date": "2025-01-29",
+          "rating": 1329
+        },
+        {
+          "date": "2025-02-03",
+          "rating": 1314
+        },
+        {
+          "date": "2025-02-05",
+          "rating": 1308
+        },
+        {
+          "date": "2025-02-10",
+          "rating": 1348
+        },
+        {
+          "date": "2025-02-12",
+          "rating": 1348
+        },
+        {
+          "date": "2025-02-17",
+          "rating": 1357
+        },
+        {
+          "date": "2025-02-19",
+          "rating": 1347
+        },
+        {
+          "date": "2025-02-24",
+          "rating": 1317
+        },
+        {
+          "date": "2025-02-26",
+          "rating": 1337
+        },
+        {
+          "date": "2025-03-03",
+          "rating": 1348
+        },
+        {
+          "date": "2025-03-05",
+          "rating": 1377
+        },
+        {
+          "date": "2025-03-10",
+          "rating": 1384
+        },
+        {
+          "date": "2025-03-12",
+          "rating": 1367
+        },
+        {
+          "date": "2025-03-17",
+          "rating": 1418
+        },
+        {
+          "date": "2025-03-19",
+          "rating": 1414
+        },
+        {
+          "date": "2025-03-24",
+          "rating": 1414
+        },
+        {
+          "date": "2025-03-26",
+          "rating": 1412
+        },
+        {
+          "date": "2025-03-31",
+          "rating": 1433
+        },
+        {
+          "date": "2025-04-02",
+          "rating": 1435
+        },
+        {
+          "date": "2025-04-07",
+          "rating": 1404
+        },
+        {
+          "date": "2025-04-14",
+          "rating": 1392
+        },
+        {
+          "date": "2025-04-16",
+          "rating": 1411
+        },
+        {
+          "date": "2025-04-21",
+          "rating": 1411
+        },
+        {
+          "date": "2025-04-23",
+          "rating": 1409
+        },
+        {
+          "date": "2025-04-28",
+          "rating": 1374
+        },
+        {
+          "date": "2025-04-30",
+          "rating": 1353
+        },
+        {
+          "date": "2025-05-05",
+          "rating": 1335
+        },
+        {
+          "date": "2025-05-07",
+          "rating": 1306
+        },
+        {
+          "date": "2025-05-12",
+          "rating": 1319
+        },
+        {
+          "date": "2025-05-14",
+          "rating": 1339
+        },
+        {
+          "date": "2025-05-19",
+          "rating": 1362
+        },
+        {
+          "date": "2025-05-21",
+          "rating": 1437
+        },
+        {
+          "date": "2025-05-26",
+          "rating": 1423
+        },
+        {
+          "date": "2025-06-02",
+          "rating": 1425
+        },
+        {
+          "date": "2025-06-04",
+          "rating": 1438
+        },
+        {
+          "date": "2025-06-09",
+          "rating": 1495
+        },
+        {
+          "date": "2025-06-11",
+          "rating": 1441
+        },
+        {
+          "date": "2025-06-23",
+          "rating": 1439
+        },
+        {
+          "date": "2025-06-25",
+          "rating": 1419
+        },
+        {
+          "date": "2025-06-30",
+          "rating": 1412
+        },
+        {
+          "date": "2025-07-02",
+          "rating": 1381
+        },
+        {
+          "date": "2025-07-16",
+          "rating": 1363
+        },
+        {
+          "date": "2025-07-21",
+          "rating": 1369
+        },
+        {
+          "date": "2025-07-23",
+          "rating": 1448
+        },
+        {
+          "date": "2025-07-28",
+          "rating": 1434
+        },
+        {
+          "date": "2025-07-30",
+          "rating": 1401
+        },
+        {
+          "date": "2025-08-04",
+          "rating": 1383
+        },
+        {
+          "date": "2025-08-06",
+          "rating": 1350
+        },
+        {
+          "date": "2025-08-11",
+          "rating": 1337
+        },
+        {
+          "date": "2025-08-13",
+          "rating": 1341
+        },
+        {
+          "date": "2025-08-18",
+          "rating": 1326
+        },
+        {
+          "date": "2025-08-20",
+          "rating": 1295
+        },
+        {
+          "date": "2025-09-03",
+          "rating": 1310
+        },
+        {
+          "date": "2025-09-08",
+          "rating": 1332
+        },
+        {
+          "date": "2025-09-10",
+          "rating": 1329
+        },
+        {
+          "date": "2025-09-15",
+          "rating": 1345
+        },
+        {
+          "date": "2025-09-17",
+          "rating": 1374
+        },
+        {
+          "date": "2025-09-22",
+          "rating": 1386
+        },
+        {
+          "date": "2025-09-24",
+          "rating": 1427
+        },
+        {
+          "date": "2025-09-29",
+          "rating": 1442
+        },
+        {
+          "date": "2025-10-15",
+          "rating": 1449
+        },
+        {
+          "date": "2025-10-20",
+          "rating": 1431
+        },
+        {
+          "date": "2025-10-22",
+          "rating": 1349
+        },
+        {
+          "date": "2025-10-27",
+          "rating": 1340
+        },
+        {
+          "date": "2025-10-29",
+          "rating": 1343
+        },
+        {
+          "date": "2025-11-03",
+          "rating": 1363
+        },
+        {
+          "date": "2025-11-05",
+          "rating": 1380
+        },
+        {
+          "date": "2025-11-10",
+          "rating": 1378
+        },
+        {
+          "date": "2025-11-12",
+          "rating": 1387
+        },
+        {
+          "date": "2025-11-17",
+          "rating": 1392
+        },
+        {
+          "date": "2025-11-19",
+          "rating": 1349
+        },
+        {
+          "date": "2025-11-24",
+          "rating": 1378
+        },
+        {
+          "date": "2025-12-01",
+          "rating": 1375
+        },
+        {
+          "date": "2025-12-03",
+          "rating": 1397
+        },
+        {
+          "date": "2025-12-08",
+          "rating": 1390
+        },
+        {
+          "date": "2025-12-10",
+          "rating": 1390
+        },
+        {
+          "date": "2026-01-05",
+          "rating": 1364
+        },
+        {
+          "date": "2026-01-07",
+          "rating": 1368
+        },
+        {
+          "date": "2026-01-12",
+          "rating": 1384
+        },
+        {
+          "date": "2026-01-14",
+          "rating": 1377
+        },
+        {
+          "date": "2026-01-19",
+          "rating": 1356
+        },
+        {
+          "date": "2026-01-21",
+          "rating": 1378
+        },
+        {
+          "date": "2026-01-26",
+          "rating": 1390
+        },
+        {
+          "date": "2026-01-28",
+          "rating": 1403
+        },
+        {
+          "date": "2026-02-02",
+          "rating": 1340
+        },
+        {
+          "date": "2026-02-04",
+          "rating": 1368
+        },
+        {
+          "date": "2026-02-09",
+          "rating": 1393
+        },
+        {
+          "date": "2026-02-11",
+          "rating": 1392
+        },
+        {
+          "date": "2026-02-16",
+          "rating": 1391
+        },
+        {
+          "date": "2026-02-18",
+          "rating": 1403
+        },
+        {
+          "date": "2026-02-23",
+          "rating": 1362
+        },
+        {
+          "date": "2026-03-02",
+          "rating": 1337
+        },
+        {
+          "date": "2026-03-04",
+          "rating": 1348
+        },
+        {
+          "date": "2026-03-09",
+          "rating": 1339
+        },
+        {
+          "date": "2026-03-11",
+          "rating": 1345
+        },
+        {
+          "date": "2026-03-16",
+          "rating": 1364
+        },
+        {
+          "date": "2026-03-18",
+          "rating": 1372
+        },
+        {
+          "date": "2026-03-23",
+          "rating": 1406
+        },
+        {
+          "date": "2026-03-25",
+          "rating": 1388
+        },
+        {
+          "date": "2026-03-30",
+          "rating": 1443
+        },
+        {
+          "date": "2026-04-01",
+          "rating": 1443
+        },
+        {
+          "date": "2026-04-06",
+          "rating": 1395
+        },
+        {
+          "date": "2026-04-08",
+          "rating": 1484
+        },
+        {
+          "date": "2026-04-13",
+          "rating": 1484
+        },
+        {
+          "date": "2026-04-15",
+          "rating": 1487
+        },
+        {
+          "date": "2026-04-20",
+          "rating": 1460
+        },
+        {
+          "date": "2026-04-22",
+          "rating": 1458
+        },
+        {
+          "date": "2026-04-27",
+          "rating": 1441
+        },
+        {
+          "date": "2026-04-29",
+          "rating": 1455
+        },
+        {
+          "date": "2026-05-04",
+          "rating": 1435
+        },
+        {
+          "date": "2026-05-06",
+          "rating": 1429
+        },
+        {
+          "date": "2026-05-11",
+          "rating": 1415
+        },
+        {
+          "date": "2026-05-18",
+          "rating": 1413
+        },
+        {
+          "date": "2026-05-20",
+          "rating": 1403
+        },
+        {
+          "date": "2026-05-25",
+          "rating": 1410
+        },
+        {
+          "date": "2026-05-27",
+          "rating": 1418
+        },
+        {
+          "date": "2026-06-01",
+          "rating": 1405
+        },
+        {
+          "date": "2026-06-08",
+          "rating": 1398
+        },
+        {
+          "date": "2026-06-10",
+          "rating": 1404
+        },
+        {
+          "date": "2026-06-15",
+          "rating": 1378
+        },
+        {
+          "date": "2026-06-17",
+          "rating": 1431
+        },
+        {
+          "date": "2026-06-29",
+          "rating": 1448
+        },
+        {
+          "date": "2026-07-01",
+          "rating": 1479
+        },
+        {
+          "date": "2026-07-13",
+          "rating": 1524
+        },
+        {
+          "date": "2026-07-15",
+          "rating": 1531
+        },
+        {
+          "date": "2026-07-20",
+          "rating": 1477
+        },
+        {
+          "date": "2026-07-22",
+          "rating": 1484
+        },
+        {
+          "date": "2026-07-27",
+          "rating": 1446
+        },
+        {
+          "date": "2026-07-29",
+          "rating": 1489
+        },
+        {
+          "date": "2026-08-03",
+          "rating": 1475
+        },
+        {
+          "date": "2026-08-05",
+          "rating": 1466
+        },
+        {
+          "date": "2026-08-17",
+          "rating": 1430
+        },
+        {
+          "date": "2026-08-19",
+          "rating": 1443
+        },
+        {
+          "date": "2026-08-24",
+          "rating": 1469
+        },
+        {
+          "date": "2026-08-26",
+          "rating": 1479
+        },
+        {
+          "date": "2026-08-31",
+          "rating": 1476
+        },
+        {
+          "date": "2026-09-02",
+          "rating": 1516
+        },
+        {
+          "date": "2026-09-07",
+          "rating": 1507
+        },
+        {
+          "date": "2026-09-09",
+          "rating": 1485
+        },
+        {
+          "date": "2026-09-14",
+          "rating": 1499
+        },
+        {
+          "date": "2026-09-16",
+          "rating": 1505
+        },
+        {
+          "date": "2026-09-21",
+          "rating": 1532
+        },
+        {
+          "date": "2026-09-23",
+          "rating": 1528
+        },
+        {
+          "date": "2026-09-28",
+          "rating": 1536
+        },
+        {
+          "date": "2026-10-14",
+          "rating": 1501
+        },
+        {
+          "date": "2026-10-19",
+          "rating": 1525
+        },
+        {
+          "date": "2026-10-21",
+          "rating": 1504
+        },
+        {
+          "date": "2026-10-26",
+          "rating": 1492
+        },
+        {
+          "date": "2026-10-28",
+          "rating": 1472
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1501
+        }
+      ],
+      "headToHead": {
+        "Ben Kaliko": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Li Long": {
+          "wins": 45,
+          "losses": 30
+        },
+        "Raymond Trinh": {
+          "wins": 12,
+          "losses": 20
+        },
+        "Ilya Liberman": {
+          "wins": 16,
+          "losses": 42
+        },
+        "Alec Savakus": {
+          "wins": 2,
+          "losses": 16
+        },
+        "Bahman Hayati": {
+          "wins": 9,
+          "losses": 0
+        },
+        "Joe Zhou": {
+          "wins": 10,
+          "losses": 8
+        },
+        "Vladimir Lev": {
+          "wins": 35,
+          "losses": 3
+        },
+        "Noel Jinon": {
+          "wins": 3,
+          "losses": 2
+        },
+        "Scott Frye": {
+          "wins": 5,
+          "losses": 1
+        },
+        "Tom Zeng": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Anshul Gupta": {
+          "wins": 2,
+          "losses": 1
+        },
+        "Jafar Fatemi": {
+          "wins": 10,
+          "losses": 60
+        },
+        "Adrian Lungu": {
+          "wins": 1,
+          "losses": 2
+        },
+        "Mohit Galvankar": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Tom Lam": {
+          "wins": 1,
+          "losses": 2
+        },
+        "Bryan Wu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Yuri Kretov": {
+          "wins": 5,
+          "losses": 19
+        },
+        "Adeyinka Adeyemo": {
+          "wins": 3,
+          "losses": 3
+        },
+        "Alan Li": {
+          "wins": 1,
+          "losses": 8
+        },
+        "Pavel Novichkov": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Marko Shafik": {
+          "wins": 1,
+          "losses": 14
+        },
+        "John Leaf": {
+          "wins": 10,
+          "losses": 4
+        },
+        "Joremie Fernandez": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Olaf Surmann": {
+          "wins": 0,
+          "losses": 9
+        },
+        "Keith Bawa": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Kyint Ng": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Jon Mayer": {
+          "wins": 3,
+          "losses": 1
+        },
+        "David Stone": {
+          "wins": 1,
+          "losses": 1
+        },
+        "Ying Lau": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Sam Lam": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Vince Oracion": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Ron Buxton": {
+          "wins": 1,
+          "losses": 0
+        },
+        "David Ding": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Yaroslav Shneikin": {
+          "wins": 35,
+          "losses": 20
+        },
+        "Dan Chung": {
+          "wins": 2,
+          "losses": 8
+        },
+        "Victor Lee": {
+          "wins": 14,
+          "losses": 26
+        },
+        "Dan Morgan": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Mike Danese": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Ngai-Chi Chung": {
+          "wins": 1,
+          "losses": 15
+        },
+        "Son Lu": {
+          "wins": 35,
+          "losses": 19
+        },
+        "Alex Hwang": {
+          "wins": 1,
+          "losses": 0
+        },
+        "J. B. Birch": {
+          "wins": 36,
+          "losses": 16
+        },
+        "Faith Matas": {
+          "wins": 3,
+          "losses": 5
+        },
+        "Jay Smith": {
+          "wins": 5,
+          "losses": 9
+        },
+        "William Cheung": {
+          "wins": 4,
+          "losses": 1
+        },
+        "William Chung": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Damir Gorenman": {
+          "wins": 4,
+          "losses": 1
+        },
+        "David Smith": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Chris Babcock": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alex Lam": {
+          "wins": 0,
+          "losses": 13
+        },
+        "William Craig": {
+          "wins": 1,
+          "losses": 9
+        },
+        "Michael Ramirez": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Petar Nedyalkov": {
+          "wins": 1,
+          "losses": 3
+        },
+        "Tate Houston": {
+          "wins": 10,
+          "losses": 2
+        },
+        "Alex Varady": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Matthew Styczynski": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Bob Zandipour": {
+          "wins": 2,
+          "losses": 10
+        },
+        "Jon Rego": {
+          "wins": 11,
+          "losses": 1
+        },
+        "Alan Wang": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Defrim Zejnullahi": {
+          "wins": 26,
+          "losses": 16
+        },
+        "Ali Taba": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ernie Olatunji": {
+          "wins": 9,
+          "losses": 1
+        },
+        "Tom (Xiaoyun) Zeng": {
+          "wins": 19,
+          "losses": 7
+        },
+        "Nidhi Trivedi": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Anthony Szumilo": {
+          "wins": 1,
+          "losses": 3
+        },
+        "Ron Liu": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Tadashi Moriguchi": {
+          "wins": 1,
+          "losses": 2
+        },
+        "Brandon Van Buskirk": {
+          "wins": 16,
+          "losses": 2
+        },
+        "Ryan Wang": {
+          "wins": 6,
+          "losses": 1
+        },
+        "Donald Miller": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Mike Benson": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Aditya Yg": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Alex Woodward": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ruskin Dantra": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ali Zafarani": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Andy Chen": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Constantine Dinkov": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Dario Rosidi": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Shah Ibrahim": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alexis Arellano": {
+          "wins": 1,
+          "losses": 1
+        },
+        "Simon Davis": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alexander Bogdanovich": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Daniel D Yi": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Aarvi Pandya": {
+          "wins": 1,
+          "losses": 3
+        },
+        "Piotr Zajac": {
+          "wins": 0,
+          "losses": 6
+        },
+        "Sacha Simpson": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Payam Zarehbin": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Arash Meshksar": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Niyousha Pourzand": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Fu Qun Xing": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Seth Raphael": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Rahul Chatwani": {
+          "wins": 0,
+          "losses": 5
+        },
+        "Sandro Fuenzalida": {
+          "wins": 0,
+          "losses": 1
+        }
+      }
+    },
+    {
       "name": "Faith Matas",
       "currentRating": 1500,
       "peakRating": 1607,
@@ -11951,1314 +13279,6 @@
         "Ernie Olatunji": {
           "wins": 1,
           "losses": 0
-        }
-      }
-    },
-    {
-      "name": "Eric Aki",
-      "currentRating": 1472,
-      "peakRating": 1609,
-      "sessionsPlayed": 230,
-      "totalWins": 451,
-      "totalLosses": 470,
-      "ratingHistory": [
-        {
-          "date": "2024-01-07",
-          "rating": 1488
-        },
-        {
-          "date": "2024-01-11",
-          "rating": 1513
-        },
-        {
-          "date": "2024-01-18",
-          "rating": 1509
-        },
-        {
-          "date": "2024-01-25",
-          "rating": 1502
-        },
-        {
-          "date": "2024-01-28",
-          "rating": 1504
-        },
-        {
-          "date": "2024-02-01",
-          "rating": 1514
-        },
-        {
-          "date": "2024-02-08",
-          "rating": 1535
-        },
-        {
-          "date": "2024-02-11",
-          "rating": 1544
-        },
-        {
-          "date": "2024-02-15",
-          "rating": 1570
-        },
-        {
-          "date": "2024-02-18",
-          "rating": 1572
-        },
-        {
-          "date": "2024-02-22",
-          "rating": 1569
-        },
-        {
-          "date": "2024-03-03",
-          "rating": 1588
-        },
-        {
-          "date": "2024-03-07",
-          "rating": 1562
-        },
-        {
-          "date": "2024-03-14",
-          "rating": 1549
-        },
-        {
-          "date": "2024-03-21",
-          "rating": 1554
-        },
-        {
-          "date": "2024-03-24",
-          "rating": 1558
-        },
-        {
-          "date": "2024-03-28",
-          "rating": 1574
-        },
-        {
-          "date": "2024-03-31",
-          "rating": 1560
-        },
-        {
-          "date": "2024-04-04",
-          "rating": 1609
-        },
-        {
-          "date": "2024-04-11",
-          "rating": 1592
-        },
-        {
-          "date": "2024-04-18",
-          "rating": 1589
-        },
-        {
-          "date": "2024-04-21",
-          "rating": 1561
-        },
-        {
-          "date": "2024-04-25",
-          "rating": 1549
-        },
-        {
-          "date": "2024-04-28",
-          "rating": 1574
-        },
-        {
-          "date": "2024-05-02",
-          "rating": 1578
-        },
-        {
-          "date": "2024-05-05",
-          "rating": 1556
-        },
-        {
-          "date": "2024-05-09",
-          "rating": 1550
-        },
-        {
-          "date": "2024-05-16",
-          "rating": 1530
-        },
-        {
-          "date": "2024-05-19",
-          "rating": 1494
-        },
-        {
-          "date": "2024-05-23",
-          "rating": 1502
-        },
-        {
-          "date": "2024-05-26",
-          "rating": 1518
-        },
-        {
-          "date": "2024-06-06",
-          "rating": 1530
-        },
-        {
-          "date": "2024-06-09",
-          "rating": 1518
-        },
-        {
-          "date": "2024-06-13",
-          "rating": 1506
-        },
-        {
-          "date": "2024-06-16",
-          "rating": 1516
-        },
-        {
-          "date": "2024-06-20",
-          "rating": 1521
-        },
-        {
-          "date": "2024-06-23",
-          "rating": 1530
-        },
-        {
-          "date": "2024-06-27",
-          "rating": 1460
-        },
-        {
-          "date": "2024-06-30",
-          "rating": 1404
-        },
-        {
-          "date": "2024-07-01",
-          "rating": 1387
-        },
-        {
-          "date": "2024-07-03",
-          "rating": 1433
-        },
-        {
-          "date": "2024-07-08",
-          "rating": 1477
-        },
-        {
-          "date": "2024-07-10",
-          "rating": 1440
-        },
-        {
-          "date": "2024-07-15",
-          "rating": 1440
-        },
-        {
-          "date": "2024-07-17",
-          "rating": 1427
-        },
-        {
-          "date": "2024-07-24",
-          "rating": 1408
-        },
-        {
-          "date": "2024-07-29",
-          "rating": 1421
-        },
-        {
-          "date": "2024-08-05",
-          "rating": 1474
-        },
-        {
-          "date": "2024-08-07",
-          "rating": 1466
-        },
-        {
-          "date": "2024-08-12",
-          "rating": 1459
-        },
-        {
-          "date": "2024-08-14",
-          "rating": 1478
-        },
-        {
-          "date": "2024-08-26",
-          "rating": 1442
-        },
-        {
-          "date": "2024-08-28",
-          "rating": 1424
-        },
-        {
-          "date": "2024-09-04",
-          "rating": 1512
-        },
-        {
-          "date": "2024-09-09",
-          "rating": 1513
-        },
-        {
-          "date": "2024-09-11",
-          "rating": 1478
-        },
-        {
-          "date": "2024-09-16",
-          "rating": 1473
-        },
-        {
-          "date": "2024-09-18",
-          "rating": 1469
-        },
-        {
-          "date": "2024-09-23",
-          "rating": 1466
-        },
-        {
-          "date": "2024-09-25",
-          "rating": 1506
-        },
-        {
-          "date": "2024-09-30",
-          "rating": 1491
-        },
-        {
-          "date": "2024-10-16",
-          "rating": 1483
-        },
-        {
-          "date": "2024-10-21",
-          "rating": 1490
-        },
-        {
-          "date": "2024-10-23",
-          "rating": 1486
-        },
-        {
-          "date": "2024-10-28",
-          "rating": 1483
-        },
-        {
-          "date": "2024-11-04",
-          "rating": 1464
-        },
-        {
-          "date": "2024-11-06",
-          "rating": 1448
-        },
-        {
-          "date": "2024-11-25",
-          "rating": 1426
-        },
-        {
-          "date": "2024-11-27",
-          "rating": 1406
-        },
-        {
-          "date": "2024-12-02",
-          "rating": 1412
-        },
-        {
-          "date": "2024-12-04",
-          "rating": 1415
-        },
-        {
-          "date": "2024-12-09",
-          "rating": 1386
-        },
-        {
-          "date": "2024-12-11",
-          "rating": 1343
-        },
-        {
-          "date": "2024-12-30",
-          "rating": 1310
-        },
-        {
-          "date": "2025-01-06",
-          "rating": 1310
-        },
-        {
-          "date": "2025-01-08",
-          "rating": 1356
-        },
-        {
-          "date": "2025-01-13",
-          "rating": 1348
-        },
-        {
-          "date": "2025-01-15",
-          "rating": 1316
-        },
-        {
-          "date": "2025-01-20",
-          "rating": 1340
-        },
-        {
-          "date": "2025-01-22",
-          "rating": 1350
-        },
-        {
-          "date": "2025-01-27",
-          "rating": 1349
-        },
-        {
-          "date": "2025-01-29",
-          "rating": 1329
-        },
-        {
-          "date": "2025-02-03",
-          "rating": 1314
-        },
-        {
-          "date": "2025-02-05",
-          "rating": 1308
-        },
-        {
-          "date": "2025-02-10",
-          "rating": 1348
-        },
-        {
-          "date": "2025-02-12",
-          "rating": 1348
-        },
-        {
-          "date": "2025-02-17",
-          "rating": 1357
-        },
-        {
-          "date": "2025-02-19",
-          "rating": 1347
-        },
-        {
-          "date": "2025-02-24",
-          "rating": 1317
-        },
-        {
-          "date": "2025-02-26",
-          "rating": 1337
-        },
-        {
-          "date": "2025-03-03",
-          "rating": 1348
-        },
-        {
-          "date": "2025-03-05",
-          "rating": 1377
-        },
-        {
-          "date": "2025-03-10",
-          "rating": 1384
-        },
-        {
-          "date": "2025-03-12",
-          "rating": 1367
-        },
-        {
-          "date": "2025-03-17",
-          "rating": 1418
-        },
-        {
-          "date": "2025-03-19",
-          "rating": 1414
-        },
-        {
-          "date": "2025-03-24",
-          "rating": 1414
-        },
-        {
-          "date": "2025-03-26",
-          "rating": 1412
-        },
-        {
-          "date": "2025-03-31",
-          "rating": 1433
-        },
-        {
-          "date": "2025-04-02",
-          "rating": 1435
-        },
-        {
-          "date": "2025-04-07",
-          "rating": 1404
-        },
-        {
-          "date": "2025-04-14",
-          "rating": 1392
-        },
-        {
-          "date": "2025-04-16",
-          "rating": 1411
-        },
-        {
-          "date": "2025-04-21",
-          "rating": 1411
-        },
-        {
-          "date": "2025-04-23",
-          "rating": 1409
-        },
-        {
-          "date": "2025-04-28",
-          "rating": 1374
-        },
-        {
-          "date": "2025-04-30",
-          "rating": 1353
-        },
-        {
-          "date": "2025-05-05",
-          "rating": 1335
-        },
-        {
-          "date": "2025-05-07",
-          "rating": 1306
-        },
-        {
-          "date": "2025-05-12",
-          "rating": 1319
-        },
-        {
-          "date": "2025-05-14",
-          "rating": 1339
-        },
-        {
-          "date": "2025-05-19",
-          "rating": 1362
-        },
-        {
-          "date": "2025-05-21",
-          "rating": 1437
-        },
-        {
-          "date": "2025-05-26",
-          "rating": 1423
-        },
-        {
-          "date": "2025-06-02",
-          "rating": 1425
-        },
-        {
-          "date": "2025-06-04",
-          "rating": 1438
-        },
-        {
-          "date": "2025-06-09",
-          "rating": 1495
-        },
-        {
-          "date": "2025-06-11",
-          "rating": 1441
-        },
-        {
-          "date": "2025-06-23",
-          "rating": 1439
-        },
-        {
-          "date": "2025-06-25",
-          "rating": 1419
-        },
-        {
-          "date": "2025-06-30",
-          "rating": 1412
-        },
-        {
-          "date": "2025-07-02",
-          "rating": 1381
-        },
-        {
-          "date": "2025-07-16",
-          "rating": 1363
-        },
-        {
-          "date": "2025-07-21",
-          "rating": 1369
-        },
-        {
-          "date": "2025-07-23",
-          "rating": 1448
-        },
-        {
-          "date": "2025-07-28",
-          "rating": 1434
-        },
-        {
-          "date": "2025-07-30",
-          "rating": 1401
-        },
-        {
-          "date": "2025-08-04",
-          "rating": 1383
-        },
-        {
-          "date": "2025-08-06",
-          "rating": 1350
-        },
-        {
-          "date": "2025-08-11",
-          "rating": 1337
-        },
-        {
-          "date": "2025-08-13",
-          "rating": 1341
-        },
-        {
-          "date": "2025-08-18",
-          "rating": 1326
-        },
-        {
-          "date": "2025-08-20",
-          "rating": 1295
-        },
-        {
-          "date": "2025-09-03",
-          "rating": 1310
-        },
-        {
-          "date": "2025-09-08",
-          "rating": 1332
-        },
-        {
-          "date": "2025-09-10",
-          "rating": 1329
-        },
-        {
-          "date": "2025-09-15",
-          "rating": 1345
-        },
-        {
-          "date": "2025-09-17",
-          "rating": 1374
-        },
-        {
-          "date": "2025-09-22",
-          "rating": 1386
-        },
-        {
-          "date": "2025-09-24",
-          "rating": 1427
-        },
-        {
-          "date": "2025-09-29",
-          "rating": 1442
-        },
-        {
-          "date": "2025-10-15",
-          "rating": 1449
-        },
-        {
-          "date": "2025-10-20",
-          "rating": 1431
-        },
-        {
-          "date": "2025-10-22",
-          "rating": 1349
-        },
-        {
-          "date": "2025-10-27",
-          "rating": 1340
-        },
-        {
-          "date": "2025-10-29",
-          "rating": 1343
-        },
-        {
-          "date": "2025-11-03",
-          "rating": 1363
-        },
-        {
-          "date": "2025-11-05",
-          "rating": 1380
-        },
-        {
-          "date": "2025-11-10",
-          "rating": 1378
-        },
-        {
-          "date": "2025-11-12",
-          "rating": 1387
-        },
-        {
-          "date": "2025-11-17",
-          "rating": 1392
-        },
-        {
-          "date": "2025-11-19",
-          "rating": 1349
-        },
-        {
-          "date": "2025-11-24",
-          "rating": 1378
-        },
-        {
-          "date": "2025-12-01",
-          "rating": 1375
-        },
-        {
-          "date": "2025-12-03",
-          "rating": 1397
-        },
-        {
-          "date": "2025-12-08",
-          "rating": 1390
-        },
-        {
-          "date": "2025-12-10",
-          "rating": 1390
-        },
-        {
-          "date": "2026-01-05",
-          "rating": 1364
-        },
-        {
-          "date": "2026-01-07",
-          "rating": 1368
-        },
-        {
-          "date": "2026-01-12",
-          "rating": 1384
-        },
-        {
-          "date": "2026-01-14",
-          "rating": 1377
-        },
-        {
-          "date": "2026-01-19",
-          "rating": 1356
-        },
-        {
-          "date": "2026-01-21",
-          "rating": 1378
-        },
-        {
-          "date": "2026-01-26",
-          "rating": 1390
-        },
-        {
-          "date": "2026-01-28",
-          "rating": 1403
-        },
-        {
-          "date": "2026-02-02",
-          "rating": 1340
-        },
-        {
-          "date": "2026-02-04",
-          "rating": 1368
-        },
-        {
-          "date": "2026-02-09",
-          "rating": 1393
-        },
-        {
-          "date": "2026-02-11",
-          "rating": 1392
-        },
-        {
-          "date": "2026-02-16",
-          "rating": 1391
-        },
-        {
-          "date": "2026-02-18",
-          "rating": 1403
-        },
-        {
-          "date": "2026-02-23",
-          "rating": 1362
-        },
-        {
-          "date": "2026-03-02",
-          "rating": 1337
-        },
-        {
-          "date": "2026-03-04",
-          "rating": 1348
-        },
-        {
-          "date": "2026-03-09",
-          "rating": 1339
-        },
-        {
-          "date": "2026-03-11",
-          "rating": 1345
-        },
-        {
-          "date": "2026-03-16",
-          "rating": 1364
-        },
-        {
-          "date": "2026-03-18",
-          "rating": 1372
-        },
-        {
-          "date": "2026-03-23",
-          "rating": 1406
-        },
-        {
-          "date": "2026-03-25",
-          "rating": 1388
-        },
-        {
-          "date": "2026-03-30",
-          "rating": 1443
-        },
-        {
-          "date": "2026-04-01",
-          "rating": 1443
-        },
-        {
-          "date": "2026-04-06",
-          "rating": 1395
-        },
-        {
-          "date": "2026-04-08",
-          "rating": 1484
-        },
-        {
-          "date": "2026-04-13",
-          "rating": 1484
-        },
-        {
-          "date": "2026-04-15",
-          "rating": 1487
-        },
-        {
-          "date": "2026-04-20",
-          "rating": 1460
-        },
-        {
-          "date": "2026-04-22",
-          "rating": 1458
-        },
-        {
-          "date": "2026-04-27",
-          "rating": 1441
-        },
-        {
-          "date": "2026-04-29",
-          "rating": 1455
-        },
-        {
-          "date": "2026-05-04",
-          "rating": 1435
-        },
-        {
-          "date": "2026-05-06",
-          "rating": 1429
-        },
-        {
-          "date": "2026-05-11",
-          "rating": 1415
-        },
-        {
-          "date": "2026-05-18",
-          "rating": 1413
-        },
-        {
-          "date": "2026-05-20",
-          "rating": 1403
-        },
-        {
-          "date": "2026-05-25",
-          "rating": 1410
-        },
-        {
-          "date": "2026-05-27",
-          "rating": 1418
-        },
-        {
-          "date": "2026-06-01",
-          "rating": 1405
-        },
-        {
-          "date": "2026-06-08",
-          "rating": 1398
-        },
-        {
-          "date": "2026-06-10",
-          "rating": 1404
-        },
-        {
-          "date": "2026-06-15",
-          "rating": 1378
-        },
-        {
-          "date": "2026-06-17",
-          "rating": 1431
-        },
-        {
-          "date": "2026-06-29",
-          "rating": 1448
-        },
-        {
-          "date": "2026-07-01",
-          "rating": 1479
-        },
-        {
-          "date": "2026-07-13",
-          "rating": 1524
-        },
-        {
-          "date": "2026-07-15",
-          "rating": 1531
-        },
-        {
-          "date": "2026-07-20",
-          "rating": 1477
-        },
-        {
-          "date": "2026-07-22",
-          "rating": 1484
-        },
-        {
-          "date": "2026-07-27",
-          "rating": 1446
-        },
-        {
-          "date": "2026-07-29",
-          "rating": 1489
-        },
-        {
-          "date": "2026-08-03",
-          "rating": 1475
-        },
-        {
-          "date": "2026-08-05",
-          "rating": 1466
-        },
-        {
-          "date": "2026-08-17",
-          "rating": 1430
-        },
-        {
-          "date": "2026-08-19",
-          "rating": 1443
-        },
-        {
-          "date": "2026-08-24",
-          "rating": 1469
-        },
-        {
-          "date": "2026-08-26",
-          "rating": 1479
-        },
-        {
-          "date": "2026-08-31",
-          "rating": 1476
-        },
-        {
-          "date": "2026-09-02",
-          "rating": 1516
-        },
-        {
-          "date": "2026-09-07",
-          "rating": 1507
-        },
-        {
-          "date": "2026-09-09",
-          "rating": 1485
-        },
-        {
-          "date": "2026-09-14",
-          "rating": 1499
-        },
-        {
-          "date": "2026-09-16",
-          "rating": 1505
-        },
-        {
-          "date": "2026-09-21",
-          "rating": 1532
-        },
-        {
-          "date": "2026-09-23",
-          "rating": 1528
-        },
-        {
-          "date": "2026-09-28",
-          "rating": 1536
-        },
-        {
-          "date": "2026-10-14",
-          "rating": 1501
-        },
-        {
-          "date": "2026-10-19",
-          "rating": 1525
-        },
-        {
-          "date": "2026-10-21",
-          "rating": 1504
-        },
-        {
-          "date": "2026-10-26",
-          "rating": 1492
-        },
-        {
-          "date": "2026-10-28",
-          "rating": 1472
-        }
-      ],
-      "headToHead": {
-        "Ben Kaliko": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Li Long": {
-          "wins": 45,
-          "losses": 30
-        },
-        "Raymond Trinh": {
-          "wins": 12,
-          "losses": 19
-        },
-        "Ilya Liberman": {
-          "wins": 16,
-          "losses": 42
-        },
-        "Alec Savakus": {
-          "wins": 2,
-          "losses": 16
-        },
-        "Bahman Hayati": {
-          "wins": 9,
-          "losses": 0
-        },
-        "Joe Zhou": {
-          "wins": 10,
-          "losses": 8
-        },
-        "Vladimir Lev": {
-          "wins": 35,
-          "losses": 3
-        },
-        "Noel Jinon": {
-          "wins": 3,
-          "losses": 2
-        },
-        "Scott Frye": {
-          "wins": 5,
-          "losses": 1
-        },
-        "Tom Zeng": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Anshul Gupta": {
-          "wins": 2,
-          "losses": 1
-        },
-        "Jafar Fatemi": {
-          "wins": 10,
-          "losses": 59
-        },
-        "Adrian Lungu": {
-          "wins": 1,
-          "losses": 2
-        },
-        "Mohit Galvankar": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Tom Lam": {
-          "wins": 1,
-          "losses": 2
-        },
-        "Bryan Wu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Yuri Kretov": {
-          "wins": 5,
-          "losses": 19
-        },
-        "Adeyinka Adeyemo": {
-          "wins": 3,
-          "losses": 3
-        },
-        "Alan Li": {
-          "wins": 1,
-          "losses": 8
-        },
-        "Pavel Novichkov": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Marko Shafik": {
-          "wins": 1,
-          "losses": 14
-        },
-        "John Leaf": {
-          "wins": 10,
-          "losses": 4
-        },
-        "Joremie Fernandez": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Olaf Surmann": {
-          "wins": 0,
-          "losses": 9
-        },
-        "Keith Bawa": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Kyint Ng": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Jon Mayer": {
-          "wins": 3,
-          "losses": 1
-        },
-        "David Stone": {
-          "wins": 1,
-          "losses": 1
-        },
-        "Ying Lau": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Sam Lam": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Vince Oracion": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Ron Buxton": {
-          "wins": 1,
-          "losses": 0
-        },
-        "David Ding": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Yaroslav Shneikin": {
-          "wins": 35,
-          "losses": 20
-        },
-        "Dan Chung": {
-          "wins": 2,
-          "losses": 8
-        },
-        "Victor Lee": {
-          "wins": 14,
-          "losses": 26
-        },
-        "Dan Morgan": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Mike Danese": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Ngai-Chi Chung": {
-          "wins": 1,
-          "losses": 14
-        },
-        "Son Lu": {
-          "wins": 35,
-          "losses": 19
-        },
-        "Alex Hwang": {
-          "wins": 1,
-          "losses": 0
-        },
-        "J. B. Birch": {
-          "wins": 36,
-          "losses": 16
-        },
-        "Faith Matas": {
-          "wins": 3,
-          "losses": 5
-        },
-        "Jay Smith": {
-          "wins": 5,
-          "losses": 9
-        },
-        "William Cheung": {
-          "wins": 4,
-          "losses": 1
-        },
-        "William Chung": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Damir Gorenman": {
-          "wins": 4,
-          "losses": 1
-        },
-        "David Smith": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Chris Babcock": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Alex Lam": {
-          "wins": 0,
-          "losses": 13
-        },
-        "William Craig": {
-          "wins": 0,
-          "losses": 9
-        },
-        "Michael Ramirez": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Petar Nedyalkov": {
-          "wins": 1,
-          "losses": 3
-        },
-        "Tate Houston": {
-          "wins": 10,
-          "losses": 2
-        },
-        "Alex Varady": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Matthew Styczynski": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Bob Zandipour": {
-          "wins": 2,
-          "losses": 9
-        },
-        "Jon Rego": {
-          "wins": 11,
-          "losses": 1
-        },
-        "Alan Wang": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Defrim Zejnullahi": {
-          "wins": 26,
-          "losses": 16
-        },
-        "Ali Taba": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ernie Olatunji": {
-          "wins": 9,
-          "losses": 1
-        },
-        "Tom (Xiaoyun) Zeng": {
-          "wins": 19,
-          "losses": 7
-        },
-        "Nidhi Trivedi": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Anthony Szumilo": {
-          "wins": 1,
-          "losses": 3
-        },
-        "Ron Liu": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Tadashi Moriguchi": {
-          "wins": 1,
-          "losses": 2
-        },
-        "Brandon Van Buskirk": {
-          "wins": 16,
-          "losses": 2
-        },
-        "Ryan Wang": {
-          "wins": 6,
-          "losses": 1
-        },
-        "Donald Miller": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Mike Benson": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Aditya Yg": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Alex Woodward": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ruskin Dantra": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ali Zafarani": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Andy Chen": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Constantine Dinkov": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Dario Rosidi": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Shah Ibrahim": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Alexis Arellano": {
-          "wins": 1,
-          "losses": 1
-        },
-        "Simon Davis": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Alexander Bogdanovich": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Daniel D Yi": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Aarvi Pandya": {
-          "wins": 1,
-          "losses": 3
-        },
-        "Piotr Zajac": {
-          "wins": 0,
-          "losses": 6
-        },
-        "Sacha Simpson": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Payam Zarehbin": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Arash Meshksar": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Niyousha Pourzand": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Fu Qun Xing": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Seth Raphael": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Rahul Chatwani": {
-          "wins": 0,
-          "losses": 5
-        },
-        "Sandro Fuenzalida": {
-          "wins": 0,
-          "losses": 1
         }
       }
     },
@@ -16279,76 +16299,12 @@
       }
     },
     {
-      "name": "Sam Lau",
-      "currentRating": 1410,
-      "peakRating": 1410,
-      "sessionsPlayed": 1,
-      "totalWins": 4,
-      "totalLosses": 0,
-      "ratingHistory": [
-        {
-          "date": "2024-05-05",
-          "rating": 1410
-        }
-      ],
-      "headToHead": {
-        "Vince Oracion": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Yin Wu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Zee Huang": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Alex Hwang": {
-          "wins": 1,
-          "losses": 0
-        }
-      }
-    },
-    {
-      "name": "Sam Lam",
-      "currentRating": 1409,
-      "peakRating": 1409,
-      "sessionsPlayed": 1,
-      "totalWins": 1,
-      "totalLosses": 3,
-      "ratingHistory": [
-        {
-          "date": "2024-05-26",
-          "rating": 1409
-        }
-      ],
-      "headToHead": {
-        "Eric Aki": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Ying Lau": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Joe Zhou": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Vince Oracion": {
-          "wins": 1,
-          "losses": 0
-        }
-      }
-    },
-    {
       "name": "Bob Zandipour",
-      "currentRating": 1403,
+      "currentRating": 1418,
       "peakRating": 1531,
-      "sessionsPlayed": 59,
-      "totalWins": 155,
-      "totalLosses": 97,
+      "sessionsPlayed": 60,
+      "totalWins": 157,
+      "totalLosses": 100,
       "ratingHistory": [
         {
           "date": "2024-10-09",
@@ -16585,6 +16541,10 @@
         {
           "date": "2026-10-28",
           "rating": 1403
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1418
         }
       ],
       "headToHead": {
@@ -16681,7 +16641,7 @@
           "losses": 10
         },
         "Eric Aki": {
-          "wins": 9,
+          "wins": 10,
           "losses": 2
         },
         "Li Long": {
@@ -16742,7 +16702,7 @@
         },
         "Jafar Fatemi": {
           "wins": 0,
-          "losses": 6
+          "losses": 7
         },
         "Son Lu": {
           "wins": 5,
@@ -16778,11 +16738,11 @@
         },
         "William Craig": {
           "wins": 0,
-          "losses": 2
+          "losses": 3
         },
         "Ngai-Chi Chung": {
           "wins": 0,
-          "losses": 3
+          "losses": 4
         },
         "Marko Shafik": {
           "wins": 0,
@@ -16875,6 +16835,70 @@
         "Yuri Kretov": {
           "wins": 0,
           "losses": 1
+        }
+      }
+    },
+    {
+      "name": "Sam Lau",
+      "currentRating": 1410,
+      "peakRating": 1410,
+      "sessionsPlayed": 1,
+      "totalWins": 4,
+      "totalLosses": 0,
+      "ratingHistory": [
+        {
+          "date": "2024-05-05",
+          "rating": 1410
+        }
+      ],
+      "headToHead": {
+        "Vince Oracion": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Yin Wu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Zee Huang": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alex Hwang": {
+          "wins": 1,
+          "losses": 0
+        }
+      }
+    },
+    {
+      "name": "Sam Lam",
+      "currentRating": 1409,
+      "peakRating": 1409,
+      "sessionsPlayed": 1,
+      "totalWins": 1,
+      "totalLosses": 3,
+      "ratingHistory": [
+        {
+          "date": "2024-05-26",
+          "rating": 1409
+        }
+      ],
+      "headToHead": {
+        "Eric Aki": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Ying Lau": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Joe Zhou": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Vince Oracion": {
+          "wins": 1,
+          "losses": 0
         }
       }
     },
@@ -20763,31 +20787,11 @@
       }
     },
     {
-      "name": "Tom Corio",
-      "currentRating": 1346,
-      "peakRating": 1346,
-      "sessionsPlayed": 1,
-      "totalWins": 1,
-      "totalLosses": 0,
-      "ratingHistory": [
-        {
-          "date": "2024-07-29",
-          "rating": 1346
-        }
-      ],
-      "headToHead": {
-        "Pedram Majbuleh": {
-          "wins": 1,
-          "losses": 0
-        }
-      }
-    },
-    {
       "name": "Ilya Liberman",
-      "currentRating": 1341,
+      "currentRating": 1347,
       "peakRating": 1641,
-      "sessionsPlayed": 168,
-      "totalWins": 336,
+      "sessionsPlayed": 169,
+      "totalWins": 340,
       "totalLosses": 327,
       "ratingHistory": [
         {
@@ -21461,6 +21465,10 @@
         {
           "date": "2026-10-28",
           "rating": 1341
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1347
         }
       ],
       "headToHead": {
@@ -21613,7 +21621,7 @@
           "losses": 12
         },
         "Alex Hwang": {
-          "wins": 1,
+          "wins": 2,
           "losses": 0
         },
         "J. B. Birch": {
@@ -21725,7 +21733,7 @@
           "losses": 0
         },
         "Brandon Van Buskirk": {
-          "wins": 15,
+          "wins": 16,
           "losses": 2
         },
         "Philip Lim": {
@@ -21765,7 +21773,7 @@
           "losses": 1
         },
         "Constantine Dinkov": {
-          "wins": 1,
+          "wins": 2,
           "losses": 0
         },
         "Behnam Behjoo": {
@@ -21795,6 +21803,30 @@
         "Frank Bruni": {
           "wins": 0,
           "losses": 1
+        },
+        "Simon He": {
+          "wins": 1,
+          "losses": 0
+        }
+      }
+    },
+    {
+      "name": "Tom Corio",
+      "currentRating": 1346,
+      "peakRating": 1346,
+      "sessionsPlayed": 1,
+      "totalWins": 1,
+      "totalLosses": 0,
+      "ratingHistory": [
+        {
+          "date": "2024-07-29",
+          "rating": 1346
+        }
+      ],
+      "headToHead": {
+        "Pedram Majbuleh": {
+          "wins": 1,
+          "losses": 0
         }
       }
     },
@@ -23315,12 +23347,288 @@
       }
     },
     {
-      "name": "Brandon Van Buskirk",
+      "name": "Ryan Wang",
       "currentRating": 1276,
+      "peakRating": 1435,
+      "sessionsPlayed": 26,
+      "totalWins": 48,
+      "totalLosses": 65,
+      "ratingHistory": [
+        {
+          "date": "2025-04-30",
+          "rating": 1342
+        },
+        {
+          "date": "2025-05-07",
+          "rating": 1329
+        },
+        {
+          "date": "2025-05-14",
+          "rating": 1275
+        },
+        {
+          "date": "2025-05-21",
+          "rating": 1338
+        },
+        {
+          "date": "2025-05-28",
+          "rating": 1337
+        },
+        {
+          "date": "2025-06-04",
+          "rating": 1351
+        },
+        {
+          "date": "2025-06-11",
+          "rating": 1274
+        },
+        {
+          "date": "2025-07-02",
+          "rating": 1298
+        },
+        {
+          "date": "2025-07-09",
+          "rating": 1335
+        },
+        {
+          "date": "2025-07-16",
+          "rating": 1335
+        },
+        {
+          "date": "2025-07-23",
+          "rating": 1251
+        },
+        {
+          "date": "2025-07-30",
+          "rating": 1259
+        },
+        {
+          "date": "2025-08-06",
+          "rating": 1339
+        },
+        {
+          "date": "2025-08-13",
+          "rating": 1339
+        },
+        {
+          "date": "2025-08-20",
+          "rating": 1382
+        },
+        {
+          "date": "2025-08-27",
+          "rating": 1435
+        },
+        {
+          "date": "2025-09-03",
+          "rating": 1364
+        },
+        {
+          "date": "2025-09-08",
+          "rating": 1356
+        },
+        {
+          "date": "2025-09-10",
+          "rating": 1328
+        },
+        {
+          "date": "2025-09-15",
+          "rating": 1319
+        },
+        {
+          "date": "2025-09-29",
+          "rating": 1299
+        },
+        {
+          "date": "2025-10-01",
+          "rating": 1328
+        },
+        {
+          "date": "2025-10-06",
+          "rating": 1283
+        },
+        {
+          "date": "2025-11-17",
+          "rating": 1286
+        },
+        {
+          "date": "2025-12-08",
+          "rating": 1286
+        },
+        {
+          "date": "2025-12-15",
+          "rating": 1276
+        }
+      ],
+      "headToHead": {
+        "Ilya Liberman": {
+          "wins": 1,
+          "losses": 4
+        },
+        "Alan Li": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Eric Aki": {
+          "wins": 1,
+          "losses": 6
+        },
+        "Tom (Xiaoyun) Zeng": {
+          "wins": 7,
+          "losses": 3
+        },
+        "Raymond Trinh": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Anthony Szumilo": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Li Long": {
+          "wins": 4,
+          "losses": 2
+        },
+        "Jon Rego": {
+          "wins": 1,
+          "losses": 4
+        },
+        "Vladimir Lev": {
+          "wins": 5,
+          "losses": 2
+        },
+        "Yaroslav Shneikin": {
+          "wins": 3,
+          "losses": 2
+        },
+        "Jay Smith": {
+          "wins": 0,
+          "losses": 4
+        },
+        "Son Lu": {
+          "wins": 3,
+          "losses": 6
+        },
+        "Defrim Zejnullahi": {
+          "wins": 2,
+          "losses": 9
+        },
+        "Mike Benson": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Tate Houston": {
+          "wins": 1,
+          "losses": 4
+        },
+        "Brandon Van Buskirk": {
+          "wins": 3,
+          "losses": 1
+        },
+        "Marko Shafik": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Ruskin Dantra": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Alex Lam": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Ngai-Chi Chung": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Olaf Surmann": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Ali Zafarani": {
+          "wins": 4,
+          "losses": 0
+        },
+        "Jafar Fatemi": {
+          "wins": 1,
+          "losses": 1
+        },
+        "Awab Manzoor": {
+          "wins": 2,
+          "losses": 0
+        },
+        "J. B. Birch": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Victor Lee": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Dario Rosidi": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Alam Akbar": {
+          "wins": 1,
+          "losses": 0
+        },
+        "John Leaf": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Shah Ibrahim": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Mike Danese": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Daniel D Yi": {
+          "wins": 1,
+          "losses": 0
+        }
+      }
+    },
+    {
+      "name": "Saeid Malboubi",
+      "currentRating": 1275,
+      "peakRating": 1275,
+      "sessionsPlayed": 1,
+      "totalWins": 1,
+      "totalLosses": 3,
+      "ratingHistory": [
+        {
+          "date": "2025-03-31",
+          "rating": 1275
+        }
+      ],
+      "headToHead": {
+        "Li Long": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Son Lu": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Vladimir Lev": {
+          "wins": 0,
+          "losses": 1
+        },
+        "John Leaf": {
+          "wins": 0,
+          "losses": 1
+        }
+      }
+    },
+    {
+      "name": "Brandon Van Buskirk",
+      "currentRating": 1274,
       "peakRating": 1377,
-      "sessionsPlayed": 127,
-      "totalWins": 269,
-      "totalLosses": 281,
+      "sessionsPlayed": 128,
+      "totalWins": 272,
+      "totalLosses": 282,
       "ratingHistory": [
         {
           "date": "2025-04-21",
@@ -23829,6 +24137,10 @@
         {
           "date": "2026-10-28",
           "rating": 1276
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1274
         }
       ],
       "headToHead": {
@@ -23857,7 +24169,7 @@
           "losses": 18
         },
         "Constantine Dinkov": {
-          "wins": 14,
+          "wins": 15,
           "losses": 3
         },
         "Vladimir Lev": {
@@ -24006,7 +24318,7 @@
         },
         "Ilya Liberman": {
           "wins": 2,
-          "losses": 15
+          "losses": 16
         },
         "Raymond Trinh": {
           "wins": 0,
@@ -24147,282 +24459,14 @@
         "Ryan Beavers": {
           "wins": 1,
           "losses": 0
-        }
-      }
-    },
-    {
-      "name": "Ryan Wang",
-      "currentRating": 1276,
-      "peakRating": 1435,
-      "sessionsPlayed": 26,
-      "totalWins": 48,
-      "totalLosses": 65,
-      "ratingHistory": [
-        {
-          "date": "2025-04-30",
-          "rating": 1342
         },
-        {
-          "date": "2025-05-07",
-          "rating": 1329
-        },
-        {
-          "date": "2025-05-14",
-          "rating": 1275
-        },
-        {
-          "date": "2025-05-21",
-          "rating": 1338
-        },
-        {
-          "date": "2025-05-28",
-          "rating": 1337
-        },
-        {
-          "date": "2025-06-04",
-          "rating": 1351
-        },
-        {
-          "date": "2025-06-11",
-          "rating": 1274
-        },
-        {
-          "date": "2025-07-02",
-          "rating": 1298
-        },
-        {
-          "date": "2025-07-09",
-          "rating": 1335
-        },
-        {
-          "date": "2025-07-16",
-          "rating": 1335
-        },
-        {
-          "date": "2025-07-23",
-          "rating": 1251
-        },
-        {
-          "date": "2025-07-30",
-          "rating": 1259
-        },
-        {
-          "date": "2025-08-06",
-          "rating": 1339
-        },
-        {
-          "date": "2025-08-13",
-          "rating": 1339
-        },
-        {
-          "date": "2025-08-20",
-          "rating": 1382
-        },
-        {
-          "date": "2025-08-27",
-          "rating": 1435
-        },
-        {
-          "date": "2025-09-03",
-          "rating": 1364
-        },
-        {
-          "date": "2025-09-08",
-          "rating": 1356
-        },
-        {
-          "date": "2025-09-10",
-          "rating": 1328
-        },
-        {
-          "date": "2025-09-15",
-          "rating": 1319
-        },
-        {
-          "date": "2025-09-29",
-          "rating": 1299
-        },
-        {
-          "date": "2025-10-01",
-          "rating": 1328
-        },
-        {
-          "date": "2025-10-06",
-          "rating": 1283
-        },
-        {
-          "date": "2025-11-17",
-          "rating": 1286
-        },
-        {
-          "date": "2025-12-08",
-          "rating": 1286
-        },
-        {
-          "date": "2025-12-15",
-          "rating": 1276
-        }
-      ],
-      "headToHead": {
-        "Ilya Liberman": {
-          "wins": 1,
-          "losses": 4
-        },
-        "Alan Li": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Eric Aki": {
-          "wins": 1,
-          "losses": 6
-        },
-        "Tom (Xiaoyun) Zeng": {
-          "wins": 7,
-          "losses": 3
-        },
-        "Raymond Trinh": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Anthony Szumilo": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Li Long": {
-          "wins": 4,
-          "losses": 2
-        },
-        "Jon Rego": {
-          "wins": 1,
-          "losses": 4
-        },
-        "Vladimir Lev": {
-          "wins": 5,
-          "losses": 2
-        },
-        "Yaroslav Shneikin": {
-          "wins": 3,
-          "losses": 2
-        },
-        "Jay Smith": {
-          "wins": 0,
-          "losses": 4
-        },
-        "Son Lu": {
-          "wins": 3,
-          "losses": 6
-        },
-        "Defrim Zejnullahi": {
-          "wins": 2,
-          "losses": 9
-        },
-        "Mike Benson": {
+        "Simon He": {
           "wins": 1,
           "losses": 0
         },
-        "Tate Houston": {
-          "wins": 1,
-          "losses": 4
-        },
-        "Brandon Van Buskirk": {
-          "wins": 3,
-          "losses": 1
-        },
-        "Marko Shafik": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Ruskin Dantra": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Alex Lam": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Ngai-Chi Chung": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Olaf Surmann": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Ali Zafarani": {
-          "wins": 4,
-          "losses": 0
-        },
-        "Jafar Fatemi": {
-          "wins": 1,
-          "losses": 1
-        },
-        "Awab Manzoor": {
-          "wins": 2,
-          "losses": 0
-        },
-        "J. B. Birch": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Victor Lee": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Dario Rosidi": {
+        "Alex Hwang": {
           "wins": 1,
           "losses": 0
-        },
-        "Alam Akbar": {
-          "wins": 1,
-          "losses": 0
-        },
-        "John Leaf": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Shah Ibrahim": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Mike Danese": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Daniel D Yi": {
-          "wins": 1,
-          "losses": 0
-        }
-      }
-    },
-    {
-      "name": "Saeid Malboubi",
-      "currentRating": 1275,
-      "peakRating": 1275,
-      "sessionsPlayed": 1,
-      "totalWins": 1,
-      "totalLosses": 3,
-      "ratingHistory": [
-        {
-          "date": "2025-03-31",
-          "rating": 1275
-        }
-      ],
-      "headToHead": {
-        "Li Long": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Son Lu": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Vladimir Lev": {
-          "wins": 0,
-          "losses": 1
-        },
-        "John Leaf": {
-          "wins": 0,
-          "losses": 1
         }
       }
     },
@@ -33943,954 +33987,6 @@
       }
     },
     {
-      "name": "Constantine Dinkov",
-      "currentRating": 1140,
-      "peakRating": 1140,
-      "sessionsPlayed": 123,
-      "totalWins": 295,
-      "totalLosses": 242,
-      "ratingHistory": [
-        {
-          "date": "2024-07-08",
-          "rating": 502
-        },
-        {
-          "date": "2024-07-10",
-          "rating": 506
-        },
-        {
-          "date": "2024-07-17",
-          "rating": 517
-        },
-        {
-          "date": "2024-07-24",
-          "rating": 533
-        },
-        {
-          "date": "2024-07-31",
-          "rating": 529
-        },
-        {
-          "date": "2024-08-14",
-          "rating": 528
-        },
-        {
-          "date": "2024-09-11",
-          "rating": 637
-        },
-        {
-          "date": "2024-09-18",
-          "rating": 630
-        },
-        {
-          "date": "2024-09-23",
-          "rating": 614
-        },
-        {
-          "date": "2024-09-25",
-          "rating": 621
-        },
-        {
-          "date": "2024-11-11",
-          "rating": 709
-        },
-        {
-          "date": "2024-11-13",
-          "rating": 724
-        },
-        {
-          "date": "2024-11-18",
-          "rating": 720
-        },
-        {
-          "date": "2024-11-20",
-          "rating": 723
-        },
-        {
-          "date": "2024-11-25",
-          "rating": 679
-        },
-        {
-          "date": "2024-11-27",
-          "rating": 703
-        },
-        {
-          "date": "2024-12-02",
-          "rating": 708
-        },
-        {
-          "date": "2024-12-04",
-          "rating": 708
-        },
-        {
-          "date": "2024-12-09",
-          "rating": 732
-        },
-        {
-          "date": "2024-12-11",
-          "rating": 715
-        },
-        {
-          "date": "2024-12-16",
-          "rating": 715
-        },
-        {
-          "date": "2025-01-13",
-          "rating": 727
-        },
-        {
-          "date": "2025-01-15",
-          "rating": 740
-        },
-        {
-          "date": "2025-01-20",
-          "rating": 689
-        },
-        {
-          "date": "2025-02-03",
-          "rating": 664
-        },
-        {
-          "date": "2025-02-05",
-          "rating": 685
-        },
-        {
-          "date": "2025-02-10",
-          "rating": 690
-        },
-        {
-          "date": "2025-02-12",
-          "rating": 689
-        },
-        {
-          "date": "2025-02-24",
-          "rating": 717
-        },
-        {
-          "date": "2025-02-26",
-          "rating": 729
-        },
-        {
-          "date": "2025-04-07",
-          "rating": 741
-        },
-        {
-          "date": "2025-04-09",
-          "rating": 803
-        },
-        {
-          "date": "2025-04-14",
-          "rating": 803
-        },
-        {
-          "date": "2025-04-16",
-          "rating": 833
-        },
-        {
-          "date": "2025-04-21",
-          "rating": 833
-        },
-        {
-          "date": "2025-04-23",
-          "rating": 840
-        },
-        {
-          "date": "2025-04-28",
-          "rating": 840
-        },
-        {
-          "date": "2025-04-30",
-          "rating": 838
-        },
-        {
-          "date": "2025-05-05",
-          "rating": 889
-        },
-        {
-          "date": "2025-05-07",
-          "rating": 891
-        },
-        {
-          "date": "2025-05-12",
-          "rating": 893
-        },
-        {
-          "date": "2025-05-14",
-          "rating": 873
-        },
-        {
-          "date": "2025-05-19",
-          "rating": 876
-        },
-        {
-          "date": "2025-05-21",
-          "rating": 885
-        },
-        {
-          "date": "2025-06-02",
-          "rating": 910
-        },
-        {
-          "date": "2025-06-09",
-          "rating": 920
-        },
-        {
-          "date": "2025-06-11",
-          "rating": 973
-        },
-        {
-          "date": "2025-06-23",
-          "rating": 988
-        },
-        {
-          "date": "2025-06-25",
-          "rating": 1001
-        },
-        {
-          "date": "2025-06-30",
-          "rating": 1041
-        },
-        {
-          "date": "2025-07-02",
-          "rating": 1043
-        },
-        {
-          "date": "2025-07-07",
-          "rating": 1020
-        },
-        {
-          "date": "2025-07-09",
-          "rating": 973
-        },
-        {
-          "date": "2025-07-14",
-          "rating": 1000
-        },
-        {
-          "date": "2025-07-16",
-          "rating": 1001
-        },
-        {
-          "date": "2025-07-21",
-          "rating": 1027
-        },
-        {
-          "date": "2025-07-23",
-          "rating": 996
-        },
-        {
-          "date": "2025-07-28",
-          "rating": 996
-        },
-        {
-          "date": "2025-07-30",
-          "rating": 990
-        },
-        {
-          "date": "2025-08-04",
-          "rating": 1016
-        },
-        {
-          "date": "2025-08-06",
-          "rating": 1021
-        },
-        {
-          "date": "2025-08-11",
-          "rating": 1021
-        },
-        {
-          "date": "2025-08-13",
-          "rating": 1000
-        },
-        {
-          "date": "2025-08-18",
-          "rating": 978
-        },
-        {
-          "date": "2025-08-20",
-          "rating": 984
-        },
-        {
-          "date": "2025-08-25",
-          "rating": 991
-        },
-        {
-          "date": "2025-08-27",
-          "rating": 998
-        },
-        {
-          "date": "2025-09-03",
-          "rating": 995
-        },
-        {
-          "date": "2025-09-08",
-          "rating": 1047
-        },
-        {
-          "date": "2025-09-10",
-          "rating": 1032
-        },
-        {
-          "date": "2025-09-17",
-          "rating": 1044
-        },
-        {
-          "date": "2025-09-24",
-          "rating": 1039
-        },
-        {
-          "date": "2025-09-29",
-          "rating": 1028
-        },
-        {
-          "date": "2025-10-01",
-          "rating": 1045
-        },
-        {
-          "date": "2025-10-06",
-          "rating": 1058
-        },
-        {
-          "date": "2025-10-08",
-          "rating": 1041
-        },
-        {
-          "date": "2025-10-13",
-          "rating": 1048
-        },
-        {
-          "date": "2025-10-15",
-          "rating": 1059
-        },
-        {
-          "date": "2025-10-20",
-          "rating": 1077
-        },
-        {
-          "date": "2025-10-22",
-          "rating": 1058
-        },
-        {
-          "date": "2025-10-27",
-          "rating": 1069
-        },
-        {
-          "date": "2025-10-29",
-          "rating": 1078
-        },
-        {
-          "date": "2025-11-03",
-          "rating": 1069
-        },
-        {
-          "date": "2025-11-05",
-          "rating": 1040
-        },
-        {
-          "date": "2025-12-15",
-          "rating": 1068
-        },
-        {
-          "date": "2026-01-07",
-          "rating": 1075
-        },
-        {
-          "date": "2026-01-12",
-          "rating": 1102
-        },
-        {
-          "date": "2026-01-14",
-          "rating": 1087
-        },
-        {
-          "date": "2026-01-26",
-          "rating": 1070
-        },
-        {
-          "date": "2026-01-28",
-          "rating": 1076
-        },
-        {
-          "date": "2026-02-02",
-          "rating": 1054
-        },
-        {
-          "date": "2026-02-04",
-          "rating": 1036
-        },
-        {
-          "date": "2026-02-09",
-          "rating": 1063
-        },
-        {
-          "date": "2026-02-16",
-          "rating": 1058
-        },
-        {
-          "date": "2026-03-30",
-          "rating": 1080
-        },
-        {
-          "date": "2026-04-01",
-          "rating": 1029
-        },
-        {
-          "date": "2026-04-06",
-          "rating": 1017
-        },
-        {
-          "date": "2026-04-08",
-          "rating": 1047
-        },
-        {
-          "date": "2026-04-13",
-          "rating": 1004
-        },
-        {
-          "date": "2026-04-15",
-          "rating": 973
-        },
-        {
-          "date": "2026-06-17",
-          "rating": 926
-        },
-        {
-          "date": "2026-07-01",
-          "rating": 984
-        },
-        {
-          "date": "2026-07-06",
-          "rating": 1007
-        },
-        {
-          "date": "2026-07-08",
-          "rating": 962
-        },
-        {
-          "date": "2026-07-13",
-          "rating": 1012
-        },
-        {
-          "date": "2026-07-15",
-          "rating": 1032
-        },
-        {
-          "date": "2026-07-20",
-          "rating": 1058
-        },
-        {
-          "date": "2026-07-22",
-          "rating": 1065
-        },
-        {
-          "date": "2026-07-27",
-          "rating": 1091
-        },
-        {
-          "date": "2026-07-29",
-          "rating": 1081
-        },
-        {
-          "date": "2026-08-03",
-          "rating": 1053
-        },
-        {
-          "date": "2026-08-26",
-          "rating": 1079
-        },
-        {
-          "date": "2026-08-31",
-          "rating": 1094
-        },
-        {
-          "date": "2026-09-02",
-          "rating": 1101
-        },
-        {
-          "date": "2026-09-07",
-          "rating": 1124
-        },
-        {
-          "date": "2026-09-23",
-          "rating": 1077
-        },
-        {
-          "date": "2026-09-28",
-          "rating": 972
-        },
-        {
-          "date": "2026-09-30",
-          "rating": 977
-        },
-        {
-          "date": "2026-10-05",
-          "rating": 996
-        },
-        {
-          "date": "2026-10-07",
-          "rating": 1006
-        },
-        {
-          "date": "2026-10-21",
-          "rating": 1053
-        },
-        {
-          "date": "2026-10-26",
-          "rating": 1071
-        },
-        {
-          "date": "2026-10-28",
-          "rating": 1140
-        }
-      ],
-      "headToHead": {
-        "Ron Buxton": {
-          "wins": 9,
-          "losses": 4
-        },
-        "Paul Yeem": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Tate Houston": {
-          "wins": 3,
-          "losses": 15
-        },
-        "Mark Raaburg": {
-          "wins": 5,
-          "losses": 0
-        },
-        "Remzo Chung": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Andy A Chen": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Ernie Olatunji": {
-          "wins": 9,
-          "losses": 9
-        },
-        "Jackie Lam": {
-          "wins": 0,
-          "losses": 1
-        },
-        "William Breedlove": {
-          "wins": 1,
-          "losses": 3
-        },
-        "Steve Cossmon": {
-          "wins": 0,
-          "losses": 4
-        },
-        "J. B. Birch": {
-          "wins": 1,
-          "losses": 15
-        },
-        "Ali Taba": {
-          "wins": 3,
-          "losses": 4
-        },
-        "William Craig2": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Brian Garrido": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Laszlo Rekasi": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Yosuel Lazu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Pedro Lazu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Simon Minovitsky": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Trilbus Regentin": {
-          "wins": 4,
-          "losses": 7
-        },
-        "Varun Gulati": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Kevin Houston": {
-          "wins": 1,
-          "losses": 3
-        },
-        "Alexander Bogdanovich": {
-          "wins": 3,
-          "losses": 9
-        },
-        "Nico Larson": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Vahid Mohammadi": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ron Moland": {
-          "wins": 10,
-          "losses": 1
-        },
-        "Gary Mills": {
-          "wins": 2,
-          "losses": 0
-        },
-        "David Sharma": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Mark Raaberg": {
-          "wins": 8,
-          "losses": 0
-        },
-        "Denys Gluzon": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Samia Bendi": {
-          "wins": 13,
-          "losses": 7
-        },
-        "Evgeny Kapustin": {
-          "wins": 2,
-          "losses": 2
-        },
-        "Eric Chan 2": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Renzo Chung": {
-          "wins": 11,
-          "losses": 0
-        },
-        "Vladimir Lev": {
-          "wins": 1,
-          "losses": 9
-        },
-        "Noah Yisa": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Jon Rego": {
-          "wins": 4,
-          "losses": 12
-        },
-        "Raghuram Ashok": {
-          "wins": 4,
-          "losses": 1
-        },
-        "Dmitriy Aranovich": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Alex Hwang": {
-          "wins": 5,
-          "losses": 3
-        },
-        "Dany Waksman": {
-          "wins": 1,
-          "losses": 1
-        },
-        "William Craig Jr": {
-          "wins": 6,
-          "losses": 0
-        },
-        "Jose Vrena": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Sumantra Luitel": {
-          "wins": 1,
-          "losses": 2
-        },
-        "Enver Sedolli": {
-          "wins": 16,
-          "losses": 1
-        },
-        "Sacha Simpson": {
-          "wins": 26,
-          "losses": 0
-        },
-        "Defrim Zejnullahi": {
-          "wins": 0,
-          "losses": 7
-        },
-        "Dario Rosidi": {
-          "wins": 3,
-          "losses": 11
-        },
-        "Aarvi Pandya": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Prabodh Dahal": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Joshua Abrego": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Daren Peacock": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Rahul Chitrapu": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Seth Raphael": {
-          "wins": 6,
-          "losses": 0
-        },
-        "Li Long": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Son Lu": {
-          "wins": 0,
-          "losses": 6
-        },
-        "Yaroslav Shneikin": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Victor Lee": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Bryan O": {
-          "wins": 10,
-          "losses": 6
-        },
-        "Denys Gluzov": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Tom (Xiaoyun) Zeng": {
-          "wins": 0,
-          "losses": 4
-        },
-        "Brandon Van Buskirk": {
-          "wins": 3,
-          "losses": 14
-        },
-        "Mike Danese": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Etienne Espinasse": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Herb Trautner": {
-          "wins": 1,
-          "losses": 2
-        },
-        "Mike Benson": {
-          "wins": 3,
-          "losses": 2
-        },
-        "Donald Miller": {
-          "wins": 15,
-          "losses": 11
-        },
-        "Ziad Abdo": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Nim Divino": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Shane Webster": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Eric Ching": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ali Zafarami": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Jay Smith": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Ali Zafarani": {
-          "wins": 0,
-          "losses": 4
-        },
-        "Sharadh Kumar": {
-          "wins": 3,
-          "losses": 6
-        },
-        "Shah Ibrahim": {
-          "wins": 1,
-          "losses": 1
-        },
-        "John Leaf": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Sung Kim": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Eric Aki": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Behnam Behjoo": {
-          "wins": 18,
-          "losses": 1
-        },
-        "Ian Farquhar": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Niyousha Pourzand": {
-          "wins": 8,
-          "losses": 11
-        },
-        "Jim Kelleher": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Awab Manzoor": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Shaunak Kapadia": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Simon Davis": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Gayle Mayta": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ricky Pacheco": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Arash Meshksar": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Daniel D Yi": {
-          "wins": 2,
-          "losses": 3
-        },
-        "Marco Mikhail": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Mike Young": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Marcus Flores": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Doran Williams": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Ryan Brosas": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Kevin Situ": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Bob Sickles": {
-          "wins": 2,
-          "losses": 1
-        },
-        "Iman Mukherjee": {
-          "wins": 2,
-          "losses": 3
-        },
-        "Kevin Orellana": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Reggie Taylor": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Lily Li": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Borzoo Shadpour": {
-          "wins": 4,
-          "losses": 0
-        },
-        "Frank Bruni": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Dan Morgan": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Ben Khalili": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ryan Beavers": {
-          "wins": 4,
-          "losses": 2
-        },
-        "Jaden Wu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ilya Liberman": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Barry Tesar": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Musa Hasan": {
-          "wins": 1,
-          "losses": 0
-        },
-        "James Tsay": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Shiva Shadloo": {
-          "wins": 1,
-          "losses": 0
-        }
-      }
-    },
-    {
       "name": "Bahman Hayati",
       "currentRating": 1139,
       "peakRating": 1553,
@@ -38135,6 +37231,962 @@
       }
     },
     {
+      "name": "Constantine Dinkov",
+      "currentRating": 1111,
+      "peakRating": 1140,
+      "sessionsPlayed": 124,
+      "totalWins": 296,
+      "totalLosses": 245,
+      "ratingHistory": [
+        {
+          "date": "2024-07-08",
+          "rating": 502
+        },
+        {
+          "date": "2024-07-10",
+          "rating": 506
+        },
+        {
+          "date": "2024-07-17",
+          "rating": 517
+        },
+        {
+          "date": "2024-07-24",
+          "rating": 533
+        },
+        {
+          "date": "2024-07-31",
+          "rating": 529
+        },
+        {
+          "date": "2024-08-14",
+          "rating": 528
+        },
+        {
+          "date": "2024-09-11",
+          "rating": 637
+        },
+        {
+          "date": "2024-09-18",
+          "rating": 630
+        },
+        {
+          "date": "2024-09-23",
+          "rating": 614
+        },
+        {
+          "date": "2024-09-25",
+          "rating": 621
+        },
+        {
+          "date": "2024-11-11",
+          "rating": 709
+        },
+        {
+          "date": "2024-11-13",
+          "rating": 724
+        },
+        {
+          "date": "2024-11-18",
+          "rating": 720
+        },
+        {
+          "date": "2024-11-20",
+          "rating": 723
+        },
+        {
+          "date": "2024-11-25",
+          "rating": 679
+        },
+        {
+          "date": "2024-11-27",
+          "rating": 703
+        },
+        {
+          "date": "2024-12-02",
+          "rating": 708
+        },
+        {
+          "date": "2024-12-04",
+          "rating": 708
+        },
+        {
+          "date": "2024-12-09",
+          "rating": 732
+        },
+        {
+          "date": "2024-12-11",
+          "rating": 715
+        },
+        {
+          "date": "2024-12-16",
+          "rating": 715
+        },
+        {
+          "date": "2025-01-13",
+          "rating": 727
+        },
+        {
+          "date": "2025-01-15",
+          "rating": 740
+        },
+        {
+          "date": "2025-01-20",
+          "rating": 689
+        },
+        {
+          "date": "2025-02-03",
+          "rating": 664
+        },
+        {
+          "date": "2025-02-05",
+          "rating": 685
+        },
+        {
+          "date": "2025-02-10",
+          "rating": 690
+        },
+        {
+          "date": "2025-02-12",
+          "rating": 689
+        },
+        {
+          "date": "2025-02-24",
+          "rating": 717
+        },
+        {
+          "date": "2025-02-26",
+          "rating": 729
+        },
+        {
+          "date": "2025-04-07",
+          "rating": 741
+        },
+        {
+          "date": "2025-04-09",
+          "rating": 803
+        },
+        {
+          "date": "2025-04-14",
+          "rating": 803
+        },
+        {
+          "date": "2025-04-16",
+          "rating": 833
+        },
+        {
+          "date": "2025-04-21",
+          "rating": 833
+        },
+        {
+          "date": "2025-04-23",
+          "rating": 840
+        },
+        {
+          "date": "2025-04-28",
+          "rating": 840
+        },
+        {
+          "date": "2025-04-30",
+          "rating": 838
+        },
+        {
+          "date": "2025-05-05",
+          "rating": 889
+        },
+        {
+          "date": "2025-05-07",
+          "rating": 891
+        },
+        {
+          "date": "2025-05-12",
+          "rating": 893
+        },
+        {
+          "date": "2025-05-14",
+          "rating": 873
+        },
+        {
+          "date": "2025-05-19",
+          "rating": 876
+        },
+        {
+          "date": "2025-05-21",
+          "rating": 885
+        },
+        {
+          "date": "2025-06-02",
+          "rating": 910
+        },
+        {
+          "date": "2025-06-09",
+          "rating": 920
+        },
+        {
+          "date": "2025-06-11",
+          "rating": 973
+        },
+        {
+          "date": "2025-06-23",
+          "rating": 988
+        },
+        {
+          "date": "2025-06-25",
+          "rating": 1001
+        },
+        {
+          "date": "2025-06-30",
+          "rating": 1041
+        },
+        {
+          "date": "2025-07-02",
+          "rating": 1043
+        },
+        {
+          "date": "2025-07-07",
+          "rating": 1020
+        },
+        {
+          "date": "2025-07-09",
+          "rating": 973
+        },
+        {
+          "date": "2025-07-14",
+          "rating": 1000
+        },
+        {
+          "date": "2025-07-16",
+          "rating": 1001
+        },
+        {
+          "date": "2025-07-21",
+          "rating": 1027
+        },
+        {
+          "date": "2025-07-23",
+          "rating": 996
+        },
+        {
+          "date": "2025-07-28",
+          "rating": 996
+        },
+        {
+          "date": "2025-07-30",
+          "rating": 990
+        },
+        {
+          "date": "2025-08-04",
+          "rating": 1016
+        },
+        {
+          "date": "2025-08-06",
+          "rating": 1021
+        },
+        {
+          "date": "2025-08-11",
+          "rating": 1021
+        },
+        {
+          "date": "2025-08-13",
+          "rating": 1000
+        },
+        {
+          "date": "2025-08-18",
+          "rating": 978
+        },
+        {
+          "date": "2025-08-20",
+          "rating": 984
+        },
+        {
+          "date": "2025-08-25",
+          "rating": 991
+        },
+        {
+          "date": "2025-08-27",
+          "rating": 998
+        },
+        {
+          "date": "2025-09-03",
+          "rating": 995
+        },
+        {
+          "date": "2025-09-08",
+          "rating": 1047
+        },
+        {
+          "date": "2025-09-10",
+          "rating": 1032
+        },
+        {
+          "date": "2025-09-17",
+          "rating": 1044
+        },
+        {
+          "date": "2025-09-24",
+          "rating": 1039
+        },
+        {
+          "date": "2025-09-29",
+          "rating": 1028
+        },
+        {
+          "date": "2025-10-01",
+          "rating": 1045
+        },
+        {
+          "date": "2025-10-06",
+          "rating": 1058
+        },
+        {
+          "date": "2025-10-08",
+          "rating": 1041
+        },
+        {
+          "date": "2025-10-13",
+          "rating": 1048
+        },
+        {
+          "date": "2025-10-15",
+          "rating": 1059
+        },
+        {
+          "date": "2025-10-20",
+          "rating": 1077
+        },
+        {
+          "date": "2025-10-22",
+          "rating": 1058
+        },
+        {
+          "date": "2025-10-27",
+          "rating": 1069
+        },
+        {
+          "date": "2025-10-29",
+          "rating": 1078
+        },
+        {
+          "date": "2025-11-03",
+          "rating": 1069
+        },
+        {
+          "date": "2025-11-05",
+          "rating": 1040
+        },
+        {
+          "date": "2025-12-15",
+          "rating": 1068
+        },
+        {
+          "date": "2026-01-07",
+          "rating": 1075
+        },
+        {
+          "date": "2026-01-12",
+          "rating": 1102
+        },
+        {
+          "date": "2026-01-14",
+          "rating": 1087
+        },
+        {
+          "date": "2026-01-26",
+          "rating": 1070
+        },
+        {
+          "date": "2026-01-28",
+          "rating": 1076
+        },
+        {
+          "date": "2026-02-02",
+          "rating": 1054
+        },
+        {
+          "date": "2026-02-04",
+          "rating": 1036
+        },
+        {
+          "date": "2026-02-09",
+          "rating": 1063
+        },
+        {
+          "date": "2026-02-16",
+          "rating": 1058
+        },
+        {
+          "date": "2026-03-30",
+          "rating": 1080
+        },
+        {
+          "date": "2026-04-01",
+          "rating": 1029
+        },
+        {
+          "date": "2026-04-06",
+          "rating": 1017
+        },
+        {
+          "date": "2026-04-08",
+          "rating": 1047
+        },
+        {
+          "date": "2026-04-13",
+          "rating": 1004
+        },
+        {
+          "date": "2026-04-15",
+          "rating": 973
+        },
+        {
+          "date": "2026-06-17",
+          "rating": 926
+        },
+        {
+          "date": "2026-07-01",
+          "rating": 984
+        },
+        {
+          "date": "2026-07-06",
+          "rating": 1007
+        },
+        {
+          "date": "2026-07-08",
+          "rating": 962
+        },
+        {
+          "date": "2026-07-13",
+          "rating": 1012
+        },
+        {
+          "date": "2026-07-15",
+          "rating": 1032
+        },
+        {
+          "date": "2026-07-20",
+          "rating": 1058
+        },
+        {
+          "date": "2026-07-22",
+          "rating": 1065
+        },
+        {
+          "date": "2026-07-27",
+          "rating": 1091
+        },
+        {
+          "date": "2026-07-29",
+          "rating": 1081
+        },
+        {
+          "date": "2026-08-03",
+          "rating": 1053
+        },
+        {
+          "date": "2026-08-26",
+          "rating": 1079
+        },
+        {
+          "date": "2026-08-31",
+          "rating": 1094
+        },
+        {
+          "date": "2026-09-02",
+          "rating": 1101
+        },
+        {
+          "date": "2026-09-07",
+          "rating": 1124
+        },
+        {
+          "date": "2026-09-23",
+          "rating": 1077
+        },
+        {
+          "date": "2026-09-28",
+          "rating": 972
+        },
+        {
+          "date": "2026-09-30",
+          "rating": 977
+        },
+        {
+          "date": "2026-10-05",
+          "rating": 996
+        },
+        {
+          "date": "2026-10-07",
+          "rating": 1006
+        },
+        {
+          "date": "2026-10-21",
+          "rating": 1053
+        },
+        {
+          "date": "2026-10-26",
+          "rating": 1071
+        },
+        {
+          "date": "2026-10-28",
+          "rating": 1140
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1111
+        }
+      ],
+      "headToHead": {
+        "Ron Buxton": {
+          "wins": 9,
+          "losses": 4
+        },
+        "Paul Yeem": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Tate Houston": {
+          "wins": 3,
+          "losses": 15
+        },
+        "Mark Raaburg": {
+          "wins": 5,
+          "losses": 0
+        },
+        "Remzo Chung": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Andy A Chen": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Ernie Olatunji": {
+          "wins": 9,
+          "losses": 9
+        },
+        "Jackie Lam": {
+          "wins": 0,
+          "losses": 1
+        },
+        "William Breedlove": {
+          "wins": 1,
+          "losses": 3
+        },
+        "Steve Cossmon": {
+          "wins": 0,
+          "losses": 4
+        },
+        "J. B. Birch": {
+          "wins": 1,
+          "losses": 15
+        },
+        "Ali Taba": {
+          "wins": 3,
+          "losses": 4
+        },
+        "William Craig2": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Brian Garrido": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Laszlo Rekasi": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Yosuel Lazu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Pedro Lazu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Simon Minovitsky": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Trilbus Regentin": {
+          "wins": 4,
+          "losses": 7
+        },
+        "Varun Gulati": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Kevin Houston": {
+          "wins": 1,
+          "losses": 3
+        },
+        "Alexander Bogdanovich": {
+          "wins": 3,
+          "losses": 9
+        },
+        "Nico Larson": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Vahid Mohammadi": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ron Moland": {
+          "wins": 10,
+          "losses": 1
+        },
+        "Gary Mills": {
+          "wins": 2,
+          "losses": 0
+        },
+        "David Sharma": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Mark Raaberg": {
+          "wins": 8,
+          "losses": 0
+        },
+        "Denys Gluzon": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Samia Bendi": {
+          "wins": 13,
+          "losses": 7
+        },
+        "Evgeny Kapustin": {
+          "wins": 2,
+          "losses": 2
+        },
+        "Eric Chan 2": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Renzo Chung": {
+          "wins": 11,
+          "losses": 0
+        },
+        "Vladimir Lev": {
+          "wins": 1,
+          "losses": 9
+        },
+        "Noah Yisa": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Jon Rego": {
+          "wins": 4,
+          "losses": 12
+        },
+        "Raghuram Ashok": {
+          "wins": 4,
+          "losses": 1
+        },
+        "Dmitriy Aranovich": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Alex Hwang": {
+          "wins": 5,
+          "losses": 4
+        },
+        "Dany Waksman": {
+          "wins": 1,
+          "losses": 1
+        },
+        "William Craig Jr": {
+          "wins": 6,
+          "losses": 0
+        },
+        "Jose Vrena": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Sumantra Luitel": {
+          "wins": 1,
+          "losses": 2
+        },
+        "Enver Sedolli": {
+          "wins": 16,
+          "losses": 1
+        },
+        "Sacha Simpson": {
+          "wins": 26,
+          "losses": 0
+        },
+        "Defrim Zejnullahi": {
+          "wins": 0,
+          "losses": 7
+        },
+        "Dario Rosidi": {
+          "wins": 3,
+          "losses": 11
+        },
+        "Aarvi Pandya": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Prabodh Dahal": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Joshua Abrego": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Daren Peacock": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Rahul Chitrapu": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Seth Raphael": {
+          "wins": 6,
+          "losses": 0
+        },
+        "Li Long": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Son Lu": {
+          "wins": 0,
+          "losses": 6
+        },
+        "Yaroslav Shneikin": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Victor Lee": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Bryan O": {
+          "wins": 10,
+          "losses": 6
+        },
+        "Denys Gluzov": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Tom (Xiaoyun) Zeng": {
+          "wins": 0,
+          "losses": 4
+        },
+        "Brandon Van Buskirk": {
+          "wins": 3,
+          "losses": 15
+        },
+        "Mike Danese": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Etienne Espinasse": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Herb Trautner": {
+          "wins": 1,
+          "losses": 2
+        },
+        "Mike Benson": {
+          "wins": 3,
+          "losses": 2
+        },
+        "Donald Miller": {
+          "wins": 15,
+          "losses": 11
+        },
+        "Ziad Abdo": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Nim Divino": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Shane Webster": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Eric Ching": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ali Zafarami": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Jay Smith": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Ali Zafarani": {
+          "wins": 0,
+          "losses": 4
+        },
+        "Sharadh Kumar": {
+          "wins": 3,
+          "losses": 6
+        },
+        "Shah Ibrahim": {
+          "wins": 1,
+          "losses": 1
+        },
+        "John Leaf": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Sung Kim": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Eric Aki": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Behnam Behjoo": {
+          "wins": 18,
+          "losses": 1
+        },
+        "Ian Farquhar": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Niyousha Pourzand": {
+          "wins": 8,
+          "losses": 11
+        },
+        "Jim Kelleher": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Awab Manzoor": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Shaunak Kapadia": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Simon Davis": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Gayle Mayta": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ricky Pacheco": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Arash Meshksar": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Daniel D Yi": {
+          "wins": 2,
+          "losses": 3
+        },
+        "Marco Mikhail": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Mike Young": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Marcus Flores": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Doran Williams": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Ryan Brosas": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Kevin Situ": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Bob Sickles": {
+          "wins": 2,
+          "losses": 1
+        },
+        "Iman Mukherjee": {
+          "wins": 2,
+          "losses": 3
+        },
+        "Kevin Orellana": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Reggie Taylor": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Lily Li": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Borzoo Shadpour": {
+          "wins": 4,
+          "losses": 0
+        },
+        "Frank Bruni": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Dan Morgan": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Ben Khalili": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ryan Beavers": {
+          "wins": 4,
+          "losses": 2
+        },
+        "Jaden Wu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ilya Liberman": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Barry Tesar": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Musa Hasan": {
+          "wins": 1,
+          "losses": 0
+        },
+        "James Tsay": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Shiva Shadloo": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Simon He": {
+          "wins": 1,
+          "losses": 0
+        }
+      }
+    },
+    {
       "name": "Ali Zafarami",
       "currentRating": 1108,
       "peakRating": 1400,
@@ -39447,6 +39499,778 @@
       }
     },
     {
+      "name": "Alex Hwang",
+      "currentRating": 1031,
+      "peakRating": 1177,
+      "sessionsPlayed": 92,
+      "totalWins": 182,
+      "totalLosses": 139,
+      "ratingHistory": [
+        {
+          "date": "2024-01-07",
+          "rating": 1122
+        },
+        {
+          "date": "2024-01-11",
+          "rating": 1110
+        },
+        {
+          "date": "2024-01-14",
+          "rating": 1110
+        },
+        {
+          "date": "2024-01-18",
+          "rating": 1104
+        },
+        {
+          "date": "2024-01-21",
+          "rating": 1110
+        },
+        {
+          "date": "2024-01-28",
+          "rating": 1117
+        },
+        {
+          "date": "2024-02-04",
+          "rating": 1102
+        },
+        {
+          "date": "2024-02-11",
+          "rating": 1104
+        },
+        {
+          "date": "2024-02-25",
+          "rating": 1096
+        },
+        {
+          "date": "2024-03-03",
+          "rating": 1080
+        },
+        {
+          "date": "2024-03-17",
+          "rating": 1083
+        },
+        {
+          "date": "2024-03-24",
+          "rating": 1067
+        },
+        {
+          "date": "2024-03-31",
+          "rating": 1073
+        },
+        {
+          "date": "2024-04-07",
+          "rating": 1085
+        },
+        {
+          "date": "2024-04-14",
+          "rating": 1111
+        },
+        {
+          "date": "2024-04-21",
+          "rating": 1103
+        },
+        {
+          "date": "2024-04-28",
+          "rating": 1100
+        },
+        {
+          "date": "2024-05-05",
+          "rating": 1084
+        },
+        {
+          "date": "2024-05-12",
+          "rating": 1130
+        },
+        {
+          "date": "2024-05-19",
+          "rating": 1095
+        },
+        {
+          "date": "2024-05-26",
+          "rating": 1080
+        },
+        {
+          "date": "2024-06-06",
+          "rating": 1030
+        },
+        {
+          "date": "2024-06-09",
+          "rating": 1030
+        },
+        {
+          "date": "2024-06-13",
+          "rating": 1030
+        },
+        {
+          "date": "2024-06-16",
+          "rating": 1082
+        },
+        {
+          "date": "2024-06-20",
+          "rating": 1076
+        },
+        {
+          "date": "2024-06-23",
+          "rating": 1096
+        },
+        {
+          "date": "2024-06-27",
+          "rating": 1102
+        },
+        {
+          "date": "2024-06-30",
+          "rating": 1110
+        },
+        {
+          "date": "2024-07-24",
+          "rating": 1149
+        },
+        {
+          "date": "2024-07-31",
+          "rating": 1123
+        },
+        {
+          "date": "2024-08-07",
+          "rating": 1150
+        },
+        {
+          "date": "2024-08-14",
+          "rating": 1154
+        },
+        {
+          "date": "2024-08-28",
+          "rating": 1153
+        },
+        {
+          "date": "2024-09-04",
+          "rating": 1177
+        },
+        {
+          "date": "2024-09-11",
+          "rating": 1172
+        },
+        {
+          "date": "2024-09-18",
+          "rating": 1160
+        },
+        {
+          "date": "2024-09-25",
+          "rating": 1123
+        },
+        {
+          "date": "2024-10-09",
+          "rating": 1122
+        },
+        {
+          "date": "2024-10-16",
+          "rating": 1122
+        },
+        {
+          "date": "2024-10-23",
+          "rating": 1088
+        },
+        {
+          "date": "2024-11-04",
+          "rating": 1099
+        },
+        {
+          "date": "2024-11-06",
+          "rating": 1088
+        },
+        {
+          "date": "2024-11-11",
+          "rating": 1097
+        },
+        {
+          "date": "2024-11-13",
+          "rating": 1072
+        },
+        {
+          "date": "2024-11-25",
+          "rating": 1081
+        },
+        {
+          "date": "2024-12-02",
+          "rating": 1047
+        },
+        {
+          "date": "2024-12-11",
+          "rating": 1038
+        },
+        {
+          "date": "2024-12-16",
+          "rating": 1045
+        },
+        {
+          "date": "2025-01-06",
+          "rating": 1072
+        },
+        {
+          "date": "2025-01-15",
+          "rating": 1077
+        },
+        {
+          "date": "2025-12-01",
+          "rating": 1077
+        },
+        {
+          "date": "2025-12-15",
+          "rating": 1041
+        },
+        {
+          "date": "2026-01-05",
+          "rating": 1041
+        },
+        {
+          "date": "2026-01-12",
+          "rating": 1004
+        },
+        {
+          "date": "2026-01-19",
+          "rating": 949
+        },
+        {
+          "date": "2026-01-26",
+          "rating": 987
+        },
+        {
+          "date": "2026-02-04",
+          "rating": 971
+        },
+        {
+          "date": "2026-02-09",
+          "rating": 954
+        },
+        {
+          "date": "2026-02-16",
+          "rating": 957
+        },
+        {
+          "date": "2026-02-23",
+          "rating": 971
+        },
+        {
+          "date": "2026-03-02",
+          "rating": 961
+        },
+        {
+          "date": "2026-03-11",
+          "rating": 957
+        },
+        {
+          "date": "2026-03-18",
+          "rating": 968
+        },
+        {
+          "date": "2026-03-23",
+          "rating": 962
+        },
+        {
+          "date": "2026-04-13",
+          "rating": 967
+        },
+        {
+          "date": "2026-04-27",
+          "rating": 977
+        },
+        {
+          "date": "2026-05-06",
+          "rating": 1004
+        },
+        {
+          "date": "2026-05-13",
+          "rating": 1009
+        },
+        {
+          "date": "2026-05-18",
+          "rating": 997
+        },
+        {
+          "date": "2026-05-25",
+          "rating": 1004
+        },
+        {
+          "date": "2026-06-01",
+          "rating": 1007
+        },
+        {
+          "date": "2026-06-03",
+          "rating": 1007
+        },
+        {
+          "date": "2026-06-10",
+          "rating": 1019
+        },
+        {
+          "date": "2026-06-17",
+          "rating": 1026
+        },
+        {
+          "date": "2026-06-29",
+          "rating": 980
+        },
+        {
+          "date": "2026-07-06",
+          "rating": 987
+        },
+        {
+          "date": "2026-07-20",
+          "rating": 993
+        },
+        {
+          "date": "2026-07-27",
+          "rating": 987
+        },
+        {
+          "date": "2026-08-05",
+          "rating": 991
+        },
+        {
+          "date": "2026-08-17",
+          "rating": 935
+        },
+        {
+          "date": "2026-08-24",
+          "rating": 935
+        },
+        {
+          "date": "2026-08-31",
+          "rating": 930
+        },
+        {
+          "date": "2026-09-07",
+          "rating": 932
+        },
+        {
+          "date": "2026-09-14",
+          "rating": 954
+        },
+        {
+          "date": "2026-09-23",
+          "rating": 986
+        },
+        {
+          "date": "2026-09-30",
+          "rating": 1022
+        },
+        {
+          "date": "2026-10-07",
+          "rating": 1053
+        },
+        {
+          "date": "2026-10-12",
+          "rating": 1023
+        },
+        {
+          "date": "2026-10-21",
+          "rating": 1012
+        },
+        {
+          "date": "2026-10-26",
+          "rating": 1006
+        },
+        {
+          "date": "2026-10-31",
+          "rating": 1031
+        }
+      ],
+      "headToHead": {
+        "Yaroslav Shneikin": {
+          "wins": 0,
+          "losses": 10
+        },
+        "Trilbus Regentin": {
+          "wins": 8,
+          "losses": 0
+        },
+        "Li Long": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Mike Danese": {
+          "wins": 0,
+          "losses": 5
+        },
+        "Vince Oracion": {
+          "wins": 1,
+          "losses": 7
+        },
+        "Ernie Olatunji": {
+          "wins": 6,
+          "losses": 7
+        },
+        "Zee Huang": {
+          "wins": 3,
+          "losses": 3
+        },
+        "Alexander Bogdanovich": {
+          "wins": 15,
+          "losses": 3
+        },
+        "Creig Murtha": {
+          "wins": 9,
+          "losses": 0
+        },
+        "Jane Tom": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Noel Rico": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Gupta Anshul": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Tate Houston": {
+          "wins": 11,
+          "losses": 1
+        },
+        "Thomas Hwang": {
+          "wins": 4,
+          "losses": 1
+        },
+        "Simon Tam": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Loretta Lai": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Samia Bendi": {
+          "wins": 9,
+          "losses": 4
+        },
+        "Al Fleischman": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ardeshir Assadi-Rad": {
+          "wins": 4,
+          "losses": 2
+        },
+        "Vladimir Lev": {
+          "wins": 3,
+          "losses": 4
+        },
+        "Pheobe Ly": {
+          "wins": 1,
+          "losses": 0
+        },
+        "John Leaf": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Sam Lau": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Yin Wu": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Barbara Clark": {
+          "wins": 1,
+          "losses": 1
+        },
+        "John Birch": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Victor Lee": {
+          "wins": 0,
+          "losses": 5
+        },
+        "Aziel Shechter": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Brian Garrido": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ariel Shechter": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Kevin Houston": {
+          "wins": 3,
+          "losses": 1
+        },
+        "Christina Ng": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ying Lau": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Louis Chu": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Kevin Chau": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Ron Buxton": {
+          "wins": 8,
+          "losses": 0
+        },
+        "Son Lu": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Alan Su": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Barry Tesar": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Simon Davis": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Justin Chu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Steve Cossmon": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Chris Babcock": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ilya Liberman": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Eric Aki": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Noel Jinon": {
+          "wins": 0,
+          "losses": 2
+        },
+        "William Cheung": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Jay Smith": {
+          "wins": 0,
+          "losses": 1
+        },
+        "J. B. Birch": {
+          "wins": 3,
+          "losses": 3
+        },
+        "Michael Berdichevsky": {
+          "wins": 1,
+          "losses": 1
+        },
+        "Ali Taba": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Mark Petiti": {
+          "wins": 1,
+          "losses": 0
+        },
+        "David Sharma": {
+          "wins": 1,
+          "losses": 0
+        },
+        "William Breedlove": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Anshul Gupta": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Jon Rego": {
+          "wins": 0,
+          "losses": 3
+        },
+        "Defrim Zejnullahi": {
+          "wins": 1,
+          "losses": 1
+        },
+        "Ron Moland": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Bob Zandipour": {
+          "wins": 0,
+          "losses": 2
+        },
+        "Dean Pedrotti": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Dany Waksman": {
+          "wins": 1,
+          "losses": 1
+        },
+        "Raghuram Ashok": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Constantine Dinkov": {
+          "wins": 4,
+          "losses": 5
+        },
+        "Borzoo Shadpour": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Dario Rosidi": {
+          "wins": 3,
+          "losses": 0
+        },
+        "William Craig Jr": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Sacha Simpson": {
+          "wins": 7,
+          "losses": 0
+        },
+        "Ed Murphy": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Enver Sedolli": {
+          "wins": 7,
+          "losses": 2
+        },
+        "Bryan O": {
+          "wins": 3,
+          "losses": 5
+        },
+        "Behnam Behjoo": {
+          "wins": 1,
+          "losses": 8
+        },
+        "Daniel D Yi": {
+          "wins": 3,
+          "losses": 4
+        },
+        "Arash Meshksar": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Niyousha Pourzand": {
+          "wins": 0,
+          "losses": 7
+        },
+        "Erick Ochna": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Gayle Mayta": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Graham Zajac": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Iman Mukherjee": {
+          "wins": 2,
+          "losses": 1
+        },
+        "Emmett Lynn": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Doran Williams": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Seth Raphael": {
+          "wins": 3,
+          "losses": 1
+        },
+        "Jaden Wu": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Lily Li": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Kevin Situ": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Bob Sickles": {
+          "wins": 3,
+          "losses": 0
+        },
+        "Jason Lee": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Kevin Orellana": {
+          "wins": 2,
+          "losses": 1
+        },
+        "Simon He": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Glenn Szeto": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Ryan Beavers": {
+          "wins": 2,
+          "losses": 2
+        },
+        "Theo Sangenitto": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Ben Khalili": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Jian Gao": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Musa Hasan": {
+          "wins": 2,
+          "losses": 0
+        },
+        "Donald Miller": {
+          "wins": 1,
+          "losses": 1
+        },
+        "James Tsay": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Jim Petalio": {
+          "wins": 1,
+          "losses": 0
+        },
+        "Brandon Van Buskirk": {
+          "wins": 0,
+          "losses": 1
+        }
+      }
+    },
+    {
       "name": "Chris Babcock",
       "currentRating": 1029,
       "peakRating": 1140,
@@ -39919,770 +40743,6 @@
         "Yaroslav Shneikin": {
           "wins": 0,
           "losses": 1
-        }
-      }
-    },
-    {
-      "name": "Alex Hwang",
-      "currentRating": 1006,
-      "peakRating": 1177,
-      "sessionsPlayed": 91,
-      "totalWins": 181,
-      "totalLosses": 136,
-      "ratingHistory": [
-        {
-          "date": "2024-01-07",
-          "rating": 1122
-        },
-        {
-          "date": "2024-01-11",
-          "rating": 1110
-        },
-        {
-          "date": "2024-01-14",
-          "rating": 1110
-        },
-        {
-          "date": "2024-01-18",
-          "rating": 1104
-        },
-        {
-          "date": "2024-01-21",
-          "rating": 1110
-        },
-        {
-          "date": "2024-01-28",
-          "rating": 1117
-        },
-        {
-          "date": "2024-02-04",
-          "rating": 1102
-        },
-        {
-          "date": "2024-02-11",
-          "rating": 1104
-        },
-        {
-          "date": "2024-02-25",
-          "rating": 1096
-        },
-        {
-          "date": "2024-03-03",
-          "rating": 1080
-        },
-        {
-          "date": "2024-03-17",
-          "rating": 1083
-        },
-        {
-          "date": "2024-03-24",
-          "rating": 1067
-        },
-        {
-          "date": "2024-03-31",
-          "rating": 1073
-        },
-        {
-          "date": "2024-04-07",
-          "rating": 1085
-        },
-        {
-          "date": "2024-04-14",
-          "rating": 1111
-        },
-        {
-          "date": "2024-04-21",
-          "rating": 1103
-        },
-        {
-          "date": "2024-04-28",
-          "rating": 1100
-        },
-        {
-          "date": "2024-05-05",
-          "rating": 1084
-        },
-        {
-          "date": "2024-05-12",
-          "rating": 1130
-        },
-        {
-          "date": "2024-05-19",
-          "rating": 1095
-        },
-        {
-          "date": "2024-05-26",
-          "rating": 1080
-        },
-        {
-          "date": "2024-06-06",
-          "rating": 1030
-        },
-        {
-          "date": "2024-06-09",
-          "rating": 1030
-        },
-        {
-          "date": "2024-06-13",
-          "rating": 1030
-        },
-        {
-          "date": "2024-06-16",
-          "rating": 1082
-        },
-        {
-          "date": "2024-06-20",
-          "rating": 1076
-        },
-        {
-          "date": "2024-06-23",
-          "rating": 1096
-        },
-        {
-          "date": "2024-06-27",
-          "rating": 1102
-        },
-        {
-          "date": "2024-06-30",
-          "rating": 1110
-        },
-        {
-          "date": "2024-07-24",
-          "rating": 1149
-        },
-        {
-          "date": "2024-07-31",
-          "rating": 1123
-        },
-        {
-          "date": "2024-08-07",
-          "rating": 1150
-        },
-        {
-          "date": "2024-08-14",
-          "rating": 1154
-        },
-        {
-          "date": "2024-08-28",
-          "rating": 1153
-        },
-        {
-          "date": "2024-09-04",
-          "rating": 1177
-        },
-        {
-          "date": "2024-09-11",
-          "rating": 1172
-        },
-        {
-          "date": "2024-09-18",
-          "rating": 1160
-        },
-        {
-          "date": "2024-09-25",
-          "rating": 1123
-        },
-        {
-          "date": "2024-10-09",
-          "rating": 1122
-        },
-        {
-          "date": "2024-10-16",
-          "rating": 1122
-        },
-        {
-          "date": "2024-10-23",
-          "rating": 1088
-        },
-        {
-          "date": "2024-11-04",
-          "rating": 1099
-        },
-        {
-          "date": "2024-11-06",
-          "rating": 1088
-        },
-        {
-          "date": "2024-11-11",
-          "rating": 1097
-        },
-        {
-          "date": "2024-11-13",
-          "rating": 1072
-        },
-        {
-          "date": "2024-11-25",
-          "rating": 1081
-        },
-        {
-          "date": "2024-12-02",
-          "rating": 1047
-        },
-        {
-          "date": "2024-12-11",
-          "rating": 1038
-        },
-        {
-          "date": "2024-12-16",
-          "rating": 1045
-        },
-        {
-          "date": "2025-01-06",
-          "rating": 1072
-        },
-        {
-          "date": "2025-01-15",
-          "rating": 1077
-        },
-        {
-          "date": "2025-12-01",
-          "rating": 1077
-        },
-        {
-          "date": "2025-12-15",
-          "rating": 1041
-        },
-        {
-          "date": "2026-01-05",
-          "rating": 1041
-        },
-        {
-          "date": "2026-01-12",
-          "rating": 1004
-        },
-        {
-          "date": "2026-01-19",
-          "rating": 949
-        },
-        {
-          "date": "2026-01-26",
-          "rating": 987
-        },
-        {
-          "date": "2026-02-04",
-          "rating": 971
-        },
-        {
-          "date": "2026-02-09",
-          "rating": 954
-        },
-        {
-          "date": "2026-02-16",
-          "rating": 957
-        },
-        {
-          "date": "2026-02-23",
-          "rating": 971
-        },
-        {
-          "date": "2026-03-02",
-          "rating": 961
-        },
-        {
-          "date": "2026-03-11",
-          "rating": 957
-        },
-        {
-          "date": "2026-03-18",
-          "rating": 968
-        },
-        {
-          "date": "2026-03-23",
-          "rating": 962
-        },
-        {
-          "date": "2026-04-13",
-          "rating": 967
-        },
-        {
-          "date": "2026-04-27",
-          "rating": 977
-        },
-        {
-          "date": "2026-05-06",
-          "rating": 1004
-        },
-        {
-          "date": "2026-05-13",
-          "rating": 1009
-        },
-        {
-          "date": "2026-05-18",
-          "rating": 997
-        },
-        {
-          "date": "2026-05-25",
-          "rating": 1004
-        },
-        {
-          "date": "2026-06-01",
-          "rating": 1007
-        },
-        {
-          "date": "2026-06-03",
-          "rating": 1007
-        },
-        {
-          "date": "2026-06-10",
-          "rating": 1019
-        },
-        {
-          "date": "2026-06-17",
-          "rating": 1026
-        },
-        {
-          "date": "2026-06-29",
-          "rating": 980
-        },
-        {
-          "date": "2026-07-06",
-          "rating": 987
-        },
-        {
-          "date": "2026-07-20",
-          "rating": 993
-        },
-        {
-          "date": "2026-07-27",
-          "rating": 987
-        },
-        {
-          "date": "2026-08-05",
-          "rating": 991
-        },
-        {
-          "date": "2026-08-17",
-          "rating": 935
-        },
-        {
-          "date": "2026-08-24",
-          "rating": 935
-        },
-        {
-          "date": "2026-08-31",
-          "rating": 930
-        },
-        {
-          "date": "2026-09-07",
-          "rating": 932
-        },
-        {
-          "date": "2026-09-14",
-          "rating": 954
-        },
-        {
-          "date": "2026-09-23",
-          "rating": 986
-        },
-        {
-          "date": "2026-09-30",
-          "rating": 1022
-        },
-        {
-          "date": "2026-10-07",
-          "rating": 1053
-        },
-        {
-          "date": "2026-10-12",
-          "rating": 1023
-        },
-        {
-          "date": "2026-10-21",
-          "rating": 1012
-        },
-        {
-          "date": "2026-10-26",
-          "rating": 1006
-        }
-      ],
-      "headToHead": {
-        "Yaroslav Shneikin": {
-          "wins": 0,
-          "losses": 10
-        },
-        "Trilbus Regentin": {
-          "wins": 8,
-          "losses": 0
-        },
-        "Li Long": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Mike Danese": {
-          "wins": 0,
-          "losses": 5
-        },
-        "Vince Oracion": {
-          "wins": 1,
-          "losses": 7
-        },
-        "Ernie Olatunji": {
-          "wins": 6,
-          "losses": 7
-        },
-        "Zee Huang": {
-          "wins": 3,
-          "losses": 3
-        },
-        "Alexander Bogdanovich": {
-          "wins": 15,
-          "losses": 3
-        },
-        "Creig Murtha": {
-          "wins": 9,
-          "losses": 0
-        },
-        "Jane Tom": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Noel Rico": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Gupta Anshul": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Tate Houston": {
-          "wins": 11,
-          "losses": 1
-        },
-        "Thomas Hwang": {
-          "wins": 4,
-          "losses": 1
-        },
-        "Simon Tam": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Loretta Lai": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Samia Bendi": {
-          "wins": 9,
-          "losses": 4
-        },
-        "Al Fleischman": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ardeshir Assadi-Rad": {
-          "wins": 4,
-          "losses": 2
-        },
-        "Vladimir Lev": {
-          "wins": 3,
-          "losses": 4
-        },
-        "Pheobe Ly": {
-          "wins": 1,
-          "losses": 0
-        },
-        "John Leaf": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Sam Lau": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Yin Wu": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Barbara Clark": {
-          "wins": 1,
-          "losses": 1
-        },
-        "John Birch": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Victor Lee": {
-          "wins": 0,
-          "losses": 5
-        },
-        "Aziel Shechter": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Brian Garrido": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ariel Shechter": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Kevin Houston": {
-          "wins": 3,
-          "losses": 1
-        },
-        "Christina Ng": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ying Lau": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Louis Chu": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Kevin Chau": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Ron Buxton": {
-          "wins": 8,
-          "losses": 0
-        },
-        "Son Lu": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Alan Su": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Barry Tesar": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Simon Davis": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Justin Chu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Steve Cossmon": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Chris Babcock": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ilya Liberman": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Eric Aki": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Noel Jinon": {
-          "wins": 0,
-          "losses": 2
-        },
-        "William Cheung": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Jay Smith": {
-          "wins": 0,
-          "losses": 1
-        },
-        "J. B. Birch": {
-          "wins": 3,
-          "losses": 3
-        },
-        "Michael Berdichevsky": {
-          "wins": 1,
-          "losses": 1
-        },
-        "Ali Taba": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Mark Petiti": {
-          "wins": 1,
-          "losses": 0
-        },
-        "David Sharma": {
-          "wins": 1,
-          "losses": 0
-        },
-        "William Breedlove": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Anshul Gupta": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Jon Rego": {
-          "wins": 0,
-          "losses": 3
-        },
-        "Defrim Zejnullahi": {
-          "wins": 1,
-          "losses": 1
-        },
-        "Ron Moland": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Bob Zandipour": {
-          "wins": 0,
-          "losses": 2
-        },
-        "Dean Pedrotti": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Dany Waksman": {
-          "wins": 1,
-          "losses": 1
-        },
-        "Raghuram Ashok": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Constantine Dinkov": {
-          "wins": 3,
-          "losses": 5
-        },
-        "Borzoo Shadpour": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Dario Rosidi": {
-          "wins": 3,
-          "losses": 0
-        },
-        "William Craig Jr": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Sacha Simpson": {
-          "wins": 7,
-          "losses": 0
-        },
-        "Ed Murphy": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Enver Sedolli": {
-          "wins": 7,
-          "losses": 2
-        },
-        "Bryan O": {
-          "wins": 3,
-          "losses": 5
-        },
-        "Behnam Behjoo": {
-          "wins": 1,
-          "losses": 8
-        },
-        "Daniel D Yi": {
-          "wins": 3,
-          "losses": 4
-        },
-        "Arash Meshksar": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Niyousha Pourzand": {
-          "wins": 0,
-          "losses": 7
-        },
-        "Erick Ochna": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Gayle Mayta": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Graham Zajac": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Iman Mukherjee": {
-          "wins": 2,
-          "losses": 1
-        },
-        "Emmett Lynn": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Doran Williams": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Seth Raphael": {
-          "wins": 3,
-          "losses": 1
-        },
-        "Jaden Wu": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Lily Li": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Kevin Situ": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Bob Sickles": {
-          "wins": 3,
-          "losses": 0
-        },
-        "Jason Lee": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Kevin Orellana": {
-          "wins": 2,
-          "losses": 1
-        },
-        "Simon He": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Glenn Szeto": {
-          "wins": 0,
-          "losses": 1
-        },
-        "Ryan Beavers": {
-          "wins": 2,
-          "losses": 2
-        },
-        "Theo Sangenitto": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Ben Khalili": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Jian Gao": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Musa Hasan": {
-          "wins": 2,
-          "losses": 0
-        },
-        "Donald Miller": {
-          "wins": 1,
-          "losses": 1
-        },
-        "James Tsay": {
-          "wins": 1,
-          "losses": 0
-        },
-        "Jim Petalio": {
-          "wins": 1,
-          "losses": 0
         }
       }
     },
@@ -56445,9 +56505,9 @@
       "name": "Simon He",
       "currentRating": 625,
       "peakRating": 775,
-      "sessionsPlayed": 23,
-      "totalWins": 52,
-      "totalLosses": 52,
+      "sessionsPlayed": 24,
+      "totalWins": 53,
+      "totalLosses": 55,
       "ratingHistory": [
         {
           "date": "2026-03-18",
@@ -56539,6 +56599,10 @@
         },
         {
           "date": "2026-10-26",
+          "rating": 625
+        },
+        {
+          "date": "2026-10-31",
           "rating": 625
         }
       ],
@@ -56720,6 +56784,18 @@
           "losses": 1
         },
         "Ramsey Nasser": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Brandon Van Buskirk": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Ilya Liberman": {
+          "wins": 0,
+          "losses": 1
+        },
+        "Constantine Dinkov": {
           "wins": 0,
           "losses": 1
         }
