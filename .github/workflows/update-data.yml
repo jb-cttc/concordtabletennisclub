@@ -104,8 +104,9 @@ jobs:
           CTTC_ACCESS_DIR: .cache/access-parallel
           CTTC_FETCH_DELAY_MS: 250
 
-      # Re-checks the coaches on coaching.html against USATT's public directory. A directory
-      # outage leaves the page as it was, so it never blocks publishing.
+      # Re-checks the coaches on coaching.html (and Pending coaches hidden from it) against
+      # USATT's public directory: hidden coaches return once certified. A directory outage
+      # leaves the page as it was, so it never blocks publishing.
       - name: Refresh coach certification status
         continue-on-error: true
         run: npm run check:usatt-coaches

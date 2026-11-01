@@ -1,9 +1,14 @@
 // Run: npm run check:usatt-coaches
 // Looks up each coach listed on coaching.html in USATT's public "Find a Coach"
-// directory (coaches.usatt.org, a JustGo widget) and rewrites the status column on
-// the page: "USATT Certification Active" when the coach is listed with a coaching
-// level, otherwise "USATT Certification Pending". Also writes
-// data/coach-certifications.json. If the directory can't be read, nothing changes.
+// directory (coaches.usatt.org, a JustGo widget) and rewrites the coach table on the
+// page: "USATT Certification Active" when the coach is listed with a coaching level,
+// otherwise "USATT Certification Pending". Only Active coaches are shown, plus any
+// Pending coach named in "showWhilePending" in data/coach-certifications.json (that
+// exception ends once the coach is certified). A hidden coach stays in that file with
+// "hidden": true and their contact cell, keeps being checked, and is put back on the
+// page in their old place once USATT lists them as certified. To add a coach, add a
+// row to coaching.html; to drop one for good, delete their row (and, if hidden, their
+// entry in the data file). If the directory can't be read, nothing changes.
 
 'use strict';
 
@@ -71,34 +76,87 @@ async function fetchDirectory() {
   return result.Data;
 }
 
-function readCoaches(html) {
+// Coach rows on the page, in order: { name, contact } (contact is the cell's inner HTML).
+function readRows(html) {
   const body = /<tbody>([\s\S]*?)<\/tbody>/.exec(html);
   if (!body) throw new Error('coaching.html: coach table not found');
   return (body[1].match(/<tr>[\s\S]*?<\/tr>/g) || []).map(function (row) {
-    return /<td>([^<]+)<\/td>/.exec(row)[1].trim();
+    const cells = [];
+    row.replace(/<td>([\s\S]*?)<\/td>/g, function (m, inner) { cells.push(inner.trim()); return m; });
+    return { name: cells[0], contact: cells[1] || '' };
   });
+}
+
+function readCoaches(html) {
+  return readRows(html).map(function (r) { return r.name; });
 }
 
 function statusCell(status) {
   return '<td class="usatt-status" data-usatt="' + (status === ACTIVE ? 'active' : 'pending') + '">' + status + '</td>';
 }
 
-function rewriteTable(html, statuses) {
-  return html.replace(/<tr>([\s\S]*?)<\/tr>/g, function (row, inner) {
-    const name = /<td>([^<]+)<\/td>/.exec(inner);
-    if (!name || !(name[1].trim() in statuses)) return row;
-    const cells = inner.replace(/\s*<td class="usatt-status"[^>]*>[^<]*<\/td>/, '').replace(/\s+$/, '');
-    return '<tr>' + cells + '\n        ' + statusCell(statuses[name[1].trim()]) + '\n      </tr>';
-  }).replace(/(<th>Contact<\/th>)(\s*<th>USATT<\/th>)?/, '$1\n        <th>USATT</th>');
+// Every coach the check follows: the rows on the page plus coaches it hid earlier for being
+// Pending (kept in data with "hidden": true). A hidden coach goes back to its old place in the
+// list. A coach someone deletes from the page who was not hidden is dropped for good.
+function roster(html, data) {
+  const prev = (data && data.coaches) || {};
+  const list = readRows(html);
+  const onPage = new Set(list.map(function (r) { return r.name; }));
+  const prevNames = Object.keys(prev);
+  prevNames.forEach(function (name, i) {
+    if (onPage.has(name) || !prev[name].hidden) return;
+    let at = 0;
+    for (let j = i - 1; j >= 0; j--) {
+      const k = list.findIndex(function (r) { return r.name === prevNames[j]; });
+      if (k >= 0) { at = k + 1; break; }
+    }
+    list.splice(at, 0, { name: name, contact: prev[name].contact || '' });
+  });
+  return list;
+}
+
+// Shown on the page: Active coaches, and Pending coaches named in showWhilePending.
+function isShown(name, status, showWhilePending) {
+  return status === ACTIVE || (showWhilePending || []).indexOf(name) >= 0;
+}
+
+// Rebuilds the coach table and the data record from the roster and fresh statuses.
+// statuses: { name: { status, level } }.
+function applyStatuses(html, data, statuses) {
+  const list = roster(html, data);
+  const allow = ((data && data.showWhilePending) || []).filter(function (name) {
+    // The exception ends once the coach is certified: a later lapse hides them like anyone else.
+    return !statuses[name] || statuses[name].status !== ACTIVE;
+  });
+  const record = {};
+  const rows = [];
+  list.forEach(function (r) {
+    const s = statuses[r.name] || (data && data.coaches && data.coaches[r.name]) || { status: PENDING, level: null };
+    const entry = { status: s.status, level: s.level || null };
+    if (isShown(r.name, s.status, allow)) {
+      rows.push('      <tr>\n        <td>' + r.name + '</td>\n        <td>' + r.contact + '</td>\n        ' + statusCell(s.status) + '\n      </tr>');
+    } else {
+      entry.hidden = true;
+      entry.contact = r.contact;
+    }
+    record[r.name] = entry;
+  });
+  const page = html.replace(/<tbody>[\s\S]*?<\/tbody>/, '<tbody>\n' + rows.join('\n') + '\n    </tbody>')
+    .replace(/(<th>Contact<\/th>)(\s*<th>USATT<\/th>)?/, '$1\n        <th>USATT</th>');
+  return { html: page, data: { source: 'https://coaches.usatt.org/', showWhilePending: allow, coaches: record } };
+}
+
+function readData() {
+  return fs.existsSync(DATA) ? JSON.parse(fs.readFileSync(DATA, 'utf8')) : {};
 }
 
 async function main() {
   const html = fs.readFileSync(PAGE, 'utf8');
-  const coaches = readCoaches(html);
+  const data = readData();
+  const coaches = roster(html, data).map(function (r) { return r.name; });
   const directory = await fetchDirectory();
 
   const statuses = {};
-  const record = {};
   for (const coach of coaches) {
     const hits = directory.filter(function (d) { return matchesCoach(coach, d.Name); });
     let level = null;
@@ -106,18 +164,20 @@ async function main() {
       const details = await call({ Method: 'GetDetails', SyncGuid: hit.SyncGuid });
       if (hasCoachingLevel(details.Qualifications)) { level = details.Qualifications.filter(function (q) { return /coaching level/i.test(q); }).join(', '); break; }
     }
-    statuses[coach] = level ? ACTIVE : PENDING;
-    record[coach] = { status: statuses[coach], level: level };
-    console.log(coach + ': ' + statuses[coach] + (level ? ' (' + level + ')' : ''));
+    statuses[coach] = { status: level ? ACTIVE : PENDING, level: level };
   }
 
-  const next = rewriteTable(html, statuses);
-  if (next !== html) fs.writeFileSync(PAGE, next);
-  const json = JSON.stringify({ source: 'https://coaches.usatt.org/', coaches: record }, null, 2) + '\n';
+  const out = applyStatuses(html, data, statuses);
+  coaches.forEach(function (coach) {
+    const r = out.data.coaches[coach];
+    console.log(coach + ': ' + r.status + (r.level ? ' (' + r.level + ')' : '') + (r.hidden ? ', hidden from the page' : ''));
+  });
+  if (out.html !== html) fs.writeFileSync(PAGE, out.html);
+  const json = JSON.stringify(out.data, null, 2) + '\n';
   if (!fs.existsSync(DATA) || fs.readFileSync(DATA, 'utf8') !== json) fs.writeFileSync(DATA, json);
 }
 
-module.exports = { parseCoachName, matchesCoach, hasCoachingLevel, readCoaches, rewriteTable, ACTIVE, PENDING };
+module.exports = { parseCoachName, matchesCoach, hasCoachingLevel, readRows, readCoaches, roster, applyStatuses, ACTIVE, PENDING };
 
 if (require.main === module) {
   main().catch(function (err) {
