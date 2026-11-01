@@ -425,6 +425,22 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
 .board[data-look="green"] .hs.pts { color: var(--dark-bg); }
 .xt td.nm { font-size: 30px; }
 .xt td { font-size: 23px; }
+.gnum { display: inline-grid; place-items: center; min-width: 1.5em; height: 1.5em; padding: 0 .3em; margin-right: .35em; border-radius: 5px; background: var(--b-green); color: var(--b-panel); font: 700 1em/1 var(--font-board); vertical-align: middle; }
+.board[data-look="green"] .gnum { color: var(--dark-bg); }
+.index .p-head .sub { font-size: 20px; }
+.index .p-head .sub .gnum { font-size: 18px; }
+.idx .where { display: inline-flex; align-items: center; }
+.idx .where .gnum { font-size: 1.15em; }
+.pip-label { font-family: var(--font-board); font-weight: 700; font-size: 19px; letter-spacing: .06em; text-transform: uppercase; color: var(--b-dim); margin-right: 14px; }
+.wall .p-head { white-space: nowrap; flex-wrap: nowrap; }
+.wall.many .p-head .sub { display: none; }
+.wall.many .p-head .right { font-size: 20px; }
+.wall.many .row.fresh::before { display: none; }
+.wall.many .st td.nm { font-size: 22px; }
+.index .letters { font-family: var(--font-name); font-size: 26px; color: var(--b-ink); margin-right: 8px; }
+.index .p-head { white-space: nowrap; }
+.index .p-head h2 { font-size: 36px; }
+.idx li { gap: 8px; }
   </style>
 </head>
 <body>
@@ -447,6 +463,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
         <button type="button" id="s-signin" data-value="signin">Signing in</button><button type="button" id="s-printed" data-value="printed">Sheets printed · scores</button></div></div>
       <div class="control"><span class="label" id="l-look">Look</span><div class="seg" role="group" aria-labelledby="l-look" data-set="look">
         <button type="button" id="k-desk" data-value="desk">Desk</button><button type="button" id="k-green" data-value="green">Desk, dark</button></div></div>
+      <div class="control" id="size-control"><span class="label" id="l-size">Groups of</span><div class="seg" role="group" aria-labelledby="l-size" data-set="size">
+        <button type="button" id="z-5" data-value="5">5</button><button type="button" id="z-6" data-value="6">6</button><button type="button" id="z-7" data-value="7">7</button></div></div>
       <label class="range" for="secs">Slide every <input id="secs" type="range" min="10" max="20" step="1" value="14"> <output id="secs-out" for="secs">14s</output></label>
       <label class="check" for="show-pay"><input id="show-pay" type="checkbox" checked> Payment checks</label>
       <label class="check" for="show-rating"><input id="show-rating" type="checkbox" checked> Ratings</label>
@@ -474,19 +492,19 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
         <span class="pick">A · Carousel</span>
         <h3>Two groups at a time, one slides in</h3>
         <p>Your idea as described. Every few seconds the next group slides in from the right and the left one slides out. Names are big enough to read from across the gym. When the desk changes a group that's off screen, that group slides in next, so nobody waits a full lap to see a move.</p>
-        <p>Best for: round robin nights with 4–7 groups.</p>
+        <p>With 7 groups, each group is on screen for two slides out of every seven, so a full lap takes about a minute and a half at 14 seconds. A label under the groups says which ones are showing.</p>
       </article>
       <article class="concept">
         <span class="pick">B · Wall</span>
         <h3>Every group at once, nothing moves</h3>
         <p>All groups on one screen, with smaller type. Nobody waits for their group to come round, but it's harder to read from the back of the gym once there are more than 6 groups. After printing, each group shrinks to a standings table.</p>
-        <p>Best for: a big TV near the desk, or small nights.</p>
+        <p>With 7 groups it shows two rows of four. Names stay readable at the desk, less so from the far tables.</p>
       </article>
       <article class="concept">
         <span class="pick">C · Spotlight + names</span>
         <h3>One group large, everyone listed A–Z</h3>
         <p>One group at a time on the left. On the right is every player A–Z with their group and a payment check. It answers "am I signed up, and where?" without waiting. After printing, the list shows each player's W-L, or where they stand in the Equalizer.</p>
-        <p>Best for: busy sign-in, and Equalizer afternoons.</p>
+        <p>Each player's group number shows in a green box. With more than 32 players, the A–Z list shows half the alphabet at a time (A–I, then J–Z), turning with each slide, so names stay big.</p>
       </article>
     </div>
 

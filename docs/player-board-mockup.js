@@ -28,7 +28,9 @@
     ["Sana Iqbal", 515], ["Theo Marsh", 495], ["Uma Varga", 400], ["Vik Rao", 365], ["Wren Doyle", 330], ["Yuki Mori", 255],
     ["Jules Ferrer", 1880], ["Finn Walsh", 1625], ["Ari Klein", 1500], ["Otto Lang", 1475], ["Cleo Ndiaye", 1330], ["Kofi Asante", 1260],
     ["Dev Shah", 1205], ["Hugo Bell", 1060], ["Zoe Park", 1010], ["Max Weber", 970], ["Bo Lindqvist", 905], ["Noor Aziz", 860],
-    ["Esme Grant", 780], ["Iris Tan", 690], ["Luz Medina", 540], ["Gia Romano", 440]
+    ["Esme Grant", 780], ["Iris Tan", 690], ["Luz Medina", 540], ["Gia Romano", 440],
+    ["Alexandra Kowalczyk", 1240], ["Ben Adler", 1720], ["Chloe Martin", 1110], ["Diego Alvarez", 1400], ["Erin Cho", 880],
+    ["Felix Braun", 640], ["Grace Liu", 1580], ["Ian Brooks", 470], ["Kenji Ito", 760], ["Mara Quinn", 350]
   ];
   var P = {};
   var ALL = PEOPLE.map(function (row, i) {
@@ -47,10 +49,10 @@
   function byName(a, b) { return P[a].name.localeCompare(P[b].name); }
 
   // ---- Board settings ----
-  var S = { concept: "carousel", event: "rr", stage: "signin", look: "desk", secs: 14, pay: true, rating: true };
+  var S = { concept: "carousel", event: "rr", stage: "signin", look: "desk", size: "6", secs: 14, pay: true, rating: true };
 
   // ---- Round robin desk state ----
-  var RR_LATE = ["Zoe Park", "Hugo Bell", "Iris Tan", "Max Weber", "Noor Aziz", "Otto Lang", "Esme Grant", "Kofi Asante"].map(idOf);
+  var RR_LATE = ["Zoe Park", "Hugo Bell", "Iris Tan", "Max Weber", "Noor Aziz", "Otto Lang", "Esme Grant", "Kofi Asante", "Erin Cho"].map(idOf);
   var rr = { roster: ALL.filter(function (id) { return RR_LATE.indexOf(id) < 0; }), late: RR_LATE.slice(), pins: {}, groups: [], printed: null, matches: [], results: {} };
 
   function groupOf(groups, id) { for (var i = 0; i < groups.length; i += 1) if (groups[i].indexOf(id) >= 0) return i; return -1; }
@@ -59,7 +61,7 @@
     var ids = rr.roster.slice().sort(byRating);
     var groups = [];
     var at = 0;
-    RR.sizeGroups(ids.length, 6).forEach(function (size) { groups.push(ids.slice(at, at + size)); at += size; });
+    RR.sizeGroups(ids.length, Number(S.size)).forEach(function (size) { groups.push(ids.slice(at, at + size)); at += size; });
     ids.forEach(function (id) {
       if (!P[id].promo || rr.pins[id] != null) return;
       var target = Math.max(0, P[id].promo.group - 2);
@@ -234,7 +236,7 @@
           var lead = t.complete && i === 0;
           return "<tr" + (lead ? " class=\"lead\"" : "") + "><td class=\"pos\">" + (t.played ? i + 1 : "–") + "</td><td class=\"nm\">" + (lead ? "🏆 " : "") + esc(P[id].name) + "</td><td>" + x.wins + "–" + x.losses + "</td><td>" + x.gw + "–" + x.gl + "</td></tr>";
         }).join("");
-        return panel("g" + (gi + 1), head, "<table class=\"st\" style=\"--st-h:" + Math.min(52, Math.floor(270 / ids.length)) + "px\"><colgroup><col style=\"width:44px\"><col><col style=\"width:80px\"><col style=\"width:90px\"></colgroup><thead><tr><th></th><th>Player</th><th>W–L</th><th>Games</th></tr></thead><tbody>" + rows + "</tbody></table>");
+        return panel("g" + (gi + 1), head, "<table class=\"st\" style=\"--st-h:" + Math.min(52, Math.floor(280 / ids.length)) + "px\"><colgroup><col style=\"width:44px\"><col><col style=\"width:80px\"><col style=\"width:90px\"></colgroup><thead><tr><th></th><th>Player</th><th>W–L</th><th>Games</th></tr></thead><tbody>" + rows + "</tbody></table>");
       }
       var cellW = ids.length > 6 ? 54 : 62;
       var cols = "<colgroup><col style=\"width:44px\"><col>" + ids.map(function () { return "<col style=\"width:" + cellW + "px\">"; }).join("") + "<col style=\"width:68px\"><col style=\"width:52px\"></colgroup>";
@@ -390,9 +392,9 @@
       var groups = S.stage === "signin" ? rr.groups : rr.printed;
       return rr.roster.filter(function (id) { return groupOf(groups, id) >= 0; }).sort(byName).map(function (id) {
         var gi = groupOf(groups, id);
-        var where = "Group " + (gi + 1);
-        if (S.stage === "printed") { var t = rrTable(gi).tally[id]; where += " · " + t.wins + "–" + t.losses; }
-        return { id: id, where: where, hot: !!(P[id].promo && S.stage === "signin") };
+        var where = "";
+        if (S.stage === "printed") { var t = rrTable(gi).tally[id]; where = t.wins + "–" + t.losses; }
+        return { id: id, where: where, group: gi + 1, hot: !!(P[id].promo && S.stage === "signin") };
       });
     }
     if (S.stage === "signin") return eq.roster.slice().sort(byName).map(function (id) { return { id: id, where: S.rating ? String(P[id].rating) : "" }; });
@@ -410,15 +412,23 @@
       return { id: id, where: where, hot: st === "champion" || st === "finals" };
     });
   }
+  // Up to 32 names fit in two readable columns; a bigger night shows half the alphabet at a time, turning with the slides.
+  var INDEX_PAGE = 26;
+  function indexCols(n) { return n <= 18 ? 1 : 2; }
   function indexHTML() {
-    var list = indexEntries();
-    var cols = list.length <= 18 ? 1 : 2;
+    var all = indexEntries();
+    var pages = all.length > 32 ? Math.ceil(all.length / INDEX_PAGE) : 1;
+    var page = pages > 1 ? spot.i % pages : 0;
+    var per = Math.ceil(all.length / pages);
+    var list = all.slice(page * per, page * per + per);
+    var cols = indexCols(list.length);
     var rows = Math.max(8, Math.ceil(list.length / cols));
-    var fs = Math.max(20, Math.min(34, Math.floor((800 - 96) / rows * 0.62)));
+    var fs = Math.max(20, Math.min(S.stage === "printed" ? 29 : 34, Math.floor((800 - 96) / rows * 0.62)));
     var title = S.event === "rr" ? "Find your group" : S.stage === "signin" ? "Signed in" : "Find your name";
-    return "<aside class=\"index\"><header class=\"p-head\"><h2>" + title + "</h2><span class=\"right\"><b>" + list.length + "</b> players</span></header><ul class=\"idx\" style=\"--idx-cols:" + cols + ";--idx-rows:" + rows + ";--idx-fs:" + fs + "px\">" + list.map(function (e) {
+    var note = S.event === "rr" && pages === 1 ? "<span class=\"gnum\">3</span> = Group 3" : "";
+    return "<aside class=\"index\"><header class=\"p-head\"><h2>" + title + "</h2><span class=\"sub\">" + (pages > 1 ? "<b class=\"letters\">" + P[list[0].id].name.charAt(0) + "–" + P[list[list.length - 1].id].name.charAt(0) + "</b> " : "") + note + "</span><span class=\"right\"><b>" + all.length + "</b> players" + (pages > 1 ? " · " + (page + 1) + "/" + pages : "") + "</span></header><ul class=\"idx\" style=\"--idx-cols:" + cols + ";--idx-rows:" + rows + ";--idx-fs:" + fs + "px\">" + list.map(function (e) {
       var g = glow("p:" + e.id);
-      return "<li class=\"" + g.cls.trim() + "\"" + g.attr.replace(/ data-why="[^"]*"/, "") + "><span class=\"nm\">" + esc(P[e.id].name) + "</span><span class=\"where" + (e.hot ? " hot" : "") + "\">" + esc(e.where) + "</span>" + payBox(e.id) + "</li>";
+      return "<li class=\"" + g.cls.trim() + "\"" + g.attr.replace(/ data-why="[^"]*"/, "") + "><span class=\"nm\">" + esc(P[e.id].name) + "</span><span class=\"where" + (e.hot ? " hot" : "") + "\">" + (e.group ? "<span class=\"gnum\" title=\"Group " + e.group + "\">" + e.group + "</span>" : "") + esc(e.where) + "</span>" + payBox(e.id) + "</li>";
     }).join("") + "</ul></aside>";
   }
 
@@ -488,7 +498,10 @@
     track.style.transform = "none";
     track.innerHTML = show.map(function (p) { return p.html; }).join("");
     var on = n <= 2 ? [0, 1] : [car.start, (car.start + 1) % n];
-    parts.body.querySelector(".pips").innerHTML = list.map(function (p, i) { return "<span class=\"pip" + (on.indexOf(i) >= 0 ? " on" : "") + "\" title=\"" + p.key + "\"></span>"; }).join("");
+    var groupPanels = list.filter(function (p) { return /^g\d/.test(p.key); }).length;
+    var showing = on.map(function (i) { return list[i]; }).filter(function (p) { return /^g\d/.test(p.key); }).map(function (p) { return p.key.slice(1); });
+    var where = groupPanels > 2 && showing.length ? "<span class=\"pip-label\">Group" + (showing.length > 1 ? "s " + showing.join(" & ") : " " + showing[0]) + " of " + groupPanels + "</span>" : "";
+    parts.body.querySelector(".pips").innerHTML = where + list.map(function (p, i) { return "<span class=\"pip" + (on.indexOf(i) >= 0 ? " on" : "") + "\" title=\"" + p.key + "\"></span>"; }).join("");
   }
   function carouselSchedule() {
     clearTimeout(car.timer);
@@ -537,10 +550,10 @@
   function wallFill() {
     var list = panels(true);
     var n = list.length;
-    var cols = n <= 2 ? n : n <= 4 ? 2 : n <= 6 ? 3 : 4;
+    var cols = n <= 2 ? n : n <= 4 ? 2 : Math.ceil(n / 2);
     if (n === 4 && S.stage === "printed") cols = 2;
     var rows = Math.ceil(n / cols);
-    parts.body.innerHTML = "<div class=\"wall\" style=\"grid-template-columns:repeat(" + cols + ",minmax(0,1fr));grid-template-rows:repeat(" + rows + ",minmax(0,1fr))\">" + list.map(function (p) { return p.html; }).join("") + "</div>";
+    parts.body.innerHTML = "<div class=\"wall" + (cols >= 4 ? " many" : "") + "\" style=\"grid-template-columns:repeat(" + cols + ",minmax(0,1fr));grid-template-rows:repeat(" + rows + ",minmax(0,1fr))\">" + list.map(function (p) { return p.html; }).join("") + "</div>";
   }
 
   // ---- Layout C: spotlight + A–Z names ----
@@ -695,6 +708,7 @@
       var key = seg.getAttribute("data-set");
       seg.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-value") === S[key])); });
     });
+    document.getElementById("size-control").hidden = S.event !== "rr";
     document.getElementById("do-signin").disabled = !canSignin();
     document.getElementById("do-signin").title = S.stage === "printed" ? "Sign-in closes when the sheets print in this concept" : "";
     document.getElementById("do-move").disabled = !canMove();
@@ -715,7 +729,8 @@
       var value = button.getAttribute("data-value");
       if (S[key] === value) return;
       S[key] = value;
-      if (key === "event" || key === "stage") setStage(S.stage);
+      if (key === "size") { rr.pins = {}; organize(); }
+      if (key === "event" || key === "stage" || (key === "size" && S.stage === "printed")) setStage(S.stage);
       lastCount = null;
       if (key === "look") render(); else rebuild();
     });
