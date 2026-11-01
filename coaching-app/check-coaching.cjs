@@ -121,6 +121,9 @@ let runtimeGrid = null;
 // The desk's key for waking the app (apps-script/MailReader.js wakeKey_), in a hidden tab of its Sheet.
 const WAKE_KEY = 'f'.repeat(64);
 let textReads = 0;
+// Who the coaching page shows, as the desk copies it to its hidden CoachList tab (apps-script/CoachList.js); absent until the
+// desk makes it.
+let coachListGrid = null;
 books['desk-sheet-id'] = {
   getSheetByName: name => ({
     VoiceTexts: {
@@ -131,6 +134,7 @@ books['desk-sheet-id'] = {
       } })
     },
     MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
+    CoachList: coachListGrid && { getDataRange: () => ({ getValues: () => coachListGrid.map(line => line.slice()) }) },
     AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? WAKE_KEY : 'key']] }) },
     // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
     JobRuntime: runtimeGrid && {
@@ -322,6 +326,9 @@ assert.equal(run('coachList').coaches.filter(coach => coach.registered).length, 
   const labels = () => run('coachList').coaches.map(coach => coach.label);
   grids.Coaches.push(['Retired Coach', 'retired@example.com', '(925) 555-0199', '', '', '', '', '', '', '', '', '']);
   context.sweep();
+  assert.equal(statusOf('Fuqun (Bill) Xing'), '', 'until the desk has written who the page shows, club coaches stay as they are');
+  coachListGrid = [['shown_coach'], ['Dominic Chan'], ['Fuqun (Bill) Xing'], ['Tom (Xiaoyun) Zeng'], ['Raymond Trinh']];
+  context.sweep();
   assert.equal(statusOf('Retired Coach'), 'disabled', 'a coach no longer in the club list is switched off, not deleted');
   assert.deepEqual(labels(), ['Coach D', 'Coach F', 'Coach T', 'Coach R'], 'and no longer offered on the page');
   grids.Coaches.find(line => line[0] === 'Dominic Chan')[3] = 'disabled';
@@ -339,6 +346,22 @@ assert.equal(run('coachList').coaches.filter(coach => coach.registered).length, 
   grids.Schedule[0][0] = 'edited';
   context.sweep();
   assert.equal(JSON.stringify(grids.Schedule), schedule, 'an edit to the public schedule is put right');
+  // A coach the page hides (Pending at USATT, no exception) is switched off, and back on once the page shows them again.
+  coachListGrid = [['shown_coach'], ['Dominic Chan'], ['Tom (Xiaoyun) Zeng'], ['Raymond Trinh']];
+  context.sweep();
+  assert.equal(statusOf('Fuqun (Bill) Xing'), 'disabled', 'a coach the page hides is switched off');
+  assert.deepEqual(labels(), ['Coach D', 'Coach T', 'Coach R'], 'and not offered: no times, no requests');
+  coachListGrid = null;
+  context.sweep();
+  assert.equal(statusOf('Fuqun (Bill) Xing'), 'disabled', 'a missing list never switches a hidden coach back on');
+  coachListGrid = [['shown_coach'], ['Dominic Chan'], ['Tom (Xiaoyun) Zeng']];
+  grids.Coaches.splice(grids.Coaches.findIndex(line => line[0] === 'Raymond Trinh'), 1);
+  context.sweep();
+  assert.equal(statusOf('Raymond Trinh'), 'disabled', 'a hidden club coach missing from the tab is added switched off');
+  coachListGrid = [['shown_coach'], ['dominic chan'], ['Fuqun (Bill) Xing'], ['Tom (Xiaoyun) Zeng'], ['Raymond Trinh']];
+  context.sweep();
+  assert.deepEqual(['Dominic Chan', 'Fuqun (Bill) Xing', 'Raymond Trinh'].map(statusOf), ['', '', ''], 'certified later: switched back on');
+  assert.equal(statusOf('Retired Coach'), 'disabled', 'a coach not in the club list stays off even if the page names them');
 }
 // The rest of these checks use made-up coaches, which the owner manages in the Sheet: with no club list, the sweep leaves
 // the Coaches tab alone.

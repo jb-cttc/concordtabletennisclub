@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { matchesCoach, hasCoachingLevel, readCoaches, applyStatuses, ACTIVE, PENDING } = require('./check-usatt-coaches');
+const { matchesCoach, hasCoachingLevel, readCoaches, roster, applyStatuses, ACTIVE, PENDING } = require('./check-usatt-coaches');
 
 // Name matching: family name plus a given name or nickname, either order.
 assert.ok(matchesCoach('Dominic Chan', 'Dominic Chan'));
@@ -66,5 +66,14 @@ readCoaches(page).forEach(function (name) {
 Object.keys(data.coaches).filter(function (n) { return data.coaches[n].hidden; }).forEach(function (name) {
   assert.ok(!readCoaches(page).includes(name) && data.coaches[name].contact, name + ' is hidden with a stored contact');
 });
+
+// The coaching app offers only coaches the page shows (the desk passes the shown names on), so its club list must name the
+// same coaches as the page and its hidden coaches: a coach missing from either would never be offered, or never switched off.
+const code = fs.readFileSync(path.join(__dirname, '..', 'coaching-app', 'Code.js'), 'utf8');
+const club = /var CLUB_COACHES = \[([\s\S]*?)\n\];/.exec(code);
+assert.ok(club, 'CLUB_COACHES found in coaching-app/Code.js');
+const clubNames = [...club[1].matchAll(/\[\s*'([^']+)'/g)].map(m => m[1]);
+assert.deepEqual(clubNames.slice().sort(), roster(page, data).map(r => r.name).sort(),
+  'CLUB_COACHES in coaching-app/Code.js names every coach on coaching.html plus the hidden ones in data/coach-certifications.json');
 
 console.log('coach certification checks passed');

@@ -83,6 +83,9 @@ function mailJob_(event) {
     result.answered = answerNewTexts_(now);
     var woke = wakeApps_(now);
     if (woke) result.woke = woke;
+    // Hourly: who the coaching page shows, for the coaching app (CoachList.js).
+    var coaches = publishCoachList_();
+    if (coaches) result.coaches = coaches;
     return result;
   });
 }

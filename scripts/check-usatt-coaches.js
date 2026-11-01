@@ -8,7 +8,9 @@
 // "hidden": true and their contact cell, keeps being checked, and is put back on the
 // page in their old place once USATT lists them as certified. To add a coach, add a
 // row to coaching.html; to drop one for good, delete their row (and, if hidden, their
-// entry in the data file). If the directory can't be read, nothing changes.
+// entry in the data file). If the directory can't be read, nothing changes. The coaching
+// (booking) app offers only the coaches shown here: the desk copies the shown names from
+// the published data file hourly (apps-script/CoachList.js).
 
 'use strict';
 
