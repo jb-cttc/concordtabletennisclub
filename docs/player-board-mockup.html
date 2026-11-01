@@ -441,6 +441,68 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
 .index .p-head { white-space: nowrap; }
 .index .p-head h2 { font-size: 36px; }
 .idx li { gap: 8px; }
+
+/* Equalizer RR -> Finals: where the group winners go */
+.p-foot.to-finals { color: var(--b-ink); }
+.p-foot.to-finals b { color: var(--b-green); }
+.road-wrap { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 22px; flex: 1; min-height: 0; padding-top: 8px; }
+.road-wrap.small { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.road { list-style: none; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.road li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 8px 10px; border: 1px dashed var(--b-line); border-radius: 6px; min-width: 0; }
+.road li.in { border-style: solid; border-color: var(--b-green); background: var(--b-lead); }
+.road .gnum { font-size: 22px; }
+.road .nm { font-family: var(--font-name); font-weight: 700; font-size: 28px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.road li:not(.in) .nm { font-family: var(--font-board); font-weight: 400; font-style: italic; color: var(--b-dim); font-size: 22px; }
+.road .rec { font-family: var(--font-board); font-weight: 700; font-size: 20px; color: var(--b-dim); white-space: nowrap; }
+.road-wrap.small .road li { padding: 3px 6px; gap: 6px; }
+.road-wrap.small .road .nm { font-size: 18px; }
+.road-wrap.small .road li:not(.in) .nm, .road-wrap.small .road .rec { font-size: 14px; }
+.road-wrap.small .road .gnum { font-size: 14px; }
+.road-wrap .bk { gap: 10px; }
+.finals-screen { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 40px; height: 100%; min-height: 0; }
+.finals-screen .panel { border-top-color: var(--gold); }
+.finals-screen .bk { gap: 34px; padding: 10px 6px; }
+.finals-screen .bk-col h3 { font-size: 24px; }
+.finals-screen .bk-ln { padding: 6px 14px; }
+.road.from { gap: 12px; padding-top: 8px; }
+.road.from li { padding: 12px 14px; border-style: solid; border-color: var(--b-row); }
+.road.from .nm { font-size: 34px; }
+.road.from .rec { font-size: 22px; }
+.chip.bye { color: var(--b-green); background: var(--b-lead); border: 2px solid var(--b-green); }
+.champ { margin-top: auto; display: grid; gap: 4px; padding: 18px 20px; border-radius: 8px; background: var(--b-head); color: var(--b-head-ink); border-bottom: 6px solid var(--gold); }
+.champ span { font-family: var(--font-board); font-weight: 700; font-size: 20px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-hi); }
+.champ strong { font-family: var(--font-name); font-size: 52px; line-height: 1.05; }
+
+.bk-col { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; justify-content: stretch; }
+.bk-slots { display: flex; flex-direction: column; justify-content: space-around; gap: 8px; min-height: 0; }
+.bk-box.bye { border-style: dashed; background: transparent; box-shadow: none; }
+.bk-box.bye .bk-ln { font-family: var(--font-board); font-weight: 400; font-style: italic; color: var(--b-dim); font-size: calc(var(--bk-fs, 28px) * .75); }
+.road.from li { grid-template-columns: auto minmax(0, 1fr) auto 64px; }
+.panel .p-head { white-space: nowrap; }
+.panel .p-head .sub { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.finals-screen .p-head h2 { font-size: 44px; }
+.road-wrap { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+.wall .st th { font-size: 14px; letter-spacing: .02em; padding: 0 4px 4px; }
+
+.road-wrap { display: flex; flex-direction: column; gap: 18px; }
+.road-wrap .road li { padding: 10px 14px; }
+.road-wrap .road .nm { font-size: 32px; }
+.road-wrap .road li:not(.in) .nm { font-size: 24px; }
+.road-wrap .road .rec { font-size: 22px; }
+.how { margin-top: auto; padding: 14px 18px; border-radius: 8px; background: var(--b-panel-2); border: 1px solid var(--b-line); border-left: 6px solid var(--gold); }
+.how h3 { font-family: var(--font-name); font-size: 26px; margin-bottom: 6px; }
+.how ul { list-style: none; display: grid; gap: 4px; }
+.how li { font-family: var(--font-board); font-size: 21px; color: var(--b-dim); }
+.how li b { color: var(--b-ink); }
+.road-wrap.small { gap: 8px; }
+.road-wrap.small .road { gap: 4px; }
+.road-wrap.small .road li { padding: 3px 8px; }
+.road-wrap.small .road .nm { font-size: 20px; }
+.road-wrap.small .road li:not(.in) .nm, .road-wrap.small .road .rec { font-size: 15px; }
+.road-wrap.small .how { padding: 6px 10px; }
+.road-wrap.small .how h3 { font-size: 17px; margin-bottom: 2px; }
+.road-wrap.small .how li { font-size: 13px; }
+.wall [data-panel="finals"] .p-head .sub { display: none; }
   </style>
 </head>
 <body>
@@ -475,6 +537,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
         <button type="button" class="act" id="do-move">Move a player</button>
         <button type="button" class="act" id="do-pay">Record a payment</button>
         <button type="button" class="act" id="do-result">Enter a result</button>
+        <button type="button" class="act" id="do-groups">Finish the groups</button>
         <button type="button" class="act auto" id="do-auto" aria-pressed="false">Auto-play the desk</button>
       </div>
       <span class="desk-note" id="desk-note" aria-live="polite"></span>
@@ -514,7 +577,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
         <ul>
           <li>A <strong>Player board</strong> button in the desk toolbar opens this as a second window. You drag it onto the TV (the desk laptop's second screen) and press Full screen.</li>
           <li>The desk draws the board itself, so every sign-in, group move, payment and score shows up within a second, even before <em>Save to Sheets</em>. It makes no Google calls and reads nothing from the Sheet, so it doesn't count against the club's daily Google limits. I checked this on <code>/dev</code> today without saving anything: the desk opened its own window and updated it.</li>
-          <li>Stages follow the desk: <em>Signing in</em> until the sheets print, then scores. Round robin groups show the printed sheet's grid, filling in as the desk enters results. Equalizer groups show each match's head start and the Finals bracket. Double Elimination shows up next, the Main Draw, the Survivor Trail and who's still unbeaten.</li>
+          <li>Stages follow the desk: <em>Signing in</em> until the sheets print, then scores. Round robin groups show the printed sheet's grid, filling in as the desk enters results. Equalizer groups show each match's head start and say the winner goes on to a single-elimination Finals. The "Road to the Finals" screen fills in as each group finishes, and once every group is decided the whole board becomes the Finals bracket. Double Elimination shows up next, the Main Draw, the Survivor Trail and who's still unbeaten.</li>
           <li>It covers the "TV board" in the Equalizer plan (issue #104, step 5): on the tables, up next, group tables and a mini bracket. Both formats would share one board.</li>
           <li>Payment shows only <em>recorded</em> (green check) or <em>not yet</em> (empty box), never how someone paid. Play-pass holders show as recorded. The ticker announces sign-ins, moves and results, but never payments.</li>
         </ul>
@@ -524,6 +587,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
         <ol>
           <li><strong>Layout.</strong> One for both stages, or a mix (for example, the carousel while signing in and the spotlight once scores start)?</li>
           <li><strong>Equalizer before the sheets print.</strong> The desk redraws the random groups with every sign-in, so this concept shows the field A–Z instead of draft groups that keep reshuffling. Groups appear once the sheets print.</li>
+          <li><strong>The Finals sheet (RR → Finals):</strong> the desk prints the Finals bracket with the group sheets today (slots say "Best group winner"), and printing again fills in the names. Should the desk hold that page back until the groups are done, so the Finals are always a separate printout that matches the Finals screen?</li>
           <li><strong>When it switches to scores:</strong> when the sheets print (as here), or at the first result.</li>
           <li><strong>Payment checks:</strong> on by default? (There's a switch above.) Keep the "1st visit" welcome chip?</li>
           <li><strong>Look:</strong> both use the desk's own type and colors. The light one matches the desk exactly; the dark one is easier on a bright TV in a dim gym. It's worth trying both on the real screen.</li>

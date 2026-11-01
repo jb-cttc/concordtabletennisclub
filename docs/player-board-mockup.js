@@ -169,7 +169,12 @@
     var panel = next.stage === "G" ? "g" + next.group : S.event === "groups" ? "finals" : next.stage === "W" ? "main" : next.stage === "L" ? "trail" : "field";
     if (next.stage === "G") {
       var table = after.tables[next.group - 1];
-      if (table.complete) news = "Group " + next.group + " decided: <b>" + esc(P[table.winnerId].name) + "</b> goes to the Finals";
+      if (table.complete) {
+        mark("w:" + next.group);
+        news = "Group " + next.group + " decided: <b>" + esc(P[table.winnerId].name) + "</b> goes to the Finals";
+        if (after.tables.every(function (t) { return t.complete; })) news = "All groups decided: <b>the Finals are set</b>";
+        panel = "finals";
+      }
     }
     if (after.champion) news = "<b>" + esc(P[after.champion].name) + "</b> wins the Equalizer";
     return { id: next.id, news: news, panel: panel };
@@ -279,7 +284,7 @@
     var groups = S.event === "groups";
     var head = "<h2>Tonight</h2><span class=\"sub\">The Equalizer</span><span class=\"right\">Singles · best of 3</span>";
     var body = "<div class=\"info\"><p class=\"big\">" + (groups ? "RR → Finals" : "Double Elimination") + "</p>" +
-      "<p>" + (groups ? "Random groups of 4. Group winners play a Finals bracket." : "Lose once and you drop to the Survivor Trail. Lose twice and you're out.") + "</p>" +
+      "<p>" + (groups ? "Random groups of 4. Each group winner goes on to a single-elimination Finals." : "Lose once and you drop to the Survivor Trail. Lose twice and you're out.") + "</p>" +
       "<p class=\"rule\">" + "<span class=\"hs\">+1</span>" + "<span>a head start in every game for each 40 rating points between you, up to 8</span></p>" +
       "<p class=\"rule\">" + "<span class=\"hs pts\">±8</span>" + "<span>rating points on every match: win and gain 8, lose and give 8</span></p>" +
       "<p>The draw happens when the sheets print. Check your name is on the list.</p></div>";
@@ -303,25 +308,39 @@
     var games = done && m.result.games ? m.result.games[0] + "–" + m.result.games[1] : "";
     return "<li class=\"mline" + g.cls + "\"" + g.attr + "><span class=\"rd\">" + label + "</span>" + side(a, "a") + "<span class=\"vs\">vs</span>" + side(b, "b") + "<span class=\"gm" + (done ? "" : " wait") + "\">" + (games || "–") + "</span></li>";
   }
-  function bracketBox(m, fs) {
+  // Where an empty Finals slot is filled from: a group winner, a bye for the best group winner, or the match before.
+  function slotLabel(m, i) {
+    if (S.event !== "groups") return "to come";
+    var source = (eq.event.bracket.matches.filter(function (x) { return x.id === m.id; })[0] || { sources: [] }).sources[i] || {};
+    if (source.seed) return "Group winner";
+    var from = source.winner && eqResolved().byId[source.winner];
+    return from && from.status === "bye" ? "Best group winner (bye)" : "Winner";
+  }
+  // A bye keeps its place in the bracket, so every match sits beside the one it feeds, as on the printed sheet.
+  function byeBox(m, opts) {
+    var who = m.winnerId && m.winnerId !== "BYE" ? esc(opts && opts.full ? P[m.winnerId].name : short(m.winnerId)) : S.event === "groups" ? "Best group winner" : "";
+    return "<div class=\"bk-box bye\"><div class=\"bk-ln\"><span>" + who + "</span><span></span><span class=\"g\">bye</span></div></div>";
+  }
+  function bracketBox(m, fs, opts) {
     var g = glow("m:" + m.id);
     var hs = m.players[0] && m.players[1] ? eqHead(m.players[0], m.players[1]) : null;
+    var nameOf = opts && opts.full ? function (id) { return P[id].name; } : short;
     var lines = m.players.map(function (id, i) {
-      if (!id || id === "BYE") return "<div class=\"bk-ln tbd\"><span>to come</span><span></span><span></span></div>";
+      if (!id || id === "BYE") return "<div class=\"bk-ln tbd\"><span>" + slotLabel(m, i) + "</span><span></span><span></span></div>";
       var state = m.status === "done" ? (m.winnerId === id ? " won" : " lost") : "";
       var games = m.status === "done" && m.result.games ? m.result.games[i] : "";
-      return "<div class=\"bk-ln" + state + "\"><span>" + esc(short(id)) + "</span><span>" + (hs && hs.lowerId === id && m.status !== "done" ? hsTile(hs.headStart) : "") + "</span><span class=\"g\">" + games + "</span></div>";
+      return "<div class=\"bk-ln" + state + "\"><span>" + esc(nameOf(id)) + "</span><span>" + (hs && hs.lowerId === id && m.status !== "done" ? hsTile(hs.headStart) : "") + "</span><span class=\"g\">" + games + "</span></div>";
     }).join("");
     return "<div class=\"bk-box" + (m.status === "ready" ? " ready" : "") + g.cls + "\"" + g.attr + ">" + lines + "</div>";
   }
-  function bracket(matches, names, small) {
+  function bracket(matches, names, small, opts) {
     var rounds = {};
-    matches.forEach(function (m) { if (m.status !== "bye" && m.status !== "skipped") (rounds[m.round] = rounds[m.round] || []).push(m); });
+    matches.forEach(function (m) { if (m.status !== "skipped") (rounds[m.round] = rounds[m.round] || []).push(m); });
     var keys = Object.keys(rounds).map(Number).sort(function (a, b) { return a - b; });
     var tallest = Math.max.apply(null, keys.map(function (k) { return rounds[k].length; }).concat([1]));
-    var fs = Math.max(16, Math.min(small ? 24 : 34, Math.floor((small ? 250 : 600) / (tallest * 2.7))));
+    var fs = Math.max(16, Math.min(opts && opts.max ? opts.max : small ? 24 : 34, Math.floor((opts && opts.room ? opts.room : small ? 250 : 600) / (tallest * 2.7))));
     return "<div class=\"bk\" style=\"--bk-fs:" + fs + "px\">" + keys.map(function (k, i) {
-      return "<div class=\"bk-col\"><h3>" + names(k, i, keys.length) + "</h3>" + rounds[k].map(function (m) { return bracketBox(m, fs); }).join("") + "</div>";
+      return "<div class=\"bk-col\"><h3>" + names(k, i, keys.length) + "</h3><div class=\"bk-slots\">" + rounds[k].map(function (m) { return m.status === "bye" ? byeBox(m, opts) : bracketBox(m, fs, opts); }).join("") + "</div></div>";
     }).join("") + "</div>";
   }
   function finalsNames(k, i, n) { var left = n - i; return left === 1 ? "Final" : left === 2 ? "Semifinals" : left === 3 ? "Quarterfinals" : "Round " + k; }
@@ -340,13 +359,26 @@
       }).join("");
       var table = "<table class=\"st\" style=\"--st-h:" + (small ? 34 : 56) + "px\"><colgroup><col style=\"width:44px\"><col><col class=\"col-rating\" style=\"width:" + (small ? 70 : 96) + "px\"><col style=\"width:" + (small ? 60 : 80) + "px\"><col style=\"width:" + (small ? 64 : 90) + "px\"></colgroup><thead><tr><th></th><th>Player</th><th class=\"col-rating\">Rating</th><th>W–L</th><th>Games</th></tr></thead><tbody>" + rows + "</tbody></table>";
       var list = small ? "" : "<ol class=\"mlist\">" + matches.map(function (m) { return mline(m, "R" + m.round); }).join("") + "</ol>";
-      return panel("g" + group.number, head, table + list);
+      var foot = small ? "" : "<p class=\"p-foot to-finals\">" + (t.complete ? "<b>" + esc(P[t.winnerId].name) + "</b> goes to the Finals" : "<b>Winner → Finals</b> · single elimination, on its own sheet") + "</p>";
+      return panel("g" + group.number, head, table + list + foot);
     });
     var finals = view.matches.filter(function (m) { return m.stage === "W"; });
-    var waiting = view.tables.filter(function (t) { return !t.complete; }).length;
-    var champ = view.champion;
-    var fhead = "<h2>Finals</h2><span class=\"sub\">group winners · byes to the best</span><span class=\"right\">" + (champ ? "Champion <b>" + esc(P[champ].name) + "</b>" : waiting ? "<b>" + waiting + "</b> group" + (waiting === 1 ? "" : "s") + " to finish" : "<b>Under way</b>") + "</span>";
-    out.push(panel("finals", fhead, bracket(finals, finalsNames, small)));
+    var decided = view.tables.filter(function (t) { return t.complete; }).length;
+    var fhead = "<h2>Road to the Finals</h2><span class=\"sub\">single elimination</span><span class=\"right\"><b>" + decided + "</b> of " + view.tables.length + " decided</span>";
+    var road = "<ol class=\"road\">" + view.tables.map(function (t) {
+      var row = t.complete ? t.rows[0] : null;
+      var g = glow("w:" + t.number);
+      return "<li class=\"" + (t.complete ? "in" : "") + g.cls + "\"" + g.attr + "><span class=\"gnum\">" + t.number + "</span><span class=\"nm\">" + (t.complete ? esc(P[t.winnerId].name) : "Still playing") + "</span><span class=\"rec\">" + (t.complete ? row.wins + "–" + row.losses : t.played + " of " + t.total) + "</span></li>";
+    }).join("") + "</ol>";
+    var byes = eq.event.bracket.byes;
+    var rounds = Math.log(eq.event.bracket.size) / Math.LN2;
+    var path = ["Final", "Semifinals", "Quarterfinals"].slice(0, rounds).reverse().join(" → ");
+    var how = "<div class=\"how\"><h3>How the Finals work</h3><ul>" +
+      "<li><b>Single elimination:</b> lose once and you're out</li>" +
+      "<li><b>" + view.tables.length + " group winners</b> · " + path + "</li>" +
+      (byes ? "<li><b>" + (byes === 1 ? "1 bye" : byes + " byes") + "</b> to the group winners with the best share of games won</li>" : "") +
+      "<li><b>Starts when every group is decided</b>, on its own printed sheet</li></ul></div>";
+    out.push(panel("finals", fhead, "<div class=\"road-wrap" + (small ? " small" : "") + "\">" + road + how + "</div>"));
     return out;
   }
 
@@ -378,6 +410,26 @@
       panel("trail", "<h2>Survivor Trail</h2><span class=\"sub\">one loss so far</span>", bracket(trail, function (k) { return k === trailLast ? "Trail final" : "Trail " + k; }, small)),
       panel("field", "<h2>Still in it</h2><span class=\"right\">" + fstate + "</span>", "<div class=\"status-cols\">" + col("Unbeaten", groups.main, "main") + col("Survivor Trail", groups.trail, "trail") + col("Out", groups.out, "out") + "</div>")
     ];
+  }
+
+  function finalsMode() {
+    return S.event === "groups" && S.stage === "printed" && !!eq.event && eqResolved().tables.every(function (t) { return t.complete; });
+  }
+  function finalsScreen() {
+    var view = eqResolved();
+    var finals = view.matches.filter(function (m) { return m.stage === "W"; });
+    var champ = view.champion;
+    var byeWinners = finals.filter(function (m) { return m.status === "bye"; }).map(function (m) { return m.winnerId; });
+    var left = view.matches.filter(function (m) { return m.stage === "W" && m.status !== "done" && m.status !== "bye"; }).length;
+    var head = "<h2>Finals</h2><span class=\"sub\">single elimination · best of " + eq.event.settings.finalsBestOf + " · lose and you're out</span><span class=\"right\">" + (champ ? "Champion <b>" + esc(P[champ].name) + "</b>" : "<b>" + left + "</b> match" + (left === 1 ? "" : "es") + " to go") + "</span>";
+    var big = panel("finals", head, bracket(finals, finalsNames, false, { full: true, room: 640, max: 40 })).html;
+    var rows = view.tables.map(function (t) {
+      var r = t.rows[0];
+      return "<li class=\"in\"><span class=\"gnum\">" + t.number + "</span><span class=\"nm\">" + esc(P[t.winnerId].name) + "</span><span class=\"rec\">" + r.wins + "–" + r.losses + " · " + r.gamesWon + "–" + r.gamesLost + "</span>" + (byeWinners.indexOf(t.winnerId) >= 0 ? "<span class=\"chip bye\">Bye</span>" : "<span></span>") + "</li>";
+    }).join("");
+    var side = panel("from", "<h2>From the groups</h2><span class=\"right\">group winners</span>", "<ol class=\"road from\">" + rows + "</ol>" +
+      (champ ? "<div class=\"champ\"><span>Equalizer champion</span><strong>" + esc(P[champ].name) + "</strong></div>" : "<p class=\"p-foot\">Byes go to the group winners with the best share of games won. Everyone else's afternoon is done: thanks for playing!</p>")).html;
+    return "<div class=\"finals-screen\">" + big + side + "</div>";
   }
 
   function panels(small) {
@@ -444,7 +496,7 @@
     else if (!live) stage = "Signing in · the draw comes when sheets print";
     else {
       var view = eqResolved();
-      stage = view.champion ? "Finished · " + esc(P[view.champion].name) + " wins" : S.event === "groups" && view.tables.every(function (t) { return t.complete; }) ? "Finals · live scores" : (S.event === "groups" ? "Group stage" : "Draw set") + " · live scores";
+      stage = view.champion ? "Finished · " + esc(P[view.champion].name) + " wins" : S.event === "groups" && view.tables.every(function (t) { return t.complete; }) ? "Finals · single elimination" : S.event === "groups" ? "Group stage · winners go to the Finals" : "Draw set · live scores";
     }
     var count;
     var label;
@@ -506,6 +558,7 @@
   function carouselSchedule() {
     clearTimeout(car.timer);
     var bar = parts.body.querySelector(".timer i");
+    if (!bar) return;
     var n = panels(false).length;
     parts.body.querySelector(".timer").hidden = n <= 2;
     if (n <= 2) return;
@@ -583,12 +636,13 @@
   function spotSchedule() {
     clearTimeout(spot.timer);
     var bar = parts.body.querySelector(".spot-main .timer i");
+    if (!bar) return;
     bar.style.transition = "none";
     bar.style.transform = "scaleX(1)";
     void bar.offsetWidth;
     bar.style.transition = "transform " + S.secs + "s linear";
     bar.style.transform = "scaleX(0)";
-    spot.timer = setTimeout(function () { spot.i += 1; spotFill(true); spotSchedule(); }, S.secs * 1000);
+    spot.timer = setTimeout(function () { if (finalsMode() || !parts.body.querySelector(".spot-stage")) return; spot.i += 1; spotFill(true); spotSchedule(); }, S.secs * 1000);
   }
   function spotShow(key) {
     var keys = panels(false).map(function (p) { return p.key; });
@@ -606,7 +660,13 @@
     board.classList.toggle("no-rating", !S.rating);
     parts.top.innerHTML = topHTML();
     parts.foot.innerHTML = footHTML();
-    if (S.concept === "carousel") { carouselFill(); if (focus) carouselShow(focus); }
+    if (finalsMode()) {
+      clearTimeout(car.timer);
+      clearTimeout(spot.timer);
+      car.sliding = false;
+      parts.body.innerHTML = finalsScreen();
+    } else if (!parts.body.querySelector(".carousel, .wall, .spot")) layoutBuild();
+    else if (S.concept === "carousel") { carouselFill(); if (focus) carouselShow(focus); }
     else if (S.concept === "wall") wallFill();
     else { var stage = parts.body.querySelector(".spot-stage"); if (focus && panels(false).some(function (p) { return p.key === focus; })) spotShow(focus); else if (stage) spotFill(false); }
     syncControls();
@@ -616,10 +676,14 @@
     clearTimeout(spot.timer);
     car.sliding = false;
     car.want = null;
+    parts.body.innerHTML = "";
+    if (!finalsMode()) layoutBuild();
+    render();
+  }
+  function layoutBuild() {
     if (S.concept === "carousel") carouselBuild();
     else if (S.concept === "wall") wallFill();
     else spotBuild();
-    render();
   }
 
   // ---- Desk actions ----
@@ -628,6 +692,7 @@
   function canSignin() { return S.stage === "signin" && (S.event === "rr" ? rr.late.length > 0 : eq.late.length > 0 && eq.roster.length < 24); }
   function canMove() { return S.event === "rr" && S.stage === "signin"; }
   function canPay() { return roster().some(function (id) { return !P[id].paid; }); }
+  function canFinishGroups() { return S.event === "groups" && S.stage === "printed" && !!eq.event && !finalsMode(); }
   function canResult() {
     if (S.stage !== "printed") return false;
     if (S.event === "rr") return rr.matches.some(function (m) { return !rr.results[m.id]; });
@@ -674,6 +739,13 @@
       note.textContent = "Recorded a payment for " + P[id].name + ". The board shows a green check, never how they paid, and the ticker doesn't announce it.";
       return null;
     },
+    groups: function () {
+      while (!finalsMode()) eqPlay(true);
+      eqResolved().tables.forEach(function (t) { mark("w:" + t.number); });
+      say("All groups decided: <b>the Finals are set</b>");
+      note.textContent = "Played out the group stage. The board switches to the Finals screen on its own.";
+      return null;
+    },
     result: function () {
       if (S.event === "rr") {
         var open = rr.matches.filter(function (m) { return !rr.results[m.id]; });
@@ -715,6 +787,8 @@
     document.getElementById("do-move").title = S.event !== "rr" ? "The Equalizer draw is random: no moves" : "";
     document.getElementById("do-pay").disabled = !canPay();
     document.getElementById("do-result").disabled = !canResult();
+    document.getElementById("do-groups").hidden = S.event !== "groups";
+    document.getElementById("do-groups").disabled = !canFinishGroups();
     document.getElementById("do-result").title = S.stage === "signin" ? "Switch Stage to Sheets printed" : "";
   }
   function setStage(stage) {
@@ -748,6 +822,7 @@
   document.getElementById("do-move").addEventListener("click", function () { if (canMove()) run("move"); });
   document.getElementById("do-pay").addEventListener("click", function () { if (canPay()) run("pay"); });
   document.getElementById("do-result").addEventListener("click", function () { if (canResult()) run("result"); });
+  document.getElementById("do-groups").addEventListener("click", function () { if (canFinishGroups()) run("groups"); });
   var auto = null;
   var autoButton = document.getElementById("do-auto");
   autoButton.addEventListener("click", function () {
