@@ -503,6 +503,23 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
 .road-wrap.small .how h3 { font-size: 17px; margin-bottom: 2px; }
 .road-wrap.small .how li { font-size: 13px; }
 .wall [data-panel="finals"] .p-head .sub { display: none; }
+
+/* Pushed up a group: trophy for last time's group winners, arrow for a move up at the desk */
+.row.fresh::before { content: none; display: none; }
+.trophy-icon { width: 1.05em; height: 1.05em; vertical-align: -.15em; margin-right: .25em; }
+.chip.promo { display: inline-flex; align-items: center; }
+.chip.moved { color: var(--b-green); background: var(--b-lead); }
+.push { display: inline-flex; align-items: center; font-family: var(--font-board); font-weight: 700; }
+.push.won { color: var(--b-promo); }
+.push.moved { color: var(--b-green); }
+.push .trophy-icon { margin-right: 0; }
+.xt td.nm .push { font-size: .8em; vertical-align: .05em; }
+.legend .push { font-size: 22px; }
+.row .name .push { font-size: .78em; margin-left: .35em; vertical-align: .04em; }
+.chip { font-size: 22px; }
+.wall .row .name .push { font-size: .8em; }
+.push.moved { font-size: 1.15em; line-height: 1; }
+.row .name .push.moved { font-size: .9em; }
   </style>
 </head>
 <body>
@@ -580,6 +597,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); out
           <li>Stages follow the desk: <em>Signing in</em> until the sheets print, then scores. Round robin groups show the printed sheet's grid, filling in as the desk enters results. Equalizer groups show each match's head start and say the winner goes on to a single-elimination Finals. The "Road to the Finals" screen fills in as each group finishes, and once every group is decided the whole board becomes the Finals bracket. Double Elimination shows up next, the Main Draw, the Survivor Trail and who's still unbeaten.</li>
           <li>It covers the "TV board" in the Equalizer plan (issue #104, step 5): on the tables, up next, group tables and a mini bracket. Both formats would share one board.</li>
           <li>Payment shows only <em>recorded</em> (green check) or <em>not yet</em> (empty box), never how someone paid. Play-pass holders show as recorded. The ticker announces sign-ins, moves and results, but never payments.</li>
+          <li>A trophy marks a player pushed up a group because they won their group last time; an arrow marks a player the desk moved up by hand. Either shows only when the player is above the group their rating alone would give them. What just changed glows gold for a few seconds.</li>
         </ul>
       </section>
       <section>

@@ -212,11 +212,37 @@
 
   // ---- Pieces ----
   function payBox(id) { return "<span class=\"pay" + (P[id].paid ? " paid" : "") + popped(id) + "\" title=\"" + (P[id].paid ? "Payment recorded" : "Payment not recorded yet") + "\">✓</span>"; }
+  // Above the group their rating alone gives them: a group winner from last time (trophy) or a move up at the desk (arrow).
+  function ratingGroup(id, groups) {
+    var ids = [].concat.apply([], groups).sort(byRating);
+    var at = 0;
+    var sizes = groups.map(function (g) { return g.length; }).sort(function (a, b) { return b - a; });
+    for (var i = 0; i < sizes.length; i += 1) { if (ids.indexOf(id) < at + sizes[i]) return i; at += sizes[i]; }
+    return sizes.length - 1;
+  }
+  function pushedUp(id) {
+    if (S.event !== "rr") return null;
+    var groups = S.stage === "printed" ? rr.printed : rr.groups;
+    var now = groupOf(groups, id);
+    if (now < 0 || now >= ratingGroup(id, groups)) return null;
+    return P[id].promo && rr.pins[id] == null ? "won" : "moved";
+  }
+  var TROPHY = "<svg class=\"trophy-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"currentColor\" d=\"M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V17h3v2H8v-2h3v-2.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3V3Zm10 4v3a2 2 0 0 0 1-1.7V7h-1ZM6 7v1.3A2 2 0 0 0 7 10V7H6Zm2 13h8v1H8v-1Z\"/></svg>";
+  function pushTag(id) {
+    var why = pushedUp(id);
+    if (why === "won") return "<span class=\"chip promo\" title=\"Group winners move up at least one group\">Won Group " + P[id].promo.group + " last time</span>";
+    if (why === "moved") return "<span class=\"chip moved\">Moved up</span>";
+    return "";
+  }
+  function pushMark(id) {
+    var why = pushedUp(id);
+    return why === "won" ? " <span class=\"push won\" title=\"Won Group " + P[id].promo.group + " last time\">" + TROPHY + "</span>" : why === "moved" ? " <span class=\"push moved\" title=\"Moved up at the desk\">▲</span>" : "";
+  }
   function playerRow(id, seat) {
     var p = P[id];
     var g = glow("p:" + id);
-    var tags = (p.promo && S.event === "rr" ? "<span class=\"chip promo\">▲ Won Group " + p.promo.group + " · " + p.promo.date + "</span>" : "") + (p.first ? "<span class=\"chip first\">1st visit · welcome!</span>" : "");
-    return "<li class=\"row" + g.cls + "\"" + g.attr + "><span class=\"seat\">" + seat + "</span><span class=\"who\"><span class=\"name\">" + esc(p.name) + "</span><span class=\"tags\">" + tags + "</span></span><span class=\"rating\">" + p.rating + "</span>" + payBox(id) + "</li>";
+    var tags = pushTag(id) + (p.first ? "<span class=\"chip first\">1st visit · welcome!</span>" : "");
+    return "<li class=\"row" + g.cls + "\"" + g.attr + "><span class=\"seat\">" + seat + "</span><span class=\"who\"><span class=\"name\">" + esc(p.name) + pushMark(id) + "</span><span class=\"tags\">" + tags + "</span></span><span class=\"rating\">" + p.rating + "</span>" + payBox(id) + "</li>";
   }
   function panel(key, head, body) { return { key: key, html: "<section class=\"panel\" data-panel=\"" + key + "\"><header class=\"p-head\">" + head + "</header><div class=\"p-body\">" + body + "</div></section>" }; }
 
@@ -259,7 +285,7 @@
           var g = glow("m:" + m.id);
           return "<td class=\"cell " + (mine > theirs ? "w" : "l") + g.cls + "\"" + g.attr + ">" + mine + "–" + theirs + "</td>";
         }).join("");
-        return "<tr" + (lead ? " class=\"lead\"" : "") + "><td class=\"pos\">" + (i + 1) + "</td><td class=\"nm\">" + (lead ? "<span class=\"trophy\">🏆</span> " : "") + esc(P[id].name) + "<small class=\"rating\">" + P[id].rating + "</small></td>" + cells + "<td class=\"wl\">" + x.wins + "–" + x.losses + "</td><td class=\"pos\">" + (t.played ? place[id] : "–") + "</td></tr>";
+        return "<tr" + (lead ? " class=\"lead\"" : "") + "><td class=\"pos\">" + (i + 1) + "</td><td class=\"nm\">" + (lead ? "<span class=\"trophy\">🏆</span> " : "") + esc(P[id].name) + pushMark(id) + "<small class=\"rating\">" + P[id].rating + "</small></td>" + cells + "<td class=\"wl\">" + x.wins + "–" + x.losses + "</td><td class=\"pos\">" + (t.played ? place[id] : "–") + "</td></tr>";
       }).join("");
       var foot = t.complete ? "Group decided" : "Same grid as the printed sheet · fills in as the desk enters scores";
       return panel("g" + (gi + 1), head, "<table class=\"xt\" style=\"--xt-h:" + Math.min(96, Math.floor(560 / ids.length)) + "px\">" + cols + "<thead>" + headRow + "</thead><tbody>" + body + "</tbody></table><p class=\"p-foot\">" + foot + "</p>");
@@ -446,7 +472,7 @@
         var gi = groupOf(groups, id);
         var where = "";
         if (S.stage === "printed") { var t = rrTable(gi).tally[id]; where = t.wins + "–" + t.losses; }
-        return { id: id, where: where, group: gi + 1, hot: !!(P[id].promo && S.stage === "signin") };
+        return { id: id, where: where, group: gi + 1, hot: !!pushedUp(id) };
       });
     }
     if (S.stage === "signin") return eq.roster.slice().sort(byName).map(function (id) { return { id: id, where: S.rating ? String(P[id].rating) : "" }; });
@@ -520,7 +546,7 @@
   function clock() { var d = new Date(); var h = d.getHours() % 12 || 12; return h + ":" + String(d.getMinutes()).padStart(2, "0"); }
   function footHTML() {
     var items = log.slice(0, 3).map(function (e) { return "<span class=\"item\"><span class=\"when\">" + ago(e.t) + "</span><span>" + e.html + "</span></span>"; }).join("");
-    var legend = "<div class=\"legend\"><span class=\"pay-key\"><span class=\"pay paid\">✓</span>payment recorded</span><span class=\"pay-key\"><span class=\"pay\">✓</span>not yet: see the desk</span>" + (S.event === "rr" && S.stage === "signin" ? "<span><span class=\"promo-arrow\">▲</span>moved up after a group win</span>" : "") + "</div>";
+    var legend = "<div class=\"legend\"><span class=\"pay-key\"><span class=\"pay paid\">✓</span>payment recorded</span><span class=\"pay-key\"><span class=\"pay\">✓</span>not yet: see the desk</span>" + (S.event === "rr" ? "<span><span class=\"push won\">" + TROPHY + "</span>won their group last time</span><span><span class=\"push moved\">▲</span>moved up</span>" : "") + "</div>";
     return "<div class=\"ticker\">" + (items || "<span class=\"idle\">Watching the desk…</span>") + "</div>" + legend;
   }
 
@@ -706,14 +732,14 @@
         rr.roster.push(id);
         organize();
         var gi = groupOf(rr.groups, id);
-        mark("p:" + id, "Signed in");
+        mark("p:" + id);
         say("<b>" + esc(P[id].name) + "</b> signed in · Group " + (gi + 1));
         note.textContent = P[id].name + " signed in. The board shows them in Group " + (gi + 1) + " right away.";
         return "g" + (gi + 1);
       }
       id = eq.late.shift();
       eq.roster.push(id);
-      mark("p:" + id, "Signed in");
+      mark("p:" + id);
       say("<b>" + esc(P[id].name) + "</b> signed in · " + eq.roster.length + " players");
       note.textContent = P[id].name + " signed in to the Equalizer.";
       var at = eq.roster.slice().sort(byName).indexOf(id);
@@ -727,7 +753,7 @@
       rr.pins[id] = now + dir;
       organize();
       var gi = groupOf(rr.groups, id);
-      mark("p:" + id, dir < 0 ? "Moved up" : "Moved down");
+      mark("p:" + id);
       say("<b>" + esc(P[id].name) + "</b> moved " + (dir < 0 ? "up" : "down") + " to Group " + (gi + 1));
       note.textContent = "Moved " + P[id].name + " to Group " + (gi + 1) + " (the desk's ↑ ↓ buttons).";
       return "g" + (gi + 1);
