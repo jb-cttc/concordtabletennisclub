@@ -32,6 +32,9 @@ emails or web requests: each change at the desk (the setup, a result, the Round
 robin | Equalizer switch) is one page call, like a round robin save, and a page call
 does not count toward timer run time.
 
+The Player board (the desk's TV window) makes no Google calls at all: the desk page
+draws it from what it already holds, and its slides run on the computer's own clock.
+
 ## Scheduled jobs
 
 Google can repeat a timer only at a fixed rate (1, 5, 10, 15 or 30 minutes, or
