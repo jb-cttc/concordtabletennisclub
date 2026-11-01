@@ -47,7 +47,7 @@
   function byName(a, b) { return P[a].name.localeCompare(P[b].name); }
 
   // ---- Board settings ----
-  var S = { concept: "carousel", event: "rr", stage: "signin", look: "night", secs: 14, pay: true, rating: true };
+  var S = { concept: "carousel", event: "rr", stage: "signin", look: "desk", secs: 14, pay: true, rating: true };
 
   // ---- Round robin desk state ----
   var RR_LATE = ["Zoe Park", "Hugo Bell", "Iris Tan", "Max Weber", "Noor Aziz", "Otto Lang", "Esme Grant", "Kofi Asante"].map(idOf);
@@ -205,9 +205,6 @@
 
   // ---- Pieces ----
   function payBox(id) { return "<span class=\"pay" + (P[id].paid ? " paid" : "") + popped(id) + "\" title=\"" + (P[id].paid ? "Payment recorded" : "Payment not recorded yet") + "\">✓</span>"; }
-  function flip(text, extra) {
-    return "<span class=\"scoreboard" + (extra || "") + "\">" + String(text).split("").map(function (c) { return "<span class=\"flip\">" + esc(c) + "</span>"; }).join("") + "</span>";
-  }
   function playerRow(id, seat) {
     var p = P[id];
     var g = glow("p:" + id);
@@ -239,8 +236,8 @@
         }).join("");
         return panel("g" + (gi + 1), head, "<table class=\"st\" style=\"--st-h:" + Math.min(52, Math.floor(270 / ids.length)) + "px\"><colgroup><col style=\"width:44px\"><col><col style=\"width:80px\"><col style=\"width:90px\"></colgroup><thead><tr><th></th><th>Player</th><th>W–L</th><th>Games</th></tr></thead><tbody>" + rows + "</tbody></table>");
       }
-      var cellW = ids.length > 6 ? 62 : 74;
-      var cols = "<colgroup><col style=\"width:58px\"><col>" + ids.map(function () { return "<col style=\"width:" + cellW + "px\">"; }).join("") + "<col style=\"width:76px\"><col style=\"width:58px\"></colgroup>";
+      var cellW = ids.length > 6 ? 54 : 62;
+      var cols = "<colgroup><col style=\"width:44px\"><col>" + ids.map(function () { return "<col style=\"width:" + cellW + "px\">"; }).join("") + "<col style=\"width:68px\"><col style=\"width:52px\"></colgroup>";
       var headRow = "<tr><th>#</th><th class=\"n\">Player</th>" + ids.map(function (_, i) { return "<th>" + (i + 1) + "</th>"; }).join("") + "<th>W–L</th><th>Pos</th></tr>";
       var body = ids.map(function (id, i) {
         var x = t.tally[id];
@@ -281,13 +278,13 @@
     var head = "<h2>Tonight</h2><span class=\"sub\">The Equalizer</span><span class=\"right\">Singles · best of 3</span>";
     var body = "<div class=\"info\"><p class=\"big\">" + (groups ? "RR → Finals" : "Double Elimination") + "</p>" +
       "<p>" + (groups ? "Random groups of 4. Group winners play a Finals bracket." : "Lose once and you drop to the Survivor Trail. Lose twice and you're out.") + "</p>" +
-      "<p class=\"rule\">" + flip("+1") + "<span>a head start in every game for each 40 rating points between you, up to 8</span></p>" +
-      "<p class=\"rule\">" + flip("8") + "<span>rating points on every match, win or lose</span></p>" +
+      "<p class=\"rule\">" + "<span class=\"hs\">+1</span>" + "<span>a head start in every game for each 40 rating points between you, up to 8</span></p>" +
+      "<p class=\"rule\">" + "<span class=\"hs pts\">±8</span>" + "<span>rating points on every match: win and gain 8, lose and give 8</span></p>" +
       "<p>The draw happens when the sheets print. Check your name is on the list.</p></div>";
     return panel("info", head, body);
   }
 
-  function hsTile(n) { return n > 0 ? flip("+" + n, " hs") : ""; }
+  function hsTile(n) { return n > 0 ? "<span class=\"hs\" title=\"Head start: starts every game at " + n + "–0\">+" + n + "</span>" : ""; }
   function mline(m, label) {
     var a = m.players[0];
     var b = m.players[1];
@@ -456,7 +453,7 @@
     lastCount = count;
     return "<div class=\"b-brand\"><span class=\"b-mark\" aria-hidden=\"true\"></span><div class=\"b-title\"><strong>" + title + "</strong><span>" + sub + "</span></div></div>" +
       "<div class=\"b-stage" + (live ? " live" : "") + "\"><span class=\"dot\"></span>" + stage + "</div>" +
-      "<div class=\"b-count\">" + flip(String(count), flipping) + "<span>" + label + "</span><span class=\"b-clock\" id=\"b-clock\">" + clock() + "</span></div>";
+      "<div class=\"b-count\">" + "<span class=\"num" + flipping + "\">" + count + "</span>" + "<span>" + label + "</span><span class=\"b-clock\" id=\"b-clock\">" + clock() + "</span></div>";
   }
   function clock() { var d = new Date(); var h = d.getHours() % 12 || 12; return h + ":" + String(d.getMinutes()).padStart(2, "0"); }
   function footHTML() {
