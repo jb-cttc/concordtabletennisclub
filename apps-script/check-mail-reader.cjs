@@ -39,7 +39,8 @@ const makeSheet = name => {
     deleteRow: row => { grid.splice(row - 1, 1); },
     deleteRows: (row, count) => { grid.splice(row - 1, count); },
     setFrozenRows() {},
-    hideSheet() { hidden.push(name); }
+    hideSheet() { hidden.push(name); },
+    clearContents() { grid.length = 0; }
   };
 };
 
@@ -78,6 +79,16 @@ const wakeApp = request => {
   return { getResponseCode: () => 200, getContentText: () => JSON.stringify(answer) };
 };
 const audits = [];
+// Made-up coaches: shown, an owner's exception (shown while Pending), and hidden while Pending.
+const coachFetches = [];
+let siteDown = false;
+let coachFile = { showWhilePending: ['Pat Pending'], coaches: {
+  'Ann Active': { status: 'USATT Certification Active', level: 'Coaching Level 1' },
+  'Hal Hidden': { status: 'USATT Certification Pending', level: null, hidden: true, contact: 'h@example.com' },
+  'Pat Pending': { status: 'USATT Certification Pending', level: null }
+} };
+let coachRuns = [];
+const coachLogs = [];
 // Timers as Google keeps them: { handler, every } for a repeating one, { handler, after } for a one-off. Until October
 // 2026 the job had an every-minute timer, and so did the automatic answers; until November 2026 a 30-minute timer and a
 // one-off for the next read. The first run removes them all.
@@ -124,7 +135,15 @@ const context = {
       }
     }) })
   },
-  UrlFetchApp: { fetchAll: requests => requests.map(wakeApp) },
+  UrlFetchApp: {
+    fetchAll: requests => requests.map(wakeApp),
+    // The club site's coach file (CoachList.js): who the coaching page shows.
+    fetch: url => {
+      coachFetches.push(url);
+      if (siteDown) return { getResponseCode: () => 503, getContentText: () => '' };
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify(coachFile) };
+    }
+  },
   PropertiesService: { getScriptProperties: () => ({ getProperty: key => (key in properties ? properties[key] : null), setProperty: (key, value) => { properties[key] = String(value); }, deleteProperty: key => { delete properties[key]; } }) },
   // Pacific (PDT) wall clock, for the October dates used here.
   Utilities: {
@@ -135,7 +154,8 @@ const context = {
     getUuid: () => crypto.randomUUID()
   },
   Session: { getScriptTimeZone: () => 'America/Los_Angeles', getEffectiveUser: () => ({ getEmail: () => 'Club@example.com' }) },
-  deskLog_: (...args) => deskLogs.push(args),
+  // The coach list's own lines are kept apart: they come once at the first read, whatever the mail.
+  deskLog_: (...args) => (args[1] === 'coach_list_changed' ? coachLogs : deskLogs).push(args),
   appendAudit_: (...args) => audits.push(args),
   safeAudit_: (...args) => audits.push(args)
 };
@@ -145,13 +165,15 @@ let zeffyRows = [];
 let gmailDown = false;
 vm.createContext(context);
 // The round robin days and sign-up hours come from the desk's automatic answers.
-for (const file of ['VoiceAutoReply.js', 'MailReader.js', 'JobRuntime.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
+for (const file of ['VoiceAutoReply.js', 'MailReader.js', 'JobRuntime.js', 'CoachList.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 // What a read found; the job also says what the automatic answers did (off here), and which apps it woke (woke).
 let woke = null;
 const read = event => {
   const result = JSON.parse(JSON.stringify(context.readMail(event)));
   if (result.answered) assert.deepEqual(result.answered, { skipped: 'off' });
   woke = result.woke || null;
+  if (result.coaches) coachRuns.push(result.coaches);
+  delete result.coaches;
   delete result.answered;
   delete result.woke;
   return result;
@@ -377,7 +399,7 @@ assert.deepEqual(answered(), ['coaching:0:YES', 'staffing:0:YES']);
 assert.deepEqual(woke, { coaching: 'checked', staffing: 'checked' });
 assert.match(grids.AppWake[1][0], /^[0-9a-f]{64}$/, 'a long random key');
 assert.ok(wakes.every(entry => entry.body.key === grids.AppWake[1][0] && entry.body.fn === 'wake'));
-assert.deepEqual(hidden, ['AppWake'], 'the key\'s tab is hidden');
+assert.deepEqual(hidden.filter(name => name !== 'CoachList'), ['AppWake'], 'the key\'s tab is hidden');
 assert.equal(properties.CTTC_WAKE_coaching, undefined, 'nothing left to tell');
 // A text that is no answer: the apps say there is nothing to check.
 clock += minutes(5);
@@ -476,6 +498,37 @@ read();
 const day = deskLogs.filter(entry => entry[1] === 'app_wakes_day').pop();
 assert.equal(day[2], '2026-11-04');
 assert.match(day[4], /^coaching=7 staffing=7 coaching_failed=3 staffing_failed=3$/);
+
+// ---- Hourly, the desk copies who the coaching page shows to the hidden CoachList tab, for the coaching app ----
+{
+  const shown = () => grids.CoachList.map(line => line[0]);
+  assert.deepEqual(shown(), ['shown_coach', 'Ann Active', 'Pat Pending'], 'hidden coaches are left out, in page order');
+  assert.ok(hidden.includes('CoachList'), 'the tab is hidden, like AppWake');
+  assert.ok(coachFetches.length >= 1 && coachFetches.every(url => url === 'https://concordtabletennisclub.com/data/coach-certifications.json'));
+  const fetches = coachFetches.length;
+  coachRuns = [];
+  read();
+  assert.equal(coachFetches.length, fetches, 'at most once an hour: a run within the hour reads nothing');
+  assert.deepEqual(coachRuns, []);
+  const due = () => { delete cache['coach-list-checked']; coachRuns = []; read(); return coachRuns[0]; };
+  assert.deepEqual(due(), { unchanged: 2 }, 'an unchanged list writes nothing');
+  const logged = coachLogs.length;
+  coachFile.coaches['Hal Hidden'] = { status: 'USATT Certification Active', level: 'Coaching Level 1' };
+  assert.deepEqual(due(), { changed: 3 });
+  assert.deepEqual(shown(), ['shown_coach', 'Ann Active', 'Hal Hidden', 'Pat Pending'], 'a coach certified since comes back');
+  assert.equal(coachLogs.length, logged + 1, 'each change is in the desk log');
+  coachFile.coaches['Pat Pending'].hidden = true;
+  assert.deepEqual(due(), { changed: 2 });
+  assert.deepEqual(shown(), ['shown_coach', 'Ann Active', 'Hal Hidden'], 'a shorter list leaves no old rows behind');
+  siteDown = true;
+  assert.deepEqual(due(), { skipped: 'site returned 503' });
+  siteDown = false;
+  const good = coachFile;
+  coachFile = { coaches: {} };
+  assert.deepEqual(due(), { skipped: 'coach file unreadable' }, 'a broken file never switches every coach off');
+  coachFile = good;
+  assert.deepEqual(shown(), ['shown_coach', 'Ann Active', 'Hal Hidden'], 'the last good list is kept');
+}
 
 assert.equal(context.voiceBodyText_('<https://voice.google.com>\n\nHi\n  there \nGoogle LLC\nignored'), 'Hi\nthere');
 console.log('Mail reader checks passed');
