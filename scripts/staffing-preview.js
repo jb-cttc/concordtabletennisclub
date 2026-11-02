@@ -181,12 +181,12 @@ function sign(name, date, position, confirm = true, extra = {}) {
   answerEmail(message, 'YES');
 }
 if (open.length >= 6) {
-  const [full, covered, waiting, closed, partial] = open;
-  // Fully staffed: every minimum and both backups. Two Sams that night show as "Sam K." and "Sam L.".
-  [['Ada Park', 'desk'], ['Fay Moss', 'desk-backup'], ['Ben Ortiz', 'money'], ['Gus Hale', 'money-backup'], ['Cal Diaz', 'tables'], ['Sam Kim', 'tables'],
+  const [full, nearly, waiting, closed, partial] = open;
+  // Fully staffed: every minimum. Two Sams that night show as "Sam K." and "Sam L.".
+  [['Ada Park', 'desk'], ['Ben Ortiz', 'money'], ['Cal Diaz', 'tables'], ['Fay Moss', 'tables'], ['Sam Kim', 'tables'], ['Gus Hale', 'lockup'],
     ['Dee Nguyen', 'close'], ['Sam Lee', 'close']].forEach(([name, position]) => sign(name, full.date, position, true, { finalize: name === 'Sam Lee' }));
-  // Covered: the minimum crew, backups still open.
-  [['Hal Reed', 'desk'], ['Ivy Wong', 'money'], ['Jo Banks', 'tables'], ['Kai Ford', 'close'], ['Lu Chen', 'close']].forEach(([name, position]) => sign(name, covered.date, position));
+  // Needs people: everyone but a lock-up.
+  [['Hal Reed', 'desk'], ['Ivy Wong', 'money'], ['Jo Banks', 'tables'], ['Kai Ford', 'close'], ['Lu Chen', 'close']].forEach(([name, position]) => sign(name, nearly.date, position));
   // Needs people, with a pick still waiting for its YES.
   sign('Max Gold', waiting.date, 'desk');
   sign('Ned Fox', waiting.date, 'money', false);

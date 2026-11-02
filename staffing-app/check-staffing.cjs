@@ -470,11 +470,8 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(signUp('Ada Park', [[W, 'lockup']]).ok, true, 'the opener may also lock up');
   assert.equal(night(W).status, 'needs', 'a pending lock-up does not count yet');
   reply('ada.park@example.com', 'YES');
-  assert.equal(night(W).status, 'covered', 'every minimum met, backups still open');
-  signAndConfirm('Fay Moss', [[W, 'desk-backup']]);
-  assert.equal(night(W).status, 'covered');
-  signAndConfirm('Gus Hale', [[W, 'money-backup']]);
-  assert.equal(night(W).status, 'full', 'fully staffed: every minimum and both backups');
+  assert.equal(night(W).status, 'full', 'fully staffed: every minimum met (there are no backups to wait for)');
+  assert.deepEqual(board().positions.map(spec => spec.id), ['desk', 'money', 'tables', 'lockup', 'close'], 'the desk organizer and money collector backups are gone');
   ['Hal Reed', 'Jo Banks', 'Kai Ford'].forEach(name => signAndConfirm(name, [[W, 'tables']]));
   assert.equal(night(W).slots.tables.length, 4);
   assert.equal(signUp('Lu Chen', [[W, 'tables']]).problems[0].reason, 'Table/barrier setup is already taken that night.', 'a fifth table/barrier setup is refused');
@@ -494,8 +491,9 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
 // ---- One opening position per person per night; opening and closing is fine; one finalizer ----
 {
   const F = '2026-10-23';
-  assert.match(signUp('Ada Park', [[F, 'desk'], [F, 'money-backup']]).problems[0].reason, /one opening position/, 'desk and a backup in one submission');
-  assert.match(signUp('Ada Park', [[F, 'desk-backup'], [F, 'tables']]).problems[0].reason, /one opening position/, 'a backup desk organizer may not also set up');
+  assert.match(signUp('Ada Park', [[F, 'desk'], [F, 'money']]).problems[0].reason, /one opening position/, 'desk and money in one submission');
+  assert.match(signUp('Ada Park', [[F, 'money'], [F, 'tables']]).problems[0].reason, /one opening position/, 'the money collector may not also set up');
+  assert.equal(signUp('Ada Park', [[F, 'desk-backup']]).problems[0].reason, 'That position does not exist.', 'a retired backup cannot be picked');
   assert.match(signUp('Ada Park', [[F, 'close'], [F, 'close']]).problems[0].reason, /already closing/);
   assert.match(signUp('Ada Park', [[F, 'tables', true]]).problems[0].reason, /Only a closer/);
   signAndConfirm('Ada Park', [[F, 'desk'], [F, 'close', true]]);
@@ -510,19 +508,17 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.match(signUp('Cal Diaz', many).message, /at most 40/);
 }
 
-// ---- Training: Desk needs keys and opening, Money Front Desk, Lock-up keys; backups, setup and takedown are open to anyone listed ----
+// ---- Training: Desk needs keys and opening, Money Front Desk, Lock-up keys; setup and takedown are open to anyone listed ----
 {
   const S = '2026-11-02';
   assert.match(signUp('Cal Diaz', [[S, 'desk']]).problems[0].reason, /^Desk organizer needs key access and opening training/, 'the server refuses an untrained desk pick');
-  assert.equal(context.canTake_({ playerId: 'p05', training: {} }, 'desk-backup'), '', 'a backup spot needs no training: it is where someone learns');
-  assert.equal(context.canTake_({ playerId: 'p05', training: {} }, 'money-backup'), '');
   assert.match(signUp('Dee Nguyen', [[S, 'desk']]).problems[0].reason, /needs opening training/, 'keys alone are not enough');
   assert.match(signUp('Dee Nguyen', [[S, 'money']]).problems[0].reason, /Front Desk/, 'N/A is not trained');
   assert.equal(signUp('Cal Diaz', [[S, 'tables'], ['2026-11-04', 'close']]).ok, true, 'table setup and closing need no training');
   resetLimits();
-  assert.deepEqual(run('playerAccess', 'p05'), { ok: true, positions: ['desk-backup', 'money-backup', 'tables', 'close'], emailOnFile: 'c\u2022\u2022\u2022@example.com' }, 'the page learns only which positions the chosen player may take, and a masked email');
-  assert.deepEqual(run('playerAccess', 'p06').positions, ['desk-backup', 'money-backup', 'tables', 'lockup', 'close'], 'key access alone allows lock-up');
-  assert.deepEqual(run('playerAccess', 'p03').positions, ['desk', 'desk-backup', 'money', 'money-backup', 'tables', 'lockup', 'close']);
+  assert.deepEqual(run('playerAccess', 'p05'), { ok: true, positions: ['tables', 'close'], emailOnFile: 'c\u2022\u2022\u2022@example.com' }, 'the page learns only which positions the chosen player may take, and a masked email');
+  assert.deepEqual(run('playerAccess', 'p06').positions, ['tables', 'lockup', 'close'], 'key access alone allows lock-up');
+  assert.deepEqual(run('playerAccess', 'p03').positions, ['desk', 'money', 'tables', 'lockup', 'close']);
   assert.equal(run('playerAccess', 'p23').ok, false, 'not for inactive players');
   assert.deepEqual(night(S).slots.desk, []);
   assert.match(board().positions.find(spec => spec.id === 'desk').does, /first in at 6:40 PM.*key lockbox.*lights and AC/);
@@ -618,29 +614,57 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(run('requestDrop', desk.id).ok, true);
   assert.equal(sent.length, before + 1, 'one ask per sign-up per 10 minutes');
   answerMail('fay.moss@example.com', 'YES', question[0].subject);
-  assert.equal(statusOf('Ada Park', W, 'desk'), 'confirmed', 'a YES from the backup does not drop it');
+  assert.equal(statusOf('Ada Park', W, 'desk'), 'confirmed', 'a YES from someone else does not drop it');
   const ready = sent.length;
   answerMail('ada.park@example.com', 'YES', question[0].subject);
   assert.equal(statusOf('Ada Park', W, 'desk'), 'dropped');
   assert.deepEqual(night(W).slots.desk, [], 'the slot opens again');
   assert.equal(night(W).status, 'needs');
   const notices = sent.slice(ready);
-  assert.deepEqual(notices.map(message => message.to).sort(), ['ada.park@example.com', 'fay.moss@example.com', 'owner@example.com'], 'the person, the club and the backup are told');
-  assert.match(notices.find(message => message.to === 'fay.moss@example.com').subject, /^Heads-up: you may be needed as Desk organizer on Wed, Oct 21$/);
-  assert.match(notices.find(message => message.to === 'owner@example.com').body, /Ada Park dropped Desk organizer[\s\S]*backup \(Fay Moss\)/);
-  // A NO keeps the shift; a backup dropping gives nobody a heads-up.
+  assert.deepEqual(notices.map(message => message.to).sort(), ['ada.park@example.com', 'owner@example.com'], 'the person and the club are told');
+  assert.match(notices.find(message => message.to === 'owner@example.com').body, /Ada Park dropped Desk organizer/);
+  assert.doesNotMatch(notices.map(message => message.body).join('\n'), /backup/i, 'no backup to mention');
+  // A NO keeps the shift.
   resetLimits();
-  const backup = night(W).slots['desk-backup'][0];
-  run('requestDrop', backup.id);
-  answerMail('fay.moss@example.com', 'NO', sent.at(-1).subject);
-  assert.equal(statusOf('Fay Moss', W, 'desk-backup'), 'confirmed');
+  const setter = night(W).slots.tables.find(slot => slot.name === 'Cal');
+  run('requestDrop', setter.id);
+  answerMail('cal.diaz@example.com', 'NO', sent.at(-1).subject);
+  assert.equal(statusOf('Cal Diaz', W, 'tables'), 'confirmed');
   assert.equal(sent.at(-1).subject, 'Your CTTC shift stays as it is');
   clock += 11 * 60000;
   resetLimits();
-  run('requestDrop', backup.id);
+  run('requestDrop', setter.id);
   const bfore = sent.length;
-  answerMail('fay.moss@example.com', 'YES', sent.at(-1).subject);
-  assert.deepEqual(sent.slice(bfore).map(message => message.to).sort(), ['fay.moss@example.com', 'owner@example.com']);
+  answerMail('cal.diaz@example.com', 'YES', sent.at(-1).subject);
+  assert.deepEqual(sent.slice(bfore).map(message => message.to).sort(), ['cal.diaz@example.com', 'owner@example.com']);
+}
+
+// ---- Retired backups: a sign-up saved as a desk or money backup becomes table/barrier setup that night ----
+{
+  const D = '2026-11-07';
+  signAndConfirm('Gus Hale', [[D, 'tables']]);
+  assert.equal(signUp('Hal Reed', [[D, 'tables']]).ok, true);
+  // As the old version saved them: one confirmed desk organizer backup, one money collector backup still waiting.
+  const row = name => signupRows().find(line => cell('Signups', line, 'player_id') === idOf(name) && cell('Signups', line, 'date') === D);
+  row('Gus Hale')[column('Signups', 'position')] = 'desk-backup';
+  row('Hal Reed')[column('Signups', 'position')] = 'money-backup';
+  // Read as table/barrier setup at once, before the sweep writes anything.
+  assert.deepEqual(night(D).slots.tables.map(slot => [slot.name, slot.pending]), [['Gus', false], ['Hal', true]], 'shown under table/barrier setup');
+  assert.equal(night(D).slots['desk-backup'], undefined);
+  assert.match(signUp('Gus Hale', [[D, 'money']]).problems[0].reason, /one opening position/, 'still their one opening position that night');
+  const logged = () => grids.Log.filter(line => line[2] === 'step:backups-retired');
+  assert.equal(logged().length, 0);
+  context.sweep();
+  assert.deepEqual([cell('Signups', row('Gus Hale'), 'position'), cell('Signups', row('Gus Hale'), 'status')], ['tables', 'confirmed'], 'the sweep writes the new position and keeps the status');
+  assert.deepEqual([cell('Signups', row('Hal Reed'), 'position'), cell('Signups', row('Hal Reed'), 'status')], ['tables', 'pending']);
+  assert.equal(logged().length, 1, 'logged once');
+  assert.match(logged()[0][5], /^2 sign-ups moved to Table\/barrier setup$/);
+  assert.doesNotMatch(JSON.stringify(signupRows()), /-backup/, 'none left');
+  context.sweep();
+  assert.equal(logged().length, 1, 'a later sweep has nothing to move');
+  // Hal's YES still confirms it, now as table/barrier setup.
+  reply(emailOf('Hal Reed'), 'YES');
+  assert.equal(statusOf('Hal Reed', D, 'tables'), 'confirmed');
 }
 
 // ---- Directory and hybrid modes ----
@@ -658,7 +682,6 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(context.canTake_({ playerId: '' }, 'tables'), '');
   assert.equal(context.canTake_({ playerId: '' }, 'close'), '');
   assert.match(context.canTake_({ playerId: '' }, 'desk'), /training/);
-  assert.equal(context.canTake_({ playerId: '' }, 'money-backup'), '', 'backups need no training, in hybrid mode too');
   assert.equal(context.canTake_({ playerId: '', training: full }, 'money'), '');
   const nia = { playerId: '', unlisted: true, name: 'Nia Newcomer', email: 'nia@example.com' };
   const alerts = mailTo('owner@example.com').length;
@@ -934,9 +957,9 @@ const seedCheck = () => {
   assert.equal(JSON.stringify(grids), sheetBefore, 'a preview changes no Sheet');
   assert.equal(sent.length, before, 'a preview sends nothing');
   assert.deepEqual(plan.preview.map(person => person.name).sort(), ['Ada', 'Bobby', 'Eve S.', 'Susan']);
-  assert.deepEqual(plan.preview.find(person => person.name === 'Susan').positions, ['Desk organizer backup'], 'an untrained backup is held: backups need no training');
+  assert.deepEqual(plan.preview.find(person => person.name === 'Susan').positions, ['Table/barrier setup'], 'an untrained second name under Open is held for table/barrier setup, which needs no training');
   assert.ok(plan.preview.every(person => /^.\u2022\u2022\u2022@example\.com$/.test(person.email)), 'emails masked');
-  assert.deepEqual(plan.preview.find(person => person.name === 'Ada').positions.sort(), ['Desk organizer', 'Desk organizer backup']);
+  assert.deepEqual(plan.preview.find(person => person.name === 'Ada').positions.sort(), ['Desk organizer', 'Table/barrier setup']);
   assert.equal(plan.preview.reduce((total, person) => total + person.nights, 0), plan.signups);
   // A test copy of the first person's email goes to the club inbox only, holds nothing, and its YES changes nothing.
   // (Opening the setup page runs setup(), whose sweep tidies earlier checks' sign-ups; compare from after that.)
@@ -1019,14 +1042,14 @@ const seedCheck = () => {
   const asks = sent.slice(before).filter(message => /^Please confirm/.test(message.subject));
   assert.deepEqual(asks.map(message => message.to).sort(), ['ada.park@example.com', 'ben.ortiz@example.com', 'eve.stone@example.com', 'susan.lake@example.com']);
   assert.ok(asks.every(message => /^Please confirm your CTTC volunteer nights? \[CTTC shift [0-9A-F]{10}\]$/.test(message.subject)));
-  assert.match(asks.find(message => message.to === 'ada.park@example.com').body, /open\/close list, which has moved[\s\S]*Desk organizer, Wednesdays 7:00 PM: [^\n]*Jan 6[\s\S]*Desk organizer backup, Saturdays 3:00 PM: Jan 9/);
+  assert.match(asks.find(message => message.to === 'ada.park@example.com').body, /open\/close list, which has moved[\s\S]*Desk organizer, Wednesdays 7:00 PM: [^\n]*Jan 6[\s\S]*Table\/barrier setup, Saturdays 3:00 PM: Jan 9/);
   assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key')).length, 25, 'Ada: 13 Wednesdays and 12 Saturdays, the latest Zeffy email');
-  assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'position') === 'desk-backup').length, 12, 'second of two names in a cell: the backup');
+  assert.equal(signupsOf('ada.park@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'position') === 'tables').length, 12, 'second of two names in a cell: table/barrier setup');
   assert.equal(signupsOf('ben.ortiz@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'position') === 'money').length, 12, 'Bobby: every Monday but the closure');
   const seeded = email => signupsOf(email).filter(line => cell('Signups', line, 'seed_key'));
   assert.equal(seeded('eve.stone@example.com').length, 13, 'Eve: her email from the coaching Sheet');
   assert.ok(seeded('eve.stone@example.com').every(line => cell('Signups', line, 'status') === 'pending' && cell('Signups', line, 'position') === 'money'));
-  assert.equal(signupsOf('susan.lake@example.com').filter(line => cell('Signups', line, 'position') === 'desk-backup').length, 12, 'Susan, the second name under Open, is held as desk organizer backup on every Monday');
+  assert.equal(signupsOf('susan.lake@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'position') === 'tables').length, 12, 'Susan, the second name under Open, is held for table/barrier setup on every Monday');
   // Already emailed and still waiting: listed on the preview, and one tap re-sends the current email with a fresh deadline.
   let page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
   assert.doesNotMatch(page, /Re-send:/, 'just emailed: not offered again within the hour');
@@ -1094,7 +1117,7 @@ const seedCheck = () => {
   assert.equal(result.people, 3);
   assert.equal(result.signups, 36, 'Ron\'s 12 Mondays, Sam Lee\'s 12 Fridays and Zoe\'s 12 Saturdays');
   assert.equal(result.skipped['already imported'], 62, 'what was held before is not held or emailed again');
-  assert.equal(result.skipped['position already full'], undefined, 'the second name in "Zoe / Ada" is the backup, so Zoe (p29) gets the Saturday desk');
+  assert.equal(result.skipped['position already full'], undefined, 'the second name in "Zoe / Ada" sets up, so Zoe (p29) gets the Saturday desk');
   assert.ok(signupsOf('zoey.hart@example.com').every(line => cell('Signups', line, 'position') === 'desk'));
   assert.deepEqual([result.unmatched, result.ambiguous, result.noEmail], [[], [], []]);
   assert.deepEqual(sent.slice(before).map(message => message.to).sort(), ['ron.tate@example.com', 'sam.lee@example.com', 'zoey.hart@example.com']);
@@ -1217,11 +1240,11 @@ seedCheck();
   assert.doesNotMatch(JSON.stringify(view), /sal\.roy|Roy/, 'no address or last name');
   assert.deepEqual(view.nights.map(entry => [entry.date, entry.shifts.map(shift => shift.status)]), [['2026-12-11', ['confirmed']], ['2026-12-18', ['confirmed']]]);
   // A new sign-up with two shifts on one night is waiting; the page confirms one, releases the other and drops a confirmed night.
-  assert.equal(signUp('Sal Roy', [['2026-12-28', 'desk-backup'], ['2026-12-28', 'close'], ['2026-12-30', 'close']]).ok, true);
+  assert.equal(signUp('Sal Roy', [['2026-12-28', 'tables'], ['2026-12-28', 'close'], ['2026-12-30', 'close']]).ok, true);
   resetLimits();
   view = run('myNights', code);
   const dec28 = view.nights.find(entry => entry.date === '2026-12-28');
-  assert.deepEqual(dec28.shifts.map(shift => [shift.status, shift.label]), [['pending', 'Desk organizer backup (opening, 7:00 PM)'], ['pending', 'Put tables and barriers away (closing, 10:00 PM)']]);
+  assert.deepEqual(dec28.shifts.map(shift => [shift.status, shift.label]), [['pending', 'Table/barrier setup (opening, 7:00 PM)'], ['pending', 'Put tables and barriers away (closing, 10:00 PM)']]);
   assert.match(view.until, /^[A-Z][a-z]+day, [A-Z][a-z]+ \d+, 2026, \d+:\d\d [AP]M$/, 'until when the waiting nights are held');
   const idOn = (date, index = 0) => view.nights.find(entry => entry.date === date).shifts[index].id;
   const otherId = cell('Signups', signupRows().find(line => cell('Signups', line, 'status') === 'confirmed' && cell('Signups', line, 'email') !== SAL), 'signup_id');
@@ -1231,7 +1254,7 @@ seedCheck();
   assert.equal(saved.ok, true, saved.message);
   assert.equal(saved.message, 'Saved. Confirmed 2 nights. Released 1 night. Dropped 1 night: the club was told. 1 shift had already changed, so it was left as is. We emailed you the details.');
   assert.equal(statusOf('Sal Roy', '2026-12-18', 'close'), 'dropped');
-  assert.equal(statusOf('Sal Roy', '2026-12-28', 'desk-backup'), 'confirmed');
+  assert.equal(statusOf('Sal Roy', '2026-12-28', 'tables'), 'confirmed');
   assert.equal(statusOf('Sal Roy', '2026-12-28', 'close'), 'released');
   assert.equal(statusOf('Sal Roy', '2026-12-30', 'close'), 'confirmed');
   assert.equal(cell('Signups', signupRows().find(line => cell('Signups', line, 'signup_id') === otherId), 'status'), 'confirmed', 'someone else\'s shift is never touched');
@@ -1253,7 +1276,7 @@ seedCheck();
   resetLimits();
   assert.equal(run('saveMyNights', code, { keep: [], release: [] }).message, 'Nothing to save.');
   assert.equal(run('saveMyNights', '1'.repeat(20), { release: [idOn('2026-12-28')] }).ok, false, 'a wrong code changes nothing');
-  assert.equal(statusOf('Sal Roy', '2026-12-28', 'desk-backup'), 'confirmed');
+  assert.equal(statusOf('Sal Roy', '2026-12-28', 'tables'), 'confirmed');
   assert.equal(held, 0);
 }
 
@@ -1499,7 +1522,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.deepEqual(on(1, 'tables'), ['Lena', 'Rex'], 'Barriers and Setup are both table/barrier setup');
   assert.deepEqual(on(1, 'lockup'), ['Rex'], 'Close is the lock-up');
   assert.deepEqual(on(1, 'close'), ['Ray', 'Pia'], 'two names under Takedown both put tables away');
-  assert.deepEqual([on(3, 'money'), on(3, 'money-backup')], [['Ron'], ['Sue']], 'two names at the Front Desk are the primary and the backup');
+  assert.deepEqual([on(3, 'money'), on(3, 'tables')], [['Ron'], ['Sue', 'Lena', 'Bo']], 'two names at the Front Desk: the money collector, and a second who sets up');
   assert.deepEqual(on(6, 'tables'), ['Bo'], 'the same person under Barriers and Setup is one spot');
   assert.deepEqual(on(5, 'tables'), [], 'an empty cell adds nobody');
   // The opener may also set up (alsoWith), and lock up the same night (a closing position).
@@ -1614,15 +1637,14 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.match(shared, /\*Opening, 7:00 PM\*\n• Nobody yet\n\n\*Closing, 10:00 PM\*\n• Nobody yet\n\nCan you help\? https:\/\/concordtabletennisclub\.com\/ → Volunteer signups$/);
   {
     // Confirmed names only, by position, first names as the calendar shows them; a waiting pick is left out.
-    const night = { day: 'Friday, December 4, 2026', time: '7:00 PM to 10:00 PM', start: '19:00', end: '22:00', status: 'covered', missing: [], note: '',
-      slots: { desk: [{ name: 'Ann' }], 'desk-backup': [], money: [{ name: 'Bo' }], 'money-backup': [{ name: 'Cy', pending: true }], tables: [{ name: 'Ann' }, { name: 'Di K.' }], lockup: [{ name: 'Ed', finalize: true }], close: [{ name: 'Flo' }] } };
+    const night = { day: 'Friday, December 4, 2026', time: '7:00 PM to 10:00 PM', start: '19:00', end: '22:00', status: 'full', missing: [], note: '',
+      slots: { desk: [{ name: 'Ann' }], money: [{ name: 'Bo' }], tables: [{ name: 'Ann' }, { name: 'Di K.' }, { name: 'Cy', pending: true }], lockup: [{ name: 'Ed', finalize: true }], close: [{ name: 'Flo' }] } };
     assert.equal(dom.window.shareText(night), [
       '🏓 *CTTC volunteers: Friday, December 4, 2026*', '7:00 PM to 10:00 PM', '',
-      '✅ Covered. Thank you all! A backup or extra spot is still open.', '',
+      '★ Fully staffed. Thank you all!', '',
       '*Opening, 7:00 PM*', '• Desk organizer: Ann', '• Money collector (Front Desk): Bo', '• Table/barrier setup: Ann, Di K.', '',
       '*Closing, 10:00 PM*', '• Lock-up: Ed', '• Put tables and barriers away: Flo', '',
       'Sign up for another night: https://concordtabletennisclub.com/ → Volunteer signups'].join('\n'));
-    assert.match(dom.window.shareText(Object.assign({}, night, { status: 'full' })), /\n★ Fully staffed\. Thank you all!\n/);
   }
   const addFor = label => [...panel.querySelectorAll('button.add')].find(button => button.getAttribute('aria-label').startsWith('Add me as ' + label + ' on'));
   addFor('Desk organizer').click();
@@ -1662,7 +1684,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.equal(document.getElementById('bar').hidden, true);
   // A pick the server refuses is marked with its reason.
   cellFor('2026-12-02').click();
-  [...document.getElementById('night').querySelectorAll('button.add')].find(button => /Add me as Money collector backup/.test(button.getAttribute('aria-label'))).click();
+  [...document.getElementById('night').querySelectorAll('button.add')].find(button => /Add me as Money collector \(Front Desk\) on/.test(button.getAttribute('aria-label'))).click();
   search.value = '';
   const ivy = [...document.querySelectorAll('#picks form')][0];
   ivy.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
@@ -1708,7 +1730,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   delete properties.SIGNUP_MODE;
 
   // My nights, opened from the link in an email: every night ticked; untick one and Save.
-  assert.equal(signUp('Sage Hill', [['2026-12-21', 'desk-backup'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']]).ok, true);
+  assert.equal(signUp('Sage Hill', [['2026-12-21', 'tables'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']]).ok, true);
   const sage = /\?mine=([0-9A-F]{20})/.exec(mailTo('sage.hill@example.com').at(-1).body)[1];
   ({ dom, document } = open({ mine: sage }));
   const mine = document.getElementById('mine');
@@ -1727,7 +1749,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.equal(saveButton().textContent, 'Save: confirm 2, release 2');
   saveButton().click();
   assert.match(mine.querySelector('.form-status').textContent, /^Saved\. Confirmed 2 nights\. Released 2 nights\./);
-  assert.deepEqual([['2026-12-21', 'desk-backup'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']].map(([date, position]) => statusOf('Sage Hill', date, position)),
+  assert.deepEqual([['2026-12-21', 'tables'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']].map(([date, position]) => statusOf('Sage Hill', date, position)),
     ['confirmed', 'released', 'released', 'confirmed']);
   assert.equal(saveButton().textContent, 'Nothing to save', 'the page shows the nights as they are now');
   box('Wednesday, December 30, 2026').click();

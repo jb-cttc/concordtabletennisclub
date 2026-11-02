@@ -81,7 +81,7 @@ var CLOSURES_CACHE_SECONDS = 3600;
 var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open on holiday' };
 
 // Every slot a night has, as the club's open/close list names them. 'open' positions are the opening crew: one person may
-// hold only one of them per night (a backup counts), except the pairs in alsoWith (the desk organizer may also help set up).
+// hold only one of them per night, except the pairs in alsoWith (the desk organizer may also help set up).
 // 'close' positions are the closing crew: the lock-up keyholder and the people putting tables away; one each per person,
 // and the same person may open and close. training lists the Training tab columns that must say yes before someone may
 // take the position (canTake_); does is the line the page shows under it (the page swaps in the night's own time where it
@@ -89,13 +89,8 @@ var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open o
 var POSITIONS = [
   { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, max: 1, training: ['keys', 'open'], alsoWith: ['tables'],
     does: 'The opener and round robin organizer: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, turns on the lights and AC, and runs the round robin desk on round robin nights.' },
-  // Backups need no training: a backup spot is how someone learns alongside the trained primary.
-  { id: 'desk-backup', label: 'Desk organizer backup', part: 'open', min: 0, max: 1, training: [], backupOf: 'desk',
-    does: 'Works alongside the desk organizer, learning the role, and helps out if they cannot make it. No training needed.' },
   { id: 'money', label: 'Money collector (Front Desk)', part: 'open', min: 1, max: 1, training: ['front_desk'],
     does: 'Prints the Revenue Sheet, takes out the Clover device and the Zelle/Venmo QR codes, records everyone entering on the Revenue Sheet and manages the payments.' },
-  { id: 'money-backup', label: 'Money collector backup', part: 'open', min: 0, max: 1, training: [], backupOf: 'money',
-    does: 'Works alongside the money collector at the Front Desk, learning the role, and helps out if they cannot make it. No training needed.' },
   { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, max: 4, training: [], alsoWith: ['desk'],
     does: 'Arrives by 6:45 PM (2:45 PM on Saturdays): brings out the barriers, tables and nets, and knows the gym layout.' },
   { id: 'lockup', label: 'Lock-up', part: 'close', min: 1, max: 1, training: ['keys'],
@@ -103,6 +98,11 @@ var POSITIONS = [
   { id: 'close', label: 'Put tables and barriers away', part: 'close', min: 1, max: 5, training: [],
     does: 'Stays until 10:00 PM (6:00 PM on Saturdays) or later: folds up the tables, returns the nets to the basket and all equipment to the storage room. One closer may also finalize the desk.' }
 ];
+
+// The desk organizer and money collector backups were retired in November 2026. A sign-up still saved under one is read as
+// Table/barrier setup that night (the general opening help; the one opening position its holder has that night), and the
+// hourly sweep writes the change to the Sheet (retireBackups_).
+var RETIRED_POSITIONS = { 'desk-backup': 'tables', 'money-backup': 'tables' };
 
 // Two positions the same person may not hold on the same night: the same part (opening or closing), unless alsoWith pairs them.
 function clash_(a, b) {
@@ -468,8 +468,29 @@ function rows_(name) {
   return values.slice(1).map(function (row, index) {
     var entry = { _row: index + 2 };
     headers.forEach(function (key, column) { entry[key] = row[column] == null ? '' : String(row[column]); });
+    // A retired backup sign-up reads as the position that replaced it; _retired keeps what the Sheet still says.
+    if (name === 'Signups' && Object.prototype.hasOwnProperty.call(RETIRED_POSITIONS, entry.position)) {
+      entry._retired = entry.position;
+      entry.position = RETIRED_POSITIONS[entry.position];
+    }
     return entry;
   }).filter(function (entry) { return entry[headers[0]]; });
+}
+
+// Call while holding the lock. Writes the new position of every sign-up still saved under a retired backup (rows_ already
+// reads them that way), once: afterwards there are none left and this does nothing. Nobody is emailed; the person's next
+// reminder or My nights page names the new position.
+function retireBackups_(signups) {
+  var moved = 0;
+  signups.forEach(function (entry) {
+    if (!entry._retired) return;
+    entry.updated_at = nowIso_();
+    save_('Signups', entry);
+    delete entry._retired;
+    moved += 1;
+  });
+  if (moved) logRow_('step', 'step:backups-retired', '-', '-', moved + ' sign-up' + (moved === 1 ? '' : 's') + ' moved to ' + position_('tables').label);
+  return moved;
 }
 
 // Every value is written as plain text, so the Sheet never turns a date, a number or a name into something else.
@@ -770,7 +791,7 @@ function holds_(entry, now) {
 }
 
 // The one place that decides who may take what. person: {playerId, training: {keys, open, front_desk}}. Returns '' when
-// allowed, else the reason. Table/barrier setup, putting tables away and both backups are open to anyone on the player list
+// allowed, else the reason. Table/barrier setup and putting tables away are open to anyone on the player list
 // (and, in hybrid mode, to anyone). Desk organizer needs key access and opening training, Money collector Front Desk training
 // and Lock-up key access, from the Training tab; in hybrid mode that is also how the club approves someone not on the list.
 function canTake_(person, positionId) {
@@ -809,7 +830,7 @@ function pickProblem_(pick, person, night, others) {
   if (others.filter(function (entry) { return entry.position === pick.position; }).length >= spec.max) return spec.label + ' is already taken that night.';
   var mine = others.filter(function (entry) { return personKey_(entry) === person.key; });
   if (mine.some(function (entry) { return clash_(spec, position_(entry.position)); })) {
-    return spec.part === 'open' ? 'You already have an opening position that night. Each person takes one opening position per night (backups count; the desk organizer may also help set up).' :
+    return spec.part === 'open' ? 'You already have an opening position that night. Each person takes one opening position per night (the desk organizer may also help set up).' :
       'You are already closing that night.';
   }
   if (pick.finalize) {
@@ -820,15 +841,13 @@ function pickProblem_(pick, person, night, others) {
 }
 
 // Night status from CONFIRMED sign-ups only: 'needs' while any minimum is missing (a desk organizer, a money collector, one
-// table setup, two closers), 'full' once every minimum and both backups are confirmed, else 'covered'. Extra table setup and
-// closing spots stay open and optional even on a full night.
+// table setup, a lock-up, one closer), else 'full'. Extra table setup and closing spots stay open and optional even on a
+// full night.
 function statusOf_(entries, now) {
   var count = {};
   POSITIONS.forEach(function (spec) { count[spec.id] = 0; });
   entries.forEach(function (entry) { if (signupStatus_(entry, now) === 'confirmed' && count[entry.position] !== undefined) count[entry.position] += 1; });
-  var minimums = POSITIONS.every(function (spec) { return count[spec.id] >= spec.min; });
-  if (!minimums) return 'needs';
-  return count['desk-backup'] >= 1 && count['money-backup'] >= 1 ? 'full' : 'covered';
+  return POSITIONS.every(function (spec) { return count[spec.id] >= spec.min; }) ? 'full' : 'needs';
 }
 
 // What a night still needs, in words, counting confirmed sign-ups only: "a money collector", "2 closers".
@@ -1229,6 +1248,8 @@ var SEED_TAB = 'Open/Close';
 // lock-up keyholder and Takedown is putting tables away. RR Admin is the desk organizer on round robin nights (the same person
 // as Open), so it is read but adds nothing.
 var SEED_ROSTER = { 'open': 'desk', 'front desk': 'money', 'barriers': 'tables', 'setup': 'tables', 'close': 'lockup', 'takedown': 'close', 'rr admin': '' };
+// The position a second name in a one-person roster column takes.
+var SEED_SECOND = { desk: 'tables', money: 'tables' };
 var SEED_TRAINING = { 'keys access': 'keys', 'open': 'open', 'front desk': 'front_desk' };
 var SEED_CANDIDATES = 5;
 
@@ -1550,11 +1571,13 @@ function parseSeed_(values) {
         var position = SEED_ROSTER[label];
         if (!position) return;
         var names = splitNames_(row[column]);
-        // Two names in a one-person position ("Ron / Susan" at the Front Desk) are the primary and the backup, and a third has
-        // no slot; in a position for several people ("Ryan/Peggy" for takedown) every name takes a spot.
-        if (position_(position + '-backup')) names = names.slice(0, 2);
+        // Two names in Open or Front Desk ("Ron / Susan") are the person in that position and a second who helps with
+        // table/barrier setup (these held the retired backup spots), and a third has no slot; in a position for several
+        // people ("Ryan/Peggy" for takedown) every name takes a spot.
+        var second = SEED_SECOND[position];
+        if (second) names = names.slice(0, 2);
         names.forEach(function (name, index) {
-          var id = index && position_(position + '-backup') ? position + '-backup' : position;
+          var id = index && second ? second : position;
           var key = weekday + ':' + id + ':' + seedKeyOf_(name);
           if (seen[key]) return; // the same person under Barriers and Setup is one table/barrier setup spot
           seen[key] = true;
@@ -2186,11 +2209,9 @@ function clubFix_(batchId, keep) {
   return result;
 }
 
-// Applies a YES or NO to a "drop this shift" email. A YES opens the slot again, tells the person and the club, and if a
-// primary desk organizer or money collector dropped, gives that night's confirmed backup a heads-up.
+// Applies a YES or NO to a "drop this shift" email. A YES opens the slot again and tells the person and the club.
 function dropAnswer_(signupId, answer) {
   var entry = null;
-  var backup = null;
   var applied = false;
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -2202,23 +2223,17 @@ function dropAnswer_(signupId, answer) {
     applied = true;
     entry.drop_at = '';
     entry.updated_at = nowIso_();
-    if (answer === 'yes') {
-      entry.status = 'dropped';
-      backup = signups.filter(function (each) {
-        return each.status === 'confirmed' && each.date === entry.date && each.position === entry.position + '-backup';
-      })[0] || null;
-    }
+    if (answer === 'yes') entry.status = 'dropped';
     save_('Signups', entry);
     if (answer === 'yes') logRow_('step', 'step:dropped', entry.batch_id, '-', entry.position + ' on ' + entry.date);
     var emails = rows_('Emails');
     var contact = contactOf_(entry, emails);
-    var backupContact = backup ? contactOf_(backup, emails) : '';
   } finally {
     lock.releaseLock();
   }
   logReply_('email', 'drop', entry ? entry.batch_id : signupId, answer, applied, entry ? entry.status : '');
   if (!applied) return;
-  if (answer === 'yes') return tellDropped_(contact, [{ entry: entry, backup: backup, backupContact: backupContact }]);
+  if (answer === 'yes') return tellDropped_(contact, [{ entry: entry }]);
   try {
     if (mailAvailable_()) {
       sendMail_(contact, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + dayLabel_(entry.date) + '. Thank you!'], ['drop-kept', entry.signup_id]);
@@ -2229,8 +2244,7 @@ function dropAnswer_(signupId, answer) {
 }
 
 // Call without the lock. After confirmed shifts were dropped (by email or on the My nights page): one email to the person and
-// one to the club listing them, and a heads-up to each confirmed backup whose primary dropped. drops: [{ entry, backup,
-// backupContact }], all one person's.
+// one to the club listing them. drops: [{ entry }], all one person's.
 function tellDropped_(contact, drops) {
   var first = drops[0].entry;
   var attempt = function (what, send) {
@@ -2241,11 +2255,6 @@ function tellDropped_(contact, drops) {
     }
   };
   var many = drops.length > 1;
-  var backupNote = function (drop) {
-    var spec = position_(drop.entry.position);
-    return drop.backup ? 'The backup (' + drop.backup.name + ') has been sent a heads-up.' : spec.backupOf ? '' :
-      position_(drop.entry.position + '-backup') ? 'There is no confirmed backup for this position that night.' : '';
-  };
   attempt('confirm a dropped shift', function () {
     sendMail_(contact, many ? 'Shifts dropped: ' + drops.length + ' CTTC shifts' : 'Shift dropped: ' + shortDay_(first.date), ['Hello ' + firstName_(first.name) + ',',
       many ? 'Done: you are off these shifts. The spots are open for someone else and the club has been told.' :
@@ -2256,18 +2265,9 @@ function tellDropped_(contact, drops) {
   attempt('tell the club about a dropped shift', function () {
     sendMail_(adminEmail_(), many ? 'Staffing: ' + first.name + ' dropped ' + drops.length + ' shifts' : 'Staffing: ' + first.name + ' dropped ' + position_(first.position).label + ' on ' + shortDay_(first.date),
       many ? [first.name + ' dropped these shifts. The spots are open on the sign-up calendar again.', { rows: drops.map(function (drop) {
-        return [shortDay_(drop.entry.date), shiftLabel_(drop.entry) + (backupNote(drop) ? '. ' + backupNote(drop) : '')];
-      }) }] : [first.name + ' dropped ' + shiftLabel_(first) + ' on ' + dayLabel_(first.date) + '. The spot is open on the sign-up calendar again.' +
-        (backupNote(drops[0]) ? ' ' + backupNote(drops[0]) : '')], ['drop-club', first.signup_id], CLUB_FOOTER);
-  });
-  drops.forEach(function (drop) {
-    if (!drop.backup) return;
-    var entry = drop.entry;
-    attempt('give a backup a heads-up', function () {
-      sendMail_(drop.backupContact, 'Heads-up: you may be needed as ' + position_(entry.position).label + ' on ' + shortDay_(entry.date), ['Hello ' + firstName_(drop.backup.name) + ',',
-        { callout: 'The ' + position_(entry.position).label.toLowerCase() + ' for **' + dayLabel_(entry.date) + '** has dropped out. As the backup, **please plan to step in** unless someone else signs up for it.', tone: 'action' },
-        'The calendar at ' + PAGE_URL + ' shows who is on that night. If you cannot make it either, please tell the club.'], ['backup-heads-up', drop.backup.signup_id]);
-    });
+        return [shortDay_(drop.entry.date), shiftLabel_(drop.entry)];
+      }) }] : [first.name + ' dropped ' + shiftLabel_(first) + ' on ' + dayLabel_(first.date) + '. The spot is open on the sign-up calendar again.'],
+      ['drop-club', first.signup_id], CLUB_FOOTER);
   });
 }
 
@@ -2341,7 +2341,7 @@ function cleanIds_(list) {
 }
 
 // Saves the My nights page: keep and release are shift ids. A kept shift waiting for a YES is confirmed and a released one
-// released; a released confirmed shift is dropped, and the person, the club and that night's backup are told, as for an
+// released; a released confirmed shift is dropped, and the person and the club are told, as for an
 // emailed drop. Only the person's own upcoming pending or confirmed shifts change, so a page left open is safe: anything
 // past or changed since is skipped. A sign-up with nothing left waiting is answered, so its email lists what was confirmed
 // and what was released.
@@ -2376,8 +2376,7 @@ function saveMyNights(code, choice) {
         if (kept) return;
         entry.status = 'dropped';
         entry.drop_at = '';
-        var backup = signups.filter(function (each) { return each.status === 'confirmed' && each.date === entry.date && each.position === entry.position + '-backup'; })[0] || null;
-        drops.push({ entry: entry, backup: backup, backupContact: backup ? contactOf_(backup, emails) : '' });
+        drops.push({ entry: entry });
         done.dropped.push(entry.date);
         logRow_('step', 'step:dropped', entry.batch_id, '-', entry.position + ' on ' + entry.date + ', from My nights');
       } else {
@@ -2418,7 +2417,7 @@ function saveMyNights(code, choice) {
   var parts = [];
   if (done.confirmed.length) parts.push('Confirmed ' + nights(done.confirmed) + '.');
   if (done.released.length) parts.push('Released ' + nights(done.released) + '.');
-  if (done.dropped.length) parts.push('Dropped ' + nights(done.dropped) + ': the club' + (drops.some(function (drop) { return drop.backup; }) ? ' and the backup were' : ' was') + ' told.');
+  if (done.dropped.length) parts.push('Dropped ' + nights(done.dropped) + ': the club was told.');
   if (done.skipped) parts.push(done.skipped + ' shift' + (done.skipped === 1 ? ' had' : 's had') + ' already changed, so ' + (done.skipped === 1 ? 'it was' : 'they were') + ' left as is.');
   view.message = parts.length ? 'Saved. ' + parts.join(' ') + (done.answered || drops.length ? ' We emailed you the details.' : '') : 'Nothing changed.';
   return view;
@@ -3278,6 +3277,7 @@ function sweep_() {
     tidyEmails_(rows_('Emails'));
     settleRequests_(now);
     var signups = rows_('Signups');
+    retireBackups_(signups);
     signups.forEach(function (entry) {
       var status = signupStatus_(entry, now);
       if (status === entry.status) return;
@@ -3419,8 +3419,8 @@ function shiftLabel_(entry) {
 
 function shiftRows_(entries) { return { rows: entries.map(function (entry) { return [shortDay_(entry.date), shiftLabel_(entry)]; }) }; }
 
-// Calendar letters: a filled square is the position itself, an outlined one its backup.
-var CAL_CODES = { desk: 'D', 'desk-backup': 'D', money: 'M', 'money-backup': 'M', tables: 'S', lockup: 'L', close: 'T' };
+// Calendar letters, one per position held that night.
+var CAL_CODES = { desk: 'D', money: 'M', tables: 'S', lockup: 'L', close: 'T' };
 
 // Closed nights (data/closures.json and the Closures tab) on the same weekdays, between the first and last of these shifts:
 // shown on the email's calendar so a gap is never a surprise.
@@ -3507,7 +3507,7 @@ function batchMail_(batch, mine, now) {
       left.length ? { heading: 'Left out, as you asked' } : null, left.length ? shiftRows_(left) : null,
       { heading: 'Where' }, LOCATION,
       { heading: 'Can\'t make a night after all?' },
-      'Untick it on your nights page and tap Save. The rest stay as they are, and the club (and any backup) is told: ' + mineLink_(batch.email)] };
+      'Untick it on your nights page and tap Save. The rest stay as they are, and the club is told: ' + mineLink_(batch.email)] };
   }
   if (batch.status === 'released') {
     // Tagged, so a change of mind replied to this email ("yes except Oct 19") is read too (changeOfMind_).
@@ -3637,10 +3637,9 @@ function calendarHtml_(entries, closed) {
       var date = month + '-' + ('0' + day).slice(-2);
       var mine = byDate[date];
       if (mine) {
-        var backup = mine.every(function (id) { return /-backup$/.test(id); });
         var letters = mine.map(function (id) { return CAL_CODES[id]; }).join('');
         cells.push('<td style="' + cell + 'padding:2px;"><div style="border-radius:6px;line-height:1.1;padding:3px 0;' +
-          (backup ? 'border:2px solid #1f6b3a;color:#1f6b3a;background:#fff;' : 'background:#1f6b3a;color:#fff;border:2px solid #1f6b3a;') +
+          'background:#1f6b3a;color:#fff;border:2px solid #1f6b3a;' +
           '"><strong>' + day + '</strong><br><span style="font-size:10px;">' + letters + '</span></div></td>');
       } else if (shut[date]) {
         cells.push('<td style="' + cell + 'color:#a3332a;"><span style="text-decoration:line-through;">' + day + '</span><br><span style="font-size:10px;">closed</span></td>');
@@ -3669,9 +3668,8 @@ function legend_(entries) {
   entries.forEach(function (entry) { used[entry.position] = true; });
   var parts = [];
   [['D', 'desk', 'Desk organizer'], ['M', 'money', 'Money collector'], ['S', 'tables', 'Table/barrier setup'], ['L', 'lockup', 'Lock-up'], ['T', 'close', 'Put tables away']].forEach(function (item) {
-    if (used[item[1]] || used[item[1] + '-backup']) parts.push('<strong>' + item[0] + '</strong> ' + item[2]);
+    if (used[item[1]]) parts.push('<strong>' + item[0] + '</strong> ' + item[2]);
   });
-  if (entries.some(function (entry) { return /-backup$/.test(entry.position); })) parts.push('outlined = backup');
   return parts.join(' \u00b7 ');
 }
 

@@ -112,7 +112,6 @@
 <p class="hint">Tap a club night to see its open spots, add as many as you like, then send once and reply YES to our email.</p>
 <ul class="legend" aria-label="What the colors and marks mean">
   <li><span class="key needs" aria-hidden="true">!</span>Needs people</li>
-  <li><span class="key covered" aria-hidden="true">&#10003;</span>Covered (backups or extra spots open)</li>
   <li><span class="key full" aria-hidden="true">&#9733;</span>Fully staffed</li>
   <li><span class="key closed" aria-hidden="true">&#215;</span>Closed</li>
   <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span>Your picks</li>
@@ -124,6 +123,8 @@
 <section id="picks" class="panel" hidden aria-labelledby="picksTitle"></section>
 <script>
   var INITIAL = null;
+  // 'covered' (minimum crew, a backup still open) went with the backups in November 2026; it stays readable here only for the
+  // short time the site's page can meet an app that still sends it.
   var MARKS = { needs: '!', covered: '✓', full: '★', closed: '×', past: '' };
   var WORDS = { needs: 'Needs people', covered: 'Covered', full: 'Fully staffed', closed: 'Closed', past: 'Past' };
   var board = null;
@@ -298,13 +299,12 @@
     if (night.note) panel.appendChild(el('p', { 'class': 'night-note', text: '\u2139 ' + night.note }));
     panel.appendChild(shareLink(night));
     if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
-    else if (night.status === 'covered') panel.appendChild(el('p', { 'class': 'muted', text: 'The minimum crew is confirmed. A backup or extra spot is still open.' }));
     if (!night.bookable) panel.appendChild(el('p', { 'class': 'why', text: 'Sign-ups for this night have closed (they close an hour before the club opens).' }));
     var opening = el('div', {}, [el('h3', { text: 'Opening, ' + time12(night.start) })]);
     var closing = el('div', {}, [el('h3', { text: 'Closing, ' + time12(night.end) })]);
     board.positions.forEach(function (spec) { (spec.part === 'close' ? closing : opening).appendChild(positionRow(night, spec)); });
     panel.appendChild(el('div', { 'class': 'night-cols' }, [opening, closing]));
-    panel.appendChild(el('p', { 'class': 'muted', text: 'One opening position per person per night (backups count; the desk organizer may also help set up). You may also close the same night.' }));
+    panel.appendChild(el('p', { 'class': 'muted', text: 'One opening position per person per night (the desk organizer may also help set up). You may also close the same night.' }));
     area.appendChild(panel);
   }
   function positionRow(night, spec) {
@@ -350,7 +350,7 @@
     var lines = ['🏓 *CTTC volunteers: ' + night.day + '*', night.time];
     if (night.note) lines.push('ℹ️ ' + night.note);
     if (night.missing.length) lines.push('', '⚠️ *Still needed:* ' + night.missing.join(', '));
-    else lines.push('', night.status === 'full' ? '★ Fully staffed. Thank you all!' : '✅ Covered. Thank you all! A backup or extra spot is still open.');
+    else lines.push('', '★ Fully staffed. Thank you all!');
     ['open', 'close'].forEach(function (part) {
       var rows = board.positions.filter(function (spec) { return spec.part === part && names(spec).length; })
         .map(function (spec) { return '• ' + spec.label + ': ' + names(spec).join(', '); });

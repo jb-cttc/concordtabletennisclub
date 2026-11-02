@@ -17,24 +17,22 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   picked until an hour before opening.
 - Each night has, opening: **Desk organizer** (the opener and round robin
   organizer: first in at 6:40 PM, key lockbox, doors, side door, storage room,
-  lights and AC, runs the round robin desk) plus a backup; **Money collector
-  (Front Desk)** (Revenue Sheet, Clover device, Zelle/Venmo QR codes, records
-  everyone entering, manages payments) plus a backup; **Table/barrier setup**
-  (1 to 4: barriers, tables and nets, arrive by 6:45 PM). Closing: **Lock-up**
+  lights and AC, runs the round robin desk); **Money collector (Front Desk)**
+  (Revenue Sheet, Clover device, Zelle/Venmo QR codes, records everyone
+  entering, manages payments); **Table/barrier setup** (1 to 4: barriers,
+  tables and nets, arrive by 6:45 PM). Closing: **Lock-up**
   (1, needs key access: last out, checks everyone is out and every door is
   locked, lights and AC off) and **Put tables and barriers away** (1 to 5).
   One closer may tick "I'll also do the desk's Finalize step".
-- One person takes only **one opening position per night** (a backup counts),
-  except that the **desk organizer may also help with table/barrier setup**.
+- One person takes only **one opening position per night**, except that the **desk organizer may also help with table/barrier setup**.
   One closing position per person. The same person may open and close.
 - **Night status**, from *confirmed* sign-ups only:
   - **Needs people** (`!`): no confirmed desk organizer, money collector,
     table/barrier setup, lock-up or anyone putting tables away.
-  - **Covered** (`✓`): every minimum met, but a backup is still open.
-  - **Fully staffed** (`★`): every minimum and **both backups** confirmed.
-    Extra table setup and closing spots stay optional and are still shown as
-    open spots. (We chose this over "every one of the 14 slots" because 4
-    setters and 6 closers would almost never all be filled.)
+  - **Fully staffed** (`★`): every minimum confirmed. Extra table setup and
+    closing spots stay optional and are still shown as open spots. (We chose
+    this over "every one of the 12 slots" because 4 setters and 6 closers
+    would almost never all be filled.)
   - **Closed** (`×`): the gym is closed that night (section 8). A closed
     night asks for no volunteers, is not counted and gets no reminders.
 - The page shows **first names only** ("Sam", or "Sam K." when two different
@@ -45,6 +43,16 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   from the player's **email on file**; the page never sees that address except
   masked (`s•••@gmail.com`). A player with no email on file asks the club to
   approve one, once (section 5).
+
+**Backups retired (November 2026).** The *Desk organizer backup* and *Money
+collector backup* spots are gone, and with them the *Covered* (`✓`) status and
+the backup heads-up on a drop. A sign-up still saved under either backup is
+read as **Table/barrier setup** that night (the general opening help; it was
+already that person's one opening position, so it never clashes), keeps its
+status, and the hourly sweep writes the change to the Sheet once and logs
+`step:backups-retired` with the count (`RETIRED_POSITIONS`, `retireBackups_`).
+Nobody is emailed about it; their reminder and My nights page name the new
+position.
 
 **Share to WhatsApp.** Each open night's panel has a *Share to WhatsApp*
 button. It opens WhatsApp with a message already typed: the night, what is
@@ -154,7 +162,7 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | `Batches` | app | One row per submission: the one email that asks YES or NO about all its picks. `emailed` / `texted` = the status last sent. |
 | `Emails` | owner, imports, app | The one approved email (and mobile) on file per player, plus requests waiting for the club (`status` `pending`) and old rows (`replaced`, `declined`). |
 | `People` | app | Everyone who signed up, by email; the mobile on file and text opt-in (`texts`). |
-| `Training` | owner and the seed import | Who may take Desk organizer (`keys` and `open` = yes), Money collector (`front_desk` = yes) and Lock-up (`keys` = yes). Backups need no training: a backup spot is where someone learns alongside the primary. |
+| `Training` | owner and the seed import | Who may take Desk organizer (`keys` and `open` = yes), Money collector (`front_desk` = yes) and Lock-up (`keys` = yes). Table setup and putting tables away need no training. |
 | `Closures` | owner | `date` (`2026-11-13` or `11/13/2026`) and a short public `note`. |
 | `SeedLinks`, `SeedReport` | owner / import | The seed import's fix-up loop (section 6). |
 | `MemberEmailReport` | import | What `importMemberEmails` added, kept and could not match (full names; private). |
@@ -168,7 +176,7 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | `confirmed` | YES received. *You are on the CTTC staff schedule*. Reminder the day before (from 9 AM). | Nobody | Name |
 | `released` | NO received, or the night was left out of a YES (typed "YES except", or unticked on My nights). | Nobody | Open again |
 | `expired` | No YES by the deadline: 24 hours after submitting, but never later than **1 hour before the earliest picked night**. The open/close list's first wave (section 6) is held a flat **72 hours** instead. *…expired*. | Nobody | Open again (at once, even before the sweep writes it) |
-| `dropped` | The volunteer unticked a confirmed night on **My nights** and tapped Save, or pressed "This is me: drop this shift" on a confirmed slot and replied YES to *Drop your CTTC shift? [CTTC shift …]* (open 48 hours, sent at most once per 10 minutes). The volunteer and the club are emailed (one email listing every drop of one Save), and if a primary desk organizer or money collector dropped, that night's confirmed backup gets a heads-up. | Nobody | Open again |
+| `dropped` | The volunteer unticked a confirmed night on **My nights** and tapped Save, or pressed "This is me: drop this shift" on a confirmed slot and replied YES to *Drop your CTTC shift? [CTTC shift …]* (open 48 hours, sent at most once per 10 minutes). The volunteer and the club are emailed (one email listing every drop of one Save). | Nobody | Open again |
 
 **Some nights but not all.** Someone signed up for many nights (every
 Wednesday, say, or a whole roster from the seed import) can leave out just the
@@ -264,7 +272,7 @@ already answers STOP). Drops are by email only.
   `replaced` (the hourly sweep tidies rows the owner typed). Imports never
   replace a row the owner typed; a SeedLinks fix replaces an earlier import;
   otherwise the first email found stays.
-- Drops, reminders, backup heads-ups and closure notices go to the email on
+- Drops, reminders and closure notices go to the email on
   file **now**, so changing it later moves them to the new address.
 
 **No email on file.** The page says "We don't have an email for you yet. Enter
@@ -332,7 +340,7 @@ Run **`importSeedSheet`** from the editor (after `setup`). It:
    Desk organizer, **Front Desk** Money collector, **Barriers** and **Setup**
    Table/barrier setup, **Close** Lock-up, **Takedown** Put tables and barriers
    away; **RR Admin** is read but adds nothing (it is the desk organizer). In a
-   one-person position a second name is the backup; in Setup or Takedown every
+   Open or Front Desk a second name sets up tables; in Setup or Takedown every
    name takes a spot ("Ryan/Peggy" is two people). Each is held on every
    matching weekday in the calendar
    (not closures, not past), checked by the normal rules (an untrained person
@@ -350,11 +358,11 @@ pick twice (`seed_key`), so only newly resolved people are emailed. The
 return value and execution log hold counts and the sheet's own first names
 (plus last initial) only.
 
-Two names for the same weekday and position (for example "Ron" and "Susan" on
-separate lines under Front Desk) are the primary and the backup: the first name
-gets Money collector, the second Money collector backup (Desk organizer and
-its backup under Open). A third name has no slot and is ignored. Each still
-needs the training for that position.
+Two names for the same weekday under Open or Front Desk (for example "Ron" and
+"Susan" on separate lines under Front Desk): the first name gets that position
+(Money collector here, Desk organizer under Open), the second Table/barrier
+setup (these were the backup spots until November 2026). A third name has no
+slot and is ignored. Desk organizer and Money collector still need training.
 
 ## 7. The membership list's emails (`importMemberEmails`)
 
@@ -418,7 +426,7 @@ All of this lives in `canTake_`; tests cover both modes.
 | A My nights link says no upcoming nights | Their nights are past or released, or the email on file changed since (the link is made from the address; newer emails carry the new link). |
 | They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The reply check has no timer of its own: the desk's mail reader wakes it when a text or an email reply comes in (within about 5 minutes by day), and the hourly `sweep` (Triggers page) runs it too. If the desk log shows `app_wake_failed`, replies wait for the sweep. |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |
-| Desk, Money or Lock-up is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money, `keys` for Lock-up. Backups are never greyed out. |
+| Desk, Money or Lock-up is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money, `keys` for Lock-up. Table setup and putting tables away are never greyed out. |
 | Someone says the confirmation went to an old address | Their `Emails` row: type the new address as a new `approved` row (`source` owner); the old one becomes `replaced`. |
 | A new email request is stuck | `Emails` row `pending`: answer the *Approve an email* message from `ADMIN_EMAIL`, or set `status` to `approved` / `declined`. After 7 days it is declined. |
 | A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date) or add it to `Closures`. Changes show within an hour. |
