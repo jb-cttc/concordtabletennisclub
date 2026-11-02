@@ -470,12 +470,22 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.equal(signUp('Ada Park', [[W, 'lockup']]).ok, true, 'the opener may also lock up');
   assert.equal(night(W).status, 'needs', 'a pending lock-up does not count yet');
   reply('ada.park@example.com', 'YES');
-  assert.equal(night(W).status, 'full', 'fully staffed: every minimum met (there are no backups to wait for)');
+  assert.equal(night(W).status, 'covered', 'the minimum crew: every required role filled');
+  assert.deepEqual(night(W).missing, []);
+  assert.deepEqual(night(W).wanted, ['1 more for table/barrier setup', '1 more to put tables away'], 'what makes it fully staffed');
   assert.deepEqual(board().positions.map(spec => spec.id), ['desk', 'money', 'tables', 'lockup', 'close'], 'the desk organizer and money collector backups are gone');
-  ['Hal Reed', 'Jo Banks', 'Kai Ford'].forEach(name => signAndConfirm(name, [[W, 'tables']]));
+  signAndConfirm('Hal Reed', [[W, 'tables']]);
+  assert.equal(night(W).status, 'covered', 'two on setup, still one putting tables away');
+  assert.deepEqual(night(W).wanted, ['1 more to put tables away']);
+  assert.equal(signUp('Sam Kim', [[W, 'close']]).ok, true);
+  assert.equal(night(W).status, 'covered', 'a pick waiting for its YES does not count yet');
+  reply('sam.kim@example.com', 'YES');
+  assert.equal(night(W).status, 'full', 'fully staffed: the minimum crew plus 2 on setup and 2 putting tables away');
+  assert.deepEqual(night(W).wanted, [], 'nothing more is asked of a full night');
+  ['Jo Banks', 'Kai Ford'].forEach(name => signAndConfirm(name, [[W, 'tables']]));
   assert.equal(night(W).slots.tables.length, 4);
   assert.equal(signUp('Lu Chen', [[W, 'tables']]).problems[0].reason, 'Table/barrier setup is already taken that night.', 'a fifth table/barrier setup is refused');
-  ['Sam Kim', 'Sam Lee', 'Lu Chen', 'Max Gold'].forEach(name => signAndConfirm(name, [[W, 'close']]));
+  ['Sam Lee', 'Lu Chen', 'Max Gold'].forEach(name => signAndConfirm(name, [[W, 'close']]));
   assert.equal(night(W).slots.close.length, 5);
   assert.equal(signUp('Ivy Wong', [[W, 'close']]).problems[0].reason, 'Put tables and barriers away is already taken that night.', 'a sixth person putting tables away is refused (with lock-up, 6 closers)');
   assert.deepEqual(night(W).missing, []);
@@ -1641,15 +1651,21 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
       slots: { desk: [{ name: 'Ann' }], money: [{ name: 'Bo' }], tables: [{ name: 'Ann' }, { name: 'Di K.' }, { name: 'Cy', pending: true }], lockup: [{ name: 'Ed', finalize: true }], close: [{ name: 'Flo' }] } };
     assert.equal(dom.window.shareText(night), [
       '🏓 *CTTC volunteers: Friday, December 4, 2026*', '7:00 PM to 10:00 PM', '',
-      '★ Fully staffed. Thank you all!', '',
+      '✅ Fully staffed. Thank you all!', '',
       '*Opening, 7:00 PM*', '• Desk organizer: Ann', '• Money collector (Front Desk): Bo', '• Table/barrier setup: Ann, Di K.', '',
       '*Closing, 10:00 PM*', '• Lock-up: Ed', '• Put tables and barriers away: Flo', '',
       'Sign up for another night: https://concordtabletennisclub.com/ → Volunteer signups'].join('\n'));
+    // The minimum crew: says what would make it full, and still asks for help.
+    const minimum = dom.window.shareText(Object.assign({}, night, { status: 'covered', wanted: ['1 more to put tables away'] }));
+    assert.match(minimum, /\n➕ \*Minimum crew is in\.\* To be fully staffed: 1 more to put tables away\n/);
+    assert.match(minimum, /\nCan you help\? https:\/\/concordtabletennisclub\.com\/ → Volunteer signups$/);
   }
   const addFor = label => [...panel.querySelectorAll('button.add')].find(button => button.getAttribute('aria-label').startsWith('Add me as ' + label + ' on'));
   addFor('Desk organizer').click();
   assert.match(document.getElementById('bar').textContent, /My picks: 1/);
   const again = document.getElementById('night');
+  assert.deepEqual([...document.querySelectorAll('.legend li')].map(li => li.textContent.trim()).slice(0, 3),
+    ['!Needs people', '+Minimum crew (more help welcome)', '\u2713Fully staffed'], 'three levels: needs people, minimum crew (+), fully staffed (check)');
   assert.equal([...again.querySelectorAll('button.add')].find(button => /Add me as Money collector \(Front Desk\) on/.test(button.getAttribute('aria-label'))).disabled, true, 'one opening position per night, on the page too');
   assert.match(again.textContent, /The opener and round robin organizer: first in at 6:40 PM, has the key lockbox/, 'each position says what it does, with this night\'s time');
   assert.doesNotMatch(again.textContent, /on Saturdays/);

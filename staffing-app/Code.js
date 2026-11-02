@@ -84,18 +84,19 @@ var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open o
 // hold only one of them per night, except the pairs in alsoWith (the desk organizer may also help set up).
 // 'close' positions are the closing crew: the lock-up keyholder and the people putting tables away; one each per person,
 // and the same person may open and close. training lists the Training tab columns that must say yes before someone may
-// take the position (canTake_); does is the line the page shows under it (the page swaps in the night's own time where it
+// take the position (canTake_); full is how many a night needs there to count as fully staffed (statusOf_; min when not
+// given); does is the line the page shows under it (the page swaps in the night's own time where it
 // says "X PM (Y PM on Saturdays)").
 var POSITIONS = [
   { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, max: 1, training: ['keys', 'open'], alsoWith: ['tables'],
     does: 'The opener and round robin organizer: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, turns on the lights and AC, and runs the round robin desk on round robin nights.' },
   { id: 'money', label: 'Money collector (Front Desk)', part: 'open', min: 1, max: 1, training: ['front_desk'],
     does: 'Prints the Revenue Sheet, takes out the Clover device and the Zelle/Venmo QR codes, records everyone entering on the Revenue Sheet and manages the payments.' },
-  { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, max: 4, training: [], alsoWith: ['desk'],
+  { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, full: 2, max: 4, training: [], alsoWith: ['desk'],
     does: 'Arrives by 6:45 PM (2:45 PM on Saturdays): brings out the barriers, tables and nets, and knows the gym layout.' },
   { id: 'lockup', label: 'Lock-up', part: 'close', min: 1, max: 1, training: ['keys'],
     does: 'Last person out: stays until 10:00 PM (6:00 PM on Saturdays) or later, has the key lockbox, checks everyone is out (restrooms too) and every door is locked, and turns off the lights and AC.' },
-  { id: 'close', label: 'Put tables and barriers away', part: 'close', min: 1, max: 5, training: [],
+  { id: 'close', label: 'Put tables and barriers away', part: 'close', min: 1, full: 2, max: 5, training: [],
     does: 'Stays until 10:00 PM (6:00 PM on Saturdays) or later: folds up the tables, returns the nets to the basket and all equipment to the storage room. One closer may also finalize the desk.' }
 ];
 
@@ -840,14 +841,33 @@ function pickProblem_(pick, person, night, others) {
   return '';
 }
 
-// Night status from CONFIRMED sign-ups only: 'needs' while any minimum is missing (a desk organizer, a money collector, one
-// table setup, a lock-up, one closer), else 'full'. Extra table setup and closing spots stay open and optional even on a
-// full night.
-function statusOf_(entries, now) {
+// How many CONFIRMED sign-ups each position has among entries (one night's).
+function confirmedCount_(entries, now) {
   var count = {};
   POSITIONS.forEach(function (spec) { count[spec.id] = 0; });
   entries.forEach(function (entry) { if (signupStatus_(entry, now) === 'confirmed' && count[entry.position] !== undefined) count[entry.position] += 1; });
-  return POSITIONS.every(function (spec) { return count[spec.id] >= spec.min; }) ? 'full' : 'needs';
+  return count;
+}
+
+// Night status from CONFIRMED sign-ups only: 'needs' while any minimum is missing (a desk organizer, a money collector, one
+// table setup, a lock-up, one closer); 'covered' (the minimum crew) until each position also has its full number (2 on
+// table setup, 2 putting tables away); then 'full'. The spots above that stay open and optional even on a full night.
+function statusOf_(entries, now) {
+  var count = confirmedCount_(entries, now);
+  if (!POSITIONS.every(function (spec) { return count[spec.id] >= spec.min; })) return 'needs';
+  return POSITIONS.every(function (spec) { return count[spec.id] >= (spec.full || spec.min); }) ? 'full' : 'covered';
+}
+
+// What a night with its minimum crew still wants to be fully staffed, in words: "1 more for table/barrier setup".
+function wanted_(entries, now) {
+  var words = { tables: ' more for table/barrier setup', close: ' more to put tables away' };
+  var count = confirmedCount_(entries, now);
+  var list = [];
+  POSITIONS.forEach(function (spec) {
+    var short = (spec.full || spec.min) - Math.max(count[spec.id], spec.min);
+    if (short > 0 && words[spec.id]) list.push(short + words[spec.id]);
+  });
+  return list;
 }
 
 // What a night still needs, in words, counting confirmed sign-ups only: "a money collector", "2 closers".
@@ -892,10 +912,11 @@ function board_(signups, closures, now) {
         slots[entry.position].push(slot);
       });
     }
+    var status = night.closed ? 'closed' : night.past ? 'past' : statusOf_(here, now);
     return {
       date: date, day: dayLabel_(date), short: shortDay_(date), time: time12_(night.start) + ' to ' + time12_(night.end), start: night.start, end: night.end,
-      status: night.closed ? 'closed' : night.past ? 'past' : statusOf_(here, now), bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date),
-      missing: night.closed || night.past ? [] : missing_(here, now), slots: slots
+      status: status, bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date),
+      missing: night.closed || night.past ? [] : missing_(here, now), wanted: status === 'covered' ? wanted_(here, now) : [], slots: slots
     };
   });
   return {

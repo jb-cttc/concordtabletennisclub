@@ -29,10 +29,15 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
 - **Night status**, from *confirmed* sign-ups only:
   - **Needs people** (`!`): no confirmed desk organizer, money collector,
     table/barrier setup, lock-up or anyone putting tables away.
-  - **Fully staffed** (`★`): every minimum confirmed. Extra table setup and
-    closing spots stay optional and are still shown as open spots. (We chose
-    this over "every one of the 12 slots" because 4 setters and 6 closers
-    would almost never all be filled.)
+  - **Minimum crew** (`+`, yellow): every minimum confirmed, but fewer than
+    2 on table/barrier setup or 2 putting tables away. The night says what
+    would make it fully staffed ("1 more to put tables away"), so people keep
+    signing up.
+  - **Fully staffed** (`✓`, dark green): the minimum crew plus 2 on setup and
+    2 putting tables away (`full` in `POSITIONS`). The spots above that stay
+    optional and are still shown as open. (We chose this over "every one of
+    the 12 slots" because 4 setters and 6 closers would almost never all be
+    filled.)
   - **Closed** (`×`): the gym is closed that night (section 8). A closed
     night asks for no volunteers, is not counted and gets no reminders.
 - The page shows **first names only** ("Sam", or "Sam K." when two different
@@ -45,8 +50,9 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   approve one, once (section 5).
 
 **Backups retired (November 2026).** The *Desk organizer backup* and *Money
-collector backup* spots are gone, and with them the *Covered* (`✓`) status and
-the backup heads-up on a drop. A sign-up still saved under either backup is
+collector backup* spots are gone, and with them the backup heads-up on a drop.
+The middle status, which used to mean "a backup is still open", now means the
+minimum crew (above). A sign-up still saved under either backup is
 read as **Table/barrier setup** that night (the general opening help; it was
 already that person's one opening position, so it never clashes), keeps its
 status, and the hourly sweep writes the change to the Sheet once and logs
@@ -56,8 +62,8 @@ position.
 
 **Share to WhatsApp.** Each open night's panel has a *Share to WhatsApp*
 button. It opens WhatsApp with a message already typed: the night, what is
-still needed (or "Covered"/"Fully staffed" and a thank-you), who is confirmed
-in each position (first names, as on the calendar; waiting picks are left
+still needed (or, with the minimum crew, what would make it fully staffed;
+or "Fully staffed" and a thank-you), who is confirmed in each position (first names, as on the calendar; waiting picks are left
 out) and the sign-up link. WhatsApp offers no link that opens a chosen group,
 so the sender picks the club group (*General*) and taps Send. On a phone the
 WhatsApp app opens directly (`whatsapp://send`); on a computer `wa.me` offers
