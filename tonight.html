@@ -133,6 +133,24 @@
     return "sms:" + CLUB_TEXT_NUMBER + (apple ? "&" : "?") + "body=" + encodeURIComponent(body);
   }
 
+  // The site's closures (data/closures.json), fetched once for the join text and the forecast; siteClosures is null until
+  // it arrives, and until then no day counts as closed.
+  var siteClosures = null;
+  var closuresLoad = null;
+  function loadClosures() {
+    if (!closuresLoad) closuresLoad = getJson("data/closures.json").catch(function () { return {}; }).then(function (closures) { siteClosures = closures; return closures; });
+    return closuresLoad;
+  }
+
+  // The text link for right now, from this phone's clock and the club's schedule, never waiting on the turnout app: on a
+  // round robin day it fills in the join text. Set when the page opens and again on every tap, so a slow or missing answer
+  // from Google, or a tab left open since an earlier day, still fills in the text on the day.
+  function joinLink() {
+    var clock = pacificClock(new Date());
+    var night = T.sessionNight(clock, siteClosures);
+    return textLink(night && night.date === clock.date ? JOIN_TEXT + dayWord(night.date) : "");
+  }
+
   function byId(id) { return document.getElementById(id); }
 
   function el(tag, className, text) {
@@ -198,7 +216,7 @@
 
   // Without the app: the same forecast from the site's own published files, with nobody known to be playing yet.
   function forecast() {
-    return Promise.all([getJson("data/session-roster.json"), getJson("data/players.json"), getJson("data/closures.json").catch(function () { return {}; })])
+    return Promise.all([getJson("data/session-roster.json"), getJson("data/players.json"), loadClosures()])
       .then(function (files) {
         var roster = files[0];
         var rating = {};
@@ -268,7 +286,7 @@
     // A text counts on the night itself, so ahead of time the note names the day; once sign-up closes it goes.
     byId("tonight-text-us").hidden = view.phase === "underway";
     byId("text-us-when").textContent = view.today ? "any time today" : "any time on " + day;
-    byId("text-us-link").href = textLink(view.today ? JOIN_TEXT + word : "");
+    byId("text-us-link").href = joinLink();
 
     // The same numbers twice: zones across for a wide screen, zones down for a phone (style.css shows one).
     var rows = [["Playing " + playingWhen, "is-playing", function (b) { return b.here + b.texted; }]];
@@ -485,6 +503,10 @@
   }
 
   function start() {
+    var link = byId("text-us-link");
+    link.href = joinLink();
+    link.addEventListener("click", function () { link.href = joinLink(); });
+    loadClosures().then(function () { link.href = joinLink(); });
     (TURNOUT_URL ? live() : Promise.reject(new Error("no app"))).catch(forecast).then(render, function () {
       byId("tonight-lede").textContent = "Could not load tonight’s floor. Try refreshing the page.";
     });

@@ -176,6 +176,7 @@ const publicRoster = JSON.parse(JSON.stringify(roster));
 const publicPlayers = { players: [{ name: 'Ada Every', currentRating: 1250 }, { name: 'Bo Mondays', currentRating: 640 }, { name: 'Cy Lapsed', currentRating: 1700 }] };
 
 function page({ now, url = '', answers = [], userAgent = '' }) {
+  const start = now;
   const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/tonight.html', pretendToBeVisual: true });
   const window = dom.window;
   const calls = [];
@@ -192,6 +193,7 @@ function page({ now, url = '', answers = [], userAgent = '' }) {
     else if (address === 'data/players.json') body = publicPlayers;
     else if (address === 'data/closures.json') body = {};
     else if (address === url) body = answers.length ? answers.shift() : null;
+    if (body === 'hang') return new Promise(() => {});
     if (body === null || body === undefined) return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) });
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(JSON.stringify(body))) });
   };
@@ -199,7 +201,8 @@ function page({ now, url = '', answers = [], userAgent = '' }) {
   window.eval(turnoutSource);
   // Every case says which address the page has: '' is a page before the app was deployed.
   window.eval(pageScript.replace('var TURNOUT_URL = "' + turnoutUrl[1] + '";', 'var TURNOUT_URL = "' + url + '";'));
-  return { window, calls, timers, $: id => window.document.getElementById(id) };
+  // setNow moves the page's clock on, as for a tab left open.
+  return { window, calls, timers, $: id => window.document.getElementById(id), setNow: time => { now = time; }, start };
 }
 const settle = () => new Promise(resolve => setTimeout(resolve, 20));
 const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
@@ -240,9 +243,10 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   second.unrated.here = 1;
   const online = page({ now: MONDAY_10AM, url, answers: [first, second, null] });
   await settle();
-  assert.equal(online.calls[0].address, url);
-  assert.equal(online.calls[0].options.credentials, 'omit', 'no Google cookies, so a visitor\'s sign-ins never matter');
-  assert.equal(online.calls.length, 1, 'the published files are not needed while the app answers');
+  const appCalls = online.calls.filter(call => call.address === url);
+  assert.equal(appCalls.length, 1);
+  assert.equal(appCalls[0].options.credentials, 'omit', 'no Google cookies, so a visitor\'s sign-ins never matter');
+  assert.deepEqual(online.calls.filter(call => call.address !== url).map(call => call.address), ['data/closures.json'], 'while the app answers, only the closures (for the join text) are read from the site');
   assert.equal(online.$('tonight-live').hidden, false);
   assert.equal(online.$('tonight-status').hidden, true);
   assert.equal(online.$('stat-playing').textContent, '4');
@@ -291,6 +295,21 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   await settle();
   assert.equal(recovering.$('tonight-status').hidden, true);
   assert.equal(recovering.$('stat-playing').textContent, '4');
+
+  // The join text never waits on Google: filled in while the app's answer is still on its way (or never comes).
+  const waiting = page({ now: MONDAY_10AM, url, answers: ['hang'] });
+  assert.equal(waiting.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + join, 'filled in as the page opens');
+  await settle();
+  assert.equal(waiting.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + join, 'and still, with no answer from the app');
+  // A tab opened on Sunday and tapped on Monday: the tap itself fills in the text, even while the app is not answering.
+  const sundayTab = page({ now: Date.parse('2026-10-25T20:00:00Z'), url: '' });
+  await settle();
+  const sundayLink = sundayTab.$('text-us-link');
+  assert.equal(sundayLink.getAttribute('href'), 'sms:+19252383505', 'Sunday: nothing filled in for Monday');
+  sundayTab.setNow(MONDAY_10AM);
+  sundayTab.window.document.addEventListener('click', event => event.preventDefault());
+  sundayLink.dispatchEvent(new sundayTab.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  assert.equal(sundayLink.getAttribute('href'), 'sms:+19252383505?body=' + join, 'Monday\'s tap fills it in');
 
   // On a Friday it is about Monday.
   const friday = page({ now: Date.parse('2026-10-23T17:00:00Z'), url: '' });
