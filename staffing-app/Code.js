@@ -92,7 +92,7 @@ var POSITIONS = [
     does: 'The opener and round robin organizer: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, turns on the lights and AC, and runs the round robin desk on round robin nights.' },
   { id: 'money', label: 'Money collector (Front Desk)', part: 'open', min: 1, max: 1, training: ['front_desk'],
     does: 'Prints the Revenue Sheet, takes out the Clover device and the Zelle/Venmo QR codes, records everyone entering on the Revenue Sheet and manages the payments.' },
-  { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, full: 2, max: 4, training: [], alsoWith: ['desk'],
+  { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, full: 3, max: 4, training: [], alsoWith: ['desk'],
     does: 'Arrives by 6:45 PM (2:45 PM on Saturdays): brings out the barriers, tables and nets, and knows the gym layout.' },
   { id: 'lockup', label: 'Lock-up', part: 'close', min: 1, max: 1, training: ['keys'],
     does: 'Last person out: stays until 10:00 PM (6:00 PM on Saturdays) or later, has the key lockbox, checks everyone is out (restrooms too) and every door is locked, and turns off the lights and AC.' },
@@ -850,7 +850,7 @@ function confirmedCount_(entries, now) {
 }
 
 // Night status from CONFIRMED sign-ups only: 'needs' while any minimum is missing (a desk organizer, a money collector, one
-// table setup, a lock-up, one closer); 'covered' (the minimum crew) until each position also has its full number (2 on
+// table setup, a lock-up, one closer); 'covered' (the minimum crew) until each position also has its full number (3 on
 // table setup, 2 putting tables away); then 'full'. The spots above that stay open and optional even on a full night.
 function statusOf_(entries, now) {
   var count = confirmedCount_(entries, now);

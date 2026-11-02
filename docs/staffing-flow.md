@@ -30,10 +30,10 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   - **Needs people** (`!`): no confirmed desk organizer, money collector,
     table/barrier setup, lock-up or anyone putting tables away.
   - **Minimum crew** (`+`, yellow): every minimum confirmed, but fewer than
-    2 on table/barrier setup or 2 putting tables away. The night says what
+    3 on table/barrier setup or 2 putting tables away. The night says what
     would make it fully staffed ("1 more to put tables away"), so people keep
     signing up.
-  - **Fully staffed** (`✓`, dark green): the minimum crew plus 2 on setup and
+  - **Fully staffed** (`✓`, dark green): the minimum crew plus 3 on setup and
     2 putting tables away (`full` in `POSITIONS`). The spots above that stay
     optional and are still shown as open. (We chose this over "every one of
     the 12 slots" because 4 setters and 6 closers would almost never all be

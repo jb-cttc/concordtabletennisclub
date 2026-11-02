@@ -182,10 +182,10 @@ function sign(name, date, position, confirm = true, extra = {}) {
 }
 if (open.length >= 6) {
   const [full, nearly, waiting, closed, partial] = open;
-  // Fully staffed: every minimum, 2 or more on setup and 2 putting tables away. Two Sams that night show as "Sam K." and "Sam L.".
+  // Fully staffed: every minimum, 3 or more on setup and 2 putting tables away. Two Sams that night show as "Sam K." and "Sam L.".
   [['Ada Park', 'desk'], ['Ben Ortiz', 'money'], ['Cal Diaz', 'tables'], ['Fay Moss', 'tables'], ['Sam Kim', 'tables'], ['Gus Hale', 'lockup'],
     ['Dee Nguyen', 'close'], ['Sam Lee', 'close']].forEach(([name, position]) => sign(name, full.date, position, true, { finalize: name === 'Sam Lee' }));
-  // Minimum crew: every role filled, one setter short of fully staffed.
+  // Minimum crew: every role filled, two setters short of fully staffed.
   [['Hal Reed', 'desk'], ['Ivy Wong', 'money'], ['Jo Banks', 'tables'], ['Uma Rios', 'lockup'], ['Kai Ford', 'close'], ['Lu Chen', 'close']].forEach(([name, position]) => sign(name, nearly.date, position));
   // Needs people, with a pick still waiting for its YES.
   sign('Max Gold', waiting.date, 'desk');
