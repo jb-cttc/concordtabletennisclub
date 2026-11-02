@@ -276,11 +276,28 @@ main {
   font-size: 1.05rem;
 }
 
-h2 {
+.offer h2 {
   margin: 0 0 6px;
   font-size: 1.05rem;
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+/* Membership: temporary 2026 row struck through under the 2027 offer */
+.price-note {
+  border-left: 3px solid var(--red);
+  background: #fff9ee;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.price-was s {
+  color: var(--muted);
+}
+
+.price-now {
+  color: var(--red);
+  font-weight: 600;
 }
 
 .offer ul {
