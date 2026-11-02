@@ -40,6 +40,11 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
     filled.)
   - **Closed** (`×`): the gym is closed that night (section 8). A closed
     night asks for no volunteers, is not counted and gets no reminders.
+- **The page opens on a night.** On opening, the next night still open for
+  sign-ups is selected and its panel shown: tonight until sign-ups close an
+  hour before opening, then the next club night. It is not scrolled to or
+  focused (the page sits inside the home page), and a My nights link opens
+  no night.
 - The page shows **first names only** ("Sam", or "Sam K." when two different
   people that night share a first name; initials at the start stay together,
   so "J. B. Birch" is "J.B."). It never shows emails, phones or

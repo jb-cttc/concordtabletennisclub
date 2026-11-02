@@ -1626,6 +1626,25 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.equal(document.querySelector('h1').textContent, 'Volunteer signups');
   assert.equal(document.querySelectorAll('.month').length, 3);
   const cellFor = date => document.querySelector('button.day[data-date="' + date + '"]');
+  {
+    // Opening the page shows the next night still open for sign-ups, without a tap: whatever night that is now...
+    const next = board().nights.find(night => night.bookable && night.status !== 'closed');
+    assert.equal(document.querySelector('button.day.selected').dataset.date, next.date, 'the next open night is selected on opening');
+    assert.match(document.getElementById('night').textContent, new RegExp(next.day), 'and its panel is open');
+    // ...tonight during the day (Monday, November 2, 2 PM)...
+    const now = clock;
+    clock = Date.parse('2026-11-02T22:00:00Z');
+    let page = open();
+    assert.equal(page.document.querySelector('button.day.selected').dataset.date, '2026-11-02', 'tonight, while it can still be picked');
+    assert.match(page.document.getElementById('night').textContent, /Monday, November 2, 2026/);
+    page.dom.window.close();
+    // ...and the next club night once tonight's sign-ups have closed (an hour before opening: 6:30 PM).
+    clock = Date.parse('2026-11-03T02:30:00Z');
+    page = open();
+    assert.equal(page.document.querySelector('button.day.selected').dataset.date, '2026-11-04', 'Wednesday, once Monday has closed');
+    page.dom.window.close();
+    clock = now;
+  }
   assert.match(cellFor('2026-10-21').getAttribute('aria-label'), /^Wednesday, October 21, 2026: Needs people/, 'status in words, not only color');
   assert.equal(cellFor('2026-10-21').querySelector('.mark').textContent, '!');
   assert.ok(cellFor('2026-10-24').classList.contains('closed'), 'closures show in the grid');
@@ -1749,6 +1768,8 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.equal(signUp('Sage Hill', [['2026-12-21', 'tables'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']]).ok, true);
   const sage = /\?mine=([0-9A-F]{20})/.exec(mailTo('sage.hill@example.com').at(-1).body)[1];
   ({ dom, document } = open({ mine: sage }));
+  assert.equal(document.querySelector('button.day.selected'), null, 'a My nights link opens no night: their list is why they came');
+  assert.equal(document.getElementById('night'), null);
   const mine = document.getElementById('mine');
   assert.equal(mine.hidden, false);
   assert.equal(mine.querySelector('h2').textContent, 'Your nights, Sage');

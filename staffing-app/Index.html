@@ -679,7 +679,15 @@
   function redraw() { drawBar(); drawCalendar(); drawPicks(); postHeight(); }
   function start(result) {
     if (!result.ok) { empty(calendar); calendar.appendChild(el('p', { text: result.message })); postHeight(); return; }
+    var first = !board;
     board = result;
+    // On first opening, the next night still open for sign-ups (tonight, until an hour before the club opens) is shown at
+    // once, so people see who is on and what is needed without a tap. Not when a My nights link opened the page (that list
+    // is why they came), and never scrolled to or focused: the page sits inside the home page.
+    if (first && !selected && !mineCode && !(INITIAL && INITIAL.mine)) {
+      var next = board.nights.filter(function (night) { return night.bookable && night.status !== 'closed'; })[0];
+      if (next) selected = next.date;
+    }
     // A pick whose night has since closed or filled stays listed; the server says which, and why, on sending.
     redraw();
   }
