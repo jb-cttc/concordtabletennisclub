@@ -923,7 +923,8 @@ function board_(signups, closures, now) {
     ok: true, mode: mode_(), maxPicks: MAX_PICKS, textNumber: TEXT_NUMBER, today: horizon.today,
     months: horizon.months.map(function (month) { return { year: month.year, month: month.month, title: MONTHS[month.month - 1] + ' ' + month.year }; }),
     positions: POSITIONS.map(function (spec) {
-      return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, max: spec.max, does: spec.does, trained: spec.training.length > 0, alsoWith: spec.alsoWith || [] };
+      return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, full: spec.full || spec.min, max: spec.max, does: spec.does, trained: spec.training.length > 0,
+        alsoWith: spec.alsoWith || [] };
     }),
     closures: Object.keys(closures).filter(function (date) { return date >= horizon.first && date <= horizon.last; }).sort(),
     nights: nights

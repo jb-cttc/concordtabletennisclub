@@ -1600,7 +1600,8 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
 (async () => {
   const { JSDOM } = require('jsdom');
   clock = START;
-  const open = parameter => {
+  // options.phone: a screen narrower than PHONE_WIDTH (one month at a time, opening and closing as bars).
+  const open = (parameter, options = {}) => {
     resetLimits();
     const posted = [];
     const html = context.doGet(parameter && { parameter }).getContent();
@@ -1608,6 +1609,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
       runScripts: 'dangerously', pretendToBeVisual: true,
       beforeParse(window) {
         window.HTMLElement.prototype.scrollIntoView = () => {};
+        if (options.phone) window.matchMedia = query => ({ matches: /max-width/.test(query), media: query });
         window.postMessage = message => posted.push(message);
         const runner = (ok, bad) => new Proxy({}, { get: (target, name) => {
           if (name === 'withSuccessHandler') return handler => runner(handler, bad);
@@ -1642,6 +1644,40 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
     clock = Date.parse('2026-11-03T02:30:00Z');
     page = open();
     assert.equal(page.document.querySelector('button.day.selected').dataset.date, '2026-11-04', 'Wednesday, once Monday has closed');
+    page.dom.window.close();
+    // A phone: one month at a time, and the night's opening and closing as bars saying what each still needs.
+    clock = Date.parse('2026-11-02T22:00:00Z');
+    page = open(undefined, { phone: true });
+    const doc = page.document;
+    assert.deepEqual([...doc.querySelectorAll('.month')].map(month => month.querySelector('.month-title').textContent), ['November 2026'], 'one month, the one with tonight');
+    const arrows = doc.querySelectorAll('.month-nav button');
+    assert.equal(arrows[0].disabled, true, 'no month before the first');
+    assert.equal(arrows[1].getAttribute('aria-label'), 'Next month: December 2026');
+    assert.doesNotMatch(doc.getElementById('night').textContent, /Still needed|minimum crew is confirmed/, 'the bars say what is needed, not a sentence above them');
+    const bars = () => [...doc.querySelectorAll('#night details.part')];
+    assert.deepEqual(bars().map(bar => [bar.dataset.part, bar.open]), [['open', false], ['close', false]], 'two bars, closed');
+    const monday = board().nights.find(night => night.date === '2026-11-02');
+    const states = bars().map(bar => bar.querySelector('.part-state'));
+    states.forEach(state => assert.match(state.textContent, /^(! Needs: |\+ \d+ more for |\u2713 All set)/));
+    // The opening bar agrees with the night: what is missing, else what would make it full, else all set.
+    const confirmed = id => monday.slots[id].filter(slot => !slot.pending).length;
+    const openingNeeds = ['desk', 'money', 'tables'].filter(id => confirmed(id) < 1);
+    if (openingNeeds.length) assert.ok(states[0].classList.contains('state-needs'));
+    else if (confirmed('tables') < 3) assert.match(states[0].textContent, new RegExp('^\\+ ' + (3 - confirmed('tables')) + ' more for table setup'));
+    else assert.match(states[0].textContent, /^\u2713 All set/);
+    bars()[0].open = true;
+    bars()[0].dispatchEvent(new page.dom.window.Event('toggle'));
+    const add = [...doc.querySelectorAll('#night details.part[data-part="open"] button.add')]
+      .find(button => /Add me as Table\/barrier setup/.test(button.getAttribute('aria-label')));
+    assert.ok(add, 'tapping the opening bar shows its positions');
+    add.click();
+    assert.equal(bars()[0].open, true, 'adding a pick keeps the bar open');
+    assert.equal(bars()[1].open, false);
+    doc.querySelectorAll('.month-nav button')[1].click();
+    assert.equal(doc.querySelector('.month-title').textContent, 'December 2026');
+    assert.equal(doc.getElementById('night'), null, 'November\'s night stays with November');
+    assert.ok(doc.querySelectorAll('.month-nav button')[0].querySelector('.mine'), 'the arrow back marks the month holding your pick');
+    await wait(0); // the bars' toggle events arrive a moment later
     page.dom.window.close();
     clock = now;
   }

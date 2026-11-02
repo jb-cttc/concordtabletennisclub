@@ -45,6 +45,14 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
   hour before opening, then the next club night. It is not scrolled to or
   focused (the page sits inside the home page), and a My nights link opens
   no night.
+- **On a phone** (narrower than 520px, `PHONE_WIDTH`) the calendar shows one
+  month at a time, with ‹ › arrows (an arrow carries a dot when that month
+  holds your picks), and the night's opening and closing are bars that open
+  on a tap. Each bar says, from confirmed sign-ups, what that half of the
+  night needs ("! Needs: desk organizer"), else what would make it fully
+  staffed ("+ 1 more for table setup"), else "✓ All set", plus how many are
+  waiting to confirm. A wider screen shows all three months and both halves
+  open, as before.
 - The page shows **first names only** ("Sam", or "Sam K." when two different
   people that night share a first name; initials at the start stay together,
   so "J. B. Birch" is "J.B."). It never shows emails, phones or
