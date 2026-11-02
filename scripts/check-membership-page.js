@@ -24,6 +24,13 @@ assert.equal((offer[0].match(/<li>/g) || []).length, 2, 'two bullets: the rest o
 assert.match(offer[0], /rest of 2026 free/);
 assert.ok(at(offer[0]) < at('<h2>How to join</h2>') && at('<h2>How to join</h2>') < at('<h2>2027 Pricing</h2>'), 'offer, then how to join, then pricing');
 
+// Until the year turns, the 2026 October rate shows struck through with the offer, and hides itself from January 1.
+const was = /<tr class="price-was" data-until="2027-01-01">[\s\S]*?<\/tr>/.exec(html);
+assert.ok(was, 'the struck 2026 row is in the pricing table');
+assert.match(was[0], /<s>October 2026<\/s>[\s\S]*<s>\$15<\/s>[\s\S]*Free with a 2027 membership/);
+assert.match(html, /<p class="price-note" data-until="2027-01-01">[^\n]*rest of 2026 is free/, 'the note explains the deal');
+assert.match(html, /querySelectorAll\('\[data-until\]'\)/, 'the page hides data-until items after their date');
+
 const FORM = 'assets/forms/2027-cttc-membership-form.pdf';
 const links = html.match(/<a href="[^"]*\.pdf"[^>]*>[^<]*<\/a>/g) || [];
 assert.ok(links.length >= 2 && links.every((a) => a.includes(`href="${FORM}"`) && a.includes('2027 membership form')), 'every form link downloads the 2027 form');

@@ -70,7 +70,10 @@
 
   <h2>2027 Pricing</h2>
 
-  <p>Membership runs for the calendar year and is prorated by quarter. Signing up before January 1? Pay the full $60 and the rest of 2026 is included.</p>
+  <p>Membership runs for the calendar year and is prorated by quarter.</p>
+
+  <!-- Temporary for the rest of 2026: the 2026 October row and its note hide themselves from January 1, 2027 (script at the end of the page). -->
+  <p class="price-note" data-until="2027-01-01"><strong>Joining in November or December?</strong> Skip the $15 rest-of-2026 membership: pay $60 for 2027 and the rest of 2026 is free.</p>
 
   <table>
     <thead>
@@ -81,10 +84,14 @@
       </tr>
     </thead>
     <tbody>
+      <tr class="price-was" data-until="2027-01-01">
+        <td><s>October 2026</s></td>
+        <td><s>$15</s> <span class="price-now">Free with a 2027 membership</span></td>
+        <td rowspan="5">$10 per night</td>
+      </tr>
       <tr>
-        <td>Now through March</td>
+        <td>January 2027</td>
         <td>$60</td>
-        <td rowspan="4">$10 per night</td>
       </tr>
       <tr>
         <td>April</td>
@@ -135,6 +142,17 @@
 </footer>
 
 <script src="navtoggle.js"></script>
+<script>
+  // Hide the temporary rest-of-2026 row and note once the year turns: the drop-in cell moves down to January.
+  document.querySelectorAll('[data-until]').forEach(function (el) {
+    var until = el.getAttribute('data-until').split('-');
+    if (new Date() < new Date(+until[0], until[1] - 1, +until[2])) return;
+    var cell = el.querySelector('td[rowspan]');
+    var next = el.nextElementSibling;
+    if (cell && next) { cell.rowSpan -= 1; next.appendChild(cell); }
+    el.remove();
+  });
+</script>
 
 
 </body>
