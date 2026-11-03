@@ -13,7 +13,7 @@ const root = path.join(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 assert.equal(read('turnout-app/Turnout.js'), read('turnout.js'), 'turnout-app/Turnout.js is an exact copy of turnout.js: cp turnout.js turnout-app/Turnout.js');
-assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html style\.css navtoggle\.js standings\.js turnout\.js favicon\.svg _site\//, 'the site publishes turnout.js');
+assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html [^\n]*\bturnout\.js\b[^\n]* _site\//, 'the site publishes turnout.js');
 
 // ---- Rating zones: the bottom of each range is in it, the top is not ----
 [[0, 0], [599, 0], [600, 1], [799, 1], [800, 2], [999, 2], [1000, 3], [1199, 3], [1200, 4], [1399, 4], [1400, 5],
@@ -188,6 +188,7 @@ const launchSource = read('tonight-launch.js');
 ['index.html', 'roundrobins.html'].forEach(file => {
   assert.ok(read(file).includes('<script src="tonight-launch.js"></script>'), file + ' loads tonight-launch.js');
 });
+assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html [^\n]*\btonight-launch\.js\b/, 'and the site publishes it');
 function launchPage({ type, stored, buttonTop }) {
   const dom = new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/index.html' });
   const window = dom.window;

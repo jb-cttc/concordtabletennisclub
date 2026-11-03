@@ -30,13 +30,15 @@
 }());
 
 (function () {
-  // Add to Home Screen. Android (Chrome, Edge, Samsung) hands the page an install prompt, so one tap shows the browser's own
-  // "Install" box. iPhone and iPad have no such prompt: a page can't add itself, so the button shows the taps to make in
-  // the browser's Share menu. No arrow: a page can't see where the browser's toolbar is (people move it), so it never
-  // guesses. The icon and name come from the <head> tags and assets/site.webmanifest; the saved icon opens the home page. Phones
-  // and tablets only, and never inside the saved app itself.
+  // Add to Home Screen, for two icons: CTTC (the website) and Text CTTC (text.html, which opens Messages with the join text
+  // filled in). The header button asks which one; Text CTTC is added from its own page, which has its own icon and name
+  // (assets/text.webmanifest). Android (Chrome, Edge, Samsung) hands each page an install prompt, so one tap shows the
+  // browser's own "Install" box. iPhone and iPad have no such prompt: a page can't add itself, so the button shows the taps
+  // to make in the browser's Share menu, on the page to be saved. No arrow: a page can't see where the browser's toolbar
+  // is (people move it), so it never guesses. Phones and tablets only, and never inside a saved app itself.
   var btn = document.querySelector('.home-screen');
-  if (!btn) return;
+  var textPage = !!document.body && document.body.getAttribute('data-home-screen') === 'text';
+  if (!btn && !textPage) return;
   var ua = navigator.userAgent;
   var ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var android = /Android/.test(ua);
@@ -44,89 +46,139 @@
     return window.matchMedia && window.matchMedia('(display-mode: ' + mode + ')').matches;
   });
 
-  // Once added, a later tap shows a check instead of the steps, so nobody adds a second icon. Android says when the icon
-  // is installed; an iPhone never tells the page, so it is the person's "I added it", or a visit from the icon itself
-  // (the manifest's start_url carries ?from=home-screen) when the icon opens in the same browser.
-  var KEY = 'cttc-home-screen';
-  function added() { try { return localStorage.getItem(KEY) === 'added'; } catch (error) { return false; } }
-  function markAdded(yes) { try { if (yes) localStorage.setItem(KEY, 'added'); else localStorage.removeItem(KEY); } catch (error) {} }
+  var ICONS = {
+    site: { key: 'cttc-home-screen', name: 'CTTC', icon: 'assets/icons/apple-touch-icon.png',
+      about: 'The club&rsquo;s website: results, Tonight, the calendar.' },
+    text: { key: 'cttc-home-screen-text', name: 'Text CTTC', icon: 'assets/icons/text-apple-touch-icon.png',
+      about: 'One tap texts the club &ldquo;I&rsquo;ll join CTTC&rsquo;s RR today&rdquo;.' }
+  };
+
+  // Once added, the chooser marks that icon, so nobody adds a second by mistake. Android says when an icon is installed;
+  // an iPhone never tells the page, so it is the person's "I added it", or a visit from the icon itself (the start_url
+  // carries ?from=home-screen) when the icon opens in the same browser.
+  function added(kind) { try { return localStorage.getItem(ICONS[kind].key) === 'added'; } catch (error) { return false; } }
+  function markAdded(kind, yes) { try { if (yes) localStorage.setItem(ICONS[kind].key, 'added'); else localStorage.removeItem(ICONS[kind].key); } catch (error) {} }
+  var here = textPage ? 'text' : 'site';
   var params = window.location.search;
-  if (saved || /[?&]from=home-screen(&|$)/.test(params)) markAdded(true);
-  if (/[?&](from=)?home-screen(&|$)/.test(params) && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname);
+  var steps = /[?&]home-screen(&|$)/.test(params);
+  if (saved || /[?&]from=home-screen(&|$)/.test(params)) markAdded(here, true);
+  // The markers leave the address, so the address saved on an iPhone is the plain page, except on Text CTTC, where the
+  // saved address carries ?from=home-screen: an icon that opens in the browser still knows to open Messages.
+  if (window.history.replaceState) {
+    if (!textPage && /[?&](from=)?home-screen(&|$)/.test(params)) window.history.replaceState(null, '', window.location.pathname);
+    if (textPage && steps) window.history.replaceState(null, '', window.location.pathname + '?from=home-screen');
+  }
   if (!(ios || android) || saved) return;
 
   var prompt = null;
-  window.addEventListener('beforeinstallprompt', function (event) { event.preventDefault(); prompt = event; });
-  window.addEventListener('appinstalled', function () { markAdded(true); });
-  if (android && navigator.getInstalledRelatedApps) {
-    navigator.getInstalledRelatedApps().then(function (apps) { if (apps && apps.length) markAdded(true); }, function () {});
-  }
-  btn.hidden = false;
-
   var sheet = null;
-  function close() { if (sheet) { sheet.remove(); sheet = null; btn.focus(); } }
+  window.addEventListener('beforeinstallprompt', function (event) {
+    event.preventDefault();
+    prompt = event;
+    if (sheet && sheet.getAttribute('data-steps') === 'text') showSteps('text');
+  });
+  window.addEventListener('appinstalled', function () { markAdded(here, true); });
+  if (!textPage && android && navigator.getInstalledRelatedApps) {
+    navigator.getInstalledRelatedApps().then(function (apps) { if (apps && apps.length) markAdded('site', true); }, function () {});
+  }
+  if (btn) btn.hidden = false;
+
+  function close() { if (sheet) { sheet.remove(); sheet = null; if (btn) btn.focus(); } }
   function node(tag, className, html) { var el = document.createElement(tag); if (className) el.className = className; if (html) el.innerHTML = html; return el; }
   function button(text, className, onClick) { var el = node('button', className); el.type = 'button'; el.textContent = text; el.addEventListener('click', onClick); return el; }
   var SHARE = '<svg width="18" height="18" viewBox="0 0 24 24" aria-label="Share" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9H6.5A1.5 1.5 0 0 0 5 10.5v9A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 17.5 9H16"/><path d="M12 14V3"/><path d="M8.5 6.5 12 3l3.5 3.5"/></svg>';
-  var CHECK = '<svg width="56" height="56" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1f6b3a"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  function open(again) {
-    if (sheet) close();
+  function newSheet(title, steps) {
+    if (sheet) sheet.remove();
     sheet = node('div', 'home-screen-sheet');
     sheet.setAttribute('role', 'dialog');
     sheet.setAttribute('aria-modal', 'true');
     sheet.setAttribute('aria-labelledby', 'home-screen-title');
+    if (steps) sheet.setAttribute('data-steps', steps);
     var box = node('div', 'home-screen-box');
-    var title = node('h2');
-    title.id = 'home-screen-title';
-    var first;
-    if (added() && !again) {
-      box.appendChild(node('div', 'home-screen-check', CHECK));
-      title.textContent = 'CTTC is on your Home Screen';
-      box.appendChild(title);
-      box.appendChild(node('p', '', 'Look for the CTTC icon among your apps.'));
-      box.appendChild(first = button('Close', '', close));
-      box.appendChild(button('Add it again', 'home-screen-again', function () { markAdded(false); open(true); }));
-    } else {
-      var icon = node('img');
-      icon.src = 'assets/icons/apple-touch-icon.png';
-      icon.alt = '';
-      box.appendChild(icon);
-      title.textContent = 'Add CTTC to your Home Screen';
-      box.appendChild(title);
-      var steps = node('ol');
-      (ios ? [
-        'Tap <b>Share</b> ' + SHARE + ' in your browser&rsquo;s toolbar (in Safari it may be under <b>&middot;&middot;&middot;</b>; in Chrome or Edge, at the top or in the menu).',
-        'Scroll down and tap <b>Add to Home Screen</b>.',
-        'Tap <b>Add</b>. The CTTC icon is on your Home Screen.'
-      ] : [
-        'Open your browser&rsquo;s menu (<b>&#8942;</b> or <b>&#9776;</b>).',
-        'Tap <b>Add to Home screen</b> or <b>Install app</b>.',
-        'Tap <b>Add</b> or <b>Install</b>. The CTTC icon is on your Home Screen.'
-      ]).forEach(function (html) { steps.appendChild(node('li', '', html)); });
-      box.appendChild(steps);
-      var actions = node('div', 'home-screen-actions');
-      actions.appendChild(button('Not now', 'plain', close));
-      actions.appendChild(first = button('I added it', '', function () { markAdded(true); close(); }));
-      box.appendChild(actions);
-    }
+    var heading = node('h2');
+    heading.id = 'home-screen-title';
+    heading.textContent = title;
+    box.appendChild(heading);
     sheet.appendChild(box);
     sheet.addEventListener('click', function (event) { if (event.target === sheet) close(); });
     sheet.addEventListener('keydown', function (event) { if (event.key === 'Escape') close(); });
     document.body.appendChild(sheet);
+    return box;
+  }
+
+  // Which icon: the website, or the one that opens the text. Each says when it is already on this phone.
+  function chooser() {
+    var box = newSheet('Add to your Home Screen');
+    var first = null;
+    ['site', 'text'].forEach(function (kind) {
+      var icon = ICONS[kind];
+      var option = node(kind === 'text' ? 'a' : 'button', 'home-screen-option');
+      if (kind === 'text') option.href = 'text.html?home-screen';
+      else { option.type = 'button'; option.addEventListener('click', function () { chooseSite(); }); }
+      option.innerHTML = '<img src="' + icon.icon + '" alt=""><span><b>' + icon.name + '</b><small>' + icon.about + '</small>'
+        + (added(kind) ? '<small class="home-screen-on">&#10003; On your Home Screen</small>' : '') + '</span>';
+      box.appendChild(option);
+      if (!first) first = option;
+    });
+    box.appendChild(button('Not now', 'plain', close));
     first.focus();
   }
 
-  // iPhone and iPad save the page that is open, so the steps open on the home page: the icon then opens it too. The marker
-  // is taken out of the address (above), so the saved address is the plain home page.
+  // The website's icon: Android's own prompt when there is one; an iPhone saves the page that is open, so the steps open
+  // on the home page and the icon then opens it too.
   var home = /^\/(index\.html)?$/.test(window.location.pathname);
-  if (/[?&]home-screen(&|$)/.test(params) && ios && home) open();
-  btn.addEventListener('click', function (event) {
-    event.stopPropagation();
-    if (added()) { open(); return; }
+  function chooseSite() {
     if (ios && !home) { window.location.href = './?home-screen'; return; }
-    if (!prompt) { open(); return; }
+    if (!prompt) { showSteps('site'); return; }
+    close();
     prompt.prompt();
-    prompt.userChoice.then(function (choice) { if (choice.outcome === 'accepted') markAdded(true); });
+    prompt.userChoice.then(function (choice) { if (choice.outcome === 'accepted') markAdded('site', true); });
     prompt = null;
-  });
+  }
+
+  function showSteps(kind) {
+    var icon = ICONS[kind];
+    var box = newSheet('Add ' + icon.name + ' to your Home Screen', kind);
+    var picture = node('img');
+    picture.src = icon.icon;
+    picture.alt = '';
+    box.insertBefore(picture, box.firstChild);
+    if (kind === 'text') box.appendChild(node('p', '', 'Then one tap on the icon opens Messages with &ldquo;I&rsquo;ll join CTTC&rsquo;s RR today&rdquo; ready to send.'));
+    var done = 'The ' + icon.name + ' icon is on your Home Screen.';
+    var first;
+    if (android && prompt) {
+      // On its own page, Android's install prompt adds this icon in one tap.
+      var actions = node('div', 'home-screen-actions');
+      actions.appendChild(button('Not now', 'plain', close));
+      actions.appendChild(first = button('Add ' + icon.name, '', function () {
+        close();
+        prompt.prompt();
+        prompt.userChoice.then(function (choice) { if (choice.outcome === 'accepted') markAdded(kind, true); });
+        prompt = null;
+      }));
+      box.appendChild(actions);
+      first.focus();
+      return;
+    }
+    var list = node('ol');
+    (ios ? [
+      'Tap <b>Share</b> ' + SHARE + ' in your browser&rsquo;s toolbar (in Safari it may be under <b>&middot;&middot;&middot;</b>; in Chrome or Edge, at the top or in the menu).',
+      'Scroll down and tap <b>Add to Home Screen</b>.',
+      'Tap <b>Add</b>. ' + done
+    ] : [
+      'Open your browser&rsquo;s menu (<b>&#8942;</b> or <b>&#9776;</b>).',
+      'Tap <b>Add to Home screen</b> or <b>Install app</b>.',
+      'Tap <b>Add</b> or <b>Install</b>. ' + done
+    ]).forEach(function (html) { list.appendChild(node('li', '', html)); });
+    box.appendChild(list);
+    var row = node('div', 'home-screen-actions');
+    row.appendChild(button('Not now', 'plain', close));
+    row.appendChild(first = button('I added it', '', function () { markAdded(kind, true); close(); }));
+    box.appendChild(row);
+    first.focus();
+  }
+
+  if (steps && ios && home && !textPage) showSteps('site');
+  if (steps && textPage) showSteps('text');
+  if (btn) btn.addEventListener('click', function (event) { event.stopPropagation(); chooser(); });
 }());

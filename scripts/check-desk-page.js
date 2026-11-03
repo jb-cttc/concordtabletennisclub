@@ -48,7 +48,7 @@ assert.equal(new URL(run('?src=https://evil.example')).origin, 'https://script.g
 const navigation = /const NAV_LINKS = \[([\s\S]*?)\];/.exec(fs.readFileSync(path.join(root, 'scripts', 'sync-nav.js'), 'utf8'))[1];
 assert.ok(navigation.includes('index.html'), 'the navigation list was found');
 assert.ok(!navigation.includes('desk'), 'not in the site navigation');
-assert.match(fs.readFileSync(path.join(root, 'scripts', 'sync-nav.js'), 'utf8'), /f !== 'desk\.html'/);
+assert.match(fs.readFileSync(path.join(root, 'scripts', 'sync-nav.js'), 'utf8'), /OWN_PAGES = \[[^\]]*'desk\.html'/);
 assert.match(fs.readFileSync(path.join(root, '.github', 'workflows', 'update-data.yml'), 'utf8'), /cp \*\.html /, 'top-level pages are published');
 
 // Locally, /desk serves the same page as on the site.

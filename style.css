@@ -191,6 +191,50 @@ nav.nav-open .home-screen {
   line-height: 0;
 }
 
+/* The two icons to choose from: the website, or Text CTTC (text.html). */
+.home-screen-box .home-screen-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-weight: normal;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.home-screen-box .home-screen-option img {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+}
+
+.home-screen-option b {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.home-screen-option small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.home-screen-option .home-screen-on {
+  margin-top: 2px;
+  color: #1f6b3a;
+  font-weight: 600;
+}
+
 .home-screen-box p {
   margin: 0 0 16px;
 }
@@ -2654,4 +2698,61 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 .eq-field-final .eq-name {
   flex: 1;
   font-weight: normal;
+}
+
+/* ---- Text CTTC (text.html): the page the Text CTTC Home Screen icon opens; one big button that opens Messages ---- */
+
+.text-cttc {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 40px 16px 32px;
+  text-align: center;
+}
+
+.text-cttc-logo img {
+  width: 96px;
+  height: auto;
+}
+
+.text-cttc h1 {
+  margin: 16px 0 24px;
+  font-size: 1.6rem;
+  line-height: 1.25;
+}
+
+.text-cttc-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #1f6b3a;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 2px 6px rgba(20, 64, 31, 0.25);
+}
+
+.text-cttc-send:hover,
+.text-cttc-send:focus-visible {
+  background: #14401f;
+  color: #fff;
+}
+
+.text-cttc-what {
+  margin: 16px 0 28px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.text-cttc-what strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.text-cttc-links a {
+  color: #1f5a2e;
 }

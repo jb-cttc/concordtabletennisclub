@@ -51,6 +51,12 @@ or when the sender's latest text that day says they are not coming
 signs in at the desk is counted twice (once at the front desk, once in
 their zone) until the next day.
 
+The same text has its own Home Screen icon, **Text CTTC** (`text.html`).
+The header's Add to Home Screen button asks which icon to add, CTTC (the
+website) or Text CTTC, and shows the steps on the page to be saved. Opened
+from its icon, `text.html` goes straight to Messages with the join text
+filled in; a phone that wants a tap first gets one big button instead.
+
 Which night: today while it is a round robin day and the round robin is
 still on (before 10 PM Pacific on a Monday or Wednesday, 6 PM on a
 Saturday) and the gym is not closed (`data/closures.json`), otherwise the
