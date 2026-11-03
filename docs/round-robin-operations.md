@@ -75,6 +75,14 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
 - Once groups are saved or moved by hand, late arrivals are slotted in by
   rating rank without reshuffling anyone, and promoted players are never
   bumped down. **Rebuild by rating** resets groups and reapplies promotions.
+- **After the sheets print** (Print on the RR sheet preview, on this device) or
+  once a score is in, a late arrival only joins the group their rating gives
+  them, even if that makes a group of 8: nobody else changes table, so the
+  printed sheets stay right and the desk places the newcomer by hand with the
+  arrows. A removal leaves the gap. Anyone signed in after the first print
+  carries a **Late add** label on the desk and on the Player board (a reprint
+  keeps it). Rebuild by rating and the group size buttons ask first. Like the
+  board's Updated tags, this follows prints made on this device only.
 - Matches follow a rotation schedule so a 6-player group uses three tables
   per round. Live standings show W-L, games, and projected rating in the
   order the players are listed, so rows never move while scores are entered;
@@ -134,7 +142,10 @@ payments.
 
 - **Layouts**, in the settings strip and remembered by the window: *Carousel* (two
   groups at a time, the next sliding in every 10–20 seconds; a changed group slides
-  in next), *Wall* (every group at once) and *Spotlight + names* (one group large
+  in next; click a bar under the groups to show that group at once), *Wall* (every
+  group at once: a sign-in flies in from the bottom left to its group, a player
+  who changes group is picked up and carried to their new place while the other
+  names make room, and the gold glow starts once everything lands) and *Spotlight + names* (one group large
   beside everyone A–Z with their group number; above 32 players the list shows half
   the alphabet at a time). *Desk* or *Dark* look; payment checks and ratings can be
   turned off.

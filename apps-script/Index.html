@@ -994,9 +994,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     });
   }
 
-  // Check-ins and removals follow Rebuild by rating exactly, until someone is moved by hand or the first score is in.
-  // After a move by hand, a late arrival is slotted in by rating (a full group passes its lowest player down) and a
-  // removal leaves the gap. Once a score is in, a late arrival joins their group and nobody else changes table.
+  // Check-ins and removals follow Rebuild by rating exactly, until someone is moved by hand, the sheets print or the
+  // first score is in. After a move by hand, a late arrival is slotted in by rating (a full group passes its lowest
+  // player down) and a removal leaves the gap. Once the sheets print on this device (Print on the RR sheet preview, the
+  // same mark that turns the Player board to scores) or a score is in, a late arrival joins the group their rating
+  // gives them, even past the group size, and nobody else changes table: the desk places them by hand from there.
   // "Moved by hand" is read off the groups themselves (they differ from what Rebuild would make), so it holds after a
   // reload and on another device.
   function rebuiltGroups() {
@@ -1015,15 +1017,32 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return match.playerOneGames != null || match.playerTwoGames != null || !!match.forfeit || !!match.forfeitedBy || !!match.wonBy;
     });
   }
+  // The players on the round robin sheets when they first printed on this device, or null before any print. Kept by the
+  // Player board (PlayerBoard.html), which turns to scores on the same mark. Anyone signed in since is a late add.
+  function printedRoster() {
+    if (state.event === 'equalizer' || !window.cttcPlayerBoard || !window.cttcPlayerBoard.printedRoster) return null;
+    return window.cttcPlayerBoard.printedRoster();
+  }
+  function sheetsPrinted() {
+    return !!printedRoster();
+  }
+  function lateAdd(id) {
+    var roster = printedRoster();
+    return !!roster && roster.indexOf(id) < 0;
+  }
+  function playAfterPrint() {
+    return scoringStarted() || sheetsPrinted();
+  }
   function keepArrangement() {
-    return arrangedByHand() || scoringStarted();
+    return arrangedByHand() || playAfterPrint();
   }
   // The question before rebuilding, or '' when nothing would be lost.
   function rebuildQuestion(what) {
     var byHand = arrangedByHand();
     var scored = scoringStarted();
-    if (!byHand && !scored) return '';
-    return what + '?' + (byHand ? ' Manual moves are replaced; promotions are reapplied.' : '') +
+    var printed = sheetsPrinted();
+    if (!byHand && !scored && !printed) return '';
+    return what + '?' + (printed ? ' The sheets are already printed, so players may change groups.' : '') + (byHand ? ' Manual moves are replaced; promotions are reapplied.' : '') +
       (scored ? ' Scores already entered stay only for players who stay in the same group together.' : '');
   }
 
@@ -1066,12 +1085,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
     if (!byId[id] || state.roster.indexOf(id) >= 0 || locked() || pendingRecovery) return false;
     var keep = keepArrangement();
-    var stay = scoringStarted();
+    var stay = playAfterPrint();
     state.roster.push(id);
     if (keep) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions, groupSize(), stay));
     else organize();
     persistDeviceDraft();
-    setStatus(player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '.');
+    var placed = stay && state.groups.find(function (group) { return group.playerIds.indexOf(id) >= 0; });
+    setStatus(placed && lateAdd(id)
+      ? player(id).name + ' added to Group ' + placed.groupNumber + ' as a late add' + (source ? ' from ' + source : '') + '. Nobody else moved; use the arrows to place them.'
+      : player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '.');
     return true;
   }
   function removeFromRoster(id) {
@@ -1199,12 +1221,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     summaryRow.hidden = !state.roster.length;
     summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in ' + sizes.length + (sizes.length === 1 ? ' group' : ' groups') + ' · ' + sizes.join(' / ') + (unbalanced ? ' · rebalance recommended' : '');
     summary.classList.toggle('warn', unbalanced);
+    var late = printedRoster();
     groups.innerHTML = state.groups.map(function (group, index) {
       var size = group.playerIds.length;
       return '<article class="group' + (O.outOfRange(size, groupSize()) ? ' needs-balance' : '') + '"><div class="group-head"><strong>Group ' + group.groupNumber + '</strong><span class="count">' + size + ' players</span></div><ul class="group-list">' + group.playerIds.map(function (id) {
         var p = player(id);
         var promo = state.promotions[id];
-        return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span>' +
+        return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + (late && late.indexOf(id) < 0 ? ' <span class="late-badge" title="Signed in after the sheets printed">Late add</span>' : '') + '</strong><span>Rating ' + p.currentRating + '</span>' +
           (promo ? '<span class="promotion-badge">\u2191 ' + (promo.wonGroup ? 'Won ' + esc(promo.wonGroup) + ' on ' + shortDate(promo.date) : 'Promoted from Group ' + promo.fromGroup) + '</span>' : '') +
           '</div><div class="move"><button class="icon" data-move="' + esc(id) + '" data-dir="-1" ' + (index === 0 ? 'disabled' : '') + ' title="Move up a group">\u2191</button><button class="icon" data-move="' + esc(id) + '" data-dir="1" ' + (index === state.groups.length - 1 ? 'disabled' : '') + ' title="Move down a group">\u2193</button></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from RR draft" aria-label="Remove ' + esc(p.name) + ' from RR draft">\u00d7</button></li>';
       }).join('') + '</ul></article>';
@@ -2317,6 +2340,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .group.needs-balance{border-top-color:var(--gold)}
 .group-list li.promoted{background:#fbf6e6}
 .promotion-badge{display:block;margin-top:2px;font:11px Arial,sans-serif;color:#7a5200;font-weight:700}
+.late-badge{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#fff3d9;border:1px solid #c99934;color:#7a5200;font:700 10px/1.3 Arial,sans-serif;letter-spacing:.03em;text-transform:uppercase;vertical-align:2px;white-space:nowrap}
 .match-progress{font:13px Arial,sans-serif;color:var(--muted);margin:0 0 10px}
 .match-group h3{display:flex;justify-content:space-between;align-items:center}
 .summary-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}

@@ -128,6 +128,99 @@ const cases = {
     board.close();
   },
 
+  // After the sheets print, a late arrival joins the group their rating gives them and nobody else changes table, even
+  // when that makes a group of 8; they carry a Late add label on the desk and the board. Removals leave the gap.
+  async lateAddAfterPrint() {
+    const world = sim.createWorld({ seed: 53, players: 40 });
+    const tab = await deskWith(world, 28);
+    const board = boardWindow(world, tab);
+    tab.click(tab.$('#player-board'));
+    await run(world, 1000);
+    const groupsNow = () => tab.desk().groups.map(g => g.playerIds.slice());
+
+    // Before printing, with no moves by hand, a sign-in still rebuilds by rating.
+    const early = world.players[28].player_id;
+    tab.addPlayer(early);
+    await run(world, 400);
+    assert.ok(!tab.$('.late-badge'), 'no late adds before the sheets print');
+    assert.doesNotMatch(tab.status(), /late add/);
+
+    // The pips under the carousel pick a group.
+    const pips = board.$$('.pips button.pip');
+    assert.equal(pips.length, tab.desk().groups.length, 'one pip button per group');
+    boardClick(board, '.pips button.pip[data-pick="3"]');
+    await run(world, 100);
+    assert.deepEqual(board.$$('.track > .panel h2').slice(0, 2).map(h => h.textContent), ['Group 4', 'Group 5'], 'clicking the fourth pip shows Group 4 with the next beside it');
+    assert.ok(board.$$('.pips .pip')[3].classList.contains('on'));
+    assert.match(board.$('.pip-label').textContent, /Groups 4 & 5/);
+
+    tab.window.cttcPlayerBoard.printed();
+    await run(world, 400);
+    assert.match(board.$('.b-stage').textContent, /Sheets printed/);
+    const printed = groupsNow();
+
+    // Late adds into one group: it grows past the group size and nobody else moves.
+    const late = world.players.slice(29, 40).map(p => p.player_id);
+    const target = (() => {
+      const first = late[0];
+      tab.addPlayer(first);
+      return tab.desk().groups.findIndex(g => g.playerIds.includes(first));
+    })();
+    await run(world, 400);
+    assert.match(tab.status(), /added to Group \d+ as a late add.*Nobody else moved/);
+    const after = groupsNow();
+    printed.forEach((ids, gi) => {
+      const kept = after[gi].filter(id => id !== late[0]);
+      assert.deepEqual(kept, ids, 'Group ' + (gi + 1) + ' keeps exactly its printed players');
+    });
+    assert.equal(after[target].length, printed[target].length + 1);
+    // More late adds: none of them ever bumps a printed player, whatever group their rating lands in.
+    for (const id of late.slice(1, 4)) {
+      tab.addPlayer(id);
+      await run(world, 200);
+    }
+    const crowded = groupsNow();
+    printed.forEach((ids, gi) => ids.forEach(id => assert.ok(crowded[gi].includes(id), 'a printed player never changes table')));
+    assert.equal(crowded.flat().length, 33);
+    const big = crowded.reduce((m, ids) => Math.max(m, ids.length), 0);
+    assert.ok(big >= 7, 'groups grow past the size instead of passing a player down');
+
+    // Labels on the desk and the board.
+    const badges = [...tab.window.document.querySelectorAll('#groups .late-badge')];
+    assert.equal(badges.length, 4, 'each late add has a Late add badge on the desk');
+    assert.ok(badges.every(b => /Late add/.test(b.textContent)));
+    boardClick(board, '[data-set="concept"] [data-value="wall"]');
+    await run(world, 500);
+    const lateRows = board.$$('.wall tr[data-pid]').filter(tr => tr.querySelector('.chip.late'));
+    assert.deepEqual(lateRows.map(tr => tr.getAttribute('data-pid')).sort(), late.slice(0, 4).sort(), 'the board labels the same four');
+    assert.match(board.$('.legend').textContent, /Late add/);
+
+    // A late add moved by hand: only they move, and they glow on the wall.
+    const mover = late[1];
+    const from = groupsNow().findIndex(ids => ids.includes(mover));
+    tab.movePlayer(mover, from === 0 ? 1 : -1);
+    await run(world, 400);
+    assert.ok(board.$$('.wall tr.fresh').some(tr => tr.getAttribute('data-pid') === mover), 'the moved player glows');
+    const moved = groupsNow();
+    printed.forEach((ids, gi) => ids.forEach(id => assert.ok(moved[gi].includes(id))));
+
+    // A removal after printing leaves the gap: nobody is rebuilt.
+    const leaving = printed[0][2];
+    tab.removePlayer(leaving);
+    await run(world, 400);
+    const gone = groupsNow();
+    printed.forEach((ids, gi) => ids.filter(id => id !== leaving).forEach(id => assert.ok(gone[gi].includes(id), 'a removal rebuilds nobody')));
+
+    // Reprinting keeps the labels: they mark who was not on the first sheets.
+    tab.window.cttcPlayerBoard.printed();
+    await run(world, 400);
+    const roster = tab.window.cttcPlayerBoard.printedRoster();
+    late.slice(0, 4).forEach(id => assert.ok(!roster.includes(id), 'still a late add after a reprint'));
+    assert.ok(roster.includes(printed[1][0]));
+    assert.ok(!tab.errors.length, tab.errors.join('\n'));
+    board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);

@@ -76,7 +76,7 @@
 .legend .promo-arrow { color: var(--b-promo); font-weight: 700; font-size: 24px; }
 
 /* Panels */
-.panel { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; height: 100%; background: var(--b-panel); border: 2px solid var(--b-line); border-radius: 14px; overflow: hidden; }
+.panel { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: 0; height: 100%; background: var(--b-panel); border: 2px solid var(--b-line); border-radius: 14px; overflow: hidden; }
 .p-head { display: flex; align-items: baseline; gap: 20px; padding: 18px 28px 14px; border-bottom: 2px solid var(--b-line); background: var(--b-panel-2); }
 .p-head h2 { font-family: var(--font-board); font-weight: 700; font-size: 58px; line-height: 1; letter-spacing: .01em; }
 .p-head .sub { font-family: var(--font-board); font-size: 28px; color: var(--b-dim); letter-spacing: .03em; }
@@ -189,7 +189,15 @@
 .track > .panel { flex: 0 0 calc((100% - 40px) / 2); }
 .track.sliding { transition: transform 1.1s cubic-bezier(.65,0,.35,1); }
 .pips { display: flex; justify-content: center; align-items: center; gap: 14px; }
-.pip { height: 12px; width: 44px; border-radius: 6px; background: var(--b-line); position: relative; overflow: hidden; }
+.pip { height: 12px; width: 44px; border-radius: 6px; background: var(--b-line); position: relative; }
+/* The pips are buttons: a click shows that group. The hit area reaches past the thin bar so a mouse finds it. */
+button.pip { display: block; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
+button.pip::after { content: ""; position: absolute; inset: -12px -7px; }
+button.pip:hover { background: color-mix(in srgb, var(--b-green) 45%, var(--b-line)); }
+button.pip.on:hover { background: var(--b-green); }
+button.pip:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+.track.picked { animation: picked .3s ease-out; }
+@keyframes picked { from { opacity: .35; } to { opacity: 1; } }
 .pip.on { background: color-mix(in srgb, var(--b-ink) 55%, transparent); }
 .pip-label { font-family: var(--font-board); font-size: 22px; color: var(--b-dim); letter-spacing: .06em; text-transform: uppercase; margin-right: 8px; }
 .timer { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--b-line); border-radius: 2px; overflow: hidden; }
@@ -225,6 +233,12 @@
 .wall .status-cols li { font-size: 24px; }
 .wall .status-cols h3 { font-size: 22px; }
 
+/* Wall motion: cards carried to their new place float on this layer above the wall, then hand back to the real row */
+.wall.wall-fx { position: absolute; inset: 0; display: block; pointer-events: none; z-index: 5; }
+.wall-fx .fx-card { position: absolute; margin: 0; flex: none; max-height: none; background: var(--b-panel); border-radius: 8px; box-shadow: 0 12px 28px rgba(0, 0, 0, .28), 0 0 0 2px var(--gold); will-change: transform; animation: none; }
+.wall-fx table.fx-card { border-collapse: collapse; overflow: hidden; }
+.wall-fx table.fx-card tr { animation: none; }
+
 /* Spotlight + names */
 .spot { display: grid; grid-template-columns: 1.6fr 1fr; gap: 40px; height: 100%; min-height: 0; }
 .spot-main { position: relative; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) 34px; gap: 14px; }
@@ -246,6 +260,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .track.sliding { transition-duration: .01s; }
+  .track.picked { animation: none; }
   .fresh, .row.fresh::before, .spot-stage > .panel.enter, .spot-stage > .panel.leave, .ticker .item:first-child, .b-stage.live .dot, .pay.paid.flash-pay { animation-duration: .01s; }
 }
 
@@ -420,6 +435,12 @@
 .trophy-icon { width: 1.05em; height: 1.05em; vertical-align: -.15em; margin-right: .25em; }
 .chip.promo { display: inline-flex; align-items: center; }
 .chip.moved { color: var(--b-green); background: var(--b-lead); }
+/* Signed in after the sheets printed: on no printed sheet */
+.chip.late { color: var(--desk-ink); background: var(--gold-hi); }
+.xt td.nm small .chip.late { font-size: 15px; padding: 0 6px; margin-left: 0; vertical-align: .1em; }
+.st td.nm .chip.late { font-size: .5em; padding: 1px 7px; vertical-align: .25em; margin-left: .3em; }
+.wall .st td.nm .chip.late { font-size: .58em; padding: 0 5px; }
+.legend .chip.late { font-size: 16px; padding: 1px 8px; }
 .push { display: inline-flex; align-items: center; font-family: var(--font-board); font-weight: 700; }
 .push.won { color: var(--b-promo); }
 .push.moved { color: var(--b-green); }
@@ -482,7 +503,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function special() { return !model || !model.panels.length || !!model.finals; }
 
   // ---- Layout A: carousel, two panels at a time, one slides in ----
-  var car = { start: 0, timer: null, sliding: false, want: null };
+  var car = { start: 0, timer: null, slide: null, sliding: false, want: null, seq: 0 };
   function carouselBuild() {
     parts.body.innerHTML = '<div class="carousel"><div class="viewport"><div class="track"></div><div class="timer"><i></i></div></div><div class="pips"></div></div>';
     car.start = 0;
@@ -504,7 +525,26 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var groupPanels = list.filter(function (p) { return /^g\d/.test(p.key); }).length;
     var showing = on.map(function (i) { return list[i]; }).filter(function (p) { return p && /^g\d/.test(p.key); }).map(function (p) { return p.key.slice(1); });
     var where = groupPanels > 2 && showing.length ? '<span class="pip-label">Group' + (showing.length > 1 ? 's ' + showing.join(' & ') : ' ' + showing[0]) + ' of ' + groupPanels + '</span>' : '';
-    parts.body.querySelector('.pips').innerHTML = where + list.map(function (p, i) { return '<span class="pip' + (on.indexOf(i) >= 0 ? ' on' : '') + '"></span>'; }).join('');
+    parts.body.querySelector('.pips').innerHTML = where + (n <= 2 ? list.map(function (p, i) { return '<span class="pip' + (on.indexOf(i) >= 0 ? ' on' : '') + '"></span>'; }).join('') : pipButtons(list, on));
+  }
+  // One bar per panel; clicking one shows that panel (with the next beside it in the carousel) and restarts the timer.
+  function pipName(key) { return /^g\d/.test(key) ? 'Group ' + key.slice(1) : key === 'finals' ? 'Road to the Finals' : key === 'info' ? 'Tonight' : key; }
+  function pipButtons(list, on) {
+    return list.map(function (p, i) { return '<button type="button" class="pip' + (on.indexOf(i) >= 0 ? ' on' : '') + '" data-pick="' + i + '" title="Show ' + pipName(p.key) + '" aria-label="Show ' + pipName(p.key) + '"></button>'; }).join('');
+  }
+  function carouselPick(i) {
+    if (panels(false).length <= 2) return;
+    // A click wins over a slide under way or about to start.
+    car.seq += 1;
+    clearTimeout(car.slide);
+    car.sliding = false;
+    clearTimeout(car.timer);
+    car.want = null;
+    car.start = i;
+    carouselFill();
+    var track = parts.body.querySelector('.track');
+    if (track) { track.classList.remove('picked'); void track.offsetWidth; track.classList.add('picked'); }
+    carouselSchedule();
   }
   function restartBar(bar) {
     bar.style.transition = 'none';
@@ -530,7 +570,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     car.sliding = true;
     track.classList.add('sliding');
     track.style.transform = 'translateX(calc(-50% - 20px))';
-    setTimeout(function () {
+    car.slide = setTimeout(function () {
       car.sliding = false;
       if (S.concept !== 'carousel' || !parts.body.querySelector('.track')) return;
       car.start += 1;
@@ -548,7 +588,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     if (car.sliding) { car.want = key; return; }
     car.start = k - 2;
     carouselFill();
-    requestAnimationFrame(function () { requestAnimationFrame(carouselAdvance); });
+    var seq = car.seq;
+    requestAnimationFrame(function () { requestAnimationFrame(function () { if (seq === car.seq) carouselAdvance(); }); });
   }
 
   // ---- Layout B: wall, every panel at once in at most two rows ----
@@ -557,7 +598,163 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var n = list.length;
     var cols = n <= 2 ? n : n <= 4 ? 2 : Math.ceil(n / 2);
     var rows = Math.ceil(n / cols);
-    parts.body.innerHTML = '<div class="wall' + (cols >= 4 ? ' many' : '') + '" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + list.map(function (p) { return p.html; }).join('') + '</div>';
+    var many = cols >= 4 ? ' many' : '';
+    var html = '<div class="wall wall-grid' + many + '" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));grid-template-rows:repeat(' + rows + ',minmax(0,1fr))">' + list.map(function (p) { return p.html; }).join('') + '</div>';
+    var grid = parts.body.querySelector('.wall-grid');
+    var before = grid && motionOK() ? wallSnapshot(grid) : null;
+    if (grid && parts.body.querySelector('.wall-fx')) {
+      grid.outerHTML = html;
+      parts.body.querySelector('.wall-fx').className = 'wall wall-fx' + many;
+    } else {
+      fx.flying = {};
+      parts.body.innerHTML = html + '<div class="wall wall-fx' + many + '" aria-hidden="true"></div>';
+    }
+    var now = wallCards();
+    if (before) wallMotion(before, now, n);
+    wallHold(now);
+  }
+
+  // ---- Wall motion ----
+  // A player signed in flies in from off the bottom left into their group; a player who changes group (a move at the
+  // desk, or one pushed along by a sign-in) is picked up and carried to their new place while the other cards slide to
+  // make room. The gold glow on those players starts once everything has landed. Only transforms animate (the Web
+  // Animations API, on the compositor); a big reshuffle or reduced motion skips straight to the glow.
+  var fx = { flying: {}, glowAt: {} };
+  var FLY_MS = 760;
+  var CARRY_MS = 640;
+  var SHIFT_MS = 420;
+  var MAX_CARRIED = 10;
+  var GLOW_MS = 7000;
+  function motionOK() {
+    try { return typeof board.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (error) { return false; }
+  }
+  function wallCards() {
+    var out = {};
+    parts.body.querySelectorAll('.wall-grid [data-pid]').forEach(function (el) { out[el.getAttribute('data-pid')] = el; });
+    return out;
+  }
+  function wallSnapshot(grid) {
+    var out = { panels: grid.children.length, cards: {} };
+    var cards = wallCards();
+    Object.keys(cards).forEach(function (pid) {
+      if (fx.flying[pid]) return;
+      var panel = cards[pid].closest('[data-panel]');
+      out.cards[pid] = { r: cards[pid].getBoundingClientRect(), panel: panel ? panel.getAttribute('data-panel') : '' };
+    });
+    return out;
+  }
+  function wallMotion(before, now, panelCount) {
+    var layer = parts.body.querySelector('.wall-fx');
+    if (!layer) return;
+    var scale = board.getBoundingClientRect().width / 1920 || 1;
+    var base = layer.getBoundingClientRect();
+    var edge = board.getBoundingClientRect();
+    var arrivals = [];
+    var carried = [];
+    var shifted = [];
+    var after = {};
+    Object.keys(now).forEach(function (pid) {
+      if (fx.flying[pid]) return;
+      var el = now[pid];
+      var r = el.getBoundingClientRect();
+      if (!r.width) return;
+      var panel = el.closest('[data-panel]');
+      after[pid] = { el: el, r: r };
+      var was = before.cards[pid];
+      if (!was) arrivals.push(pid);
+      else if (was.panel !== (panel ? panel.getAttribute('data-panel') : '')) carried.push(pid);
+      else if (Math.abs(was.r.left - r.left) + Math.abs(was.r.top - r.top) > 1) shifted.push(pid);
+    });
+    // A new group or a big reshuffle moves every card: only the arrivals fly then.
+    if (before.panels !== panelCount || carried.length > MAX_CARRIED) { carried = []; shifted = []; }
+    if (arrivals.length > MAX_CARRIED) arrivals = [];
+    if (!arrivals.length && !carried.length && !shifted.length) return;
+    var carryAt = arrivals.length ? 320 : 0;
+    var shiftAt = carried.length ? carryAt + 140 : arrivals.length ? 300 : 0;
+    var place = function (r) { return { x: (r.left - base.left) / scale, y: (r.top - base.top) / scale, w: r.width / scale, h: r.height / scale }; };
+    var settle = 0;
+    arrivals.forEach(function (pid, k) {
+      var to = place(after[pid].r);
+      var dx = (edge.left - base.left) / scale - to.w - 80 - to.x;
+      var dy = (edge.bottom - base.top) / scale + 40 - to.y;
+      var delay = k * 120;
+      fly(layer, pid, after[pid].el, to, [
+        { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(-9deg) scale(1.1)' },
+        { offset: 0.72, transform: 'translate(0,-16px) rotate(1deg) scale(1.07)' },
+        { transform: 'none' }
+      ], { duration: FLY_MS, delay: delay, easing: 'cubic-bezier(.25,.75,.3,1)', fill: 'backwards' });
+      settle = Math.max(settle, delay + FLY_MS);
+    });
+    carried.forEach(function (pid, k) {
+      var to = place(after[pid].r);
+      var from = place(before.cards[pid].r);
+      var dx = from.x - to.x;
+      var dy = from.y - to.y;
+      var delay = carryAt + k * 70;
+      fly(layer, pid, after[pid].el, to, [
+        { transform: 'translate(' + dx + 'px,' + dy + 'px)' },
+        { offset: 0.16, transform: 'translate(' + dx + 'px,' + (dy - 8) + 'px) scale(1.07)' },
+        { offset: 0.84, transform: 'translate(0,-8px) scale(1.07)' },
+        { transform: 'none' }
+      ], { duration: CARRY_MS, delay: delay, easing: 'ease-in-out', fill: 'backwards' });
+      settle = Math.max(settle, delay + CARRY_MS);
+    });
+    shifted.forEach(function (pid) {
+      var was = before.cards[pid].r;
+      var r = after[pid].r;
+      after[pid].el.animate([{ transform: 'translate(' + (was.left - r.left) / scale + 'px,' + (was.top - r.top) / scale + 'px)' }, { transform: 'none' }], { duration: SHIFT_MS, delay: shiftAt, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'backwards' });
+      settle = Math.max(settle, shiftAt + SHIFT_MS);
+    });
+    var glowAt = Date.now() + settle;
+    arrivals.concat(carried).forEach(function (pid) { fx.glowAt[pid] = glowAt; });
+  }
+  // A copy of the card rides on the layer to the card's new place; the card itself stays hidden until it lands.
+  function fly(layer, pid, el, to, frames, timing) {
+    var card;
+    if (el.tagName === 'TR') {
+      var table = el.closest('table');
+      card = table.cloneNode(false);
+      var cols = table.querySelector('colgroup');
+      if (cols) card.appendChild(cols.cloneNode(true));
+      var body = document.createElement('tbody');
+      body.appendChild(el.cloneNode(true));
+      card.appendChild(body);
+    } else card = el.cloneNode(true);
+    card.classList.remove('fresh');
+    card.classList.add('fx-card');
+    card.style.cssText += ';left:' + to.x + 'px;top:' + to.y + 'px;width:' + to.w + 'px' + (el.tagName === 'TR' ? '' : ';height:' + to.h + 'px');
+    layer.appendChild(card);
+    fx.flying[pid] = true;
+    hide(el, true);
+    var done = function () {
+      delete fx.flying[pid];
+      if (card.parentNode) card.parentNode.removeChild(card);
+      var real = wallCards()[pid];
+      if (real) hide(real, false);
+    };
+    var a = card.animate(frames, timing);
+    a.onfinish = done;
+    a.oncancel = done;
+  }
+  // Opacity as well as visibility: a table row's glow ring still paints when only its visibility is hidden.
+  function hide(el, on) {
+    el.style.visibility = on ? 'hidden' : '';
+    el.style.opacity = on ? '0' : '';
+  }
+  // Re-drawn while cards are still in the air: keep the real ones hidden, and hold each landed player's glow to its
+  // landing time (the desk sends the glow from when the change happened).
+  function wallHold(cards) {
+    var now = Date.now();
+    Object.keys(fx.flying).forEach(function (pid) { if (cards[pid]) hide(cards[pid], true); });
+    Object.keys(fx.glowAt).forEach(function (pid) {
+      var wait = fx.glowAt[pid] - now;
+      if (wait < -GLOW_MS) { delete fx.glowAt[pid]; return; }
+      var el = cards[pid];
+      if (!el || !el.classList.contains('fresh')) return;
+      el.style.animationDelay = wait + 'ms';
+      // Until it starts, no glow at all (not the first frame held, as "both" would).
+      el.style.animationFillMode = 'forwards';
+    });
   }
 
   // ---- Layout C: one panel large beside the A–Z list ----
@@ -581,7 +778,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
       stage.insertAdjacentHTML('beforeend', current);
       setTimeout(function () { if (old.parentNode) old.parentNode.removeChild(old); }, 700);
     } else stage.innerHTML = current;
-    parts.body.querySelector('.spot-main .pips').innerHTML = list.map(function (p, i) { return '<span class="pip' + (i === spot.i ? ' on' : '') + '"></span>'; }).join('');
+    parts.body.querySelector('.spot-main .pips').innerHTML = list.length > 1 ? pipButtons(list, [spot.i]) : '';
     parts.body.querySelector('.spot-index').outerHTML = '<div class="spot-index" style="display:grid;min-height:0">' + indexHTML() + '</div>';
   }
   function spotSchedule() {
@@ -596,6 +793,19 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
       spotSchedule();
     }, S.secs * 1000);
   }
+  function spotPick(i) {
+    if (i === spot.i) { spotSchedule(); return; }
+    spot.i = i;
+    spotFill(true);
+    spotSchedule();
+  }
+  parts.body.addEventListener('click', function (event) {
+    var pip = event.target.closest('.pip[data-pick]');
+    if (!pip) return;
+    var i = Number(pip.getAttribute('data-pick'));
+    if (S.concept === 'carousel') carouselPick(i);
+    else if (S.concept === 'spot') spotPick(i);
+  });
   function spotShow(key) {
     var k = panels(false).map(function (p) { return p.key; }).indexOf(key);
     if (k < 0 || k === spot.i) return;
@@ -634,6 +844,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     clearTimeout(spot.timer);
     car.sliding = false;
     car.want = null;
+    clearTimeout(car.slide);
+    car.seq += 1;
   }
   function layoutBuild() {
     if (S.concept === 'carousel') carouselBuild();
@@ -658,6 +870,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   }
   function rebuild() {
     stopTimers();
+    fx.flying = {};
+    fx.glowAt = {};
     parts.body.innerHTML = '';
     render();
   }
@@ -764,6 +978,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   var VERSION = 1;
   var PRINT_KEY = 'cttc-player-board-printed-v1';
   var FRESH_MS = 7000;
+  // The wall starts a moved card's glow when it lands (up to about 1.5 s later), so the class stays on a little longer.
+  var FRESH_KEEP_MS = FRESH_MS + 2500;
   var button = document.getElementById('player-board');
   var win = null;
   var timer = null;
@@ -813,7 +1029,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var t = fresh[key];
     if (!t) return { cls: '', attr: '' };
     var age = Date.now() - t;
-    if (age > FRESH_MS) { delete fresh[key]; return { cls: '', attr: '' }; }
+    if (age > FRESH_KEEP_MS) { delete fresh[key]; return { cls: '', attr: '' }; }
     return { cls: ' fresh', attr: ' style="animation-delay:-' + age + 'ms"' };
   }
   function popped(id) {
@@ -849,10 +1065,16 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     if (!push) return '';
     return push.why === 'won' ? '<span class="chip promo">Won ' + esc(push.group) + ' last time</span>' : '<span class="chip moved">Moved up</span>';
   }
-  function playerRow(p, seat, push) {
+  // Signed in after the round robin sheets first printed: on no printed sheet, placed by hand at the desk.
+  function lateChip(late) { return late ? ' <span class="chip late" title="Signed in after the sheets printed">Late add</span>' : ''; }
+  function lateOf(d) {
+    var first = printedRoster(d);
+    return function (id) { return !!first && first.indexOf(id) < 0; };
+  }
+  function playerRow(p, seat, push, late) {
     var g = glow('p:' + p.id);
-    var tags = pushTag(push) + (p.first ? '<span class="chip first">1st visit · welcome!</span>' : '');
-    return '<li class="row' + g.cls + '"' + g.attr + '><span class="seat">' + seat + '</span><span class="who"><span class="name">' + esc(p.name) + pushMark(push) + '</span><span class="tags">' + tags + '</span></span><span class="rating">' + p.rating + '</span>' + payBox(p) + '</li>';
+    var tags = pushTag(push) + (late ? '<span class="chip late">Late add</span>' : '') + (p.first ? '<span class="chip first">1st visit · welcome!</span>' : '');
+    return '<li class="row' + g.cls + '" data-pid="' + esc(p.id) + '"' + g.attr + '><span class="seat">' + seat + '</span><span class="who"><span class="name">' + esc(p.name) + pushMark(push) + '</span><span class="tags">' + tags + '</span></span><span class="rating">' + p.rating + '</span>' + payBox(p) + '</li>';
   }
 
   // ---- Round robin ----
@@ -897,10 +1119,11 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     return { entries: entries, rows: rows, order: order, played: played, total: entries.length, finished: table.finished, winnerId: table.winnerId, round: open.length ? Math.min.apply(null, open.map(function (e) { return e.round; })) : null, rounds: n % 2 ? n : n - 1 };
   }
   function rrSignin(d, push, changed) {
+    var late = lateOf(d);
     return d.groups.map(function (g, gi) {
       var ps = g.playerIds.map(d.info);
       var head = function (small) { return '<h2>Group ' + g.groupNumber + '</h2>' + (changed[g.groupNumber] ? stale(small) : '') + '<span class="sub">' + (ps.length ? ps[0].rating + '–' + ps[ps.length - 1].rating : '') + '</span><span class="right"><b>' + ps.length + '</b> players</span>'; };
-      var rows = '<ol class="rows">' + ps.map(function (p, i) { return playerRow(p, i + 1, push[p.id]); }).join('') + '</ol>';
+      var rows = '<ol class="rows">' + ps.map(function (p, i) { return playerRow(p, i + 1, push[p.id], late(p.id)); }).join('') + '</ol>';
       return { key: 'g' + g.groupNumber, big: panel('g' + g.groupNumber, head(false), rows), small: panel('g' + g.groupNumber, head(true), rows) };
     });
   }
@@ -913,6 +1136,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     return { text: mine + '–' + theirs, won: O.matchWinner(m) === id };
   }
   function rrScores(d, push, changed, final) {
+    var late = lateOf(d);
     return d.groups.map(function (g) {
       var t = rrTable(d, g);
       var ids = g.playerIds;
@@ -924,7 +1148,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
       // Wall: a standings table in ranking order
       var srows = t.order.map(function (id, i) {
         var r = t.rows[id];
-        return '<tr' + (lead(id) ? ' class="lead"' : '') + '><td class="pos">' + (t.played ? i + 1 : '–') + '</td><td class="nm">' + esc(d.info(id).name) + pushMark(push[id]) + '</td><td>' + r.wins + '–' + r.losses + '</td><td>' + r.gamesWon + '–' + r.gamesLost + '</td></tr>';
+        var gl = glow('p:' + id);
+        return '<tr class="' + (lead(id) ? 'lead' : '') + gl.cls + '" data-pid="' + esc(id) + '"' + gl.attr + '><td class="pos">' + (t.played ? i + 1 : '–') + '</td><td class="nm">' + esc(d.info(id).name) + pushMark(push[id]) + lateChip(late(id)) + '</td><td>' + r.wins + '–' + r.losses + '</td><td>' + r.gamesWon + '–' + r.gamesLost + '</td></tr>';
       }).join('');
       var small = '<table class="st" style="--st-h:' + Math.min(52, Math.floor(280 / Math.max(1, ids.length))) + 'px"><colgroup><col style="width:44px"><col><col style="width:80px"><col style="width:90px"></colgroup><thead><tr><th></th><th>Player</th><th>W–L</th><th>Games</th></tr></thead><tbody>' + srows + '</tbody></table>';
       // Carousel and spotlight: the printed sheet's grid, filling in
@@ -942,7 +1167,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
           var gl = glow('m:' + pairKey(id, other));
           return '<td class="cell ' + (c.won ? 'w' : 'l') + gl.cls + '"' + gl.attr + '>' + c.text + '</td>';
         }).join('');
-        return '<tr' + (lead(id) ? ' class="lead"' : '') + '><td class="pos">' + (i + 1) + '</td><td class="nm">' + (lead(id) ? '<span class="trophy">🏆</span> ' : '') + esc(p.name) + pushMark(push[id]) + '<small class="rating">' + p.rating + '</small></td>' + cells + '<td class="wl">' + r.wins + '–' + r.losses + '</td><td class="pos">' + (t.played ? place[id] : '–') + '</td></tr>';
+        var gl = glow('p:' + id);
+        return '<tr' + (lead(id) ? ' class="lead"' : '') + ' data-pid="' + esc(id) + '"><td class="pos">' + (i + 1) + '</td><td class="nm' + gl.cls + '"' + gl.attr + '>' + (lead(id) ? '<span class="trophy">🏆</span> ' : '') + esc(p.name) + pushMark(push[id]) + (late(id) ? '<small><span class="rating">' + p.rating + '</span>' + lateChip(true) + '</small>' : '<small class="rating">' + p.rating + '</small>') + '</td>' + cells + '<td class="wl">' + r.wins + '–' + r.losses + '</td><td class="pos">' + (t.played ? place[id] : '–') + '</td></tr>';
       }).join('');
       var foot = t.finished ? 'Group decided' : 'Same grid as the printed sheet · fills in as the desk enters scores';
       var big = '<table class="xt" style="--xt-h:' + Math.min(96, Math.floor(560 / Math.max(1, ids.length))) + 'px">' + cols + '<thead>' + headRow + '</thead><tbody>' + body + '</tbody></table><p class="p-foot">' + foot + '</p>';
@@ -1302,7 +1528,9 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
       '<div class="b-stage' + (live ? ' live' : '') + '"><span class="dot"></span>' + pill + '</div>' +
       '<div class="b-count"><span class="num' + flipping + '">' + count + '</span><span>' + label + '</span><span class="b-clock" id="b-clock"></span></div>';
     var items = log.slice(0, 3).map(function (e) { return '<span class="item"><span class="when" data-t="' + e.t + '"></span><span>' + e.html + '</span></span>'; }).join('');
-    var legend = '<div class="legend"><span class="pay-key"><span class="pay paid">✓</span>payment recorded</span><span class="pay-key"><span class="pay">✓</span>not yet: see the desk</span>' + (rr ? '<span><span class="push won">' + TROPHY + '</span>won their group last time</span><span><span class="push moved">▲</span>moved up</span>' : '') + '</div>';
+    var isLate = rr ? lateOf(d) : null;
+    var lateHere = rr && groups.some(function (ids) { return ids.some(isLate); });
+    var legend = '<div class="legend"><span class="pay-key"><span class="pay paid">✓</span>payment recorded</span><span class="pay-key"><span class="pay">✓</span>not yet: see the desk</span>' + (rr ? '<span><span class="push won">' + TROPHY + '</span>won their group last time</span><span><span class="push moved">▲</span>moved up</span>' : '') + (lateHere ? '<span><span class="chip late">Late add</span>after the sheets printed</span>' : '') + '</div>';
     var foot = '<div class="ticker">' + (items || '<span class="idle">Watching the desk…</span>') + '</div>' + legend;
     var empty = '<div class="empty-board">No players yet<small>Names appear here as the desk signs players in.</small></div>';
     return {
@@ -1378,9 +1606,16 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var d = data();
     if (!d) return;
     var all = readPrints();
-    all[d.key] = d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groupArrays(d) };
+    var groups = d.event === 'equalizer' ? null : groupArrays(d);
+    all[d.key] = d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groups, first: printedRoster(d) || flat(groups) };
     writePrints(all);
     changed();
+  }
+  function flat(groups) { return groups.reduce(function (all, ids) { return all.concat(ids); }, []); }
+  // Who was on the round robin sheets when they first printed on this device (reprints keep it), or null before.
+  function printedRoster(d) {
+    if (!d || d.event === 'equalizer' || !d.printed || !d.printed.groups) return null;
+    return d.printed.first || flat(d.printed.groups);
   }
   function printNote() {
     var d = data();
@@ -1392,6 +1627,6 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     return list + ' changed since this device last printed: ' + (numbers.length === 1 ? 'that is the sheet' : 'those are the sheets') + ' to replace.';
   }
 
-  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, build: build };
+  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, build: build };
 })();
 </script>
