@@ -109,6 +109,10 @@ var POSITIONS = [
 // Table/barrier setup that night (the general opening help; the one opening position its holder has that night), and the
 // hourly sweep writes the change to the Sheet (retireBackups_).
 var RETIRED_POSITIONS = { 'desk-backup': 'tables', 'money-backup': 'tables' };
+// What the retired positions were called, for the one-time note to the people moved (backupNotice_).
+var RETIRED_LABELS = { 'desk-backup': 'Desk organizer backup', 'money-backup': 'Money collector backup' };
+// Script property set when that note was sent, so it goes out once.
+var BACKUP_NOTICE_KEY = 'BACKUP_NOTICE_SENT';
 
 // Two positions the same person may not hold on the same night: the same part (opening or closing), unless alsoWith pairs them.
 function clash_(a, b) {
@@ -388,6 +392,27 @@ function ownerSetup_(params) {
         }
       }
       lines.push('<p><a href="' + esc_(base + '&import=answers') + '">Back to the list</a></p>');
+    } else if (params.notice === 'backups' || params.notice === 'backups-send') {
+      // The one-time note to the volunteers moved off the retired backup spots: a preview, then Send (once).
+      var noticeSent = properties.getProperty(BACKUP_NOTICE_KEY);
+      if (params.notice === 'backups-send') {
+        var done = sendBackupNotice_(Date.now());
+        lines.push(done.already ? '<p>The note already went out (' + esc_(done.already) + '), so nothing was sent again.</p>' :
+          '<p>&#10003; Sent the note to ' + esc_(done.sent) + ' ' + (done.sent === 1 ? 'person' : 'people') + '.</p>');
+      } else {
+        var moved = formerBackups_(Date.now());
+        lines.push('<h2 style="font-size:1.05rem">Note to the volunteers moved off the backup spots</h2>');
+        if (noticeSent) lines.push('<p>It already went out (' + esc_(noticeSent) + '). It is sent only once.</p>');
+        if (!moved.length) lines.push('<p>Nobody has an upcoming night that was a backup spot.</p>');
+        else {
+          lines.push('<p>' + (noticeSent ? 'They were' : 'Send would email') + ' ' + moved.length + ' ' + (moved.length === 1 ? 'person' : 'people') + ', one email each:</p><ul>' + moved.map(function (person) {
+            return '<li><strong>' + esc_(firstName_(person.name)) + '</strong> (' + esc_(maskEmail_(person.email)) + '): was ' + esc_(person.was) + ', now Table/barrier setup on ' +
+              esc_(person.entries.length) + ' ' + (person.entries.length === 1 ? 'night' : 'nights') + ', ' + esc_(shortDay_(person.entries[0].date)) + ' to ' +
+              esc_(shortDay_(person.entries[person.entries.length - 1].date)) + '</li>';
+          }).join('') + '</ul>');
+          if (!noticeSent) lines.push(button(base + '&notice=backups-send', 'Send the note to ' + (moved.length === 1 ? 'this person' : 'these ' + moved.length + ' people')));
+        }
+      }
     } else if (params['import'] === 'members') {
       var members = importMemberEmails();
       lines.push('<p>&#10003; Membership emails imported: ' + esc_(JSON.stringify(members)) + '</p>');
@@ -481,6 +506,68 @@ function rows_(name) {
     }
     return entry;
   }).filter(function (entry) { return entry[headers[0]]; });
+}
+
+// The people moved from a retired backup to table/barrier setup, with their upcoming nights there (held: pending or
+// confirmed), for a one-time note. Found from the data, never from names: those spots came from the open/close list import,
+// whose seed_key is made from the date, the position at the time and the player (importSeed_), so recomputing it with each
+// retired position shows which table setup sign-ups were backups. [{ name, email, was, entries }], by first night.
+function formerBackups_(now) {
+  var today = pacificNow_().date;
+  var emails = rows_('Emails');
+  var people = {};
+  rows_('Signups').forEach(function (entry) {
+    if (entry.position !== 'tables' || !entry.seed_key || !entry.player_id || entry.date < today || !holds_(entry, now)) return;
+    var was = Object.keys(RETIRED_POSITIONS).filter(function (id) { return code_('seed:' + entry.date + ':' + id + ':' + entry.player_id) === entry.seed_key; })[0];
+    if (!was) return;
+    var person = people[entry.player_id] || (people[entry.player_id] = { name: entry.name, email: contactOf_(entry, emails), was: RETIRED_LABELS[was], entries: [] });
+    person.entries.push(entry);
+  });
+  return Object.keys(people).map(function (id) {
+    var person = people[id];
+    person.entries.sort(function (a, b) { return a.date.localeCompare(b.date); });
+    return person;
+  }).sort(function (a, b) { return a.entries[0].date.localeCompare(b.entries[0].date); });
+}
+
+// The one-time note to someone moved off a retired backup.
+function backupNoticeMail_(person) {
+  return {
+    subject: 'Your CTTC volunteer role has changed',
+    lines: ['Hello ' + firstName_(person.name) + ',',
+      { callout: 'We have simplified the volunteer roles: the desk organizer and money collector **backup** spots are retired. You were signed up as **' +
+        person.was + '**, so you are now on **Table/barrier setup** on the same ' + (person.entries.length === 1 ? 'night' : 'nights') + '.', tone: 'good' },
+      shiftRows_(person.entries),
+      'Table/barrier setup arrives by 6:45 PM (2:45 PM on Saturdays) and brings out the barriers, tables and nets. Nothing else changes.',
+      'If table setup does not suit you on a night, untick it on your nights page and tap Save: ' + mineLink_(person.email),
+      'Thank you for volunteering!']
+  };
+}
+
+// Sends the note once to everyone moved (the owner presses Send on the setup page). Returns { sent, at } or
+// { already: when } if it went out before. Nothing is sent when the daily email allowance is low.
+function sendBackupNotice_(now) {
+  var properties = PropertiesService.getScriptProperties();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var already = properties.getProperty(BACKUP_NOTICE_KEY);
+    if (already) return { already: already };
+    var people = formerBackups_(now);
+    if (!mailAvailable_()) throw new Error('the daily email allowance is nearly used up; try again tomorrow');
+    var sent = 0;
+    people.forEach(function (person) {
+      var mail = backupNoticeMail_(person);
+      sendMail_(person.email, mail.subject, mail.lines, ['backup-notice', person.entries[0].signup_id]);
+      sent += 1;
+    });
+    var at = nowIso_();
+    properties.setProperty(BACKUP_NOTICE_KEY, at);
+    logRow_('step', 'step:backup-notice', '-', '-', sent + ' ' + (sent === 1 ? 'person' : 'people') + ' told they moved to ' + position_('tables').label);
+    return { sent: sent, at: at };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Call while holding the lock. Writes the new position of every sign-up still saved under a retired backup (rows_ already
