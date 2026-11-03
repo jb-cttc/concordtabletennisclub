@@ -1060,6 +1060,41 @@ const seedCheck = () => {
   assert.equal(seeded('eve.stone@example.com').length, 13, 'Eve: her email from the coaching Sheet');
   assert.ok(seeded('eve.stone@example.com').every(line => cell('Signups', line, 'status') === 'pending' && cell('Signups', line, 'position') === 'money'));
   assert.equal(signupsOf('susan.lake@example.com').filter(line => cell('Signups', line, 'seed_key') && cell('Signups', line, 'position') === 'tables').length, 12, 'Susan, the second name under Open, is held for table/barrier setup on every Monday');
+  {
+    // The one-time note to people moved off a retired backup. Make Susan's first 3 Mondays look as the old import saved them
+    // (a desk organizer backup, its seed_key made with that position), as retireBackups_ found them.
+    const susans = signupsOf('susan.lake@example.com').filter(line => cell('Signups', line, 'seed_key')).sort((a, b) => cell('Signups', a, 'date').localeCompare(cell('Signups', b, 'date'))).slice(0, 3);
+    susans.forEach(line => {
+      line[column('Signups', 'position')] = 'desk-backup';
+      line[column('Signups', 'seed_key')] = context.code_('seed:' + cell('Signups', line, 'date') + ':desk-backup:' + cell('Signups', line, 'player_id'));
+    });
+    const moved = context.formerBackups_(clock);
+    assert.deepEqual(moved.map(person => [person.name, person.was, person.entries.length]), [['Susan Lake', 'Desk organizer backup', 3]], 'found from the import key, not names: Ada\'s own setup nights are not backups');
+    let setupPage = context.doGet({ parameter: { setup: '', notice: 'backups' } }).getContent();
+    assert.match(setupPage, /Send would email 1 person[\s\S]*<strong>Susan<\/strong> \(s\u2022\u2022\u2022@example\.com\): was Desk organizer backup, now Table\/barrier setup on 3 nights/, 'a preview first: first name and masked email only');
+    assert.match(setupPage, /notice=backups-send/);
+    const before = sent.length;
+    assert.equal(sent.length, before, 'the preview sends nothing');
+    setupPage = context.doGet({ parameter: { setup: '', notice: 'backups-send' } }).getContent();
+    assert.match(setupPage, /Sent the note to 1 person/);
+    const note = sent.slice(before);
+    assert.deepEqual(note.map(message => [message.to, message.subject]), [['susan.lake@example.com', 'Your CTTC volunteer role has changed']]);
+    assert.match(note[0].body, /^Hello Susan,\n\nWe have simplified the volunteer roles: the desk organizer and money collector backup spots are retired\. You were signed up as Desk organizer backup, so you are now on Table\/barrier setup on the same nights\./);
+    assert.match(note[0].body, /Mon, [A-Z][a-z]+ \d+: Table\/barrier setup \(opening, 7:00 PM\)/, 'lists the nights');
+    assert.match(note[0].body, /untick it on your nights page and tap Save: https:\/\/concordtabletennisclub\.com\/\?mine=[0-9A-F]{20}/);
+    assert.match(note[0].htmlBody, /<strong>Desk organizer backup<\/strong>/);
+    assert.doesNotMatch(JSON.stringify(grids.Log), /susan|Lake/i, 'the log holds no name or address');
+    assert.ok(grids.Log.some(line => String(line[2]).includes('step:backup-notice') && String(line[5]).includes('1 person told')), 'logged');
+    setupPage = context.doGet({ parameter: { setup: '', notice: 'backups-send' } }).getContent();
+    assert.match(setupPage, /already went out/);
+    assert.equal(sent.length, before + 1, 'sent once: a second Send emails nobody');
+    assert.match(context.doGet({ parameter: { setup: '', notice: 'backups' } }).getContent(), /It already went out/);
+    // Put Susan's Mondays back as this version's import made them.
+    susans.forEach(line => {
+      line[column('Signups', 'position')] = 'tables';
+      line[column('Signups', 'seed_key')] = context.code_('seed:' + cell('Signups', line, 'date') + ':tables:' + cell('Signups', line, 'player_id'));
+    });
+  }
   // Already emailed and still waiting: listed on the preview, and one tap re-sends the current email with a fresh deadline.
   let page = context.doGet({ parameter: { setup: '', import: 'preview' } }).getContent();
   assert.doesNotMatch(page, /Re-send:/, 'just emailed: not offered again within the hour');

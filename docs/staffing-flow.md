@@ -74,8 +74,15 @@ read as **Table/barrier setup** that night (the general opening help; it was
 already that person's one opening position, so it never clashes), keeps its
 status, and the hourly sweep writes the change to the Sheet once and logs
 `step:backups-retired` with the count (`RETIRED_POSITIONS`, `retireBackups_`).
-Nobody is emailed about it; their reminder and My nights page name the new
-position.
+Their reminder and My nights page name the new position, and a one-time note
+tells them: on the setup page, `/dev?setup&notice=backups` previews who would
+get it (first name, masked email, which backup, how many nights) and its Send
+button emails each person once (*Your CTTC volunteer role has changed*, listing
+their nights). The people are found from the data, not names: those spots came
+from the open/close list import, whose `seed_key` was made with the backup
+position, so `formerBackups_` recomputes it for each table setup sign-up. The
+script property `BACKUP_NOTICE_SENT` records when it went out, and a second Send
+emails nobody; the Log tab gets `step:backup-notice` with the count.
 
 **Share to WhatsApp.** Each open night's panel has a *Share to WhatsApp*
 button. It opens WhatsApp with a message already typed: the night, what is
