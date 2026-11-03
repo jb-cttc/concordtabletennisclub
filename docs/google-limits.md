@@ -38,6 +38,18 @@ The desk shares the round robin's sheets-printed mark (`saveSessionPrint`): one
 page call per print, and the mark rides along with the desk's existing
 `getAppState` load and refresh, so it adds no calls, only the settings read above.
 
+**Follow mode** (a second computer's Player board following the main desk) runs
+only while someone ticks *Follow the main desk* on that board. The saves the
+desk already makes also set a tiny change stamp in the script cache (sessions,
+payments, the Equalizer; `touchDesk_` in `SessionIds.js`). The following desk
+asks for the stamps (`getDeskStamps`, a cache read: no Sheet, Gmail or settings
+reads) every 10 seconds, once a minute after 20 quiet minutes: about 360 page
+calls an hour at most, none of which count toward timer run time. It reads the
+night (`getAppState`, or payments without the Zeffy mail) only when a stamp
+moved, about once per change at the main desk. It ends when the night is
+finalized or after 6 hours, and logs its checks and reads to the desk log
+(`follow_mode`) every 30 minutes and when it ends.
+
 ## Scheduled jobs
 
 Google can repeat a timer only at a fixed rate (1, 5, 10, 15 or 30 minutes, or

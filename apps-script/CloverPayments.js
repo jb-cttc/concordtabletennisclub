@@ -707,7 +707,7 @@ function cloverDeskState_(sessionDate, payments, config) {
   });
   if (config.enabled && cloverRecent_(sessionDate)) {
     var fresh = rows.filter(function (row) { return row.state === 'matched'; });
-    if (fresh.length) cloverRecord_(sessionDate, fresh);
+    if (fresh.length) { cloverRecord_(sessionDate, fresh); touchDesk_('p', sessionDate); }
   } else if (config.enabled) {
     // An earlier night is never changed by itself: its matches wait, ticked, for the organizer to confirm.
     rows.forEach(function (row) {

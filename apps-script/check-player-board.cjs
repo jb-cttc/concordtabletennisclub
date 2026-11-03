@@ -371,6 +371,79 @@ const cases = {
     board.close();
   },
 
+  // Follow mode: a second computer's board follows the main desk, checking the change stamps every 10 seconds only
+  // while Follow the main desk is ticked, and reading the night only when something changed there.
+  async followMode() {
+    const world = sim.createWorld({ seed: 67, players: 40 });
+    const main = await deskWith(world, 24);
+    await run(world, 15000);
+    const projector = world.device().open();
+    await run(world, 15000);
+    const board = boardWindow(world, projector);
+    projector.click(projector.$('#player-board'));
+    await run(world, 1000);
+    const calls = (name, tab, since) => world.traffic.filter(log => log.name === name && log.tab === tab && log.sentAt >= since);
+    const tick = selector => { const box = board.$(selector); box.checked = !box.checked; box.dispatchEvent(new board.w.Event('change', { bubbles: true })); };
+
+    // Off by default: an open board on the second computer adds no checks.
+    let since = world.clock.now();
+    await run(world, 60000);
+    assert.equal(calls('getDeskStamps', projector, since).length, 0, 'no checks until follow mode is turned on');
+
+    boardClick(board, '[data-set="concept"] [data-value="wall"]');
+    tick('#bc-follow');
+    await run(world, 3000);
+    assert.ok(!projector.$('#follow-bar').hidden, 'the desk says it is following');
+    assert.ok(projector.$('.workspace').classList.contains('following'));
+    assert.equal(board.$('#bc-follow-note').textContent, 'Following');
+
+    // A sign-in on the main desk reaches the projector board within a check or two.
+    const late = world.players[24].player_id;
+    main.addPlayer(late);
+    await run(world, 22000);
+    assert.equal(board.$('.b-count .num').textContent, '25', 'the projector board counts the new sign-in');
+    assert.ok(board.text().includes(nameOf(world, late)));
+    assert.match(board.$('.ticker').textContent, new RegExp(nameOf(world, late) + ' signed in'));
+
+    // A payment on the main desk: the check turns green there too, read without going to Gmail.
+    since = world.clock.now();
+    main.pay(late, 'cash');
+    await run(world, 22000);
+    const row = board.$$('.wall .row').find(r => r.getAttribute('data-pid') === late);
+    assert.ok(row && row.querySelector('.pay.paid'), 'the payment check follows');
+    const paymentReads = calls('getPrivatePaymentOverview', projector, since);
+    assert.ok(paymentReads.length >= 1 && paymentReads.every(log => log.args[1] && log.args[1].skipMailbox), 'payments are read without the Zeffy mail');
+
+    // A quiet minute: six tiny checks, no reads of the night.
+    since = world.clock.now();
+    await run(world, 60000);
+    const quiet = calls('getDeskStamps', projector, since).length;
+    assert.ok(quiet >= 5 && quiet <= 7, 'about one check every 10 seconds: ' + quiet);
+    assert.equal(calls('getAppState', projector, since).length, 0, 'nothing changed, nothing read');
+    assert.equal(calls('getPrivatePaymentOverview', projector, since).length, 0);
+
+    // Editing is off on the following desk.
+    assert.equal(projector.window.cttcDesk.add(world.players[30].player_id), false);
+
+    // After 20 quiet minutes it checks once a minute.
+    await run(world, 20 * 60000);
+    since = world.clock.now();
+    await run(world, 5 * 60000);
+    const idle = calls('getDeskStamps', projector, since).length;
+    assert.ok(idle >= 4 && idle <= 6, 'once a minute when quiet: ' + idle);
+
+    // Unticked: the checks stop, the desk can edit again, and usage went to the desk log.
+    tick('#bc-follow');
+    await run(world, 1000);
+    assert.ok(projector.$('#follow-bar').hidden);
+    since = world.clock.now();
+    await run(world, 120000);
+    assert.equal(calls('getDeskStamps', projector, since).length, 0, 'no checks after follow mode is off');
+    assert.ok(calls('logFollowMode', projector, 0).length >= 1, 'usage is logged');
+    [main, projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);

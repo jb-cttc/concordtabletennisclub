@@ -123,6 +123,7 @@ function setFirstVisit(sessionDate, playerId, firstVisit) {
     if (matches.length) updateRow_('FirstVisits', matches[0].__row, { first_visit: firstVisit, updated_at: new Date() });
     else appendObjects_('FirstVisits', [{ session_date: sessionDate, player_id: playerId, first_visit: firstVisit, updated_at: new Date() }]);
     appendAudit_('first_visit_updated', 'session', 'session-' + sessionDate, { playerId: playerId, firstVisit: firstVisit });
+    touchDesk_('p', sessionDate);
     return firstVisitIdsOn_(sessionDate);
   } finally {
     lock.releaseLock();

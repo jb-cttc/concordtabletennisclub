@@ -240,7 +240,7 @@ function createServer(clock, options) {
       flush: () => {},
       getUi: () => { throw new Error('No UI in the simulator'); }
     },
-    CacheService: { getScriptCache: () => ({ get: key => (cache.has(key) ? cache.get(key) : null), put: (key, value) => { cache.set(key, value); }, remove: key => { cache.delete(key); } }) },
+    CacheService: { getScriptCache: () => ({ get: key => (cache.has(key) ? cache.get(key) : null), put: (key, value) => { cache.set(key, value); }, remove: key => { cache.delete(key); }, getAll: keys => { const out = {}; keys.forEach(key => { if (cache.has(key)) out[key] = cache.get(key); }); return out; } }) },
     LockService: { getScriptLock: () => lock, getDocumentLock: () => ({ waitLock() {}, tryLock: () => true, hasLock: () => true, releaseLock() {} }) },
     PropertiesService: {
       getScriptProperties: () => propertyStore(properties),
@@ -517,7 +517,7 @@ function send(window, tab, name, args, success, failure) {
   const world = tab.world;
   const clock = world.clock;
   const net = tab.device.net;
-  const log = { tab, name, sentAt: clock.now(), outcome: 'pending' };
+  const log = { tab, name, args, sentAt: clock.now(), outcome: 'pending' };
   world.traffic.push(log);
   const fail = message => {
     log.outcome = 'failed';

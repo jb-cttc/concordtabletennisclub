@@ -95,6 +95,7 @@ function createSession(sessionDate) {
       finalized_at: ''
     }]);
     appendAudit_('session_created', 'session', sessionId, { date: sessionDate });
+    touchDeskSession_(sessionId);
     return getSession(sessionId);
   } finally {
     lock.releaseLock();
@@ -198,6 +199,7 @@ function saveSessionPrint(sessionId, mark) {
   var text = JSON.stringify(clean);
   if (text.length > 8000) throw new Error('Print mark: too many players to keep.');
   properties.setProperty(key, text);
+  touchDeskSession_(sessionId);
   // Keep only recent nights' marks.
   var cutoff = Utilities.formatDate(new Date(Date.now() - PRINT_KEEP_DAYS_ * 86400000), 'America/Los_Angeles', 'yyyy-MM-dd');
   Object.keys(properties.getProperties()).forEach(function (name) {
@@ -281,6 +283,7 @@ function saveSessionDraft(payload) {
     updateRow_('Sessions', session.__row, changes);
     // lockMs is the wait for other desk work; ms is the whole save. Both show in the AuditLog when Google is slow.
     appendAudit_('session_saved', 'session', sessionId, { revision: changes.revision, players: sessionPlayers.length, matches: matches.length, lockMs: lockMs, ms: Date.now() - started });
+    touchDeskSession_(sessionId);
     return sessionFromRows_(Object.assign({}, session, changes), sessionPlayers, matches);
   } finally {
     lock.releaseLock();
@@ -522,7 +525,9 @@ function withDeskLock_(work) {
 // reference: the start of that row's event_id, so the exact cause can be found later.
 function loggedDeskAction_(action, sessionId, work) {
   try {
-    return work();
+    var result = work();
+    touchDeskSession_(sessionId, action === 'event_switch');
+    return result;
   } catch (error) {
     var message = error && error.message || String(error);
     var eventId = safeAudit_(action + '_failed', 'session', sessionId, Object.assign({ message: message }, error && error.details || {}));

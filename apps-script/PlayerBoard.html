@@ -476,6 +476,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 .bc output { min-width: 3ch; font-weight: 700; }
 .bc label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 .bc input[type="checkbox"] { accent-color: #e8c06a; }
+.bc .note { color: #e8c06a; font-weight: 700; max-width: 320px; }
+.bc .note:empty { display: none; }
 .bc .full { border: 0; border-radius: 4px; background: #e8c06a; color: #17211b; padding: 6px 11px; font: 700 12px Arial, Helvetica, sans-serif; cursor: pointer; }
 .bc button:focus-visible, .bc input:focus-visible { outline: 2px solid #e8c06a; outline-offset: 2px; }
 .board-notice { position: fixed; left: 50%; top: 16px; z-index: 11; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; border: 1px solid #c99934; border-radius: 6px; background: #fff3d9; color: #5a3d00; font: 700 15px/1.35 Arial, Helvetica, sans-serif; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); }
@@ -486,14 +488,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 // 1920 x 1080 board scaled to the window. It runs in its own window so its timers keep going while the desk works.
 (function () {
   'use strict';
-  var VERSION = 1;
+  var VERSION = 2;
   var SETTINGS_KEY = 'cttc-player-board-settings-v1';
   var board = document.getElementById('board');
   var screen = document.getElementById('screen');
   var notice = document.getElementById('board-notice');
   var model = null;
   var desk = null;
-  var S = { concept: 'carousel', secs: 14, look: 'desk', pay: true, rating: true };
+  var S = { concept: 'carousel', secs: 14, look: 'desk', pay: true, rating: true, follow: false };
   try { Object.assign(S, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (error) { /* defaults */ }
   function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(S)); } catch (error) { /* this window only */ } }
 
@@ -884,7 +886,41 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     if (model.key !== lastKey) { lastKey = model.key; rebuild(); return; }
     render(model.focus);
   }
-  function attach(deskWindow) { desk = deskWindow; notice.hidden = true; }
+  function attach(deskWindow) {
+    desk = deskWindow;
+    notice.hidden = true;
+    if (S.follow) requestFollow();
+  }
+
+  // ---- Follow mode (a second computer): this window's desk shows the main desk's changes ----
+  // Only while Follow the main desk is ticked here. This window keeps the 10-second beat because it stays in view,
+  // while the desk tab behind it has its timers slowed; the desk decides whether a check is due and what to read.
+  var followNote = document.getElementById('bc-follow-note');
+  function deskBoard() { try { return desk && !desk.closed ? desk.cttcPlayerBoard : null; } catch (error) { return null; } }
+  function requestFollow() {
+    var link = deskBoard();
+    if (!link || !link.setFollow) return;
+    var answer = link.setFollow(S.follow) || {};
+    if (S.follow && !answer.on) { S.follow = false; saveSettings(); syncControls(); }
+    followNote.textContent = answer.message || (answer.on ? 'Following' : '');
+  }
+  function setFollow(on, message) {
+    S.follow = !!on;
+    saveSettings();
+    syncControls();
+    followNote.textContent = message || (on ? 'Following' : '');
+  }
+  setInterval(function () {
+    if (!S.follow) return;
+    var link = deskBoard();
+    if (!link || !link.followTick) return;
+    var beat = link.followTick() || {};
+    if (!beat.on) return;
+    var quiet = Date.now() - (beat.lastOk || 0);
+    if (quiet > 90000) { notice.textContent = 'Following the main desk: Google has not answered for ' + Math.round(quiet / 60000) + ' min. Showing the last picture.'; notice.hidden = false; }
+    else if (!notice.hidden && /^Following/.test(notice.textContent)) notice.hidden = true;
+    followNote.textContent = 'Following';
+  }, 10000);
   // The desk tab closed or reloaded: keep the last board up, and say how to reconnect.
   setInterval(function () {
     tick();
@@ -915,6 +951,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     document.getElementById('bc-secs-out').textContent = S.secs + 's';
     document.getElementById('bc-pay').checked = S.pay;
     document.getElementById('bc-rating').checked = S.rating;
+    document.getElementById('bc-follow').checked = !!S.follow;
   }
   bc.addEventListener('click', function (event) {
     var button = event.target.closest('[data-set] button');
@@ -934,6 +971,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   });
   document.getElementById('bc-pay').addEventListener('change', function (event) { S.pay = event.target.checked; saveSettings(); render(); });
   document.getElementById('bc-rating').addEventListener('change', function (event) { S.rating = event.target.checked; saveSettings(); render(); });
+  document.getElementById('bc-follow').addEventListener('change', function (event) { S.follow = event.target.checked; saveSettings(); requestFollow(); });
   var lock = null;
   document.getElementById('bc-full').addEventListener('click', function () {
     var el = document.documentElement;
@@ -963,7 +1001,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   wake();
   render();
 
-  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers };
+  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers, setFollow: setFollow };
 })();
 </script>
 <script>
@@ -975,7 +1013,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   var E = window.CTTCEqualizer;
   var ST = window.CTTCStandings;
   var NAME = 'cttc-player-board';
-  var VERSION = 1;
+  var VERSION = 2;
   var PRINT_KEY = 'cttc-player-board-printed-v1';
   var FRESH_MS = 7000;
   // The wall starts a moved card's glow when it lands (up to about 1.5 s later), so the class stays on a little longer.
@@ -1559,6 +1597,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     '<div class="grp"><label for="bc-secs" class="lbl">Slide every</label><input id="bc-secs" type="range" min="10" max="20" step="1"><output id="bc-secs-out" for="bc-secs"></output></div>' +
     '<div class="grp"><span class="lbl">Look</span><span class="seg" data-set="look"><button type="button" data-value="desk">Desk</button><button type="button" data-value="green">Dark</button></span></div>' +
     '<label><input id="bc-pay" type="checkbox"> Payment checks</label><label><input id="bc-rating" type="checkbox"> Ratings</label>' +
+    '<label title="For a second computer: this board shows the changes made on the main desk, checking every 10 seconds"><input id="bc-follow" type="checkbox"> Follow the main desk</label><span class="note" id="bc-follow-note"></span>' +
     '<button type="button" class="full" id="bc-full">Full screen</button>';
   function setup(w) {
     var doc = w.document;
@@ -1713,6 +1752,10 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     return true;
   }
 
-  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, fromGoogle: fromGoogle, build: build };
+  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, fromGoogle: fromGoogle, build: build,
+    // Follow mode, between the board window's Follow the main desk and the desk (Index.html).
+    setFollow: function (on) { return window.cttcDesk && window.cttcDesk.setFollow ? window.cttcDesk.setFollow(on) : { on: false, message: '' }; },
+    followTick: function () { return window.cttcDesk && window.cttcDesk.followTick ? window.cttcDesk.followTick() : { on: false }; },
+    followChanged: function (on, message) { if (alive() && win.cttcBoardPage.setFollow) win.cttcBoardPage.setFollow(on, message); } };
 })();
 </script>

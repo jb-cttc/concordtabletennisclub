@@ -172,9 +172,18 @@ payments.
 - **It needs the desk open on that computer.** The window is drawn by the desk page
   (`apps-script/PlayerBoard.html`), with no Google calls of its own. If the desk tab
   closes or reloads, the board keeps its last picture and says so; **Player board**
-  reconnects it without opening a second window. A TV not plugged into the desk
-  laptop cannot follow it. If the browser blocks the window, the desk says so: allow
-  pop-ups for the desk and click again.
+  reconnects it without opening a second window. If the browser blocks the window,
+  the desk says so: allow pop-ups for the desk and click again.
+- **A second computer (follow mode).** For a projector on its own laptop: once the
+  main desk has the night open, sign in to the desk on the second computer, open
+  tonight, click **Player board**, and tick **Follow the main desk** in the board's
+  settings strip. That desk then shows the main desk's changes (sign-ins, moves,
+  scores, payment checks, the print) about 10 seconds behind, with the same
+  animations, and editing is off there until **Stop following** (or unticking the
+  box). The board remembers the choice: after a reload, clicking **Player board**
+  turns follow mode back on. It checks only while follow mode is on: every 10
+  seconds, once a minute after 20 quiet minutes, and it ends when the night is
+  finalized or after 6 hours. See [Google limits](google-limits.md).
 
 ## Membership, linked names, juniors
 

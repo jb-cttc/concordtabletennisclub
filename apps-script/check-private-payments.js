@@ -75,7 +75,7 @@ const context = {
 };
 context.normalizeName_ = value => String(value || '').trim().replace(/\s+/g, ' ');
 vm.createContext(context);
-for (const file of ['LinkedNames.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'MailReader.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
+for (const file of ['SessionIds.js', 'LinkedNames.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'MailReader.js']) vm.runInContext(fs.readFileSync(__dirname + '/' + file, 'utf8'), context);
 const date = '2026-09-23';
 const names = () => context.getZeffyPlayers(null, date).map(p => p.name).join(',');
 
