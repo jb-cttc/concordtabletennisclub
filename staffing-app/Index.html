@@ -35,8 +35,10 @@
   .legend .s { display: none; }
   /* A phone (PHONE_WIDTH): the legend on one line, with short words; screen readers keep the long ones. */
   @media (max-width: 520px) {
-    .legend { flex-wrap: nowrap; gap: 4px 10px; justify-content: space-between; }
-    .legend li { white-space: nowrap; }
+    /* One line in the 320px frame the home page leaves on an iPhone; narrower, it wraps rather than overflowing. */
+    .legend { gap: 4px 7px; font-size: 0.75rem; }
+    .legend li { white-space: nowrap; gap: 3px; }
+    .legend .key { width: 16px; height: 16px; }
     .legend .l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .legend .s { display: inline; }
   }
