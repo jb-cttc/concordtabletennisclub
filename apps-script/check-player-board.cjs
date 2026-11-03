@@ -211,6 +211,18 @@ const cases = {
     const gone = groupsNow();
     printed.forEach((ids, gi) => ids.filter(id => id !== leaving).forEach(id => assert.ok(gone[gi].includes(id), 'a removal rebuilds nobody')));
 
+    // Taking a late add back off (a quick add and remove at the side of the tables) leaves every group as it was.
+    const oops = late[2];
+    const beforeOops = groupsNow();
+    tab.removePlayer(oops);
+    await run(world, 400);
+    assert.deepEqual(groupsNow(), beforeOops.map(ids => ids.filter(id => id !== oops)), 'removing a late add moves nobody');
+    tab.addPlayer(oops);
+    await run(world, 400);
+    tab.removePlayer(oops);
+    await run(world, 400);
+    assert.deepEqual(groupsNow(), beforeOops.map(ids => ids.filter(id => id !== oops)), 'an add and remove straight after moves nobody');
+
     // Reprinting keeps the labels: they mark who was not on the first sheets.
     tab.window.cttcPlayerBoard.printed();
     await run(world, 400);
