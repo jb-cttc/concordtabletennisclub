@@ -1674,8 +1674,31 @@ tr.hof-gold td:nth-child(2) {
   color: #14401f;
 }
 
+/* The Tonight button with the join text beside it (home and Round Robins pages); the box drops below on a narrow phone. */
 .tonight-teaser {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
   margin: 0 0 18px;
+}
+
+.tonight-text-box {
+  margin: 0;
+  border: 1px solid #b9d6bf;
+  border-radius: 4px;
+  background: #f0f7f1;
+  padding: 6px 12px;
+  box-shadow: 0 1px 3px rgba(20, 64, 31, 0.12);
+}
+
+.tonight-text-box a {
+  color: #1f5a2e;
+  font-weight: 600;
+}
+
+.tonight-text-box .nowrap {
+  white-space: nowrap;
 }
 
 .tonight-launch .live-dot {
@@ -1767,20 +1790,6 @@ tr.hof-gold td:nth-child(2) {
 .tonight-lede {
   font-size: 1.05rem;
   margin-bottom: 12px;
-}
-
-.tonight-text-us {
-  border: 1px solid #b9d6bf;
-  border-left: 4px solid #1f6b3a;
-  background: #f0f7f1;
-  padding: 10px 14px;
-  margin-bottom: 16px;
-}
-
-.tonight-text-us a {
-  color: #1f5a2e;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .tonight-cta {

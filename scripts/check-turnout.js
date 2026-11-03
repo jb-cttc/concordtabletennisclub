@@ -169,13 +169,23 @@ assert.ok(html.indexOf('<script src="turnout.js"></script>') > 0);
 assert.ok(html.indexOf('id="tonight-summary-wrap"') < html.indexOf('id="gym-floor"'), 'the plain table sits above the floor');
 assert.match(read('roundrobins.html'), /href="tonight\.html"/, 'the Round Robins page links to it');
 assert.match(read('index.html'), /href="tonight\.html"/, 'the home page links to it');
+// Beside the button on both pages, the number always fills in the join text, whatever the day: "?&body=" is read by
+// iPhone, iPad and Mac Messages (after the "&") and by Android (after the "?"), so the link needs no script.
+['index.html', 'roundrobins.html'].forEach(file => {
+  const teaser = new JSDOM(read(file)).window.document.querySelector('.tonight-teaser');
+  assert.equal(teaser.querySelector('.tonight-launch').textContent, 'See who’s playing tonight', file);
+  const box = teaser.querySelector('.tonight-text-box');
+  assert.equal(box.textContent, 'Want to be included? (925) 238-3505 Text us', file);
+  assert.equal(box.querySelector('a').getAttribute('href'), 'sms:+19252383505?&body=' + encodeURIComponent('I\'ll join CTTC\'s RR today'), file);
+});
+assert.ok(!html.includes('sms:+19252383505'), 'the Tonight page itself no longer carries the join link');
 
 const pageScript = /<script>\n([\s\S]*?)<\/script>\n\n<\/body>/.exec(html)[1];
 const turnoutSource = read('turnout.js');
 const publicRoster = JSON.parse(JSON.stringify(roster));
 const publicPlayers = { players: [{ name: 'Ada Every', currentRating: 1250 }, { name: 'Bo Mondays', currentRating: 640 }, { name: 'Cy Lapsed', currentRating: 1700 }] };
 
-function page({ now, url = '', answers = [], userAgent = '' }) {
+function page({ now, url = '', answers = [] }) {
   const start = now;
   const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/tonight.html', pretendToBeVisual: true });
   const window = dom.window;
@@ -193,16 +203,13 @@ function page({ now, url = '', answers = [], userAgent = '' }) {
     else if (address === 'data/players.json') body = publicPlayers;
     else if (address === 'data/closures.json') body = {};
     else if (address === url) body = answers.length ? answers.shift() : null;
-    if (body === 'hang') return new Promise(() => {});
     if (body === null || body === undefined) return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) });
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(JSON.stringify(body))) });
   };
-  if (userAgent) Object.defineProperty(window.navigator, 'userAgent', { value: userAgent });
   window.eval(turnoutSource);
   // Every case says which address the page has: '' is a page before the app was deployed.
   window.eval(pageScript.replace('var TURNOUT_URL = "' + turnoutUrl[1] + '";', 'var TURNOUT_URL = "' + url + '";'));
-  // setNow moves the page's clock on, as for a tab left open.
-  return { window, calls, timers, $: id => window.document.getElementById(id), setNow: time => { now = time; }, start };
+  return { window, calls, timers, $: id => window.document.getElementById(id), start };
 }
 const settle = () => new Promise(resolve => setTimeout(resolve, 20));
 const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
@@ -218,13 +225,6 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   assert.equal(offline.$('stat-playing').textContent, '0');
   assert.equal(offline.$('stat-likely').textContent, '1', 'Ada');
   assert.equal(offline.timers.length, 0, 'nothing to poll');
-  assert.equal(offline.$('tonight-text-us').hidden, false, 'invites a text');
-  const join = encodeURIComponent('I\'ll join CTTC\'s RR tonight');
-  assert.equal(offline.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + join, 'Android fills in the text after ?body=');
-  const iphone = page({ now: MONDAY_10AM, url: '', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15' });
-  await settle();
-  assert.equal(iphone.$('text-us-link').getAttribute('href'), 'sms:+19252383505&body=' + join, 'iPhone after &body=');
-  assert.equal(offline.$('text-us-when').textContent, 'any time today');
   const courts = offline.window.document.querySelectorAll('#gym-floor .court');
   assert.equal(courts.length, 8, 'the front desk and seven zones');
   assert.equal(courts[5].querySelector('.court-label').textContent, '1200–1399');
@@ -246,7 +246,7 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   const appCalls = online.calls.filter(call => call.address === url);
   assert.equal(appCalls.length, 1);
   assert.equal(appCalls[0].options.credentials, 'omit', 'no Google cookies, so a visitor\'s sign-ins never matter');
-  assert.deepEqual(online.calls.filter(call => call.address !== url).map(call => call.address), ['data/closures.json'], 'while the app answers, only the closures (for the join text) are read from the site');
+  assert.deepEqual(online.calls.filter(call => call.address !== url), [], 'while the app answers, nothing else is read from the site');
   assert.equal(online.$('tonight-live').hidden, false);
   assert.equal(online.$('tonight-status').hidden, true);
   assert.equal(online.$('stat-playing').textContent, '4');
@@ -283,7 +283,6 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   const late = page({ now: MONDAY_10AM, url, answers: [closed] });
   await settle();
   assert.equal(late.$('stat-likely-box').hidden, true);
-  assert.equal(late.$('tonight-text-us').hidden, true, 'no invitation once sign-up has closed');
   assert.match(late.$('tonight-lede').textContent, /^Sign-up has closed: 7 players are on the floor tonight/);
   assert.equal([...late.window.document.querySelectorAll('#summary-body th')].map(th => th.textContent).join('|'), 'Playing tonight|Expected');
 
@@ -296,28 +295,11 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   assert.equal(recovering.$('tonight-status').hidden, true);
   assert.equal(recovering.$('stat-playing').textContent, '4');
 
-  // The join text never waits on Google: filled in while the app's answer is still on its way (or never comes).
-  const waiting = page({ now: MONDAY_10AM, url, answers: ['hang'] });
-  assert.equal(waiting.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + join, 'filled in as the page opens');
-  await settle();
-  assert.equal(waiting.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + join, 'and still, with no answer from the app');
-  // A tab opened on Sunday and tapped on Monday: the tap itself fills in the text, even while the app is not answering.
-  const sundayTab = page({ now: Date.parse('2026-10-25T20:00:00Z'), url: '' });
-  await settle();
-  const sundayLink = sundayTab.$('text-us-link');
-  assert.equal(sundayLink.getAttribute('href'), 'sms:+19252383505', 'Sunday: nothing filled in for Monday');
-  sundayTab.setNow(MONDAY_10AM);
-  sundayTab.window.document.addEventListener('click', event => event.preventDefault());
-  sundayLink.dispatchEvent(new sundayTab.window.MouseEvent('click', { bubbles: true, cancelable: true }));
-  assert.equal(sundayLink.getAttribute('href'), 'sms:+19252383505?body=' + join, 'Monday\'s tap fills it in');
-
   // On a Friday it is about Monday.
   const friday = page({ now: Date.parse('2026-10-23T17:00:00Z'), url: '' });
   await settle();
   assert.equal(friday.$('tonight-title').textContent, 'Who’s playing Monday');
   assert.equal(friday.$('tonight-when').textContent, 'Next round robin · Monday, October 26');
-  assert.equal(friday.$('text-us-when').textContent, 'any time on Monday', 'a Friday text does not count for Monday');
-  assert.equal(friday.$('text-us-link').getAttribute('href'), 'sms:+19252383505', 'and nothing is filled in ahead of the night');
 
   // The first Saturday round robin: an afternoon, so "today", and a head count of 20 with no ratings yet.
   const saturday = page({ now: Date.parse('2026-10-31T17:00:00Z'), url: '' });
@@ -328,7 +310,6 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   assert.equal(saturday.$('stat-likely').textContent, '0', 'weeknight regulars are not Saturday regulars');
   assert.equal(saturday.$('stat-playing-label').textContent, 'playing today');
   assert.match(saturday.$('tonight-lede').textContent, /^About 20 players expected today\. Be one of the first in\. Sign up at the desk 2:45–3:15 PM; play starts at 3:30\. Saturday round robins are new, so this forecast is a head count/);
-  assert.equal(saturday.$('text-us-link').getAttribute('href'), 'sms:+19252383505?body=' + encodeURIComponent('I\'ll join CTTC\'s RR today'));
   let desk = saturday.window.document.querySelector('#gym-floor .front-desk');
   assert.equal(desk.querySelector('.court-sub').textContent, 'sign up 2:45–3:15 PM');
   assert.equal(desk.querySelectorAll('.open-spot').length, 12, 'the head count waits at the front desk');
