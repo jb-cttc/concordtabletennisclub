@@ -294,6 +294,27 @@ const cases = {
     assert.ok(!tab.$('#groups .late-badge'));
     assert.match(board.$('.b-stage').textContent, /Signing in/);
     assert.equal(tab.window.cttcPlayerBoard.printedRoster(), null);
+
+    // Clear after a print undoes it, so the next night's worth of sign-ins is built by rating, not piled into one group.
+    tab.window.cttcPlayerBoard.printed();
+    await run(world, 400);
+    tab.click(tab.$('#clear-roster'));
+    await run(world, 400);
+    assert.match(tab.confirms[tab.confirms.length - 1], /also undoes the sheets print/);
+    assert.equal(tab.window.cttcPlayerBoard.printedRoster(), null);
+    world.players.slice(0, 18).forEach(p => tab.addPlayer(p.player_id));
+    await run(world, 400);
+    assert.equal(tab.desk().groups.length, 3, 'sign-ins after Clear are grouped by rating again');
+
+    // A print mark naming nobody in the round robin (this device does not have the night's groups) is not applied.
+    const key = 'cttc-player-board-printed-v1';
+    const all = JSON.parse(tab.window.localStorage.getItem(key) || '{}');
+    all[world.date + ':rr'] = { at: Date.now(), groups: [['nobody-here']], first: ['nobody-here'] };
+    tab.window.localStorage.setItem(key, JSON.stringify(all));
+    assert.equal(tab.window.cttcPlayerBoard.printedRoster(), null);
+    tab.addPlayer(world.players[18].player_id);
+    await run(world, 400);
+    assert.doesNotMatch(tab.status(), /late add/);
     assert.ok(!tab.errors.length, tab.errors.join('\n'));
     board.close();
   },

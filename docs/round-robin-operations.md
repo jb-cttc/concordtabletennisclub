@@ -91,7 +91,9 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
   matches its sheet again). It lists them and offers **Clear labels** (the groups
   as they are now count as printed; late arrivals still join in place) or **Undo
   the print** (for a print made by mistake: the desk acts as if the sheets never
-  printed, so sign-ins rebuild by rating until a score is in).
+  printed, so sign-ins rebuild by rating until a score is in). **Clear** after a
+  print also undoes it, and a print mark counts only while someone on those
+  sheets is still in the round robin.
 - Matches follow a rotation schedule so a 6-player group uses three tables
   per round. Live standings show W-L, games, and projected rating in the
   order the players are listed, so rows never move while scores are entered;

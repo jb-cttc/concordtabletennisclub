@@ -1014,6 +1014,13 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     };
     d.key = d.date + ':' + (d.event === 'equalizer' ? 'eq' : 'rr');
     d.printed = readPrints()[d.key] || null;
+    // A round robin print counts only while someone on those sheets is still in the round robin (not after Clear, or
+    // before this device has the night's groups): otherwise every sign-in would pile into one group.
+    if (d.printed && d.event !== 'equalizer' && d.printed.groups) {
+      var on = {};
+      d.groups.forEach(function (g) { g.playerIds.forEach(function (id) { on[id] = true; }); });
+      if (!(d.printed.first || [].concat.apply([], d.printed.groups)).some(function (id) { return on[id]; })) d.printed = null;
+    }
     return d;
   }
   function byName(d) { return function (a, b) { return d.info(a).name.localeCompare(d.info(b).name); }; }
