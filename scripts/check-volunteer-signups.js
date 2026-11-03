@@ -18,6 +18,7 @@ assert.match(block[0], /var APP_PAGE = "volunteer-app\.html";/, 'the site\'s own
 assert.doesNotMatch(block[0], /script\.google\.com/);
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/update-data.yml'), 'utf8');
 assert.match(workflow, /cp staffing-app\/Index\.html _site\/volunteer-app\.html/, 'the site publishes the page');
+assert.match(fs.readFileSync(path.join(root, 'staffing-app', 'Index.html'), 'utf8'), /<meta name="viewport" content="width=device-width, initial-scale=1">/, 'phone width if the copy is opened on its own');
 const apiUrl = /var API_URL = '([^']+)';/.exec(fs.readFileSync(path.join(root, 'staffing-app/Index.html'), 'utf8'));
 assert.ok(apiUrl && /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(apiUrl[1]), 'the page calls a released /exec address, never /dev');
 assert.match(fs.readFileSync(path.join(root, 'docs/staffing-flow.md'), 'utf8'), new RegExp(apiUrl[1].replace(/[.?]/g, '\\$&')), 'the address is written down for maintainers');

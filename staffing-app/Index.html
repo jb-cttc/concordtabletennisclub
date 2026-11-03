@@ -3,6 +3,9 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<!-- Lays the page out at phone width if the site's copy (volunteer-app.html) is ever opened on its own; inside the home
+     page's frame the frame sets the width, and Google's copy gets the same tag from doGet. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   /* The app sits inline in the club's home page (in place of its closure calendar), so it has no scroll area or full-screen
      height of its own: the page tells the site its height and the site sizes the frame. */
