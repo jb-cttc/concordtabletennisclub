@@ -233,6 +233,71 @@ const cases = {
     board.close();
   },
 
+  // Updated shows only while a group differs from its printed sheet; the desk's Print labels control shows only while a
+  // label does, and clears them (sheets still printed) or undoes a print made by mistake.
+  async printLabels() {
+    const world = sim.createWorld({ seed: 59, players: 40 });
+    const tab = await deskWith(world, 24);
+    const board = boardWindow(world, tab);
+    tab.click(tab.$('#player-board'));
+    await run(world, 1000);
+    boardClick(board, '[data-set="concept"] [data-value="wall"]');
+    await run(world, 500);
+    const control = tab.$('#print-labels');
+    const stale = () => board.$$('.wall .panel').filter(p => p.querySelector('.stale')).map(p => p.querySelector('h2').textContent);
+    const groupsNow = () => tab.desk().groups.map(g => g.playerIds.slice());
+    assert.ok(control.hidden, 'no control before a print');
+
+    tab.window.cttcPlayerBoard.printed();
+    await run(world, 400);
+    assert.ok(control.hidden, 'a print with nothing changed since leaves no labels');
+
+    // A late add marks its group Updated; taking them back off clears both labels.
+    const late = world.players[24].player_id;
+    tab.addPlayer(late);
+    await run(world, 400);
+    const where = 'Group ' + tab.desk().groups.find(g => g.playerIds.includes(late)).groupNumber;
+    assert.deepEqual(stale(), [where]);
+    assert.ok(!control.hidden);
+    assert.match(control.textContent, /1 late add · 1 group updated/);
+    tab.removePlayer(late);
+    await run(world, 400);
+    assert.deepEqual(stale(), [], 'the group is as printed again: no Updated');
+    assert.ok(control.hidden, 'no labels, no control');
+    assert.equal(tab.window.cttcPlayerBoard.printNote(), '');
+
+    // Clear labels: the groups as they are count as printed; the next arrival is still placed without moving anyone.
+    tab.addPlayer(late);
+    await run(world, 400);
+    tab.click(control);
+    assert.ok(!tab.$('#print-labels-panel').hidden);
+    assert.match(tab.$('#print-labels-text').textContent, new RegExp('Late add: ' + nameOf(world, late)));
+    tab.click(tab.$('#labels-keep'));
+    await run(world, 400);
+    assert.ok(control.hidden && tab.$('#print-labels-panel').hidden);
+    assert.ok(!tab.$('#groups .late-badge'), 'no Late add on the desk');
+    assert.deepEqual(stale(), []);
+    assert.ok(!board.$('.chip.late'), 'no Late add on the board');
+    assert.match(board.$('.b-stage').textContent, /Sheets printed/);
+    const kept = groupsNow();
+    const next = world.players[25].player_id;
+    tab.addPlayer(next);
+    await run(world, 400);
+    kept.forEach((ids, gi) => ids.forEach(id => assert.ok(groupsNow()[gi].includes(id), 'still placed without moving anyone')));
+    assert.ok(tab.$('#groups .late-badge'), 'a new late add is labeled');
+
+    // Undo the print: back to sign-ins as if the sheets never printed.
+    tab.click(control);
+    tab.click(tab.$('#labels-forget'));
+    await run(world, 400);
+    assert.ok(control.hidden);
+    assert.ok(!tab.$('#groups .late-badge'));
+    assert.match(board.$('.b-stage').textContent, /Signing in/);
+    assert.equal(tab.window.cttcPlayerBoard.printedRoster(), null);
+    assert.ok(!tab.errors.length, tab.errors.join('\n'));
+    board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);

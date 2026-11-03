@@ -1610,6 +1610,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     all[d.key] = d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groups, first: printedRoster(d) || flat(groups) };
     writePrints(all);
     changed();
+    if (window.cttcDesk && window.cttcDesk.printChanged) window.cttcDesk.printChanged();
   }
   function flat(groups) { return groups.reduce(function (all, ids) { return all.concat(ids); }, []); }
   // Who was on the round robin sheets when they first printed on this device (reprints keep it), or null before.
@@ -1627,6 +1628,40 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     return list + ' changed since this device last printed: ' + (numbers.length === 1 ? 'that is the sheet' : 'those are the sheets') + ' to replace.';
   }
 
-  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, build: build };
+  // The labels a round robin print leaves (Late add on players, Updated on groups), for the desk's Print labels
+  // control: null while there are none, so the control shows only while they do.
+  function labels() {
+    var d = data();
+    var first = printedRoster(d);
+    if (!first) return null;
+    var late = [];
+    groupArrays(d).forEach(function (ids) { ids.forEach(function (id) { if (first.indexOf(id) < 0) late.push(id); }); });
+    var updated = Object.keys(changedGroups(d)).map(Number);
+    return late.length || updated.length ? { at: d.printed.at, late: late, updated: updated } : null;
+  }
+  // The groups as they are now count as the printed sheets: the labels clear, late arrivals still join in place.
+  function keepAsPrinted() {
+    var d = data();
+    if (!printedRoster(d)) return false;
+    var all = readPrints();
+    var groups = groupArrays(d);
+    all[d.key] = { at: d.printed.at, groups: groups, first: flat(groups) };
+    writePrints(all);
+    changed();
+    return true;
+  }
+  // A print made by mistake: as if the sheets never printed on this device (the board goes back to sign-ins until a
+  // score is in, and sign-ins follow Rebuild by rating again).
+  function forgetPrint() {
+    var d = data();
+    if (!d || !d.printed) return false;
+    var all = readPrints();
+    delete all[d.key];
+    writePrints(all);
+    changed();
+    return true;
+  }
+
+  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, build: build };
 })();
 </script>
