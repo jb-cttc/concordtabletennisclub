@@ -1600,7 +1600,8 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
 (async () => {
   const { JSDOM } = require('jsdom');
   clock = START;
-  const open = parameter => {
+  // options.phone: a screen narrower than PHONE_WIDTH (one month at a time, opening and closing as bars).
+  const open = (parameter, options = {}) => {
     resetLimits();
     const posted = [];
     const html = context.doGet(parameter && { parameter }).getContent();
@@ -1608,6 +1609,7 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
       runScripts: 'dangerously', pretendToBeVisual: true,
       beforeParse(window) {
         window.HTMLElement.prototype.scrollIntoView = () => {};
+        if (options.phone) window.matchMedia = query => ({ matches: /max-width/.test(query), media: query });
         window.postMessage = message => posted.push(message);
         const runner = (ok, bad) => new Proxy({}, { get: (target, name) => {
           if (name === 'withSuccessHandler') return handler => runner(handler, bad);
@@ -1626,6 +1628,64 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.equal(document.querySelector('h1').textContent, 'Volunteer signups');
   assert.equal(document.querySelectorAll('.month').length, 3);
   const cellFor = date => document.querySelector('button.day[data-date="' + date + '"]');
+  {
+    // Opening the page shows the next night still open for sign-ups, without a tap: whatever night that is now...
+    const next = board().nights.find(night => night.bookable && night.status !== 'closed');
+    assert.equal(document.querySelector('button.day.selected').dataset.date, next.date, 'the next open night is selected on opening');
+    assert.match(document.getElementById('night').textContent, new RegExp(next.day), 'and its panel is open');
+    // ...tonight during the day (Monday, November 2, 2 PM)...
+    const now = clock;
+    clock = Date.parse('2026-11-02T22:00:00Z');
+    let page = open();
+    assert.equal(page.document.querySelector('button.day.selected').dataset.date, '2026-11-02', 'tonight, while it can still be picked');
+    assert.match(page.document.getElementById('night').textContent, /Monday, November 2, 2026/);
+    page.dom.window.close();
+    // ...and the next club night once tonight's sign-ups have closed (an hour before opening: 6:30 PM).
+    clock = Date.parse('2026-11-03T02:30:00Z');
+    page = open();
+    assert.equal(page.document.querySelector('button.day.selected').dataset.date, '2026-11-04', 'Wednesday, once Monday has closed');
+    page.dom.window.close();
+    // A phone: one month at a time, and the night's opening and closing as bars saying what each still needs.
+    clock = Date.parse('2026-11-02T22:00:00Z');
+    page = open(undefined, { phone: true });
+    const doc = page.document;
+    assert.deepEqual([...doc.querySelectorAll('.month')].map(month => month.querySelector('.month-title').textContent), ['November 2026'], 'one month, the one with tonight');
+    const arrows = doc.querySelectorAll('.month-nav button');
+    assert.equal(arrows[0].disabled, true, 'no month before the first');
+    assert.equal(arrows[1].getAttribute('aria-label'), 'Next month: December 2026');
+    assert.doesNotMatch(doc.getElementById('night').textContent, /Still needed|minimum crew is confirmed/, 'the bars say what is needed, not a sentence above them');
+    const bars = () => [...doc.querySelectorAll('#night details.part')];
+    assert.deepEqual(bars().map(bar => [bar.dataset.part, bar.open]), [['open', false], ['close', false]], 'two bars, closed');
+    const monday = board().nights.find(night => night.date === '2026-11-02');
+    const states = bars().map(bar => bar.querySelector('.part-state'));
+    states.forEach(state => assert.match(state.textContent, /^(! Needs: |\+ \d+ more for |\u2713 All set)/));
+    // The opening bar agrees with the night: what is missing, else what would make it full, else all set.
+    const confirmed = id => monday.slots[id].filter(slot => !slot.pending).length;
+    const openingNeeds = ['desk', 'money', 'tables'].filter(id => confirmed(id) < 1);
+    if (openingNeeds.length) assert.ok(states[0].classList.contains('state-needs'));
+    else if (confirmed('tables') < 3) assert.match(states[0].textContent, new RegExp('^\\+ ' + (3 - confirmed('tables')) + ' more for table setup'));
+    else assert.match(states[0].textContent, /^\u2713 All set/);
+    bars()[0].open = true;
+    bars()[0].dispatchEvent(new page.dom.window.Event('toggle'));
+    const add = [...doc.querySelectorAll('#night details.part[data-part="open"] button.add')]
+      .find(button => /Add me as Table\/barrier setup/.test(button.getAttribute('aria-label')));
+    assert.ok(add, 'tapping the opening bar shows its positions');
+    // Each role shows its one line, with the full description behind More.
+    const desk = doc.querySelector('#night details.part[data-part="open"] .pos details.more');
+    assert.equal(desk.querySelector('summary').textContent, 'Opens up at 6:40 PM and runs the desk.More', 'the night\'s own time, then More');
+    assert.match(desk.querySelector('p').textContent, /^The opener and round robin organizer: first in at 6:40 PM, has the key lockbox/);
+    assert.equal(desk.open, false);
+    add.click();
+    assert.equal(bars()[0].open, true, 'adding a pick keeps the bar open');
+    assert.equal(bars()[1].open, false);
+    doc.querySelectorAll('.month-nav button')[1].click();
+    assert.equal(doc.querySelector('.month-title').textContent, 'December 2026');
+    assert.equal(doc.getElementById('night'), null, 'November\'s night stays with November');
+    assert.ok(doc.querySelectorAll('.month-nav button')[0].querySelector('.mine'), 'the arrow back marks the month holding your pick');
+    await wait(0); // the bars' toggle events arrive a moment later
+    page.dom.window.close();
+    clock = now;
+  }
   assert.match(cellFor('2026-10-21').getAttribute('aria-label'), /^Wednesday, October 21, 2026: Needs people/, 'status in words, not only color');
   assert.equal(cellFor('2026-10-21').querySelector('.mark').textContent, '!');
   assert.ok(cellFor('2026-10-24').classList.contains('closed'), 'closures show in the grid');
@@ -1664,8 +1724,11 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   addFor('Desk organizer').click();
   assert.match(document.getElementById('bar').textContent, /My picks: 1/);
   const again = document.getElementById('night');
-  assert.deepEqual([...document.querySelectorAll('.legend li')].map(li => li.textContent.trim()).slice(0, 3),
+  const legend = [...document.querySelectorAll('.legend li')];
+  assert.deepEqual(legend.slice(0, 3).map(li => li.querySelector('.key').textContent + li.querySelector('.l').textContent),
     ['!Needs people', '+Minimum crew (more help welcome)', '\u2713Fully staffed'], 'three levels: needs people, minimum crew (+), fully staffed (check)');
+  assert.deepEqual(legend.map(li => (li.querySelector('.s') || li).textContent.replace(/^[!+\u2713\u00d7]/, '')), ['Needs', 'Minimum', 'Full', 'Closed', 'Yours'], 'short words for a phone\'s one-line legend');
+  assert.ok(legend.every(li => !li.querySelector('.s') || li.querySelector('.s').getAttribute('aria-hidden') === 'true'), 'screen readers keep the long words');
   assert.equal([...again.querySelectorAll('button.add')].find(button => /Add me as Money collector \(Front Desk\) on/.test(button.getAttribute('aria-label'))).disabled, true, 'one opening position per night, on the page too');
   assert.match(again.textContent, /The opener and round robin organizer: first in at 6:40 PM, has the key lockbox/, 'each position says what it does, with this night\'s time');
   assert.doesNotMatch(again.textContent, /on Saturdays/);
@@ -1749,6 +1812,8 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   assert.equal(signUp('Sage Hill', [['2026-12-21', 'tables'], ['2026-12-21', 'close'], ['2026-12-23', 'close'], ['2026-12-30', 'close']]).ok, true);
   const sage = /\?mine=([0-9A-F]{20})/.exec(mailTo('sage.hill@example.com').at(-1).body)[1];
   ({ dom, document } = open({ mine: sage }));
+  assert.equal(document.querySelector('button.day.selected'), null, 'a My nights link opens no night: their list is why they came');
+  assert.equal(document.getElementById('night'), null);
   const mine = document.getElementById('mine');
   assert.equal(mine.hidden, false);
   assert.equal(mine.querySelector('h2').textContent, 'Your nights, Sage');

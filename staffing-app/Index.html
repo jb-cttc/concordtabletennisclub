@@ -3,6 +3,9 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<!-- Lays the page out at phone width if the site's copy (volunteer-app.html) is ever opened on its own; inside the home
+     page's frame the frame sets the width, and Google's copy gets the same tag from doGet. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   /* The app sits inline in the club's home page (in place of its closure calendar), so it has no scroll area or full-screen
      height of its own: the page tells the site its height and the site sizes the frame. */
@@ -29,6 +32,21 @@
   /* Legend and calendar: the home page's three months, with each club night coloured AND marked by its status. */
   .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 0.8rem; color: #555; }
   .legend li { display: flex; align-items: center; gap: 5px; }
+  .legend .s { display: none; }
+  /* A phone (PHONE_WIDTH): the legend on one line, with short words; screen readers keep the long ones. */
+  @media (max-width: 520px) {
+    .legend { flex-wrap: nowrap; gap: 4px 10px; justify-content: space-between; }
+    .legend li { white-space: nowrap; }
+    .legend .l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .legend .s { display: inline; }
+  }
+  /* A role on a phone: its one line, with the full description behind "More". */
+  details.more { margin: 2px 0 6px; font-size: 0.85rem; color: #555; }
+  details.more > summary { list-style: none; cursor: pointer; }
+  details.more > summary::-webkit-details-marker { display: none; }
+  details.more > summary .more-link { color: #1f4f8f; text-decoration: underline; margin-left: 4px; white-space: nowrap; }
+  details.more[open] > summary .more-link { display: none; }
+  details.more > p { margin: 4px 0 0; }
   .key { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 3px; font-size: 0.7rem; font-weight: 700; box-sizing: border-box; }
   .months { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 22px; }
   .month-title { font-weight: 700; font-size: 0.9rem; margin: 0 0 4px; }
@@ -56,6 +74,24 @@
   .night-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 24px; }
   .night-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 32px; }
   .slot-wide .night-cols { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  /* A phone (PHONE_WIDTH): one month at a time, with arrows, and the night's opening and closing as bars that open. */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 4px; }
+  .month-nav .month-title { margin: 0; font-size: 1rem; }
+  .month-nav button { min-width: 44px; min-height: 40px; border: 1px solid #c9c2b2; border-radius: 6px; background: #fff; color: #1f6b3a; font-size: 1.4rem; font-weight: 700; line-height: 1; padding: 0; cursor: pointer; position: relative; }
+  .month-nav button:disabled { opacity: 0.35; cursor: default; }
+  .month-nav button .mine { position: absolute; top: 3px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #1f4f8f; }
+  details.part { border: 1px solid #e3ded2; border-radius: 8px; margin: 8px 0 0; }
+  details.part > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; min-height: 44px; box-sizing: border-box; }
+  details.part > summary::-webkit-details-marker { display: none; }
+  details.part > summary::after { content: '\203A'; margin-left: auto; font-size: 1.4rem; line-height: 1; color: #888; transform: rotate(90deg); transition: transform 0.15s; }
+  details.part[open] > summary::after { transform: rotate(-90deg); }
+  details.part > summary .part-name { display: block; font-weight: 700; color: #1f6b3a; text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.9rem; }
+  details.part > summary .part-state { display: block; font-size: 0.85rem; margin-top: 2px; }
+  .part-state.state-needs { color: #8a3d00; font-weight: 700; }
+  .part-state.state-covered { color: #6b4c00; font-weight: 700; }
+  .part-state.state-full { color: #1f4a2b; }
+  .night-cols + .muted { margin-top: 12px; }
+  details.part > .part-body { padding: 0 12px 6px; }
   .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; }
   .pos { padding: 8px 0; border-top: 1px solid #eee; }
   .pos-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: 0.95rem; }
@@ -111,11 +147,11 @@
 <h1>Volunteer signups</h1>
 <p class="hint">Tap a club night to see its open spots, add as many as you like, then send once and reply YES to our email.</p>
 <ul class="legend" aria-label="What the colors and marks mean">
-  <li><span class="key needs" aria-hidden="true">!</span>Needs people</li>
-  <li><span class="key covered" aria-hidden="true">+</span>Minimum crew (more help welcome)</li>
-  <li><span class="key full" aria-hidden="true">&#10003;</span>Fully staffed</li>
+  <li><span class="key needs" aria-hidden="true">!</span><span class="l">Needs people</span><span class="s" aria-hidden="true">Needs</span></li>
+  <li><span class="key covered" aria-hidden="true">+</span><span class="l">Minimum crew (more help welcome)</span><span class="s" aria-hidden="true">Minimum</span></li>
+  <li><span class="key full" aria-hidden="true">&#10003;</span><span class="l">Fully staffed</span><span class="s" aria-hidden="true">Full</span></li>
   <li><span class="key closed" aria-hidden="true">&#215;</span>Closed</li>
-  <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span>Your picks</li>
+  <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span><span class="l">Your picks</span><span class="s" aria-hidden="true">Yours</span></li>
 </ul>
 <section id="mine" class="panel mine" hidden aria-labelledby="mineTitle"></section>
 <div id="message" role="status" aria-live="polite"></div>
@@ -186,8 +222,8 @@
   // Turning a tablet or resizing the window can switch between one column and side by side: move the open night with it.
   var wide = null;
   window.addEventListener('resize', function () {
-    if (!board || !selected) return;
-    var now = sideBySide();
+    if (!board) return;
+    var now = sideBySide() + ':' + phone();
     if (wide !== null && now !== wide) redraw();
     wide = now;
   });
@@ -230,10 +266,35 @@
   function removePick(pick) { picks = picks.filter(function (each) { return each !== pick; }); lastProblems = []; }
 
   // ----- The calendar -----
+  // A phone: narrower than two months side by side. It shows one month at a time (shownMonth, an index into board.months)
+  // and the night's opening and closing as bars that open (partOpen, kept while the same night stays chosen).
+  var PHONE_WIDTH = 520;
+  var shownMonth = null;
+  var partOpen = {};
+  function phone() { return !!(window.matchMedia && window.matchMedia('(max-width: ' + PHONE_WIDTH + 'px)').matches); }
+  function monthIndexOf(date) {
+    for (var i = 0; i < board.months.length; i += 1) if (date && Number(date.slice(0, 4)) === board.months[i].year && Number(date.slice(5, 7)) === board.months[i].month) return i;
+    return -1;
+  }
+  function monthNav(month) {
+    var title = el('div', { 'class': 'month-title', id: 'm' + month.year + month.month, text: month.title });
+    var picksIn = function (index) { var m = board.months[index]; return !!m && picks.some(function (pick) { return monthIndexOf(pick.date) === index; }); };
+    var arrow = function (step, text, name) {
+      var target = board.months[shownMonth + step];
+      var button = el('button', { type: 'button', 'aria-label': target ? name + ': ' + target.title : name }, [text, target && picksIn(shownMonth + step) ? el('span', { 'class': 'mine', 'aria-hidden': 'true' }) : null]);
+      if (!target) button.disabled = true;
+      button.addEventListener('click', function () { shownMonth += step; drawCalendar(); postHeight(); });
+      return button;
+    };
+    return el('div', { 'class': 'month-nav' }, [arrow(-1, '\u2039', 'Previous month'), title, arrow(1, '\u203A', 'Next month')]);
+  }
   function drawCalendar() {
     empty(calendar);
-    board.months.forEach(function (month) {
-      var box = el('div', { 'class': 'month' }, [el('div', { 'class': 'month-title', id: 'm' + month.year + month.month, text: month.title })]);
+    var onPhone = phone();
+    if (onPhone && shownMonth === null) shownMonth = Math.max(0, monthIndexOf(selected));
+    if (onPhone) shownMonth = Math.min(Math.max(shownMonth, 0), board.months.length - 1);
+    (onPhone ? [board.months[shownMonth]] : board.months).forEach(function (month) {
+      var box = el('div', { 'class': 'month' }, [onPhone ? monthNav(month) : el('div', { 'class': 'month-title', id: 'm' + month.year + month.month, text: month.title })]);
       var grid = el('div', { 'class': 'grid', role: 'group', 'aria-labelledby': 'm' + month.year + month.month });
       ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function (letter) { grid.appendChild(el('span', { 'class': 'dow', 'aria-hidden': 'true', text: letter })); });
       var first = new Date(Date.UTC(month.year, month.month - 1, 1)).getUTCDay();
@@ -261,7 +322,7 @@
       'aria-label': label, 'aria-pressed': date === selected ? 'true' : 'false', 'data-date': date }, [
       el('span', { text: String(day) }), el('span', { 'class': 'mark', 'aria-hidden': 'true', text: MARKS[night.status] || '' }),
       mine ? el('span', { 'class': 'mine', 'aria-hidden': 'true' }) : null]);
-    cell.addEventListener('click', function () { selected = selected === date ? '' : date; show(''); drawCalendar(); if (selected) focusNight(); });
+    cell.addEventListener('click', function () { selected = selected === date ? '' : date; partOpen = {}; show(''); drawCalendar(); if (selected) focusNight(); });
     return cell;
   }
   function focusNight() {
@@ -280,9 +341,9 @@
     return a.width > 0 && Math.abs(a.top - b.top) < 2;
   }
   // "6:40 PM (2:40 PM on Saturdays)" becomes the one that applies to this night.
-  function doesText(spec, night) {
+  function doesText(spec, night, brief) {
     var saturday = new Date(night.date + 'T12:00:00Z').getUTCDay() === 6;
-    return spec.does.replace(/(\d{1,2}:\d{2} [AP]M) \((\d{1,2}:\d{2} [AP]M) on Saturdays\)/g, function (all, weekday, sat) { return saturday ? sat : weekday; });
+    return (brief ? spec.brief : spec.does).replace(/(\d{1,2}:\d{2} [AP]M) \((\d{1,2}:\d{2} [AP]M) on Saturdays\)/g, function (all, weekday, sat) { return saturday ? sat : weekday; });
   }
   function drawNight() {
     var night = nightOf(selected);
@@ -299,21 +360,51 @@
     // Open with changes (closures.json: reduced play area, or a holiday): still needs volunteers.
     if (night.note) panel.appendChild(el('p', { 'class': 'night-note', text: '\u2139 ' + night.note }));
     panel.appendChild(shareLink(night));
-    if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
+    if (phone()) { /* the opening and closing bars below say what is needed */ }
+    else if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
     else if (night.status === 'covered') panel.appendChild(el('p', { 'class': 'muted', text: 'The minimum crew is confirmed. ' +
       ((night.wanted || []).length ? 'To be fully staffed: ' + night.wanted.join(', ') + '.' : 'More help is welcome.') }));
     if (!night.bookable) panel.appendChild(el('p', { 'class': 'why', text: 'Sign-ups for this night have closed (they close an hour before the club opens).' }));
-    var opening = el('div', {}, [el('h3', { text: 'Opening, ' + time12(night.start) })]);
-    var closing = el('div', {}, [el('h3', { text: 'Closing, ' + time12(night.end) })]);
-    board.positions.forEach(function (spec) { (spec.part === 'close' ? closing : opening).appendChild(positionRow(night, spec)); });
-    panel.appendChild(el('div', { 'class': 'night-cols' }, [opening, closing]));
+    var parts = { open: 'Opening, ' + time12(night.start), close: 'Closing, ' + time12(night.end) };
+    var onPhone = phone();
+    var columns = ['open', 'close'].map(function (part) {
+      var rows = board.positions.filter(function (spec) { return spec.part === part; }).map(function (spec) { return positionRow(night, spec); });
+      if (!onPhone) return el('div', {}, [el('h3', { text: parts[part] })].concat(rows));
+      // A phone: a bar saying whether this half of the night needs anyone; tap it for the positions.
+      var state = partState(night, part);
+      var bar = el('details', { 'class': 'part', 'data-part': part }, [
+        el('summary', {}, [el('span', {}, [el('span', { 'class': 'part-name', text: parts[part] }), el('span', { 'class': 'part-state state-' + state.level, text: state.text })])]),
+        el('div', { 'class': 'part-body' }, rows)]);
+      if (partOpen[part]) bar.open = true;
+      bar.addEventListener('toggle', function () { partOpen[part] = bar.open; postHeight(); });
+      return bar;
+    });
+    panel.appendChild(el('div', { 'class': 'night-cols' }, columns));
     panel.appendChild(el('p', { 'class': 'muted', text: 'One opening position per person per night (the desk organizer may also help set up). You may also close the same night.' }));
     area.appendChild(panel);
+  }
+  // One half of a night (part: 'open' or 'close') in a line, from confirmed sign-ups, as the calendar counts: what it still
+  // needs, else what would make it fully staffed, else all set; and how many are waiting to confirm.
+  var SHORT = { desk: 'desk organizer', money: 'money collector', tables: 'table setup', lockup: 'lock-up', close: 'putting tables away' };
+  function partState(night, part) {
+    var specs = board.positions.filter(function (spec) { return spec.part === part; });
+    var confirmed = function (spec) { return night.slots[spec.id].filter(function (slot) { return !slot.pending; }).length; };
+    var waiting = specs.reduce(function (sum, spec) { return sum + night.slots[spec.id].filter(function (slot) { return slot.pending; }).length; }, 0);
+    var name = function (spec) { return SHORT[spec.id] || spec.label; };
+    var needs = specs.filter(function (spec) { return confirmed(spec) < spec.min; });
+    var more = specs.filter(function (spec) { return confirmed(spec) < (spec.full || spec.min); });
+    var state = needs.length ? { level: 'needs', text: '! Needs: ' + needs.map(name).join(', ') } :
+      more.length ? { level: 'covered', text: '+ ' + more.map(function (spec) { return ((spec.full || spec.min) - confirmed(spec)) + ' more for ' + name(spec); }).join(', ') } :
+      { level: 'full', text: '\u2713 All set' };
+    if (waiting) state.text += ' \u00b7 ' + waiting + ' waiting to confirm';
+    return state;
   }
   function positionRow(night, spec) {
     var size = spec.max === 1 ? '1 person' : spec.min + ' to ' + spec.max + ' people';
     var row = el('div', { 'class': 'pos' }, [el('div', { 'class': 'pos-head' }, [el('b', { text: spec.label }), el('span', { text: size + (spec.min ? '' : ', optional') })]),
-      el('p', { 'class': 'does', text: doesText(spec, night) })]);
+      phone() && spec.brief ? el('details', { 'class': 'more' }, [
+        el('summary', {}, [doesText(spec, night, true), el('span', { 'class': 'more-link', text: 'More' })]),
+        el('p', { text: doesText(spec, night) })]) : el('p', { 'class': 'does', text: doesText(spec, night) })]);
     var chips = el('ul', { 'class': 'chips', 'aria-label': spec.label });
     var dropBox = el('div');
     night.slots[spec.id].forEach(function (slot) {
@@ -679,7 +770,15 @@
   function redraw() { drawBar(); drawCalendar(); drawPicks(); postHeight(); }
   function start(result) {
     if (!result.ok) { empty(calendar); calendar.appendChild(el('p', { text: result.message })); postHeight(); return; }
+    var first = !board;
     board = result;
+    // On first opening, the next night still open for sign-ups (tonight, until an hour before the club opens) is shown at
+    // once, so people see who is on and what is needed without a tap. Not when a My nights link opened the page (that list
+    // is why they came), and never scrolled to or focused: the page sits inside the home page.
+    if (first && !selected && !mineCode && !(INITIAL && INITIAL.mine)) {
+      var next = board.nights.filter(function (night) { return night.bookable && night.status !== 'closed'; })[0];
+      if (next) selected = next.date;
+    }
     // A pick whose night has since closed or filled stays listed; the server says which, and why, on sending.
     redraw();
   }

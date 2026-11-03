@@ -84,19 +84,24 @@ var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open o
 // hold only one of them per night, except the pairs in alsoWith (the desk organizer may also help set up).
 // 'close' positions are the closing crew: the lock-up keyholder and the people putting tables away; one each per person,
 // and the same person may open and close. training lists the Training tab columns that must say yes before someone may
-// take the position (canTake_); full is how many a night needs there to count as fully staffed (statusOf_; min when not
+// take the position (canTake_); brief is the one line a phone shows (with does behind "More"); full is how many a night needs there to count as fully staffed (statusOf_; min when not
 // given); does is the line the page shows under it (the page swaps in the night's own time where it
 // says "X PM (Y PM on Saturdays)").
 var POSITIONS = [
   { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, max: 1, training: ['keys', 'open'], alsoWith: ['tables'],
+    brief: 'Opens up at 6:40 PM (2:40 PM on Saturdays) and runs the desk.',
     does: 'The opener and round robin organizer: first in at 6:40 PM (2:40 PM on Saturdays), has the key lockbox, opens the doors, side door and storage room, turns on the lights and AC, and runs the round robin desk on round robin nights.' },
   { id: 'money', label: 'Money collector (Front Desk)', part: 'open', min: 1, max: 1, training: ['front_desk'],
+    brief: 'Front desk: checks people in, takes payments.',
     does: 'Prints the Revenue Sheet, takes out the Clover device and the Zelle/Venmo QR codes, records everyone entering on the Revenue Sheet and manages the payments.' },
   { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, full: 3, max: 4, training: [], alsoWith: ['desk'],
+    brief: 'By 6:45 PM (2:45 PM on Saturdays): sets out barriers, tables and nets.',
     does: 'Arrives by 6:45 PM (2:45 PM on Saturdays): brings out the barriers, tables and nets, and knows the gym layout.' },
   { id: 'lockup', label: 'Lock-up', part: 'close', min: 1, max: 1, training: ['keys'],
+    brief: 'Last out: checks the gym, locks up, lights off.',
     does: 'Last person out: stays until 10:00 PM (6:00 PM on Saturdays) or later, has the key lockbox, checks everyone is out (restrooms too) and every door is locked, and turns off the lights and AC.' },
   { id: 'close', label: 'Put tables and barriers away', part: 'close', min: 1, full: 2, max: 5, training: [],
+    brief: 'After play: folds tables, puts equipment away.',
     does: 'Stays until 10:00 PM (6:00 PM on Saturdays) or later: folds up the tables, returns the nets to the basket and all equipment to the storage room. One closer may also finalize the desk.' }
 ];
 
@@ -923,7 +928,8 @@ function board_(signups, closures, now) {
     ok: true, mode: mode_(), maxPicks: MAX_PICKS, textNumber: TEXT_NUMBER, today: horizon.today,
     months: horizon.months.map(function (month) { return { year: month.year, month: month.month, title: MONTHS[month.month - 1] + ' ' + month.year }; }),
     positions: POSITIONS.map(function (spec) {
-      return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, max: spec.max, does: spec.does, trained: spec.training.length > 0, alsoWith: spec.alsoWith || [] };
+      return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, full: spec.full || spec.min, max: spec.max, brief: spec.brief, does: spec.does, trained: spec.training.length > 0,
+        alsoWith: spec.alsoWith || [] };
     }),
     closures: Object.keys(closures).filter(function (date) { return date >= horizon.first && date <= horizon.last; }).sort(),
     nights: nights

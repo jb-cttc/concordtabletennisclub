@@ -40,6 +40,23 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
     filled.)
   - **Closed** (`×`): the gym is closed that night (section 8). A closed
     night asks for no volunteers, is not counted and gets no reminders.
+- **The page opens on a night.** On opening, the next night still open for
+  sign-ups is selected and its panel shown: tonight until sign-ups close an
+  hour before opening, then the next club night. It is not scrolled to or
+  focused (the page sits inside the home page), and a My nights link opens
+  no night.
+- **On a phone** (narrower than 520px, `PHONE_WIDTH`) the calendar shows one
+  month at a time, with ‹ › arrows (an arrow carries a dot when that month
+  holds your picks), and the night's opening and closing are bars that open
+  on a tap. Each bar says, from confirmed sign-ups, what that half of the
+  night needs ("! Needs: desk organizer"), else what would make it fully
+  staffed ("+ 1 more for table setup"), else "✓ All set", plus how many are
+  waiting to confirm. Each role shows one line (`brief` in `POSITIONS`, "Opens
+  up at 6:40 PM and runs the desk.") with its full description behind
+  "More", and the legend fits one line with short words (Needs, Minimum,
+  Full, Closed, Yours; screen readers keep the long ones). A wider screen
+  shows all three months, both halves open and the full descriptions, as
+  before.
 - The page shows **first names only** ("Sam", or "Sam K." when two different
   people that night share a first name; initials at the start stay together,
   so "J. B. Birch" is "J.B."). It never shows emails, phones or
