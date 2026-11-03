@@ -33,7 +33,14 @@ class FakeDate extends Date {
   constructor(...args) { super(...(args.length ? args : [clock])); }
   static now() { return clock; }
 }
-const pacific = ms => new Date(ms - 7 * 3600000); // PDT, for the October dates used here
+// Pacific wall clock as a Date whose UTC fields read as Pacific time: the real America/Los_Angeles rules, so PDT in
+// summer, PST in winter and the switch between them are all what Google would give.
+const pacificParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+const pacific = ms => {
+  const p = {};
+  pacificParts.formatToParts(new Date(ms)).forEach(part => { p[part.type] = Number(part.value); });
+  return new Date(Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second));
+};
 const pad = n => String(n).padStart(2, '0');
 const Utilities = {
   formatDate(date, zone, pattern) {
@@ -292,5 +299,28 @@ delete cache.turnout;
 call('turnout');
 assert.deepEqual(rowsOf('texts_not_collected').map(row => row[1]), ['error'], 'logged once, as an error');
 readerStopped = false;
+
+// Which day a text counts for is the Pacific day it arrived, never the UTC day: a 5:30 PM text is already "tomorrow"
+// in UTC, and a text just before midnight on Sunday is already Monday in UTC. Checked in daylight time (PDT, UTC-7),
+// in standard time (PST, UTC-8), and across the November 1 change.
+const desk = SpreadsheetApp.openById('desk-sheet');
+const countsOn = (date, iso) => {
+  messages = [text('Tess Timing', 'Coming', Date.parse(iso))];
+  return context.voiceSenders_(desk, date).length;
+};
+[
+  ['2026-10-26', '2026-10-27T00:30:00Z', 1, 'PDT: Monday 5:30 PM counts for Monday, though UTC says Tuesday'],
+  ['2026-10-26', '2026-10-27T06:59:00Z', 1, 'PDT: Monday 11:59 PM counts for Monday'],
+  ['2026-10-26', '2026-10-27T07:00:00Z', 0, 'PDT: Tuesday 12:00 AM is not Monday'],
+  ['2026-10-26', '2026-10-26T06:30:00Z', 0, 'PDT: Sunday 11:30 PM is not Monday, though UTC says Monday'],
+  ['2026-10-26', '2026-10-26T07:00:00Z', 1, 'PDT: Monday 12:00 AM is Monday'],
+  ['2026-11-09', '2026-11-10T01:30:00Z', 1, 'PST: Monday 5:30 PM counts for Monday, though UTC says Tuesday'],
+  ['2026-11-09', '2026-11-10T07:30:00Z', 1, 'PST: Monday 11:30 PM counts for Monday (in PDT this would be Tuesday)'],
+  ['2026-11-09', '2026-11-10T08:00:00Z', 0, 'PST: Tuesday 12:00 AM is not Monday'],
+  ['2026-11-09', '2026-11-09T07:30:00Z', 0, 'PST: Sunday 11:30 PM is not Monday (in PDT this would be Monday)'],
+  ['2026-11-02', '2026-11-02T07:30:00Z', 0, 'the day after the change: Sunday 11:30 PM PST is not Monday'],
+  ['2026-11-02', '2026-11-02T08:00:00Z', 1, 'and Monday 12:00 AM PST is']
+].forEach(([date, iso, count, why]) => assert.equal(countsOn(date, iso), count, why));
+messages = [];
 
 console.log('Turnout app checks passed');

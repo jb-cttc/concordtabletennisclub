@@ -54,9 +54,6 @@
     <div class="tonight-stat is-likely" id="stat-likely-box"><strong id="stat-likely">0</strong><span>likely regulars</span></div>
   </div>
   <p id="tonight-lede" class="tonight-lede">Loading tonight&rsquo;s floor&hellip;</p>
-  <p id="tonight-text-us" class="tonight-text-us">
-    <strong>Want to be included?</strong> Text us at <a id="text-us-link" href="sms:+19252383505">(925) 238-3505</a> <span id="text-us-when">any time during the day</span> and we&rsquo;ll add you here.
-  </p>
   <p class="tonight-cta">
     <a class="button-link" href="firstvisit.html">First visit? Start here</a>
     <a href="https://www.google.com/maps/place/2336+Buena+Vista+Ave,+Walnut+Creek,+CA+94597" target="_blank" rel="noopener">Directions</a>
@@ -121,35 +118,6 @@
   var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   var shown = null;
-
-  // The club's Google Voice number, and the text a tap fills in on the day itself, ending "tonight" (or "today" on Saturday).
-  var CLUB_TEXT_NUMBER = "+19252383505";
-  var JOIN_TEXT = "I'll join CTTC's RR ";
-
-  // iPhone, iPad and Mac Messages take the text after "&body="; Android and others after "?body=".
-  function textLink(body) {
-    if (!body) return "sms:" + CLUB_TEXT_NUMBER;
-    var apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
-    return "sms:" + CLUB_TEXT_NUMBER + (apple ? "&" : "?") + "body=" + encodeURIComponent(body);
-  }
-
-  // The site's closures (data/closures.json), fetched once for the join text and the forecast; siteClosures is null until
-  // it arrives, and until then no day counts as closed.
-  var siteClosures = null;
-  var closuresLoad = null;
-  function loadClosures() {
-    if (!closuresLoad) closuresLoad = getJson("data/closures.json").catch(function () { return {}; }).then(function (closures) { siteClosures = closures; return closures; });
-    return closuresLoad;
-  }
-
-  // The text link for right now, from this phone's clock and the club's schedule, never waiting on the turnout app: on a
-  // round robin day it fills in the join text. Set when the page opens and again on every tap, so a slow or missing answer
-  // from Google, or a tab left open since an earlier day, still fills in the text on the day.
-  function joinLink() {
-    var clock = pacificClock(new Date());
-    var night = T.sessionNight(clock, siteClosures);
-    return textLink(night && night.date === clock.date ? JOIN_TEXT + dayWord(night.date) : "");
-  }
 
   function byId(id) { return document.getElementById(id); }
 
@@ -216,7 +184,7 @@
 
   // Without the app: the same forecast from the site's own published files, with nobody known to be playing yet.
   function forecast() {
-    return Promise.all([getJson("data/session-roster.json"), getJson("data/players.json"), loadClosures()])
+    return Promise.all([getJson("data/session-roster.json"), getJson("data/players.json"), getJson("data/closures.json").catch(function () { return {}; })])
       .then(function (files) {
         var roster = files[0];
         var rating = {};
@@ -283,10 +251,6 @@
       lede += " " + day + " round robins are new, so this forecast is a head count: ratings show as players sign in.";
     }
     byId("tonight-lede").textContent = lede;
-    // A text counts on the night itself, so ahead of time the note names the day; once sign-up closes it goes.
-    byId("tonight-text-us").hidden = view.phase === "underway";
-    byId("text-us-when").textContent = view.today ? "any time today" : "any time on " + day;
-    byId("text-us-link").href = joinLink();
 
     // The same numbers twice: zones across for a wide screen, zones down for a phone (style.css shows one).
     var rows = [["Playing " + playingWhen, "is-playing", function (b) { return b.here + b.texted; }]];
@@ -503,10 +467,6 @@
   }
 
   function start() {
-    var link = byId("text-us-link");
-    link.href = joinLink();
-    link.addEventListener("click", function () { link.href = joinLink(); });
-    loadClosures().then(function () { link.href = joinLink(); });
     (TURNOUT_URL ? live() : Promise.reject(new Error("no app"))).catch(forecast).then(render, function () {
       byId("tonight-lede").textContent = "Could not load tonight’s floor. Try refreshing the page.";
     });
