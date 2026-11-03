@@ -40,15 +40,33 @@ page call per print, and the mark rides along with the desk's existing
 
 **Follow mode** (a second computer's Player board following the main desk) runs
 only while someone ticks *Follow the main desk* on that board. The saves the
-desk already makes also set a tiny change stamp in the script cache (sessions,
-payments, the Equalizer; `touchDesk_` in `SessionIds.js`). The following desk
-asks for the stamps (`getDeskStamps`, a cache read: no Sheet, Gmail or settings
-reads) every 10 seconds, once a minute after 20 quiet minutes: about 360 page
-calls an hour at most, none of which count toward timer run time. It reads the
-night (`getAppState`, or payments without the Zeffy mail) only when a stamp
-moved, about once per change at the main desk. It ends when the night is
-finalized or after 6 hours, and logs its checks and reads to the desk log
-(`follow_mode`) every 30 minutes and when it ends.
+desk already makes also set a tiny change stamp in the script cache, after the
+save lets go of the script lock (sessions, payments, the Equalizer, player
+corrections; `touchDesk_` in `SessionIds.js`). The following desk asks for the
+stamps (`getDeskStamps`, a cache read: no Sheet, Gmail or settings reads) every
+10 seconds, once a minute after 20 quiet minutes, and reads only the part that
+moved: the night's session and marks (`getFollowState`, which skips the player
+directory and rating ledger `getAppState` reads), the payments without the Zeffy
+mail, the Equalizer, or the directory. It never takes the script lock, has at
+most one call in flight, and pauses that desk's own once-a-minute Open Play and
+voice sign-up checks. It ends when the night is finalized or after 6 hours, and
+logs its checks and reads to the desk log (`follow_mode`) every 30 minutes and
+when it ends.
+
+Measured on the desk simulator, a 2.8-hour round robin night (40 sign-ins, 40
+payments, 95 matches) cost the following computer 997 stamp checks, 136 session
+reads, 80 payment reads and 2 full loads (when follow mode started); the main
+desk made exactly the calls it makes without follow mode. For 3 hours, 4 nights
+a week, that is at most about 4,300 stamp checks and 900 reads a week:
+
+| Limit | Follow mode adds | Allowance |
+| --- | --- | --- |
+| Timer run time | nothing (page calls only, no timers) | 90 min a day |
+| Gmail reads, emails, web requests | nothing | 20,000 / 100 / 20,000 a day |
+| Settings reads | about 140 a night (one per session read) | 50,000 a day |
+| Settings writes | one per print and per move up | 50,000 a day |
+| Script lock | never taken | (saves wait on it) |
+| Desk log rows | about 7 a night | 2,000 kept |
 
 ## Scheduled jobs
 

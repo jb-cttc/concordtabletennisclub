@@ -61,7 +61,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
   var READ_TIMEOUT_MS = 30000;
-  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1, getCloverDesk: 1, listPlayerAliases: 1, getDeskStamps: 1 };
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1, getCloverDesk: 1, listPlayerAliases: 1, getDeskStamps: 1, getFollowState: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -1529,7 +1529,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       eqDesk.load(sessionDate, equalizerUnavailable ? null : equalizerData);
       state.event = 'rr';
       // The sheets-printed mark another device may have made (PlayerBoard.html keeps it), before the groups draw.
-      if (window.cttcPlayerBoard) window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt);
+      if (window.cttcPlayerBoard) { window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt); window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true); }
       movesFromGoogle(sessionDate, data.movedUp, askedAt);
       setGroups(groupsFromSession);
       savedPrintState = printState();
@@ -1949,6 +1949,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var blocked = startFollow();
       return { on: follow.on, message: blocked };
     },
+    following: function () { return follow.on; },
     followTick: function () { followCheck(false); return { on: follow.on, lastOk: follow.lastOk, lastCheck: follow.lastCheck }; },
     // A print just happened (PlayerBoard.html keeps it): the Print labels control follows.
     printChanged: function () { renderPrintLabels(); },
@@ -2390,7 +2391,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var data = await call('getAppState', sessionDate);
       refreshing = false;
       // A print, Clear labels or Undo the print on another device: the after-print rules and labels follow here too.
-      var marksChanged = sessionDate === loadedDate && window.cttcPlayerBoard && window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt);
+      var marksChanged = sessionDate === loadedDate && window.cttcPlayerBoard && (window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt) | window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true));
       if (sessionDate === loadedDate && movesFromGoogle(sessionDate, data.movedUp, askedAt)) marksChanged = true;
       if (marksChanged) render();
       var server = data.session;
@@ -2475,9 +2476,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var areas = [];
       if (!stamps) {
         // The cache could not be read: read the night, at most once a minute.
-        if (force || Date.now() - follow.lastRead >= FOLLOW_IDLE_MS) { areas = ['s', 'p', 'e']; follow.stamplessReads += 1; }
+        if (force || Date.now() - follow.lastRead >= FOLLOW_IDLE_MS) { areas = ['s', 'p', 'e', 'd']; follow.stamplessReads += 1; }
       } else {
-        areas = force || !before ? ['s', 'p', 'e'] : ['s', 'p', 'e'].filter(function (area) { return stamps[area] !== before[area]; });
+        areas = force || !before ? ['s', 'p', 'e', 'd'] : ['s', 'p', 'e', 'd'].filter(function (area) { return stamps[area] !== before[area]; });
         follow.stamps = stamps;
       }
       if (areas.length) {
@@ -2499,13 +2500,26 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var has = function (area) { return areas.indexOf(area) >= 0; };
     follow.reads += 1;
     if (force || (has('s') && has('e'))) { await load(); if (has('p') && window.cttcPayments) window.cttcPayments.refresh({ skipMailbox: true }); return; }
+    // A name or rating corrected on the main desk: the directory, so the board shows it too.
+    if (has('d')) {
+      var directory = await call('listPlayers');
+      if (!follow.on || sessionDate !== loadedDate) return;
+      (directory || []).forEach(function (p) {
+        if (byId[p.playerId]) Object.assign(byId[p.playerId], p); else learnPlayers([p]);
+      });
+      if (!has('s') && !has('e')) render();
+    }
     if (has('s') && state.event !== 'equalizer') {
       var askedAt = Date.now();
-      var data = await call('getAppState', sessionDate);
+      var data = await call('getFollowState', sessionDate);
       if (!follow.on || sessionDate !== loadedDate) return;
-      if (window.cttcPlayerBoard) window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt);
+      // A player this desk has not heard of (added tonight on the main desk): the full read, with the directory.
+      var unknown = data.session && data.session.groups.some(function (group) { return group.players.some(function (entry) { return !byId[entry.playerId]; }); });
+      if (unknown) data = await call('getAppState', sessionDate);
+      if (!follow.on || sessionDate !== loadedDate) return;
+      if (window.cttcPlayerBoard) { window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt); window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true); }
       movesFromGoogle(sessionDate, data.movedUp, askedAt);
-      learnPlayers(data.players);
+      if (data.players) learnPlayers(data.players);
       var server = data.session;
       if (server && (!state.session || server.status !== state.session.status || !copyKnown(sessionCopy(server)))) { await load(); return; }
       var rosterBefore = state.roster.slice();
@@ -2518,7 +2532,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       // A new sign-in can be a first visit (worked out from the night's roster): read the payments too.
       if (!has('p') && state.roster.some(function (id) { return rosterBefore.indexOf(id) < 0; })) areas.push('p');
     }
-    if (has('e') && state.event === 'equalizer') await load();
+    // An Equalizer result: read only the Equalizer (a full load would also read the session, the publish state and more).
+    if (has('e') && state.event === 'equalizer') {
+      var eqData = await call('getEqualizerState', sessionDate);
+      if (!follow.on || sessionDate !== loadedDate) return;
+      eqDesk.load(sessionDate, eqData);
+      state.roster = eqDesk.roster();
+      render();
+    }
     if (has('p') && window.cttcPayments) window.cttcPayments.refresh({ skipMailbox: true });
   }
   function renderFollow() {
@@ -3252,7 +3273,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       .formatToParts(new Date()).forEach(function (part) { parts[part.type] = part.value; });
     return parts.year + '-' + parts.month + '-' + parts.day;
   }
-  function polling() { return date.value === pacificToday(); }
+  // Not on a desk in follow mode: it only shows the main desk's night, so these checks would be reads for nothing.
+  function polling() { return date.value === pacificToday() && !(window.cttcDesk && window.cttcDesk.following && window.cttcDesk.following()); }
 
   // Tonight's players as the desk shows them (the draft may be ahead of what Google has saved), with whether their
   // payment button already shows a payment.
@@ -4132,6 +4154,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   }
 
   function polling() {
+    if (window.cttcDesk && window.cttcDesk.following && window.cttcDesk.following()) return false;
     var now = pacificNow();
     var hours = POLL_DAYS[now.weekday];
     return !!hours && !(hours[2] && now.date < hours[2]) && date.value === now.date && now.minutes >= hours[0] && now.minutes < hours[1];

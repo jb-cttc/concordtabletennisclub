@@ -132,9 +132,10 @@ function setSessionPayment(sessionDate, playerId, method) {
       appendObjects_('SessionPayments', [{ session_id: sessionId, player_id: playerId, method: method, updated_at: new Date() }]);
     }
     appendAudit_('session_payment_updated', 'session', sessionId, { playerId: playerId, method: method || 'unpaid' });
-    touchDesk_('p', sessionDate);
-    return method;
+    var recorded = method;
   } finally {
     lock.releaseLock();
   }
+  touchDesk_('p', sessionDate);
+  return recorded;
 }

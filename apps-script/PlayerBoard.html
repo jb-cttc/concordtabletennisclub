@@ -1328,9 +1328,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     }).join('') + '</div>';
   }
   function finalsNames(k, i, n) { var left = n - i; return left === 1 ? 'Final' : left === 2 ? 'Semifinals' : left === 3 ? 'Quarterfinals' : 'Round ' + k; }
+  // A short fingerprint of the Equalizer draw (the same on every device that has it), kept with the print mark.
   function drawSignature(d) {
     var snap = d.eq && d.eq.event && d.eq.event.snapshot;
-    return snap ? JSON.stringify([snap.teams, snap.groups, snap.entrants, snap.sitOut]) : '';
+    if (!snap) return '';
+    var text = JSON.stringify([snap.teams, snap.groups, snap.entrants, snap.sitOut]);
+    var hash = 2166136261;
+    for (var i = 0; i < text.length; i += 1) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 16777619) >>> 0; }
+    return hash.toString(36) + text.length.toString(36);
   }
   function eqGroups(d, redrawn) {
     var ev = d.eq.event;
@@ -1683,10 +1688,10 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   // the same after-print placing, Late add and Updated labels, and the board's switch to scores.
   var PRINT_SEND = 'saveSessionPrint';
   var changedHere = {};
-  function outboxKey(date) { return 'board-print:' + date; }
-  function share(date, record) {
+  function outboxKey(date, eq) { return 'board-print:' + date + (eq ? ':eq' : ''); }
+  function share(date, record, eq) {
     if (!window.cttcOutbox) return;
-    window.cttcOutbox.enqueue(outboxKey(date), PRINT_SEND, ['session-' + date, record]);
+    window.cttcOutbox.enqueue(outboxKey(date, eq), PRINT_SEND, ['session-' + date + (eq ? '-equalizer' : ''), record]);
   }
   // record null: as if never printed here (shared as undone, so the other devices drop theirs too).
   function setRecord(d, record) {
@@ -1694,29 +1699,31 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     if (record) all[d.key] = record; else delete all[d.key];
     writePrints(all);
     changedHere[d.key] = Date.now();
-    if (d.event !== 'equalizer') share(d.date, record || { at: Date.now(), undone: true });
+    share(d.date, record || { at: Date.now(), undone: true }, d.event === 'equalizer');
     changed();
   }
   // What Google holds for this night's round robin, from a getAppState asked at askedAt. Returns true when this
   // device's copy changed. Nothing changes while this device's own mark is still on its way, or when the answer was
   // asked before this device's latest change. Google not knowing of a print this device has (made before the mark was
   // shared) sends it up.
-  function fromGoogle(date, mark, askedAt) {
+  // eq: the Equalizer's mark ({ at, sig }) rather than the round robin's.
+  function fromGoogle(date, mark, askedAt, eq) {
     if (mark === undefined || !date) return false;
-    var key = date + ':rr';
-    if ((window.cttcOutbox && window.cttcOutbox.find(outboxKey(date))) || (changedHere[key] && askedAt < changedHere[key])) return false;
+    var key = date + (eq ? ':eq' : ':rr');
+    if ((window.cttcOutbox && window.cttcOutbox.find(outboxKey(date, eq))) || (changedHere[key] && askedAt < changedHere[key])) return false;
     var all = readPrints();
     var mine = all[key] || null;
+    var shape = function (m) { return eq ? { at: m.at, sig: m.sig } : { at: m.at, groups: m.groups, first: m.first || flat(m.groups) }; };
     if (!mark) {
-      if (mine && mine.groups) share(date, { at: mine.at, groups: mine.groups, first: mine.first || flat(mine.groups) });
+      if (mine && (eq ? mine.sig : mine.groups)) share(date, shape(mine), eq);
       return false;
     }
     if (mark.undone) {
       if (!mine) return false;
       delete all[key];
     } else {
-      var theirs = { at: mark.at, groups: mark.groups, first: mark.first };
-      if (mine && JSON.stringify({ at: mine.at, groups: mine.groups, first: mine.first }) === JSON.stringify(theirs)) return false;
+      var theirs = shape(mark);
+      if (mine && JSON.stringify(shape(mine)) === JSON.stringify(theirs)) return false;
       all[key] = theirs;
     }
     writePrints(all);

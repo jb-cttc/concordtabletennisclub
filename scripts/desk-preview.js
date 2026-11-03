@@ -144,7 +144,7 @@ function touchStamp(name, args) {
 }
 const rpc = {
   getAppState: function (date) {
-    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString(), printed: prints['session-' + date] || null, movedUp: movesBySession['session-' + date] || null };
+    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString(), printed: prints['session-' + date] || null, printedEq: prints['session-' + date + '-equalizer'] || null, movedUp: movesBySession['session-' + date] || null };
   },
   saveSessionMoves: function (sessionId, moves) {
     if (Object.keys(moves || {}).length) movesBySession[sessionId] = moves;
@@ -157,6 +157,10 @@ const rpc = {
     return mark;
   },
   listPlayers: function () { return players; },
+  getFollowState: function (date) {
+    const state = rpc.getAppState(date);
+    return { session: state.session, printed: state.printed, printedEq: state.printedEq, movedUp: state.movedUp };
+  },
   getDeskStamps: function (date) { return stamps[date] || { s: '', p: '', e: '' }; },
   logFollowMode: function () { return true; },
   // The Equalizer, kept in memory only: enough to switch a night to it, draw it, and print its sheets.

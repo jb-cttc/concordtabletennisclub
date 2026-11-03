@@ -243,7 +243,7 @@ function updatePlayer(playerId, changes, before) {
       details.aliases = { added: plan.adds, changed: plan.edits.map(function (edit) { return [edit.from, edit.to]; }), removed: plan.removes.map(function (remove) { return remove.name; }) };
     }
     appendAudit_('player_updated', 'player', playerId, details);
-    touchDesk_('s');
+    touchDesk_('d');
     return playerDetails_(Object.assign({}, player, playerChanges), email, playerAliasNames_(rows_('Aliases'), playerId));
   });
 }

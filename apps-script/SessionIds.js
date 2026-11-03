@@ -16,9 +16,10 @@ function equalizerSessionId_(sessionDate) {
 // Follow mode (a second computer showing the Player board, PlayerBoard.html): a tiny change stamp per night and area
 // in the script cache, set by the saves the desk already makes. A following desk asks getDeskStamps every 10 seconds,
 // a cache read with no Sheet, Gmail or settings reads, and reads the night itself only for the area that changed:
-// s (groups, scores, the print mark, names), p (payments, Zeffy passes, first visits), e (the Equalizer). The cache
+// s (groups, scores, the print mark, moves), p (payments, Zeffy passes, first visits), e (the Equalizer), d (a player's
+// name or rating corrected in the directory). The cache
 // keeps a stamp up to 6 hours; one lost or unreadable makes the follower read that area once.
-var DESK_STAMP_AREAS_ = ['s', 'p', 'e'];
+var DESK_STAMP_AREAS_ = ['s', 'p', 'e', 'd'];
 function deskStampKey_(sessionDate, area) { return 'desk-stamp:' + sessionDate + ':' + area; }
 function touchDesk_(area, sessionDate) {
   try {

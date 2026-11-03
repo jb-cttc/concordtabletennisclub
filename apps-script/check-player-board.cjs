@@ -455,6 +455,42 @@ const cases = {
     board.close();
   },
 
+  // Follow mode on an Equalizer night: the projector shows the draw once the main desk prints, then each result, reading
+  // only the Equalizer for a result.
+  async followEqualizer() {
+    const world = sim.createWorld({ seed: 71 });
+    const main = await deskWith(world, 16);
+    main.click(main.$('#event-switch [data-event="equalizer"]'));
+    await run(world, 20000);
+    const projector = world.device().open();
+    await run(world, 15000);
+    const board = boardWindow(world, projector);
+    projector.click(projector.$('#player-board'));
+    await run(world, 1000);
+    const box = board.$('#bc-follow');
+    box.checked = true;
+    box.dispatchEvent(new board.w.Event('change', { bubbles: true }));
+    await run(world, 5000);
+    assert.match(board.$('.b-stage').textContent, /the draw is set when sheets print/);
+
+    main.window.cttcPlayerBoard.printed();
+    await run(world, 25000);
+    assert.match(board.$('.b-stage').textContent, /Group stage/, 'the main desk printed: the projector shows the draw');
+
+    const row = main.$('#equalizer .match.match-pending[data-eq-match]');
+    const need = row.querySelectorAll('[data-side="0"].ball').length - 1;
+    main.click(row.querySelector('[data-side="0"][data-games="' + need + '"]'));
+    main.click(main.$('#equalizer [data-eq-match="' + row.getAttribute('data-eq-match') + '"] [data-side="1"][data-games="1"]'));
+    const since = world.clock.now();
+    await run(world, 25000);
+    assert.match(board.$('.ticker').textContent, / beat /, 'the result reaches the projector');
+    const reads = world.traffic.filter(log => log.tab === projector && log.sentAt >= since).map(log => log.name);
+    assert.ok(reads.includes('getEqualizerState'));
+    assert.ok(!reads.includes('getAppState') && !reads.includes('getPublishState'), 'a result reads only the Equalizer: ' + reads.join(', '));
+    [main, projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);
