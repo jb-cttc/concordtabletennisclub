@@ -128,9 +128,11 @@ const firstVisitsOn = function (date) {
 const equalizers = {};
 // The round robin sheets' print mark, per session (SessionService.js keeps it in document properties).
 const prints = {};
+// Who was moved up with the arrows, per session (SessionService.js keeps it beside the print mark).
+const movesBySession = {};
 // Follow mode's change stamps (SessionIds.js keeps them in the script cache), bumped after each change below.
 const stamps = {};
-const STAMP_AREAS = { saveSessionDraft: 's', createSession: 's', finalizeSession: 's', reopenSession: 's', saveSessionPrint: 's', updatePlayer: 's', setSessionPayment: 'p', setFirstVisit: 'p', matchCloverPayment: 'p', unmatchCloverPayment: 'p', saveEqualizerSetup: 'e', saveEqualizerResult: 'e', switchDayEvent: 'e' };
+const STAMP_AREAS = { saveSessionDraft: 's', createSession: 's', finalizeSession: 's', reopenSession: 's', saveSessionPrint: 's', saveSessionMoves: 's', updatePlayer: 's', setSessionPayment: 'p', setFirstVisit: 'p', matchCloverPayment: 'p', unmatchCloverPayment: 'p', saveEqualizerSetup: 'e', saveEqualizerResult: 'e', switchDayEvent: 'e' };
 function touchStamp(name, args) {
   const area = STAMP_AREAS[name];
   if (!area) return;
@@ -142,7 +144,12 @@ function touchStamp(name, args) {
 }
 const rpc = {
   getAppState: function (date) {
-    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString(), printed: prints['session-' + date] || null };
+    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString(), printed: prints['session-' + date] || null, movedUp: movesBySession['session-' + date] || null };
+  },
+  saveSessionMoves: function (sessionId, moves) {
+    if (Object.keys(moves || {}).length) movesBySession[sessionId] = moves;
+    else delete movesBySession[sessionId];
+    return moves;
   },
   saveSessionPrint: function (sessionId, mark) {
     if (mark === null) delete prints[sessionId];

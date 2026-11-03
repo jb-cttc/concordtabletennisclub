@@ -83,7 +83,9 @@ function syncZeffyPayments_() {
   try {
     var recorded = {};
     rows_('ZeffyPayments').forEach(function (row) { if (row.kind !== 'unreadable') recorded[String(row.message_id)] = true; });
-    appendObjects_('ZeffyPayments', found.filter(function (row) { return !recorded[String(row.message_id)]; }));
+    var fresh = found.filter(function (row) { return !recorded[String(row.message_id)]; });
+    appendObjects_('ZeffyPayments', fresh);
+    if (fresh.length && typeof touchDesk_ === 'function') touchDesk_('p');
     properties.setProperty(ZEFFY_READER_, ZEFFY_READER_VERSION_);
   } finally {
     lock.releaseLock();

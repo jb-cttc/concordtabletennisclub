@@ -478,6 +478,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 .bc input[type="checkbox"] { accent-color: #e8c06a; }
 .bc .note { color: #e8c06a; font-weight: 700; max-width: 320px; }
 .bc .note:empty { display: none; }
+.bc .awake { color: #dce9e1; font-size: 12px; }
+.bc .awake.warn { color: #ffc98a; font-weight: 700; }
 .bc .full { border: 0; border-radius: 4px; background: #e8c06a; color: #17211b; padding: 6px 11px; font: 700 12px Arial, Helvetica, sans-serif; cursor: pointer; }
 .bc button:focus-visible, .bc input:focus-visible { outline: 2px solid #e8c06a; outline-offset: 2px; }
 .board-notice { position: fixed; left: 50%; top: 16px; z-index: 11; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; border: 1px solid #c99934; border-radius: 6px; background: #fff3d9; color: #5a3d00; font: 700 15px/1.35 Arial, Helvetica, sans-serif; box-shadow: 0 6px 18px rgba(0, 0, 0, .3); }
@@ -972,18 +974,36 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   document.getElementById('bc-pay').addEventListener('change', function (event) { S.pay = event.target.checked; saveSettings(); render(); });
   document.getElementById('bc-rating').addEventListener('change', function (event) { S.rating = event.target.checked; saveSettings(); render(); });
   document.getElementById('bc-follow').addEventListener('change', function (event) { S.follow = event.target.checked; saveSettings(); requestFollow(); });
+  // The screen stays on (no sleep, no screen saver) for as long as this window is open, full screen or not: the
+  // browser's screen wake lock, asked for again whenever the window comes back into view (the browser drops it while the
+  // window is hidden or minimized). Where the browser cannot hold it, the strip says so.
   var lock = null;
+  var awake = document.getElementById('bc-awake');
+  function showAwake() {
+    awake.textContent = lock ? 'Screen stays on' : 'Screen may sleep';
+    awake.title = lock ? 'This window keeps the computer awake while it is open' : 'This browser could not keep the screen on: set the computer not to sleep while the board is up';
+    awake.classList.toggle('warn', !lock);
+  }
+  function keepAwake() {
+    if (lock || document.hidden || !navigator.wakeLock || !navigator.wakeLock.request) { showAwake(); return; }
+    navigator.wakeLock.request('screen').then(function (held) {
+      lock = held;
+      held.addEventListener('release', function () { lock = null; showAwake(); });
+      showAwake();
+    }).catch(function () { lock = null; showAwake(); });
+  }
+  document.addEventListener('visibilitychange', keepAwake);
+  setInterval(keepAwake, 30000);
+  keepAwake();
   document.getElementById('bc-full').addEventListener('click', function () {
     var el = document.documentElement;
     var request = document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen ? el.requestFullscreen() : null;
-    if (request && request.then) request.then(function () {
-      if (document.fullscreenElement && navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { lock = l; }).catch(function () {});
-    }).catch(function () {});
+    if (request && request.then) request.then(keepAwake).catch(function () {});
   });
   document.addEventListener('fullscreenchange', function () {
     document.getElementById('bc-full').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
     fit();
-    if (!document.fullscreenElement && lock) { lock.release().catch(function () {}); lock = null; }
+    keepAwake();
   });
   var hideTimer = null;
   function wake() {
@@ -1598,6 +1618,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     '<div class="grp"><span class="lbl">Look</span><span class="seg" data-set="look"><button type="button" data-value="desk">Desk</button><button type="button" data-value="green">Dark</button></span></div>' +
     '<label><input id="bc-pay" type="checkbox"> Payment checks</label><label><input id="bc-rating" type="checkbox"> Ratings</label>' +
     '<label title="For a second computer: this board shows the changes made on the main desk, checking every 10 seconds"><input id="bc-follow" type="checkbox"> Follow the main desk</label><span class="note" id="bc-follow-note"></span>' +
+    '<span class="awake" id="bc-awake" role="status"></span>' +
     '<button type="button" class="full" id="bc-full">Full screen</button>';
   function setup(w) {
     var doc = w.document;

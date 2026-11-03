@@ -153,6 +153,7 @@ function getSessionByDate(sessionDate) {
 
 function getAppState(sessionDate) {
   var session = getSessionByDate(sessionDate);
+  var boardMarks = boardMarks_('session-' + sessionDate);
   return {
     players: listPlayers(),
     session: session,
@@ -162,8 +163,10 @@ function getAppState(sessionDate) {
     ratingsFinalizedThrough: latestFinalizedSessionDate_(),
     // Ledger rows for a session that is not finalized: a finalize or reopen stopped partway. The desk says so on load.
     interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; }),
-    // The round robin sheets' print mark (saveSessionPrint), so every device turns to after-print rules together.
-    printed: sessionPrint_('session-' + sessionDate)
+    // The round robin sheets' print mark (saveSessionPrint), so every device turns to after-print rules together, and
+    // who was moved up with the arrows (saveSessionMoves), for the Player board's ▲ on every device. One settings read.
+    printed: boardMarks.printed,
+    movedUp: boardMarks.movedUp
   };
 }
 
@@ -175,12 +178,42 @@ function getAppState(sessionDate) {
 // and the Player board shows scores. One property read per desk load or refresh, one write per print.
 var PRINT_KEY_PREFIX_ = 'cttc-print:';
 var PRINT_KEEP_DAYS_ = 21;
-// undefined when the settings cannot be read: the desk still loads, and each device keeps the mark it has.
-function sessionPrint_(sessionId) {
-  var value;
-  try { value = PropertiesService.getDocumentProperties().getProperty(PRINT_KEY_PREFIX_ + sessionId); } catch (error) { return undefined; }
-  if (!value) return null;
-  try { return JSON.parse(value); } catch (error) { return null; }
+var MOVES_KEY_PREFIX_ = 'cttc-moves:';
+// Both marks for one night in one settings read; each undefined when the settings cannot be read (the desk still loads,
+// and each device keeps what it has), null when there is none.
+function boardMarks_(sessionId) {
+  var all;
+  try { all = PropertiesService.getDocumentProperties().getProperties() || {}; } catch (error) { return { printed: undefined, movedUp: undefined }; }
+  var parse = function (value) { if (!value) return null; try { return JSON.parse(value); } catch (error) { return null; } };
+  return { printed: parse(all[PRINT_KEY_PREFIX_ + sessionId]), movedUp: parse(all[MOVES_KEY_PREFIX_ + sessionId]) };
+}
+// Players moved up with the desk's arrows, each with the group index they started in (the Player board's ▲), kept like
+// the print mark so a reload or another device still shows it. An empty list clears it (Rebuild by rating).
+function saveSessionMoves(sessionId, moves) {
+  sessionId = String(sessionId || '');
+  if (!/^session-\d{4}-\d{2}-\d{2}$/.test(sessionId)) throw new Error('Moves: unknown session ' + sessionId);
+  if (!moves || typeof moves !== 'object' || Array.isArray(moves)) throw new Error('Moves: a list of players is required.');
+  var clean = {};
+  var ids = Object.keys(moves);
+  if (ids.length > 200) throw new Error('Moves: too many players.');
+  ids.forEach(function (id) {
+    var from = Number(moves[id]);
+    if (!id || id.length > 64 || !Number.isInteger(from) || from < 0 || from > 50) throw new Error('Moves: a player or group is not valid.');
+    clean[id] = from;
+  });
+  var properties = PropertiesService.getDocumentProperties();
+  if (ids.length) properties.setProperty(MOVES_KEY_PREFIX_ + sessionId, JSON.stringify(clean));
+  else properties.deleteProperty(MOVES_KEY_PREFIX_ + sessionId);
+  touchDeskSession_(sessionId);
+  pruneBoardMarks_(properties);
+  return clean;
+}
+function pruneBoardMarks_(properties) {
+  var cutoff = Utilities.formatDate(new Date(Date.now() - PRINT_KEEP_DAYS_ * 86400000), 'America/Los_Angeles', 'yyyy-MM-dd');
+  Object.keys(properties.getProperties()).forEach(function (name) {
+    var match = /^cttc-(?:print|moves):session-(\d{4}-\d{2}-\d{2})$/.exec(name);
+    if (match && match[1] < cutoff) properties.deleteProperty(name);
+  });
 }
 function saveSessionPrint(sessionId, mark) {
   sessionId = String(sessionId || '');
@@ -200,11 +233,7 @@ function saveSessionPrint(sessionId, mark) {
   if (text.length > 8000) throw new Error('Print mark: too many players to keep.');
   properties.setProperty(key, text);
   touchDeskSession_(sessionId);
-  // Keep only recent nights' marks.
-  var cutoff = Utilities.formatDate(new Date(Date.now() - PRINT_KEEP_DAYS_ * 86400000), 'America/Los_Angeles', 'yyyy-MM-dd');
-  Object.keys(properties.getProperties()).forEach(function (name) {
-    if (name.indexOf(PRINT_KEY_PREFIX_ + 'session-') === 0 && name.slice((PRINT_KEY_PREFIX_ + 'session-').length) < cutoff) properties.deleteProperty(name);
-  });
+  pruneBoardMarks_(properties);
   return clean;
 }
 

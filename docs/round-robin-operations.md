@@ -183,7 +183,14 @@ payments.
   box). The board remembers the choice: after a reload, clicking **Player board**
   turns follow mode back on. It checks only while follow mode is on: every 10
   seconds, once a minute after 20 quiet minutes, and it ends when the night is
-  finalized or after 6 hours. See [Google limits](google-limits.md).
+  finalized or after 6 hours. It shows the same marks as the main desk's board:
+  payment checks, 1st visit, trophies, the ▲ for a move up (saved with the night,
+  so it also survives a reload), Late add and Updated. See
+  [Google limits](google-limits.md).
+- **The screen stays on** while a Player board window is open, full screen or not:
+  no sleep and no screen saver (the browser's screen wake lock). The settings strip
+  says *Screen stays on*, or *Screen may sleep* where the browser cannot hold it;
+  then set that computer not to sleep while the board is up.
 
 ## Membership, linked names, juniors
 

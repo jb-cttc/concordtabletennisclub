@@ -1050,9 +1050,33 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   // Players moved up with the arrows, by the group they started in (an index), for the Player board's ▲. A rebuild by
   // rating starts again; a move back down to where they started clears it.
+  // Saved with the night (saveSessionMoves, through the outbox) so a reload or another device, such as a computer in
+  // follow mode, shows the same arrows; read back with getAppState.
   var movedUp = {};
+  var movesChangedAt = 0;
+  function shareMoves() {
+    movesChangedAt = Date.now();
+    var day = loadedDate || date.value;
+    if (state.event === 'equalizer' || !day) return;
+    window.cttcOutbox.enqueue('board-moves:' + day, 'saveSessionMoves', ['session-' + day, Object.assign({}, movedUp)]);
+  }
+  // Google's list, from a getAppState asked at askedAt; true when this desk's changed. Not while this desk's own list is
+  // still on its way, or from an answer asked before this desk's latest move.
+  function movesFromGoogle(day, moves, askedAt) {
+    if (moves === undefined || window.cttcOutbox.find('board-moves:' + day) || askedAt < movesChangedAt) return false;
+    var next = moves || {};
+    if (JSON.stringify(next) === JSON.stringify(movedUp)) return false;
+    movedUp = Object.assign({}, next);
+    return true;
+  }
+  window.cttcOutbox.register('saveSessionMoves', {
+    rejected: /Moves:/,
+    describe: function () { return 'The moved-up arrows'; }
+  });
   function organize() {
+    var hadMoves = Object.keys(movedUp).length > 0;
     movedUp = {};
+    if (hadMoves) shareMoves();
     var arrays = O.organize(state.roster, player, groupSize());
     state.promotions = O.applyPromotions(arrays, state.winners, player);
     state.customized = false;
@@ -1125,7 +1149,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     arrays[from] = arrays[from].filter(function (other) { return other !== id; });
     arrays[to] = O.byRating(arrays[to].concat(id), player);
     var started = id in movedUp ? movedUp[id] : from;
+    var wasMoved = movedUp[id];
     if (to < started) movedUp[id] = started; else delete movedUp[id];
+    if (movedUp[id] !== wasMoved) shareMoves();
     delete state.promotions[id];
     state.customized = true;
     setGroups(arrays);
@@ -1504,6 +1530,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.event = 'rr';
       // The sheets-printed mark another device may have made (PlayerBoard.html keeps it), before the groups draw.
       if (window.cttcPlayerBoard) window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt);
+      movesFromGoogle(sessionDate, data.movedUp, askedAt);
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
@@ -2363,7 +2390,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var data = await call('getAppState', sessionDate);
       refreshing = false;
       // A print, Clear labels or Undo the print on another device: the after-print rules and labels follow here too.
-      if (sessionDate === loadedDate && window.cttcPlayerBoard && window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt)) render();
+      var marksChanged = sessionDate === loadedDate && window.cttcPlayerBoard && window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt);
+      if (sessionDate === loadedDate && movesFromGoogle(sessionDate, data.movedUp, askedAt)) marksChanged = true;
+      if (marksChanged) render();
       var server = data.session;
       if (!server || !quietForRefresh() || printState() !== before || sessionDate !== loadedDate || Number(server.revision) === Number(revision) || (state.session ? state.session.revision : 0) !== revision) return;
       learnPlayers(data.players);
@@ -2475,15 +2504,19 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       var data = await call('getAppState', sessionDate);
       if (!follow.on || sessionDate !== loadedDate) return;
       if (window.cttcPlayerBoard) window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt);
+      movesFromGoogle(sessionDate, data.movedUp, askedAt);
       learnPlayers(data.players);
       var server = data.session;
       if (server && (!state.session || server.status !== state.session.status || !copyKnown(sessionCopy(server)))) { await load(); return; }
+      var rosterBefore = state.roster.slice();
       if (server && Number(server.revision) !== Number(state.session.revision)) {
         state.session = server;
         applyCopy(sessionCopy(server));
         savedPrintState = printState();
       }
       render();
+      // A new sign-in can be a first visit (worked out from the night's roster): read the payments too.
+      if (!has('p') && state.roster.some(function (id) { return rosterBefore.indexOf(id) < 0; })) areas.push('p');
     }
     if (has('e') && state.event === 'equalizer') await load();
     if (has('p') && window.cttcPayments) window.cttcPayments.refresh({ skipMailbox: true });

@@ -414,6 +414,17 @@ const cases = {
     const paymentReads = calls('getPrivatePaymentOverview', projector, since);
     assert.ok(paymentReads.length >= 1 && paymentReads.every(log => log.args[1] && log.args[1].skipMailbox), 'payments are read without the Zeffy mail');
 
+    // A move up at the main desk: the projector board shows the same ▲ (the arrows are saved with the night).
+    const mover = main.desk().groups[2].playerIds[0];
+    main.movePlayer(mover, -1);
+    await run(world, 22000);
+    const moved = board.$$('.wall .row').find(r => r.getAttribute('data-pid') === mover);
+    assert.ok(moved && moved.querySelector('.push.moved'), 'the ▲ follows');
+    assert.match(board.$('.ticker').textContent, /moved up to Group 2/);
+    const fresh = world.device().open();
+    await run(world, 15000);
+    assert.ok(Object.keys(fresh.window.cttcDesk.boardData().movedUp).includes(mover), 'and survives a reload');
+
     // A quiet minute: six tiny checks, no reads of the night.
     since = world.clock.now();
     await run(world, 60000);
@@ -440,7 +451,7 @@ const cases = {
     await run(world, 120000);
     assert.equal(calls('getDeskStamps', projector, since).length, 0, 'no checks after follow mode is off');
     assert.ok(calls('logFollowMode', projector, 0).length >= 1, 'usage is logged');
-    [main, projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    [main, projector, fresh].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
     board.close();
   },
 
