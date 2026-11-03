@@ -75,14 +75,17 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
 - Once groups are saved or moved by hand, late arrivals are slotted in by
   rating rank without reshuffling anyone, and promoted players are never
   bumped down. **Rebuild by rating** resets groups and reapplies promotions.
-- **After the sheets print** (Print on the RR sheet preview, on this device) or
+- **After the sheets print** (Print on the RR sheet preview, on any device) or
   once a score is in, a late arrival only joins the group their rating gives
   them, even if that makes a group of 8: nobody else changes table, so the
   printed sheets stay right and the desk places the newcomer by hand with the
   arrows. A removal leaves the gap. Anyone signed in after the first print
   carries a **Late add** label on the desk and on the Player board (a reprint
-  keeps it). Rebuild by rating and the group size buttons ask first. Like the
-  board's Updated tags, this follows prints made on this device only.
+  keeps it). Rebuild by rating and the group size buttons ask first. The print
+  mark is saved to Google with the night, so every device follows it: a desk
+  already open elsewhere (an officer's phone, a second laptop) picks it up within
+  a minute, and one opened later knows at once. A print made offline is sent
+  when the connection returns.
 - **Print labels** appears beside the group summary only while a Late add or
   Updated label exists (taking a late add back off clears both, since the group
   matches its sheet again). It lists them and offers **Clear labels** (the groups
@@ -155,10 +158,10 @@ payments.
   beside everyone A–Z with their group number; above 32 players the list shows half
   the alphabet at a time). *Desk* or *Dark* look; payment checks and ratings can be
   turned off.
-- **Reprinting:** the desk remembers what it printed on this device. A group whose
+- **Reprinting:** the desk remembers what it printed (on any device). A group whose
   players change afterwards shows **Updated · new sheet at the desk**, and the
-  print preview names those groups; printing again clears the tags. Another device's
-  prints are not known here.
+  print preview names those groups; printing again clears the tags. On an
+  Equalizer night this is still per device (the draw itself is saved to Google).
 - **The Equalizer:** before the sheets print it shows the field A–Z (the random draw
   changes with each sign-in); then the groups with each match's head start, the Road
   to the Finals, and, once every group is decided, the single-elimination Finals with

@@ -459,7 +459,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 #screen { position: fixed; inset: 0; overflow: hidden; }
 .empty-board { display: grid; place-content: center; height: 100%; text-align: center; font: 700 52px/1.2 var(--font-name); color: var(--b-dim); }
 .empty-board small { display: block; margin-top: 16px; font: 400 28px/1.3 var(--font-board); }
-/* A group whose players changed since this device last printed */
+/* A group whose players changed since the sheets last printed */
 .stale { display: inline-flex; align-items: center; align-self: center; padding: 5px 14px; border-radius: 999px; background: var(--gold-hi); color: var(--desk-ink); font: 700 20px/1.1 var(--font-board); letter-spacing: .02em; white-space: nowrap; }
 .wall .stale { font-size: 14px; padding: 2px 8px; }
 /* Settings strip: shows while the mouse moves, then fades */
@@ -993,7 +993,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   }
   function source(id) { var el = document.getElementById(id); return el ? el.textContent : ''; }
 
-  // ---- Printing, as this device saw it: what each event's groups were when its sheets last printed ----
+  // ---- Printing: what each event's groups were when its sheets last printed (a round robin's is shared, below) ----
   function readPrints() { try { return JSON.parse(localStorage.getItem(PRINT_KEY) || '{}') || {}; } catch (error) { return {}; } }
   function writePrints(all) {
     var keys = Object.keys(all).sort(function (a, b) { return all[b].at - all[a].at; }).slice(0, 30);
@@ -1043,7 +1043,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   var TROPHY = '<svg class="trophy-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V17h3v2H8v-2h3v-2.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3V3Zm10 4v3a2 2 0 0 0 1-1.7V7h-1ZM6 7v1.3A2 2 0 0 0 7 10V7H6Zm2 13h8v1H8v-1Z"/></svg>';
   function payBox(p) { return '<span class="pay' + (p.paid ? ' paid' : '') + popped(p.id) + '" title="' + (p.paid ? 'Payment recorded' : 'Payment not recorded yet') + '">✓</span>'; }
   function panel(key, head, body) { return '<section class="panel" data-panel="' + key + '"><header class="p-head">' + head + '</header><div class="p-body">' + body + '</div></section>'; }
-  function stale(small) { return '<span class="stale" title="Changed since this device last printed">' + (small ? 'Updated' : 'Updated · new sheet at the desk') + '</span>'; }
+  function stale(small) { return '<span class="stale" title="Changed since the sheets last printed">' + (small ? 'Updated' : 'Updated · new sheet at the desk') + '</span>'; }
   function hsPill(n) { return n > 0 ? '<span class="hs" title="Starts every game at ' + n + '–0">+' + n + '</span>' : ''; }
 
   // A round robin player pushed up a group: last time's group winner the desk moved up (trophy), or a player moved up
@@ -1605,15 +1605,65 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function printed() {
     var d = data();
     if (!d) return;
-    var all = readPrints();
     var groups = d.event === 'equalizer' ? null : groupArrays(d);
-    all[d.key] = d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groups, first: printedRoster(d) || flat(groups) };
-    writePrints(all);
-    changed();
+    setRecord(d, d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groups, first: printedRoster(d) || flat(groups) });
     if (window.cttcDesk && window.cttcDesk.printChanged) window.cttcDesk.printChanged();
   }
+
+  // ---- The round robin print mark, shared through Google (saveSessionPrint, read back with getAppState) ----
+  // This device's copy changes at once; the outbox sends it (and retries offline). Every desk reads Google's on load
+  // and on its once-a-minute refresh, so a print, Clear labels or Undo the print on one device reaches the others:
+  // the same after-print placing, Late add and Updated labels, and the board's switch to scores.
+  var PRINT_SEND = 'saveSessionPrint';
+  var changedHere = {};
+  function outboxKey(date) { return 'board-print:' + date; }
+  function share(date, record) {
+    if (!window.cttcOutbox) return;
+    window.cttcOutbox.enqueue(outboxKey(date), PRINT_SEND, ['session-' + date, record]);
+  }
+  // record null: as if never printed here (shared as undone, so the other devices drop theirs too).
+  function setRecord(d, record) {
+    var all = readPrints();
+    if (record) all[d.key] = record; else delete all[d.key];
+    writePrints(all);
+    changedHere[d.key] = Date.now();
+    if (d.event !== 'equalizer') share(d.date, record || { at: Date.now(), undone: true });
+    changed();
+  }
+  // What Google holds for this night's round robin, from a getAppState asked at askedAt. Returns true when this
+  // device's copy changed. Nothing changes while this device's own mark is still on its way, or when the answer was
+  // asked before this device's latest change. Google not knowing of a print this device has (made before the mark was
+  // shared) sends it up.
+  function fromGoogle(date, mark, askedAt) {
+    if (mark === undefined || !date) return false;
+    var key = date + ':rr';
+    if ((window.cttcOutbox && window.cttcOutbox.find(outboxKey(date))) || (changedHere[key] && askedAt < changedHere[key])) return false;
+    var all = readPrints();
+    var mine = all[key] || null;
+    if (!mark) {
+      if (mine && mine.groups) share(date, { at: mine.at, groups: mine.groups, first: mine.first || flat(mine.groups) });
+      return false;
+    }
+    if (mark.undone) {
+      if (!mine) return false;
+      delete all[key];
+    } else {
+      var theirs = { at: mark.at, groups: mark.groups, first: mark.first };
+      if (mine && JSON.stringify({ at: mine.at, groups: mine.groups, first: mine.first }) === JSON.stringify(theirs)) return false;
+      all[key] = theirs;
+    }
+    writePrints(all);
+    changed();
+    return true;
+  }
+  if (window.cttcOutbox) {
+    window.cttcOutbox.register(PRINT_SEND, {
+      rejected: /Print mark/,
+      describe: function () { return 'The sheets-printed mark'; }
+    });
+  }
   function flat(groups) { return groups.reduce(function (all, ids) { return all.concat(ids); }, []); }
-  // Who was on the round robin sheets when they first printed on this device (reprints keep it), or null before.
+  // Who was on the round robin sheets when they first printed (reprints keep it), or null before.
   function printedRoster(d) {
     if (!d || d.event === 'equalizer' || !d.printed || !d.printed.groups) return null;
     return d.printed.first || flat(d.printed.groups);
@@ -1625,7 +1675,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var numbers = Object.keys(changedGroups(d)).map(Number);
     if (!numbers.length) return '';
     var list = numbers.length === 1 ? 'Group ' + numbers[0] : 'Groups ' + numbers.slice(0, -1).join(', ') + ' and ' + numbers[numbers.length - 1];
-    return list + ' changed since this device last printed: ' + (numbers.length === 1 ? 'that is the sheet' : 'those are the sheets') + ' to replace.';
+    return list + ' changed since the sheets last printed: ' + (numbers.length === 1 ? 'that is the sheet' : 'those are the sheets') + ' to replace.';
   }
 
   // The labels a round robin print leaves (Late add on players, Updated on groups), for the desk's Print labels
@@ -1643,25 +1693,19 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function keepAsPrinted() {
     var d = data();
     if (!printedRoster(d)) return false;
-    var all = readPrints();
     var groups = groupArrays(d);
-    all[d.key] = { at: d.printed.at, groups: groups, first: flat(groups) };
-    writePrints(all);
-    changed();
+    setRecord(d, { at: d.printed.at, groups: groups, first: flat(groups) });
     return true;
   }
-  // A print made by mistake: as if the sheets never printed on this device (the board goes back to sign-ins until a
+  // A print made by mistake: as if the sheets never printed, on every device (the board goes back to sign-ins until a
   // score is in, and sign-ins follow Rebuild by rating again).
   function forgetPrint() {
     var d = data();
     if (!d || !d.printed) return false;
-    var all = readPrints();
-    delete all[d.key];
-    writePrints(all);
-    changed();
+    setRecord(d, null);
     return true;
   }
 
-  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, build: build };
+  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, fromGoogle: fromGoogle, build: build };
 })();
 </script>

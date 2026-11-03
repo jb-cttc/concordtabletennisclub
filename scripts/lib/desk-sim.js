@@ -337,7 +337,8 @@ function propertyStore(properties) {
   return {
     getProperty: key => (Object.prototype.hasOwnProperty.call(properties, key) ? properties[key] : null),
     setProperty: (key, value) => { properties[key] = String(value); },
-    deleteProperty: key => { delete properties[key]; }
+    deleteProperty: key => { delete properties[key]; },
+    getProperties: () => Object.assign({}, properties)
   };
 }
 

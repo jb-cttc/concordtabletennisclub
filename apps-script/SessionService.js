@@ -160,8 +160,50 @@ function getAppState(sessionDate) {
     // Since the desk became the rating authority, its own latest finalized session is what ratings are current through.
     ratingsFinalizedThrough: latestFinalizedSessionDate_(),
     // Ledger rows for a session that is not finalized: a finalize or reopen stopped partway. The desk says so on load.
-    interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; })
+    interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; }),
+    // The round robin sheets' print mark (saveSessionPrint), so every device turns to after-print rules together.
+    printed: sessionPrint_('session-' + sessionDate)
   };
+}
+
+// When the round robin sheets printed, and who was on them: { at, groups (player ids by group, as last printed),
+// first (everyone on the first print) }, or { at, undone: true } once Undo the print takes back a print made by
+// mistake (so a device that printed offline can tell "undone" from "not heard of yet"). Kept in the Sheet's document
+// properties, one small value per night, apart from the session's rows and revision, so marking a print never
+// conflicts with a save. After a print the desk places late arrivals without moving anyone, labels them Late add,
+// and the Player board shows scores. One property read per desk load or refresh, one write per print.
+var PRINT_KEY_PREFIX_ = 'cttc-print:';
+var PRINT_KEEP_DAYS_ = 21;
+// undefined when the settings cannot be read: the desk still loads, and each device keeps the mark it has.
+function sessionPrint_(sessionId) {
+  var value;
+  try { value = PropertiesService.getDocumentProperties().getProperty(PRINT_KEY_PREFIX_ + sessionId); } catch (error) { return undefined; }
+  if (!value) return null;
+  try { return JSON.parse(value); } catch (error) { return null; }
+}
+function saveSessionPrint(sessionId, mark) {
+  sessionId = String(sessionId || '');
+  if (!/^session-\d{4}-\d{2}-\d{2}$/.test(sessionId)) throw new Error('Print mark: unknown session ' + sessionId);
+  var properties = PropertiesService.getDocumentProperties();
+  var key = PRINT_KEY_PREFIX_ + sessionId;
+  var ids = function (list) {
+    if (!Array.isArray(list)) throw new Error('Print mark: player lists are required.');
+    return list.map(function (id) {
+      if (typeof id !== 'string' || !id || id.length > 64) throw new Error('Print mark: a player id is not valid.');
+      return id;
+    });
+  };
+  if (!mark || typeof mark !== 'object' || !Number.isFinite(Number(mark.at))) throw new Error('Print mark: a print time is required.');
+  var clean = mark.undone ? { at: Number(mark.at), undone: true } : { at: Number(mark.at), groups: (mark.groups || []).map(ids), first: ids(mark.first || []) };
+  var text = JSON.stringify(clean);
+  if (text.length > 8000) throw new Error('Print mark: too many players to keep.');
+  properties.setProperty(key, text);
+  // Keep only recent nights' marks.
+  var cutoff = Utilities.formatDate(new Date(Date.now() - PRINT_KEEP_DAYS_ * 86400000), 'America/Los_Angeles', 'yyyy-MM-dd');
+  Object.keys(properties.getProperties()).forEach(function (name) {
+    if (name.indexOf(PRINT_KEY_PREFIX_ + 'session-') === 0 && name.slice((PRINT_KEY_PREFIX_ + 'session-').length) < cutoff) properties.deleteProperty(name);
+  });
+  return clean;
 }
 
 // Sent a moment after every change at the desk, so it must stay quick: it writes only this session's rows where it

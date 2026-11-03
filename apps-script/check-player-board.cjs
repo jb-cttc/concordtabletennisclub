@@ -298,6 +298,58 @@ const cases = {
     board.close();
   },
 
+  // The print mark goes through Google: a second device (an officer's phone, the projector computer) learns of a print
+  // within its once-a-minute refresh or on load, and follows the same rules: late adds placed without moving anyone,
+  // removals leaving the gap, Late add labels, and its board on scores. Undo the print reaches it the same way.
+  async printMarkAcrossDevices() {
+    const world = sim.createWorld({ seed: 61, players: 40 });
+    const main = await deskWith(world, 24);
+    await run(world, 15000);
+    const officer = world.device().open();
+    await run(world, 15000);
+    assert.equal(officer.roster().length, 24, 'the second device has the night');
+    const board = boardWindow(world, officer);
+    officer.click(officer.$('#player-board'));
+    await run(world, 1000);
+    assert.match(board.$('.b-stage').textContent, /Signing in/);
+    const groupsOn = tab => tab.desk().groups.map(g => g.playerIds.slice());
+
+    main.window.cttcPlayerBoard.printed();
+    await run(world, 70000);
+    assert.ok(officer.window.cttcPlayerBoard.printedRoster(), 'the officer device knows the sheets printed');
+    assert.match(board.$('.b-stage').textContent, /Sheets printed/, 'and its board shows scores');
+
+    // An add and remove on the officer device moves nobody, and the late add is labeled there.
+    const printed = groupsOn(officer);
+    const late = world.players[24].player_id;
+    officer.addPlayer(late);
+    await run(world, 400);
+    assert.match(officer.status(), /as a late add/);
+    printed.forEach((ids, gi) => ids.forEach(id => assert.ok(groupsOn(officer)[gi].includes(id), 'a printed player stays put')));
+    assert.ok(officer.$('#groups .late-badge'));
+    officer.removePlayer(late);
+    await run(world, 400);
+    assert.deepEqual(groupsOn(officer), printed, 'add then remove on the officer device leaves the groups as printed');
+
+    // A reload there still knows (from Google, not this device's own storage).
+    const reloaded = world.device().open();
+    await run(world, 15000);
+    assert.ok(reloaded.window.cttcPlayerBoard.printedRoster(), 'a fresh device reads the mark on load');
+
+    // Undo the print on the main desk reaches the officer device too.
+    main.window.cttcPlayerBoard.forgetPrint();
+    await run(world, 70000);
+    assert.equal(officer.window.cttcPlayerBoard.printedRoster(), null, 'undone everywhere');
+    assert.match(board.$('.b-stage').textContent, /Signing in/);
+    [main, officer, reloaded].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    // Google keeps only what it should.
+    assert.throws(() => world.server.run('saveSessionPrint', 'Sessions!A1', { at: 1, groups: [], first: [] }), /Print mark/);
+    assert.throws(() => world.server.run('saveSessionPrint', 'session-' + world.date, { at: 1, groups: [[{}]], first: [] }), /Print mark/);
+    const kept = JSON.parse(JSON.stringify(world.server.run('getAppState', world.date).printed));
+    assert.deepEqual(Object.keys(kept).sort(), ['at', 'undone'], 'an undone print is kept as undone, without the players');
+    board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);

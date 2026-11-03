@@ -998,7 +998,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 
   // Check-ins and removals follow Rebuild by rating exactly, until someone is moved by hand, the sheets print or the
   // first score is in. After a move by hand, a late arrival is slotted in by rating (a full group passes its lowest
-  // player down) and a removal leaves the gap. Once the sheets print on this device (Print on the RR sheet preview, the
+  // player down) and a removal leaves the gap. Once the sheets print on any device (Print on the RR sheet preview, the
   // same mark that turns the Player board to scores) or a score is in, a late arrival joins the group their rating
   // gives them, even past the group size, and nobody else changes table: the desk places them by hand from there.
   // "Moved by hand" is read off the groups themselves (they differ from what Rebuild would make), so it holds after a
@@ -1019,8 +1019,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return match.playerOneGames != null || match.playerTwoGames != null || !!match.forfeit || !!match.forfeitedBy || !!match.wonBy;
     });
   }
-  // The players on the round robin sheets when they first printed on this device, or null before any print. Kept by the
-  // Player board (PlayerBoard.html), which turns to scores on the same mark. Anyone signed in since is a late add.
+  // The players on the round robin sheets when they first printed, or null before any print. Kept by the Player board
+  // (PlayerBoard.html), which turns to scores on the same mark and shares it through Google with the other devices. Anyone signed in since is a late add.
   function printedRoster() {
     if (state.event === 'equalizer' || !window.cttcPlayerBoard || !window.cttcPlayerBoard.printedRoster) return null;
     return window.cttcPlayerBoard.printedRoster();
@@ -1225,7 +1225,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     labelsButton.textContent = 'Print labels: ' + parts.join(' \u00b7 ');
     labelsButton.title = 'Clear the Late add and Updated labels, or undo a print made by mistake';
     var when = new Date(labels.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    document.getElementById('print-labels-text').innerHTML = 'Sheets printed at ' + esc(when) + ' on this device.' +
+    document.getElementById('print-labels-text').innerHTML = 'Sheets printed at ' + esc(when) + '.' +
       (labels.late.length ? ' <b>Late add:</b> ' + esc(listWords(labels.late.map(function (id) { return player(id).name; }))) + '.' : '') +
       (labels.updated.length ? ' <b>Updated</b> (not as printed): ' + esc(listWords(labels.updated.map(function (n) { return 'Group ' + n; }))) + '.' : '') +
       '<br><b>Clear labels</b> counts the groups as they are now as printed; late arrivals still join without moving anyone. ' +
@@ -1457,6 +1457,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     savedPrintState = null;
     setStatus('Loading ' + sessionDate + '...', 'busy');
     try {
+      var askedAt = Date.now();
       var appStateRequest = call('getAppState', sessionDate);
       var equalizerRequest = call('getEqualizerState', sessionDate).catch(function (error) { return { error: error }; });
       if (!window.cttcInitialPlayers) window.cttcInitialPlayers = appStateRequest.then(function (data) { return data.players; });
@@ -1501,6 +1502,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       equalizerUnavailable = !equalizerData || !!equalizerData.error;
       eqDesk.load(sessionDate, equalizerUnavailable ? null : equalizerData);
       state.event = 'rr';
+      // The sheets-printed mark another device may have made (PlayerBoard.html keeps it), before the groups draw.
+      if (window.cttcPlayerBoard) window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt);
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
@@ -2116,7 +2119,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     closeLabels();
     if (!window.cttcPlayerBoard.forgetPrint()) return;
     render();
-    setStatus('Print undone on this device: the desk acts as if the sheets never printed.');
+    setStatus('Print undone: the desk acts as if the sheets never printed. Other devices follow within a minute.');
   });
   organizerToggle.addEventListener('click', function () { setOrganizerCollapsed(!organizerFold.classList.contains('collapsed'), false); });
   var workspaceEl = document.querySelector('.workspace');
@@ -2347,8 +2350,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var revision = state.session ? state.session.revision : 0;
     refreshing = true;
     try {
+      var askedAt = Date.now();
       var data = await call('getAppState', sessionDate);
       refreshing = false;
+      // A print, Clear labels or Undo the print on another device: the after-print rules and labels follow here too.
+      if (sessionDate === loadedDate && window.cttcPlayerBoard && window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt)) render();
       var server = data.session;
       if (!server || !quietForRefresh() || printState() !== before || sessionDate !== loadedDate || Number(server.revision) === Number(revision) || (state.session ? state.session.revision : 0) !== revision) return;
       learnPlayers(data.players);

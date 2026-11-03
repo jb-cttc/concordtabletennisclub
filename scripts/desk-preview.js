@@ -126,9 +126,16 @@ const firstVisitsOn = function (date) {
   return firstVisits[date] || (firstVisits[date] = roster.slice(2, 3));
 };
 const equalizers = {};
+// The round robin sheets' print mark, per session (SessionService.js keeps it in document properties).
+const prints = {};
 const rpc = {
   getAppState: function (date) {
-    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString() };
+    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString(), printed: prints['session-' + date] || null };
+  },
+  saveSessionPrint: function (sessionId, mark) {
+    if (mark === null) delete prints[sessionId];
+    else prints[sessionId] = mark;
+    return mark;
   },
   listPlayers: function () { return players; },
   // The Equalizer, kept in memory only: enough to switch a night to it, draw it, and print its sheets.

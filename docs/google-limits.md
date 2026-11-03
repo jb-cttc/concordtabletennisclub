@@ -20,7 +20,7 @@ Limits from [Google's quota page](https://developers.google.com/apps-script/guid
 | **Email recipients** (`MailApp`) | 100 | Coaching and staffing emails, club alerts | Both apps stop sending at 10 left (`MIN_QUOTA`); the hourly sweep retries for 3 days | Coaching and staffing `Log` tabs |
 | Gmail SMTP sending | 500 messages | The results email (`scripts/send-session-email.js`, from GitHub) | One send per finalized session, to the subscriber list | GitHub Actions run log |
 | Web requests (`UrlFetchApp`) | 20,000 calls | Clover API, the club site's data files, closures, GitHub dispatch; the desk waking coaching and staffing (at most one call per app per mail read, a few hundred a day at most); the desk reading the site's coach file for the coaching app (`CoachList.js`, 24 a day) | Cached (site files 1 hour, closures 1 hour, coach file 1 hour, Clover customers 6 hours); wakes only when a text or an app's email reply came in | Executions page; desk log `app_wakes_day`, `coach_list_changed` |
-| Settings reads and writes (`PropertiesService`) | 50,000 | Every app's timers and pages keep small state in script properties | Each timer run reads a setting once, never in a loop (a 30-step loop at about 900 runs a day would be 27,000) | Not measured |
+| Settings reads and writes (`PropertiesService`) | 50,000 | Every app's timers and pages keep small state in script properties; the desk keeps each night's sheets-printed mark in the Sheet's document properties (one read per desk load or once-a-minute refresh, about 240 a night per open desk; one write per print, Clear labels or Undo the print) | Each timer run reads a setting once, never in a loop (a 30-step loop at about 900 runs a day would be 27,000) | Not measured |
 | One run | 6 minutes | Any timer or page call | Work is read in pages; slow steps take no lock | Executions page |
 | Timers per app | 20 | Each app's timers | Each job keeps one repeating timer and at most one one-off timer, replacing it each run | Apps Script **Triggers** page |
 
@@ -34,6 +34,9 @@ does not count toward timer run time.
 
 The Player board (the desk's TV window) makes no Google calls at all: the desk page
 draws it from what it already holds, and its slides run on the computer's own clock.
+The desk shares the round robin's sheets-printed mark (`saveSessionPrint`): one
+page call per print, and the mark rides along with the desk's existing
+`getAppState` load and refresh, so it adds no calls, only the settings read above.
 
 ## Scheduled jobs
 
