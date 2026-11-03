@@ -68,6 +68,7 @@ function setZeffyPass(playerId, active) {
     if (matches.length) updateRow_('ZeffyPasses', matches[0].__row, { active: active, updated_at: new Date() });
     else if (active) appendObjects_('ZeffyPasses', [{ player_id: playerId, player_name: String(player.display_name), active: true, updated_at: new Date() }]);
     appendAudit_('zeffy_pass_updated', 'player', playerId, { active: active });
+    touchDesk_('p');
     return active;
   } finally {
     lock.releaseLock();
@@ -78,11 +79,13 @@ function getPrivatePaymentState(sessionDate) {
   return getPrivatePaymentOverview(sessionDate).methods;
 }
 
-function getPrivatePaymentOverview(sessionDate) {
+// options.skipMailbox: the Zeffy emails already recorded, without checking Gmail (a following desk: the main desk reads
+// the mail, and each of its changes would otherwise send the follower to Gmail too).
+function getPrivatePaymentOverview(sessionDate, options) {
   validateSessionDate_(sessionDate);
   var playerRows = rows_('Players');
   var players = listPlayers(playerRows);
-  var passes = getZeffyPlayers(playerRows, sessionDate);
+  var passes = getZeffyPlayers(playerRows, sessionDate, !!(options && options.skipMailbox));
   var unreadable = zeffyUnreadableCount_(zeffyPaymentRows_(), sessionDate);
   var coveredIds = getZeffyCoveredPlayerIds(passes, players);
   var covered = {};
@@ -129,8 +132,10 @@ function setSessionPayment(sessionDate, playerId, method) {
       appendObjects_('SessionPayments', [{ session_id: sessionId, player_id: playerId, method: method, updated_at: new Date() }]);
     }
     appendAudit_('session_payment_updated', 'session', sessionId, { playerId: playerId, method: method || 'unpaid' });
-    return method;
+    var recorded = method;
   } finally {
     lock.releaseLock();
   }
+  touchDesk_('p', sessionDate);
+  return recorded;
 }

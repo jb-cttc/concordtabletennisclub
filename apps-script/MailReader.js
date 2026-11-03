@@ -300,6 +300,7 @@ function recordMail_(textsSheet, found) {
   rows_('ZeffyPayments').forEach(function (row) { if (row.kind !== 'unreadable') recorded[String(row.message_id)] = true; });
   var zeffy = found.zeffy.filter(function (row) { return !recorded[row.message_id]; });
   appendObjects_('ZeffyPayments', zeffy);
+  if (zeffy.length && typeof touchDesk_ === 'function') touchDesk_('p');
   return { texts: texts.length, zeffy: zeffy.length, recorded: texts };
 }
 

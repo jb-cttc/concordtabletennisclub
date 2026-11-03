@@ -25,7 +25,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="event-switch" class="group-size event-switch" role="group" aria-label="Event"><button type="button" data-event="rr" aria-pressed="true" title="The usual round robin: groups by rating">Round robin</button><button type="button" data-event="equalizer" aria-pressed="false" title="The Equalizer: head starts by rating, RR → Finals or Double Elimination">Equalizer</button></div><div id="eq-options" class="eq-options" hidden></div><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="player-board" class="secondary" type="button" title="Open a window for the gym TV that follows this desk: groups, sign-ins, payment checks and scores">Player board</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div><div id="equalizer" class="equalizer matches" hidden></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div id="follow-bar" class="follow-bar" role="status" hidden><span id="follow-text"></span><button id="stop-follow" class="small" type="button">Stop following</button></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="event-switch" class="group-size event-switch" role="group" aria-label="Event"><button type="button" data-event="rr" aria-pressed="true" title="The usual round robin: groups by rating">Round robin</button><button type="button" data-event="equalizer" aria-pressed="false" title="The Equalizer: head starts by rating, RR → Finals or Double Elimination">Equalizer</button></div><div id="eq-options" class="eq-options" hidden></div><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="player-board" class="secondary" type="button" title="Open a window for the gym TV that follows this desk: groups, sign-ins, payment checks and scores">Player board</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button><button id="print-labels" class="small print-labels" type="button" aria-expanded="false" aria-controls="print-labels-panel" hidden></button></div><div id="print-labels-panel" class="print-labels-panel" role="group" aria-label="Print labels" hidden><p id="print-labels-text"></p><div class="draft-actions"><button id="labels-keep" class="small" type="button">Clear labels</button><button id="labels-forget" class="small" type="button">Undo the print</button><button id="labels-cancel" class="small" type="button">Cancel</button></div></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div><div id="equalizer" class="equalizer matches" hidden></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -61,7 +61,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   document.addEventListener('click', capture, true);
   document.addEventListener('change', capture, true);
   var READ_TIMEOUT_MS = 30000;
-  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1, getCloverDesk: 1, listPlayerAliases: 1 };
+  var READS = { getAppState: 1, listPlayers: 1, listArchivedPlayers: 1, getOpenPlayParticipants: 1, getPrivatePaymentOverview: 1, getMemberStatuses: 1, listVoiceSuggestions: 1, listVolunteers: 1, getPublishState: 1, getCoachingParticipants: 1, getPlayerDetails: 1, getCloverDesk: 1, listPlayerAliases: 1, getDeskStamps: 1, getFollowState: 1 };
   window.cttcRequest = function (name) {
     var args = [].slice.call(arguments, 1);
     var control = action;
@@ -355,6 +355,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var summaryRow = document.getElementById('summary-row');
   var organizerFold = document.getElementById('organizer-fold');
   var organizerToggle = document.getElementById('toggle-organizer');
+  var labelsButton = document.getElementById('print-labels');
+  var labelsPanel = document.getElementById('print-labels-panel');
   var collapsedGroups = {};
   var context = document.getElementById('promotion-context');
 
@@ -994,9 +996,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     });
   }
 
-  // Check-ins and removals follow Rebuild by rating exactly, until someone is moved by hand or the first score is in.
-  // After a move by hand, a late arrival is slotted in by rating (a full group passes its lowest player down) and a
-  // removal leaves the gap. Once a score is in, a late arrival joins their group and nobody else changes table.
+  // Check-ins and removals follow Rebuild by rating exactly, until someone is moved by hand, the sheets print or the
+  // first score is in. After a move by hand, a late arrival is slotted in by rating (a full group passes its lowest
+  // player down) and a removal leaves the gap. Once the sheets print on any device (Print on the RR sheet preview, the
+  // same mark that turns the Player board to scores) or a score is in, a late arrival joins the group their rating
+  // gives them, even past the group size, and nobody else changes table: the desk places them by hand from there.
   // "Moved by hand" is read off the groups themselves (they differ from what Rebuild would make), so it holds after a
   // reload and on another device.
   function rebuiltGroups() {
@@ -1015,23 +1019,64 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return match.playerOneGames != null || match.playerTwoGames != null || !!match.forfeit || !!match.forfeitedBy || !!match.wonBy;
     });
   }
+  // The players on the round robin sheets when they first printed, or null before any print. Kept by the Player board
+  // (PlayerBoard.html), which turns to scores on the same mark and shares it through Google with the other devices. Anyone signed in since is a late add.
+  function printedRoster() {
+    if (state.event === 'equalizer' || !window.cttcPlayerBoard || !window.cttcPlayerBoard.printedRoster) return null;
+    return window.cttcPlayerBoard.printedRoster();
+  }
+  function sheetsPrinted() {
+    return !!printedRoster();
+  }
+  function lateAdd(id) {
+    var roster = printedRoster();
+    return !!roster && roster.indexOf(id) < 0;
+  }
+  function playAfterPrint() {
+    return scoringStarted() || sheetsPrinted();
+  }
   function keepArrangement() {
-    return arrangedByHand() || scoringStarted();
+    return arrangedByHand() || playAfterPrint();
   }
   // The question before rebuilding, or '' when nothing would be lost.
   function rebuildQuestion(what) {
     var byHand = arrangedByHand();
     var scored = scoringStarted();
-    if (!byHand && !scored) return '';
-    return what + '?' + (byHand ? ' Manual moves are replaced; promotions are reapplied.' : '') +
+    var printed = sheetsPrinted();
+    if (!byHand && !scored && !printed) return '';
+    return what + '?' + (printed ? ' The sheets are already printed, so players may change groups.' : '') + (byHand ? ' Manual moves are replaced; promotions are reapplied.' : '') +
       (scored ? ' Scores already entered stay only for players who stay in the same group together.' : '');
   }
 
   // Players moved up with the arrows, by the group they started in (an index), for the Player board's ▲. A rebuild by
   // rating starts again; a move back down to where they started clears it.
+  // Saved with the night (saveSessionMoves, through the outbox) so a reload or another device, such as a computer in
+  // follow mode, shows the same arrows; read back with getAppState.
   var movedUp = {};
+  var movesChangedAt = 0;
+  function shareMoves() {
+    movesChangedAt = Date.now();
+    var day = loadedDate || date.value;
+    if (state.event === 'equalizer' || !day) return;
+    window.cttcOutbox.enqueue('board-moves:' + day, 'saveSessionMoves', ['session-' + day, Object.assign({}, movedUp)]);
+  }
+  // Google's list, from a getAppState asked at askedAt; true when this desk's changed. Not while this desk's own list is
+  // still on its way, or from an answer asked before this desk's latest move.
+  function movesFromGoogle(day, moves, askedAt) {
+    if (moves === undefined || window.cttcOutbox.find('board-moves:' + day) || askedAt < movesChangedAt) return false;
+    var next = moves || {};
+    if (JSON.stringify(next) === JSON.stringify(movedUp)) return false;
+    movedUp = Object.assign({}, next);
+    return true;
+  }
+  window.cttcOutbox.register('saveSessionMoves', {
+    rejected: /Moves:/,
+    describe: function () { return 'The moved-up arrows'; }
+  });
   function organize() {
+    var hadMoves = Object.keys(movedUp).length > 0;
     movedUp = {};
+    if (hadMoves) shareMoves();
     var arrays = O.organize(state.roster, player, groupSize());
     state.promotions = O.applyPromotions(arrays, state.winners, player);
     state.customized = false;
@@ -1064,14 +1109,17 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       setStatus(player(id).name + ' added to the Equalizer' + (source ? ' from ' + source : '') + '.');
       return true;
     }
-    if (!byId[id] || state.roster.indexOf(id) >= 0 || locked() || pendingRecovery) return false;
+    if (!byId[id] || state.roster.indexOf(id) >= 0 || locked() || pendingRecovery || follow.on) return false;
     var keep = keepArrangement();
-    var stay = scoringStarted();
+    var stay = playAfterPrint();
     state.roster.push(id);
     if (keep) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions, groupSize(), stay));
     else organize();
     persistDeviceDraft();
-    setStatus(player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '.');
+    var placed = stay && state.groups.find(function (group) { return group.playerIds.indexOf(id) >= 0; });
+    setStatus(placed && lateAdd(id)
+      ? player(id).name + ' added to Group ' + placed.groupNumber + ' as a late add' + (source ? ' from ' + source : '') + '. Nobody else moved; use the arrows to place them.'
+      : player(id).name + ' added to RR draft' + (source ? ' from ' + source : '') + '.');
     return true;
   }
   function removeFromRoster(id) {
@@ -1082,7 +1130,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       setStatus(player(id).name + ' removed from the Equalizer.');
       return true;
     }
-    if (state.roster.indexOf(id) < 0 || locked() || pendingRecovery) return false;
+    if (state.roster.indexOf(id) < 0 || locked() || pendingRecovery || follow.on) return false;
     var keep = keepArrangement();
     state.roster = state.roster.filter(function (other) { return other !== id; });
     delete state.promotions[id];
@@ -1093,7 +1141,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     return true;
   }
   function move(id, direction) {
-    if (pendingRecovery) return;
+    if (pendingRecovery || follow.on) return;
     var arrays = groupArrays();
     var from = arrays.findIndex(function (ids) { return ids.indexOf(id) >= 0; });
     var to = from + direction;
@@ -1101,7 +1149,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     arrays[from] = arrays[from].filter(function (other) { return other !== id; });
     arrays[to] = O.byRating(arrays[to].concat(id), player);
     var started = id in movedUp ? movedUp[id] : from;
+    var wasMoved = movedUp[id];
     if (to < started) movedUp[id] = started; else delete movedUp[id];
+    if (movedUp[id] !== wasMoved) shareMoves();
     delete state.promotions[id];
     state.customized = true;
     setGroups(arrays);
@@ -1183,7 +1233,33 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     results.innerHTML = html.join('');
   }
 
+  // Late add (players) and Updated (groups) after a round robin print: a control beside the group summary that shows
+  // only while a label does, to clear them (the sheets stay printed) or undo a print made by mistake.
+  function printLabels() {
+    return state.event === 'equalizer' || locked() || !window.cttcPlayerBoard || !window.cttcPlayerBoard.labels ? null : window.cttcPlayerBoard.labels();
+  }
+  function listWords(items) {
+    return items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+  }
+  function renderPrintLabels() {
+    var labels = printLabels();
+    labelsButton.hidden = !labels;
+    if (!labels) { labelsPanel.hidden = true; labelsButton.setAttribute('aria-expanded', 'false'); return; }
+    var parts = [];
+    if (labels.late.length) parts.push(labels.late.length + ' late add' + (labels.late.length === 1 ? '' : 's'));
+    if (labels.updated.length) parts.push(labels.updated.length + (labels.updated.length === 1 ? ' group' : ' groups') + ' updated');
+    labelsButton.textContent = 'Print labels: ' + parts.join(' \u00b7 ');
+    labelsButton.title = 'Clear the Late add and Updated labels, or undo a print made by mistake';
+    var when = new Date(labels.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    document.getElementById('print-labels-text').innerHTML = 'Sheets printed at ' + esc(when) + '.' +
+      (labels.late.length ? ' <b>Late add:</b> ' + esc(listWords(labels.late.map(function (id) { return player(id).name; }))) + '.' : '') +
+      (labels.updated.length ? ' <b>Updated</b> (not as printed): ' + esc(listWords(labels.updated.map(function (n) { return 'Group ' + n; }))) + '.' : '') +
+      '<br><b>Clear labels</b> counts the groups as they are now as printed; late arrivals still join without moving anyone. ' +
+      '<b>Undo the print</b> is for a print made by mistake: the desk acts as if the sheets never printed' +
+      (scoringStarted() ? ' (scores are in, so groups still stay put).' : ', so sign-ins rebuild the groups by rating and the Player board shows sign-ins.');
+  }
   function renderGroups() {
+    renderPrintLabels();
     if (state.event === 'equalizer') {
       var fixed = eqDesk.hasResults() || eqDesk.locked();
       var ids = state.roster.slice().sort(function (a, b) { return player(b).currentRating - player(a).currentRating; });
@@ -1199,12 +1275,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     summaryRow.hidden = !state.roster.length;
     summary.textContent = state.roster.length + (state.roster.length === 1 ? ' player' : ' players') + ' in ' + sizes.length + (sizes.length === 1 ? ' group' : ' groups') + ' · ' + sizes.join(' / ') + (unbalanced ? ' · rebalance recommended' : '');
     summary.classList.toggle('warn', unbalanced);
+    var late = printedRoster();
     groups.innerHTML = state.groups.map(function (group, index) {
       var size = group.playerIds.length;
       return '<article class="group' + (O.outOfRange(size, groupSize()) ? ' needs-balance' : '') + '"><div class="group-head"><strong>Group ' + group.groupNumber + '</strong><span class="count">' + size + ' players</span></div><ul class="group-list">' + group.playerIds.map(function (id) {
         var p = player(id);
         var promo = state.promotions[id];
-        return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + '</span>' +
+        return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + (late && late.indexOf(id) < 0 ? ' <span class="late-badge" title="Signed in after the sheets printed">Late add</span>' : '') + '</strong><span>Rating ' + p.currentRating + '</span>' +
           (promo ? '<span class="promotion-badge">\u2191 ' + (promo.wonGroup ? 'Won ' + esc(promo.wonGroup) + ' on ' + shortDate(promo.date) : 'Promoted from Group ' + promo.fromGroup) + '</span>' : '') +
           '</div><div class="move"><button class="icon" data-move="' + esc(id) + '" data-dir="-1" ' + (index === 0 ? 'disabled' : '') + ' title="Move up a group">\u2191</button><button class="icon" data-move="' + esc(id) + '" data-dir="1" ' + (index === state.groups.length - 1 ? 'disabled' : '') + ' title="Move down a group">\u2193</button></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from RR draft" aria-label="Remove ' + esc(p.name) + ' from RR draft">\u00d7</button></li>';
       }).join('') + '</ul></article>';
@@ -1406,6 +1483,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     savedPrintState = null;
     setStatus('Loading ' + sessionDate + '...', 'busy');
     try {
+      var askedAt = Date.now();
       var appStateRequest = call('getAppState', sessionDate);
       var equalizerRequest = call('getEqualizerState', sessionDate).catch(function (error) { return { error: error }; });
       if (!window.cttcInitialPlayers) window.cttcInitialPlayers = appStateRequest.then(function (data) { return data.players; });
@@ -1450,6 +1528,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       equalizerUnavailable = !equalizerData || !!equalizerData.error;
       eqDesk.load(sessionDate, equalizerUnavailable ? null : equalizerData);
       state.event = 'rr';
+      // The sheets-printed mark another device may have made (PlayerBoard.html keeps it), before the groups draw.
+      if (window.cttcPlayerBoard) { window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt); window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true); }
+      movesFromGoogle(sessionDate, data.movedUp, askedAt);
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
@@ -1862,6 +1943,16 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       };
     },
     setStatus: setStatus,
+    // Follow mode, from the Player board window: on or off ({ on, message }), its heartbeat, and how it is doing.
+    setFollow: function (on) {
+      if (!on) { stopFollow('stopped'); return { on: false, message: '' }; }
+      var blocked = startFollow();
+      return { on: follow.on, message: blocked };
+    },
+    following: function () { return follow.on; },
+    followTick: function () { followCheck(false); return { on: follow.on, lastOk: follow.lastOk, lastCheck: follow.lastCheck }; },
+    // A print just happened (PlayerBoard.html keeps it): the Print labels control follows.
+    printChanged: function () { renderPrintLabels(); },
     report: function (kind, message) { reportDeskProblem(kind, message); },
     // True while a round robin change on this page has not reached Google yet (it is sent a moment after each change).
     // Not while the save is stuck (a conflict, or retries used up), so nothing waits on it for good.
@@ -2043,6 +2134,28 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   organizerFold.addEventListener('transitionend', function (e) {
     if (e.target === organizerFold) organizerFold.classList.remove('folding');
   });
+  function closeLabels() {
+    labelsPanel.hidden = true;
+    labelsButton.setAttribute('aria-expanded', 'false');
+  }
+  labelsButton.addEventListener('click', function () {
+    var open = labelsPanel.hidden;
+    labelsPanel.hidden = !open;
+    labelsButton.setAttribute('aria-expanded', String(open));
+  });
+  document.getElementById('labels-cancel').addEventListener('click', closeLabels);
+  document.getElementById('labels-keep').addEventListener('click', function () {
+    closeLabels();
+    if (!window.cttcPlayerBoard.keepAsPrinted()) return;
+    render();
+    setStatus('Print labels cleared: the groups as they are now count as printed.');
+  });
+  document.getElementById('labels-forget').addEventListener('click', function () {
+    closeLabels();
+    if (!window.cttcPlayerBoard.forgetPrint()) return;
+    render();
+    setStatus('Print undone: the desk acts as if the sheets never printed. Other devices follow within a minute.');
+  });
   organizerToggle.addEventListener('click', function () { setOrganizerCollapsed(!organizerFold.classList.contains('collapsed'), false); });
   var workspaceEl = document.querySelector('.workspace');
   var sidePanel = document.querySelector('.sidebar');
@@ -2151,7 +2264,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return;
     }
     if (pendingRecovery) return;
-    if (!confirm('Remove everyone from the ' + shortDate(date.value) + ' RR draft?')) return;
+    var undoPrint = sheetsPrinted();
+    if (!confirm('Remove everyone from the ' + shortDate(date.value) + ' RR draft?' + (undoPrint ? ' This also undoes the sheets print, on every device.' : ''))) return;
+    if (undoPrint) window.cttcPlayerBoard.forgetPrint();
     state.roster = [];
     state.promotions = {};
     state.customized = false;
@@ -2263,7 +2378,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   var refreshing = false;
   function quietForRefresh() {
     return !!loadedDate && loadedDate === date.value && !deviceDraftUnsynced && !saveInFlight && !reconciling && !pendingRecovery &&
-      !syncConflict && !saveNeedsReload && !lockBusy && !refreshing && !window.cttcTab.retired() && navigator.onLine !== false && !document.hidden;
+      !syncConflict && !saveNeedsReload && !lockBusy && !refreshing && !window.cttcTab.retired() && navigator.onLine !== false && !document.hidden && !follow.on;
   }
   async function refreshFromGoogle() {
     if (!quietForRefresh()) return;
@@ -2272,8 +2387,13 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var revision = state.session ? state.session.revision : 0;
     refreshing = true;
     try {
+      var askedAt = Date.now();
       var data = await call('getAppState', sessionDate);
       refreshing = false;
+      // A print, Clear labels or Undo the print on another device: the after-print rules and labels follow here too.
+      var marksChanged = sessionDate === loadedDate && window.cttcPlayerBoard && (window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt) | window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true));
+      if (sessionDate === loadedDate && movesFromGoogle(sessionDate, data.movedUp, askedAt)) marksChanged = true;
+      if (marksChanged) render();
       var server = data.session;
       if (!server || !quietForRefresh() || printState() !== before || sessionDate !== loadedDate || Number(server.revision) === Number(revision) || (state.session ? state.session.revision : 0) !== revision) return;
       learnPlayers(data.players);
@@ -2289,6 +2409,148 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
   }
   setInterval(refreshFromGoogle, REFRESH_MS);
+
+  // ---- Follow mode: this computer shows the main desk's night on its Player board (a projector laptop) ----
+  // Turned on only from the Player board window's settings strip (Follow the main desk), never by itself. While on,
+  // this desk does not edit, and every 10 seconds asks Google for the night's change stamps (getDeskStamps, a cache
+  // read: no Sheet, Gmail or settings reads). It reads the groups and scores, the payments or the Equalizer only when
+  // that stamp moved, so a quiet minute costs six tiny checks. After 20 minutes with no change it checks once a minute;
+  // a finalized night, 6 hours, or Stop following ends it. The board window drives the checks (it stays in view, while a
+  // desk tab behind a full-screen board has its timers slowed); this page keeps its own as a backstop. Usage goes to the
+  // desk log every 30 minutes and when it ends (logFollowMode). See docs/google-limits.md.
+  var FOLLOW_MS = 10000;
+  var FOLLOW_IDLE_MS = 60000;
+  var FOLLOW_IDLE_AFTER_MS = 20 * 60000;
+  var FOLLOW_MAX_MS = 6 * 3600000;
+  var FOLLOW_LOG_MS = 30 * 60000;
+  var follow = { on: false, busy: false, stamps: null, timer: null, startedAt: 0, lastCheck: 0, lastOk: 0, lastChange: 0, lastRead: 0, loggedAt: 0, checks: 0, reads: 0, stamplessReads: 0, note: '' };
+  var followBar = document.getElementById('follow-bar');
+  function followBlocked() {
+    if (!loadedDate) return 'Load the night first, then turn on follow mode.';
+    if (pendingRecovery || deviceDraftUnsynced || saveInFlight || window.cttcOutbox.entries().length) return 'This desk has changes still on their way to Google. Wait for them to save, then turn on follow mode.';
+    if (locked()) return 'This night is finalized: the board already shows the final results.';
+    return '';
+  }
+  function followLog(status) {
+    var stats = { minutes: (Date.now() - follow.startedAt) / 60000, checks: follow.checks, reads: follow.reads, stamplessReads: follow.stamplessReads, status: status };
+    follow.loggedAt = Date.now();
+    call('logFollowMode', loadedDate || date.value, stats).catch(function () { /* usage only */ });
+  }
+  function startFollow() {
+    if (follow.on) return '';
+    var blocked = followBlocked();
+    if (blocked) { setStatus(blocked, 'error'); return blocked; }
+    Object.assign(follow, { on: true, busy: false, stamps: null, startedAt: Date.now(), lastCheck: 0, lastOk: Date.now(), lastChange: Date.now(), lastRead: 0, loggedAt: Date.now(), checks: 0, reads: 0, stamplessReads: 0, note: '' });
+    clearTimeout(autoSyncTimer);
+    clearInterval(follow.timer);
+    follow.timer = setInterval(function () { followCheck(false); }, FOLLOW_MS);
+    setStatus('Follow mode on: this desk shows the main desk\'s changes.');
+    renderFollow();
+    followCheck(true);
+    return '';
+  }
+  function stopFollow(status, message) {
+    if (!follow.on) return;
+    follow.on = false;
+    clearInterval(follow.timer);
+    followLog(status || 'stopped');
+    renderFollow();
+    setStatus(message || 'Follow mode off: this desk can edit again.');
+    if (window.cttcPlayerBoard && window.cttcPlayerBoard.followChanged) window.cttcPlayerBoard.followChanged(false, message || '');
+  }
+  async function followCheck(force) {
+    if (!follow.on || follow.busy || window.cttcTab.retired() || navigator.onLine === false) return;
+    var now = Date.now();
+    if (now - follow.startedAt > FOLLOW_MAX_MS) { stopFollow('timed out', 'Follow mode ended after 6 hours. Turn it on again on the Player board to keep following.'); return; }
+    var every = now - follow.lastChange > FOLLOW_IDLE_AFTER_MS ? FOLLOW_IDLE_MS : FOLLOW_MS;
+    if (!force && now - follow.lastCheck < every - 1000) return;
+    follow.lastCheck = now;
+    follow.busy = true;
+    follow.checks += 1;
+    var sessionDate = loadedDate;
+    try {
+      var stamps = await call('getDeskStamps', sessionDate);
+      if (!follow.on || sessionDate !== loadedDate) return;
+      follow.lastOk = Date.now();
+      var before = follow.stamps;
+      var areas = [];
+      if (!stamps) {
+        // The cache could not be read: read the night, at most once a minute.
+        if (force || Date.now() - follow.lastRead >= FOLLOW_IDLE_MS) { areas = ['s', 'p', 'e', 'd']; follow.stamplessReads += 1; }
+      } else {
+        areas = force || !before ? ['s', 'p', 'e', 'd'] : ['s', 'p', 'e', 'd'].filter(function (area) { return stamps[area] !== before[area]; });
+        follow.stamps = stamps;
+      }
+      if (areas.length) {
+        if (!force) follow.lastChange = Date.now();
+        follow.lastRead = Date.now();
+        await followRead(sessionDate, areas, force);
+      }
+      if (follow.on && locked()) stopFollow('finalized', 'The night is finalized: the board shows the final results, and follow mode is off.');
+    } catch (error) {
+      follow.note = 'Google not reached at ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '; trying again.';
+    } finally {
+      follow.busy = false;
+      if (follow.on && Date.now() - follow.loggedAt >= FOLLOW_LOG_MS) followLog('on');
+      renderFollow();
+    }
+  }
+  // Read what changed: a full load at the start or when the event or status changed; otherwise only the part that moved.
+  async function followRead(sessionDate, areas, force) {
+    var has = function (area) { return areas.indexOf(area) >= 0; };
+    follow.reads += 1;
+    if (force || (has('s') && has('e'))) { await load(); if (has('p') && window.cttcPayments) window.cttcPayments.refresh({ skipMailbox: true }); return; }
+    // A name or rating corrected on the main desk: the directory, so the board shows it too.
+    if (has('d')) {
+      var directory = await call('listPlayers');
+      if (!follow.on || sessionDate !== loadedDate) return;
+      (directory || []).forEach(function (p) {
+        if (byId[p.playerId]) Object.assign(byId[p.playerId], p); else learnPlayers([p]);
+      });
+      if (!has('s') && !has('e')) render();
+    }
+    if (has('s') && state.event !== 'equalizer') {
+      var askedAt = Date.now();
+      var data = await call('getFollowState', sessionDate);
+      if (!follow.on || sessionDate !== loadedDate) return;
+      // A player this desk has not heard of (added tonight on the main desk): the full read, with the directory.
+      var unknown = data.session && data.session.groups.some(function (group) { return group.players.some(function (entry) { return !byId[entry.playerId]; }); });
+      if (unknown) data = await call('getAppState', sessionDate);
+      if (!follow.on || sessionDate !== loadedDate) return;
+      if (window.cttcPlayerBoard) { window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt); window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true); }
+      movesFromGoogle(sessionDate, data.movedUp, askedAt);
+      if (data.players) learnPlayers(data.players);
+      var server = data.session;
+      if (server && (!state.session || server.status !== state.session.status || !copyKnown(sessionCopy(server)))) { await load(); return; }
+      var rosterBefore = state.roster.slice();
+      if (server && Number(server.revision) !== Number(state.session.revision)) {
+        state.session = server;
+        applyCopy(sessionCopy(server));
+        savedPrintState = printState();
+      }
+      render();
+      // A new sign-in can be a first visit (worked out from the night's roster): read the payments too.
+      if (!has('p') && state.roster.some(function (id) { return rosterBefore.indexOf(id) < 0; })) areas.push('p');
+    }
+    // An Equalizer result: read only the Equalizer (a full load would also read the session, the publish state and more).
+    if (has('e') && state.event === 'equalizer') {
+      var eqData = await call('getEqualizerState', sessionDate);
+      if (!follow.on || sessionDate !== loadedDate) return;
+      eqDesk.load(sessionDate, eqData);
+      state.roster = eqDesk.roster();
+      render();
+    }
+    if (has('p') && window.cttcPayments) window.cttcPayments.refresh({ skipMailbox: true });
+  }
+  function renderFollow() {
+    document.querySelector('.workspace').classList.toggle('following', follow.on);
+    followBar.hidden = !follow.on;
+    if (!follow.on) return;
+    var ago = function (t) { var s = Math.round((Date.now() - t) / 1000); return s < 60 ? s + ' s ago' : Math.round(s / 60) + ' min ago'; };
+    var idle = Date.now() - follow.lastChange > FOLLOW_IDLE_AFTER_MS;
+    document.getElementById('follow-text').textContent = 'Following the main desk: changes made there show here and on this Player board, checked every ' + (idle ? 'minute (quiet for 20 minutes)' : '10 seconds') + '. Editing is off on this computer.' + (follow.lastCheck ? ' Last check ' + ago(follow.lastCheck) + '.' : '') + (follow.note && follow.lastOk < follow.lastCheck ? ' ' + follow.note : '');
+  }
+  document.getElementById('stop-follow').addEventListener('click', function () { stopFollow('stopped'); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshFromGoogle(); });
 
   window.cttcTab.onRetire(function () { clearTimeout(autoSyncTimer); });
@@ -2317,11 +2579,23 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .group.needs-balance{border-top-color:var(--gold)}
 .group-list li.promoted{background:#fbf6e6}
 .promotion-badge{display:block;margin-top:2px;font:11px Arial,sans-serif;color:#7a5200;font-weight:700}
+.follow-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:10px 14px;margin:-6px 0 18px;border:1px solid var(--line);border-left:3px solid var(--green);border-radius:4px;background:#fff;color:var(--muted);font:13px/1.5 Arial,sans-serif}
+.follow-bar[hidden]{display:none}
+.workspace.following{pointer-events:none;opacity:.55}
+.workspace.following #player-board,.workspace.following #toggle-organizer,.workspace.following #toggle-side,.workspace.following .match-group h3{pointer-events:auto}
+.late-badge{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#fff3d9;border:1px solid #c99934;color:#7a5200;font:700 10px/1.3 Arial,sans-serif;letter-spacing:.03em;text-transform:uppercase;vertical-align:2px;white-space:nowrap}
 .match-progress{font:13px Arial,sans-serif;color:var(--muted);margin:0 0 10px}
 .match-group h3{display:flex;justify-content:space-between;align-items:center}
 .summary-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
 .summary-row[hidden]{display:none}
 .summary-row .group-summary{margin:0}
+.summary-row .print-labels{display:inline-flex;align-items:center;gap:7px}
+.summary-row .print-labels::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--gold);flex:none}
+.summary-row .print-labels[aria-expanded=true]{background:#f7f9f7}
+.summary-row .print-labels[hidden],.print-labels-panel[hidden]{display:none}
+.print-labels-panel{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:10px 14px;margin:-4px 0 14px;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:4px;background:var(--panel);color:var(--muted);font:13px/1.5 Arial,sans-serif}
+.print-labels-panel p{margin:0;flex:1 1 360px}
+.print-labels-panel b{color:var(--ink);font-weight:600}
 .fold{display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s ease}
 .fold>.fold-inner{min-height:0;transition:opacity .25s ease}
 .fold.collapsed,.match-group.collapsed>.fold{grid-template-rows:0fr}
@@ -2524,7 +2798,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   }
   // status: what the Player board shows, a payment recorded (any method, or a Zeffy pass) and a first visit; never how.
   function paymentStatus(playerId) { return { paid: !!methods[playerId] || !!covered[playerId], first: !!firstVisits[playerId] }; }
-  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function () { refreshPayments(); }, status: paymentStatus };
+  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function (options) { refreshPayments(options); }, status: paymentStatus };
   var initialPayment = window.cttcRequest('getPrivatePaymentOverview', dateField.value);
   window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
@@ -2613,7 +2887,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       if (unpaid) unpaid.hidden = !method;
     });
   }
-  function refreshPayments() {
+  // options.skipMailbox: a following desk (follow mode) leaves the Zeffy mail to the main desk.
+  function refreshPayments(options) {
     var selectedDate = dateField.value;
     var currentRequest = ++requestNumber;
     waitingElsewhere = {};
@@ -2625,7 +2900,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       cached = null;
       applyOverview({ methods: {}, coveredIds: [] }, selectedDate);
     }
-    var paymentRequest = initialPayment || window.cttcRequest('getPrivatePaymentOverview', selectedDate);
+    var paymentRequest = initialPayment || (options && options.skipMailbox ? window.cttcRequest('getPrivatePaymentOverview', selectedDate, { skipMailbox: true }) : window.cttcRequest('getPrivatePaymentOverview', selectedDate));
     initialPayment = null;
     paymentRequest.then(function (result) {
       if (currentRequest !== requestNumber) return;
@@ -2998,7 +3273,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       .formatToParts(new Date()).forEach(function (part) { parts[part.type] = part.value; });
     return parts.year + '-' + parts.month + '-' + parts.day;
   }
-  function polling() { return date.value === pacificToday(); }
+  // Not on a desk in follow mode: it only shows the main desk's night, so these checks would be reads for nothing.
+  function polling() { return date.value === pacificToday() && !(window.cttcDesk && window.cttcDesk.following && window.cttcDesk.following()); }
 
   // Tonight's players as the desk shows them (the draft may be ahead of what Google has saved), with whether their
   // payment button already shows a payment.
@@ -3878,6 +4154,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   }
 
   function polling() {
+    if (window.cttcDesk && window.cttcDesk.following && window.cttcDesk.following()) return false;
     var now = pacificNow();
     var hours = POLL_DAYS[now.weekday];
     return !!hours && !(hours[2] && now.date < hours[2]) && date.value === now.date && now.minutes >= hours[0] && now.minutes < hours[1];

@@ -50,7 +50,7 @@ const context = {
   TABLES: {}
 };
 vm.createContext(context);
-for (const file of ['RatingEngine.js', 'SessionService.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, file), 'utf8'), context);
+for (const file of ['RatingEngine.js', 'SessionIds.js', 'SessionService.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, file), 'utf8'), context);
 Object.assign(context, {
   rows_: name => tables[name].map((row, index) => ({ ...row, __row: index + 2 })),
   updateRow_: (name, rowNumber, changes) => { guard(name, rowNumber, changes); Object.assign(tables[name][rowNumber - 2], changes); },

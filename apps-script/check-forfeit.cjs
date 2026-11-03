@@ -73,7 +73,7 @@ const server = {
   PropertiesService: { getScriptProperties: () => ({ getProperty: () => null, setProperty() {} }) }
 };
 vm.createContext(server);
-for (const file of ['Code.js', 'SessionService.js', 'RatingEngine.js']) vm.runInContext(read(file), server);
+for (const file of ['Code.js', 'SessionIds.js', 'SessionService.js', 'RatingEngine.js']) vm.runInContext(read(file), server);
 Object.assign(server, {
   appendAudit_() {},
   rows_: name => sheets[name].map((r, index) => ({ ...r, __row: index + 2 })),

@@ -95,10 +95,13 @@ function createSession(sessionDate) {
       finalized_at: ''
     }]);
     appendAudit_('session_created', 'session', sessionId, { date: sessionDate });
-    return getSession(sessionId);
+    var created = getSession(sessionId);
   } finally {
     lock.releaseLock();
   }
+  // After the lock, so the stamp never holds up another save.
+  touchDeskSession_(sessionId);
+  return created;
 }
 
 function getSession(sessionId) {
@@ -152,6 +155,7 @@ function getSessionByDate(sessionDate) {
 
 function getAppState(sessionDate) {
   var session = getSessionByDate(sessionDate);
+  var boardMarks = boardMarks_('session-' + sessionDate);
   return {
     players: listPlayers(),
     session: session,
@@ -160,8 +164,93 @@ function getAppState(sessionDate) {
     // Since the desk became the rating authority, its own latest finalized session is what ratings are current through.
     ratingsFinalizedThrough: latestFinalizedSessionDate_(),
     // Ledger rows for a session that is not finalized: a finalize or reopen stopped partway. The desk says so on load.
-    interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; })
+    interruptedFinalize: !!session && session.status !== 'finalized' && rows_('RatingLedger').some(function (row) { return String(row.session_id) === session.sessionId; }),
+    // The round robin sheets' print mark (saveSessionPrint), so every device turns to after-print rules together, and
+    // who was moved up with the arrows (saveSessionMoves), for the Player board's ▲ on every device. One settings read.
+    printed: boardMarks.printed,
+    printedEq: boardMarks.printedEq,
+    movedUp: boardMarks.movedUp
   };
+}
+
+// When the round robin sheets printed, and who was on them: { at, groups (player ids by group, as last printed),
+// first (everyone on the first print) }, or { at, undone: true } once Undo the print takes back a print made by
+// mistake (so a device that printed offline can tell "undone" from "not heard of yet"). Kept in the Sheet's document
+// properties, one small value per night, apart from the session's rows and revision, so marking a print never
+// conflicts with a save. After a print the desk places late arrivals without moving anyone, labels them Late add,
+// and the Player board shows scores. One property read per desk load or refresh, one write per print.
+var PRINT_KEY_PREFIX_ = 'cttc-print:';
+var PRINT_KEEP_DAYS_ = 21;
+// What a desk in follow mode reads when the session's stamp moves: the night's session and its marks, without the player
+// directory, the ratings dates or the rating ledger that getAppState also reads (the board needs none of them; a
+// player it does not know yet sends it to getAppState once).
+function getFollowState(sessionDate) {
+  validateSessionDate_(sessionDate);
+  var boardMarks = boardMarks_('session-' + sessionDate);
+  return { session: getSessionByDate(sessionDate), printed: boardMarks.printed, printedEq: boardMarks.printedEq, movedUp: boardMarks.movedUp };
+}
+
+var MOVES_KEY_PREFIX_ = 'cttc-moves:';
+// Both marks for one night in one settings read; each undefined when the settings cannot be read (the desk still loads,
+// and each device keeps what it has), null when there is none.
+function boardMarks_(sessionId) {
+  var all;
+  try { all = PropertiesService.getDocumentProperties().getProperties() || {}; } catch (error) { return { printed: undefined, printedEq: undefined, movedUp: undefined }; }
+  var parse = function (value) { if (!value) return null; try { return JSON.parse(value); } catch (error) { return null; } };
+  return { printed: parse(all[PRINT_KEY_PREFIX_ + sessionId]), printedEq: parse(all[PRINT_KEY_PREFIX_ + sessionId + EQUALIZER_SUFFIX]), movedUp: parse(all[MOVES_KEY_PREFIX_ + sessionId]) };
+}
+// Players moved up with the desk's arrows, each with the group index they started in (the Player board's ▲), kept like
+// the print mark so a reload or another device still shows it. An empty list clears it (Rebuild by rating).
+function saveSessionMoves(sessionId, moves) {
+  sessionId = String(sessionId || '');
+  if (!/^session-\d{4}-\d{2}-\d{2}$/.test(sessionId)) throw new Error('Moves: unknown session ' + sessionId);
+  if (!moves || typeof moves !== 'object' || Array.isArray(moves)) throw new Error('Moves: a list of players is required.');
+  var clean = {};
+  var ids = Object.keys(moves);
+  if (ids.length > 200) throw new Error('Moves: too many players.');
+  ids.forEach(function (id) {
+    var from = Number(moves[id]);
+    if (!id || id.length > 64 || !Number.isInteger(from) || from < 0 || from > 50) throw new Error('Moves: a player or group is not valid.');
+    clean[id] = from;
+  });
+  var properties = PropertiesService.getDocumentProperties();
+  if (ids.length) properties.setProperty(MOVES_KEY_PREFIX_ + sessionId, JSON.stringify(clean));
+  else properties.deleteProperty(MOVES_KEY_PREFIX_ + sessionId);
+  touchDeskSession_(sessionId);
+  pruneBoardMarks_(properties);
+  return clean;
+}
+function pruneBoardMarks_(properties) {
+  var cutoff = Utilities.formatDate(new Date(Date.now() - PRINT_KEEP_DAYS_ * 86400000), 'America/Los_Angeles', 'yyyy-MM-dd');
+  Object.keys(properties.getProperties()).forEach(function (name) {
+    var match = /^cttc-(?:print|moves):session-(\d{4}-\d{2}-\d{2})(?:-equalizer)?$/.exec(name);
+    if (match && match[1] < cutoff) properties.deleteProperty(name);
+  });
+}
+function saveSessionPrint(sessionId, mark) {
+  sessionId = String(sessionId || '');
+  if (!/^session-\d{4}-\d{2}-\d{2}(?:-equalizer)?$/.test(sessionId)) throw new Error('Print mark: unknown session ' + sessionId);
+  var equalizer = isEqualizerSessionId_(sessionId);
+  var properties = PropertiesService.getDocumentProperties();
+  var key = PRINT_KEY_PREFIX_ + sessionId;
+  var ids = function (list) {
+    if (!Array.isArray(list)) throw new Error('Print mark: player lists are required.');
+    return list.map(function (id) {
+      if (typeof id !== 'string' || !id || id.length > 64) throw new Error('Print mark: a player id is not valid.');
+      return id;
+    });
+  };
+  if (!mark || typeof mark !== 'object' || !Number.isFinite(Number(mark.at))) throw new Error('Print mark: a print time is required.');
+  // An Equalizer's mark is the print time and a short fingerprint of the draw that printed.
+  if (equalizer && !mark.undone && !/^[0-9a-z]{1,16}$/.test(String(mark.sig || ''))) throw new Error('Print mark: the draw fingerprint is not valid.');
+  var clean = mark.undone ? { at: Number(mark.at), undone: true } : equalizer ? { at: Number(mark.at), sig: String(mark.sig) } : { at: Number(mark.at), groups: (mark.groups || []).map(ids), first: ids(mark.first || []) };
+  var text = JSON.stringify(clean);
+  if (text.length > 8000) throw new Error('Print mark: too many players to keep.');
+  properties.setProperty(key, text);
+  // Both stamps for an Equalizer print: a following desk then reloads the night, mark and all, at once.
+  touchDeskSession_(sessionId, equalizer);
+  pruneBoardMarks_(properties);
+  return clean;
 }
 
 // Sent a moment after every change at the desk, so it must stay quick: it writes only this session's rows where it
@@ -239,10 +328,13 @@ function saveSessionDraft(payload) {
     updateRow_('Sessions', session.__row, changes);
     // lockMs is the wait for other desk work; ms is the whole save. Both show in the AuditLog when Google is slow.
     appendAudit_('session_saved', 'session', sessionId, { revision: changes.revision, players: sessionPlayers.length, matches: matches.length, lockMs: lockMs, ms: Date.now() - started });
-    return sessionFromRows_(Object.assign({}, session, changes), sessionPlayers, matches);
+    var saved = sessionFromRows_(Object.assign({}, session, changes), sessionPlayers, matches);
   } finally {
     lock.releaseLock();
   }
+  // After the lock, so the stamp never holds up another save.
+  touchDeskSession_(saved.sessionId);
+  return saved;
 }
 
 // Finalizing writes three tables, and Google can stop partway (a timeout, a lost connection). The ledger is written
@@ -480,7 +572,9 @@ function withDeskLock_(work) {
 // reference: the start of that row's event_id, so the exact cause can be found later.
 function loggedDeskAction_(action, sessionId, work) {
   try {
-    return work();
+    var result = work();
+    touchDeskSession_(sessionId, action === 'event_switch');
+    return result;
   } catch (error) {
     var message = error && error.message || String(error);
     var eventId = safeAudit_(action + '_failed', 'session', sessionId, Object.assign({ message: message }, error && error.details || {}));

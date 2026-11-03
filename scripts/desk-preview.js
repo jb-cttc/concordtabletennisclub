@@ -126,11 +126,43 @@ const firstVisitsOn = function (date) {
   return firstVisits[date] || (firstVisits[date] = roster.slice(2, 3));
 };
 const equalizers = {};
+// The round robin sheets' print mark, per session (SessionService.js keeps it in document properties).
+const prints = {};
+// Who was moved up with the arrows, per session (SessionService.js keeps it beside the print mark).
+const movesBySession = {};
+// Follow mode's change stamps (SessionIds.js keeps them in the script cache), bumped after each change below.
+const stamps = {};
+const STAMP_AREAS = { saveSessionDraft: 's', createSession: 's', finalizeSession: 's', reopenSession: 's', saveSessionPrint: 's', saveSessionMoves: 's', updatePlayer: 's', setSessionPayment: 'p', setFirstVisit: 'p', matchCloverPayment: 'p', unmatchCloverPayment: 'p', saveEqualizerSetup: 'e', saveEqualizerResult: 'e', switchDayEvent: 'e' };
+function touchStamp(name, args) {
+  const area = STAMP_AREAS[name];
+  if (!area) return;
+  const found = /\d{4}-\d{2}-\d{2}/.exec(JSON.stringify(args[0] || ''));
+  const date = found ? found[0] : new Date().toISOString().slice(0, 10);
+  stamps[date] = stamps[date] || { s: '', p: '', e: '' };
+  stamps[date][area] = String(Date.now());
+  if (name === 'switchDayEvent') stamps[date].s = String(Date.now());
+}
 const rpc = {
   getAppState: function (date) {
-    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString() };
+    return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString(), printed: prints['session-' + date] || null, printedEq: prints['session-' + date + '-equalizer'] || null, movedUp: movesBySession['session-' + date] || null };
+  },
+  saveSessionMoves: function (sessionId, moves) {
+    if (Object.keys(moves || {}).length) movesBySession[sessionId] = moves;
+    else delete movesBySession[sessionId];
+    return moves;
+  },
+  saveSessionPrint: function (sessionId, mark) {
+    if (mark === null) delete prints[sessionId];
+    else prints[sessionId] = mark;
+    return mark;
   },
   listPlayers: function () { return players; },
+  getFollowState: function (date) {
+    const state = rpc.getAppState(date);
+    return { session: state.session, printed: state.printed, printedEq: state.printedEq, movedUp: state.movedUp };
+  },
+  getDeskStamps: function (date) { return stamps[date] || { s: '', p: '', e: '' }; },
+  logFollowMode: function () { return true; },
   // The Equalizer, kept in memory only: enough to switch a night to it, draw it, and print its sheets.
   getEqualizerState: function (date) { return equalizers[date] || { session: null, roster: [], setup: null, results: {}, history: [] }; },
   switchDayEvent: function (date, to) { return { revision: 1, status: 'draft', sessionId: 'session-' + date + '-' + to }; },
@@ -415,9 +447,13 @@ http.createServer(function (request, response) {
     request.on('end', function () {
       response.setHeader('content-type', 'application/json');
       try {
-        const handler = rpc[url.pathname.slice(5)];
-        if (!handler) throw new Error('Preview has no back end for ' + url.pathname.slice(5));
-        response.end(JSON.stringify({ result: handler.apply(null, JSON.parse(body || '[]')) }));
+        const name = url.pathname.slice(5);
+        const handler = rpc[name];
+        if (!handler) throw new Error('Preview has no back end for ' + name);
+        const args = JSON.parse(body || '[]');
+        const result = handler.apply(null, args);
+        touchStamp(name, args);
+        response.end(JSON.stringify({ result: result }));
       } catch (error) {
         response.end(JSON.stringify({ error: error.message }));
       }
