@@ -1670,6 +1670,11 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
     const add = [...doc.querySelectorAll('#night details.part[data-part="open"] button.add')]
       .find(button => /Add me as Table\/barrier setup/.test(button.getAttribute('aria-label')));
     assert.ok(add, 'tapping the opening bar shows its positions');
+    // Each role shows its one line, with the full description behind More.
+    const desk = doc.querySelector('#night details.part[data-part="open"] .pos details.more');
+    assert.equal(desk.querySelector('summary').textContent, 'Opens up at 6:40 PM and runs the desk.More', 'the night\'s own time, then More');
+    assert.match(desk.querySelector('p').textContent, /^The opener and round robin organizer: first in at 6:40 PM, has the key lockbox/);
+    assert.equal(desk.open, false);
     add.click();
     assert.equal(bars()[0].open, true, 'adding a pick keeps the bar open');
     assert.equal(bars()[1].open, false);
@@ -1719,8 +1724,11 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   addFor('Desk organizer').click();
   assert.match(document.getElementById('bar').textContent, /My picks: 1/);
   const again = document.getElementById('night');
-  assert.deepEqual([...document.querySelectorAll('.legend li')].map(li => li.textContent.trim()).slice(0, 3),
+  const legend = [...document.querySelectorAll('.legend li')];
+  assert.deepEqual(legend.slice(0, 3).map(li => li.querySelector('.key').textContent + li.querySelector('.l').textContent),
     ['!Needs people', '+Minimum crew (more help welcome)', '\u2713Fully staffed'], 'three levels: needs people, minimum crew (+), fully staffed (check)');
+  assert.deepEqual(legend.map(li => (li.querySelector('.s') || li).textContent.replace(/^[!+\u2713\u00d7]/, '')), ['Needs', 'Minimum', 'Full', 'Closed', 'Yours'], 'short words for a phone\'s one-line legend');
+  assert.ok(legend.every(li => !li.querySelector('.s') || li.querySelector('.s').getAttribute('aria-hidden') === 'true'), 'screen readers keep the long words');
   assert.equal([...again.querySelectorAll('button.add')].find(button => /Add me as Money collector \(Front Desk\) on/.test(button.getAttribute('aria-label'))).disabled, true, 'one opening position per night, on the page too');
   assert.match(again.textContent, /The opener and round robin organizer: first in at 6:40 PM, has the key lockbox/, 'each position says what it does, with this night\'s time');
   assert.doesNotMatch(again.textContent, /on Saturdays/);

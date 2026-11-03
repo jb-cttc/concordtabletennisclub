@@ -29,6 +29,21 @@
   /* Legend and calendar: the home page's three months, with each club night coloured AND marked by its status. */
   .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 10px; padding: 0; list-style: none; font-size: 0.8rem; color: #555; }
   .legend li { display: flex; align-items: center; gap: 5px; }
+  .legend .s { display: none; }
+  /* A phone (PHONE_WIDTH): the legend on one line, with short words; screen readers keep the long ones. */
+  @media (max-width: 520px) {
+    .legend { flex-wrap: nowrap; gap: 4px 10px; justify-content: space-between; }
+    .legend li { white-space: nowrap; }
+    .legend .l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .legend .s { display: inline; }
+  }
+  /* A role on a phone: its one line, with the full description behind "More". */
+  details.more { margin: 2px 0 6px; font-size: 0.85rem; color: #555; }
+  details.more > summary { list-style: none; cursor: pointer; }
+  details.more > summary::-webkit-details-marker { display: none; }
+  details.more > summary .more-link { color: #1f4f8f; text-decoration: underline; margin-left: 4px; white-space: nowrap; }
+  details.more[open] > summary .more-link { display: none; }
+  details.more > p { margin: 4px 0 0; }
   .key { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 3px; font-size: 0.7rem; font-weight: 700; box-sizing: border-box; }
   .months { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 22px; }
   .month-title { font-weight: 700; font-size: 0.9rem; margin: 0 0 4px; }
@@ -129,11 +144,11 @@
 <h1>Volunteer signups</h1>
 <p class="hint">Tap a club night to see its open spots, add as many as you like, then send once and reply YES to our email.</p>
 <ul class="legend" aria-label="What the colors and marks mean">
-  <li><span class="key needs" aria-hidden="true">!</span>Needs people</li>
-  <li><span class="key covered" aria-hidden="true">+</span>Minimum crew (more help welcome)</li>
-  <li><span class="key full" aria-hidden="true">&#10003;</span>Fully staffed</li>
+  <li><span class="key needs" aria-hidden="true">!</span><span class="l">Needs people</span><span class="s" aria-hidden="true">Needs</span></li>
+  <li><span class="key covered" aria-hidden="true">+</span><span class="l">Minimum crew (more help welcome)</span><span class="s" aria-hidden="true">Minimum</span></li>
+  <li><span class="key full" aria-hidden="true">&#10003;</span><span class="l">Fully staffed</span><span class="s" aria-hidden="true">Full</span></li>
   <li><span class="key closed" aria-hidden="true">&#215;</span>Closed</li>
-  <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span>Your picks</li>
+  <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span><span class="l">Your picks</span><span class="s" aria-hidden="true">Yours</span></li>
 </ul>
 <section id="mine" class="panel mine" hidden aria-labelledby="mineTitle"></section>
 <div id="message" role="status" aria-live="polite"></div>
@@ -323,9 +338,9 @@
     return a.width > 0 && Math.abs(a.top - b.top) < 2;
   }
   // "6:40 PM (2:40 PM on Saturdays)" becomes the one that applies to this night.
-  function doesText(spec, night) {
+  function doesText(spec, night, brief) {
     var saturday = new Date(night.date + 'T12:00:00Z').getUTCDay() === 6;
-    return spec.does.replace(/(\d{1,2}:\d{2} [AP]M) \((\d{1,2}:\d{2} [AP]M) on Saturdays\)/g, function (all, weekday, sat) { return saturday ? sat : weekday; });
+    return (brief ? spec.brief : spec.does).replace(/(\d{1,2}:\d{2} [AP]M) \((\d{1,2}:\d{2} [AP]M) on Saturdays\)/g, function (all, weekday, sat) { return saturday ? sat : weekday; });
   }
   function drawNight() {
     var night = nightOf(selected);
@@ -384,7 +399,9 @@
   function positionRow(night, spec) {
     var size = spec.max === 1 ? '1 person' : spec.min + ' to ' + spec.max + ' people';
     var row = el('div', { 'class': 'pos' }, [el('div', { 'class': 'pos-head' }, [el('b', { text: spec.label }), el('span', { text: size + (spec.min ? '' : ', optional') })]),
-      el('p', { 'class': 'does', text: doesText(spec, night) })]);
+      phone() && spec.brief ? el('details', { 'class': 'more' }, [
+        el('summary', {}, [doesText(spec, night, true), el('span', { 'class': 'more-link', text: 'More' })]),
+        el('p', { text: doesText(spec, night) })]) : el('p', { 'class': 'does', text: doesText(spec, night) })]);
     var chips = el('ul', { 'class': 'chips', 'aria-label': spec.label });
     var dropBox = el('div');
     night.slots[spec.id].forEach(function (slot) {
