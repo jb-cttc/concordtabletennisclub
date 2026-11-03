@@ -8,7 +8,7 @@
   <meta property="og:site_name" content="Concord Table Tennis Club">
   <meta property="og:title" content="Who's playing tonight - Concord Table Tennis Club">
   <meta property="og:description" content="See how many players are coming to the next Monday, Wednesday or Saturday round robin, by rating, as they sign in.">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261103b">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="assets/site.webmanifest">
@@ -27,7 +27,7 @@
       <a href="index.html">Home</a>
       <a href="firstvisit.html">First Visit</a>
       <a href="about.html">About</a>
-      <a href="roundrobins.html"><svg class="nav-icon" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><line x1="9.8" y1="10.4" x2="13.6" y2="14.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="6" cy="7" r="5.4" fill="var(--red)"/><circle cx="13.8" cy="2.4" r="1.9" fill="#fff" stroke="currentColor" stroke-width="0.8"/></svg> Round Robins</a>
+      <a href="roundrobins.html" class="active"><svg class="nav-icon" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><line x1="9.8" y1="10.4" x2="13.6" y2="14.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="6" cy="7" r="5.4" fill="var(--red)"/><circle cx="13.8" cy="2.4" r="1.9" fill="#fff" stroke="currentColor" stroke-width="0.8"/></svg> Round Robins</a>
       <a href="leaderboard.html">Leaderboard</a>
       <a href="halloffame.html">Hall of Fame</a>
       <a href="membership.html">Membership</a>
@@ -40,6 +40,8 @@
 </header>
 
 <main class="tonight">
+
+  <p class="tonight-back"><a id="tonight-back" href="roundrobins.html"><span class="tonight-back-arrow" aria-hidden="true">&lsaquo;</span> <span id="tonight-back-label">Round Robins</span></a></p>
 
   <p class="tonight-eyebrow">
     <span id="tonight-live" class="tonight-live" hidden><span class="live-dot" aria-hidden="true"></span>Live</span>
@@ -466,7 +468,29 @@
     });
   }
 
+  // The way back to the page the Tonight button was tapped on (Home or Round Robins), named in the bar at the top. It
+  // works as the browser's Back does, so that page opens where it was left. Opened any other way (a shared link, a
+  // text, a new tab), the bar links to Round Robins, the section Tonight belongs to.
+  var BACK_PAGES = { "": "Home", "index": "Home", "roundrobins": "Round Robins" };
+  function setupBack() {
+    var page = null;
+    try {
+      var from = new URL(document.referrer);
+      if (from.origin === location.origin) page = from.pathname.replace(/^\//, "").replace(/\.html$/, "");
+    } catch (error) { return; }
+    if (page === null || !Object.prototype.hasOwnProperty.call(BACK_PAGES, page)) return;
+    var link = byId("tonight-back");
+    link.href = page ? page + ".html" : "index.html";
+    byId("tonight-back-label").textContent = "Back to " + BACK_PAGES[page];
+    link.addEventListener("click", function (event) {
+      if (history.length < 2) return;
+      event.preventDefault();
+      history.back();
+    });
+  }
+
   function start() {
+    setupBack();
     (TURNOUT_URL ? live() : Promise.reject(new Error("no app"))).catch(forecast).then(render, function () {
       byId("tonight-lede").textContent = "Could not load tonight’s floor. Try refreshing the page.";
     });

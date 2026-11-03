@@ -1707,6 +1707,34 @@ tr.hof-gold td:nth-child(2) {
 
 /* ---- Tonight: who is coming to the round robin, by rating (tonight.html) ---- */
 
+/* The way back to the page the Tonight button was tapped on, above everything else on the page. */
+.tonight-back {
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tonight-back a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1f6b3a;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 6px 2px;
+}
+
+.tonight-back a:hover {
+  color: #14401f;
+  text-decoration: underline;
+}
+
+.tonight-back-arrow {
+  font-size: 1.5em;
+  line-height: 0.8;
+}
+
 .tonight-eyebrow {
   display: flex;
   flex-wrap: wrap;

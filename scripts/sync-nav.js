@@ -49,6 +49,11 @@ const HEAD_ICONS = '\n  <link rel="icon" href="assets/logo.png" type="image/png"
 
 const NAV_HREFS = new Set(NAV_LINKS.map(function (l) { return l.href; }));
 
+// Pages that are not in the menu themselves but belong to a section: that section's link is highlighted on them.
+const NAV_SECTIONS = {
+  'tonight.html': 'roundrobins.html'
+};
+
 function buildNavBlock(activeHref) {
   var links = NAV_LINKS.map(function (link) {
     var isActive = link.href === activeHref;
@@ -73,7 +78,7 @@ htmlFiles.forEach(function (filename) {
   var filePath = path.join(ROOT, filename);
   var original = fs.readFileSync(filePath, 'utf8');
 
-  var activeHref = NAV_HREFS.has(filename) ? filename : null;
+  var activeHref = NAV_HREFS.has(filename) ? filename : NAV_SECTIONS[filename] || null;
   var newNav = buildNavBlock(activeHref);
   var newFooter = buildFooterBlock();
 
