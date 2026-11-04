@@ -138,7 +138,10 @@ var TABS = {
     'seed_key',
     // cancelled_by is 'closure' when the gym closed that night after the sign-up (status 'cancelled'); notified is when the
     // person was told, so the notice goes out once.
-    'cancelled_by', 'notified'],
+    'cancelled_by', 'notified',
+    // The same person's own earlier pick(s) that night this pick replaces once they say YES to it (space separated
+    // signup_ids; see "When a newer sign-up replaces an older pick").
+    'replaces'],
   // One row per submission: the one email (and text) that asks YES or NO about all its picks. emailed and texted hold the
   // status last sent, written only after the send worked, so the sweep retries a failed one. late is 'yes' when a late YES
   // confirmed only the picks still free.
@@ -151,6 +154,10 @@ var TABS = {
   // Everyone who has signed up, by email. texts is 'yes' after they text STAFF from the phone below, '' after STOP. ask_ref
   // is the sign-up last texted, so CONFIRM or RELEASE answers it.
   People: ['email', 'name', 'player_id', 'phone', 'texts', 'texts_at', 'ask_ref', 'ask_at', 'created_at', 'updated_at'],
+  // One row per email that asked someone about everything waiting for their YES at once (see "Everything waiting, in one
+  // email"). trigger is what that email was sent about ('' for a follow-up); items is every question it listed, space
+  // separated: 'b:' and a batch_id (a sign-up to confirm) or 'd:', a signup_id and its drop_at (a drop to confirm).
+  Bundles: ['bundle_id', 'email', 'trigger', 'items', 'created_at'],
   // The one email (and mobile) on file for each player: nobody can sign up as someone else, because a sign-up is confirmed
   // only from the email on file. status: approved (at most one per player; a newer approval marks the old row 'replaced'),
   // pending (asked from the page, waiting for the club; batch_id is that sign-up) or declined. source: owner (typed by hand),
@@ -1260,13 +1267,20 @@ function signUp(form) {
     var accepted = [];
     var problems = [];
     picks.forEach(function (pick) {
-      var others = holding.filter(function (entry) { return entry.date === pick.date; }).concat(accepted.filter(function (entry) { return entry.date === pick.date; }));
-      var reason = pickProblem_(pick, person, nightOf_(pick.date, horizon, closures), others);
+      // The person's own earlier pick that night that this one clashes with (another opening position, say) is not a reason
+      // to refuse: this pick replaces it, once they say YES (replacing_). The same position again is.
+      var spec = position_(pick.position);
+      var own = holding.filter(function (entry) { return entry.date === pick.date && personKey_(entry) === person.key; });
+      var replaced = spec ? own.filter(function (entry) { return entry.position !== pick.position && clash_(spec, position_(entry.position)); }) : [];
+      var others = holding.filter(function (entry) { return entry.date === pick.date && replaced.indexOf(entry) < 0; }).concat(accepted.filter(function (entry) { return entry.date === pick.date; }));
+      var reason = spec && own.some(function (entry) { return entry.position === pick.position; }) ? 'You already signed up for ' + spec.label + ' that night.' :
+        pickProblem_(pick, person, nightOf_(pick.date, horizon, closures), others);
       if (reason) {
         problems.push({ date: pick.date, position: pick.position, reason: reason });
         if (person.unlisted && position_(pick.position) && position_(pick.position).training.length && /training/.test(reason)) askApproval = true;
       } else {
-        accepted.push({ date: pick.date, position: pick.position, finalize: pick.finalize ? 'yes' : '', key: person.key });
+        accepted.push({ date: pick.date, position: pick.position, finalize: pick.finalize ? 'yes' : '', key: person.key,
+          replaces: replaced.map(function (entry) { return entry.signup_id; }).join(' ') });
       }
     });
     if (askApproval) markAsked_(person, trainings);
@@ -1284,7 +1298,8 @@ function signUp(form) {
     accepted.forEach(function (pick) {
       save_('Signups', {
         signup_id: id_(), batch_id: batch.batch_id, date: pick.date, position: pick.position, finalize: pick.finalize, player_id: person.playerId,
-        name: person.name, email: email, status: request ? 'requested' : 'pending', created_at: nowIso_(), expires_at: String(expires), updated_at: nowIso_()
+        name: person.name, email: email, status: request ? 'requested' : 'pending', created_at: nowIso_(), expires_at: String(expires), updated_at: nowIso_(),
+        replaces: pick.replaces
       });
     });
     count = accepted.length;
@@ -2095,13 +2110,15 @@ function requestDrop(signupId) {
   try {
     if (!mailAvailable_()) throw new Error('the daily email quota is used up');
     var night = NIGHTS[weekday_(entry.date)];
-    sendMail_(contact, 'Drop your CTTC shift? ' + refTag_(dropCode_(entry)), [
+    // While anything else waits for this address, the question lists it all, under one code.
+    var bundle = bundleFor_(contact, 'd:' + entry.signup_id + ':' + entry.drop_at, Date.now());
+    sendMail_(contact, 'Drop your CTTC shift? ' + (bundle ? bundle.tag : refTag_(dropCode_(entry))), [
       'Hello ' + firstName_(entry.name) + ',',
-      'Someone (we hope you) asked on the club website to drop this shift:',
+      'Someone (we hope you) asked on the club website to drop this shift:'].concat(bundle ? bundle.blocks.concat({ heading: 'Details of this drop' }) : [], [
       { rows: [['When', dayLabel_(entry.date) + ', ' + time12_(night.start) + ' to ' + time12_(night.end)], ['Position', shiftLabel_(entry)]] },
-      { choices: [['YES', 'Drop it. The spot opens for someone else and the club is told.'], ['NO', 'Keep it. You can also just ignore this email.']] },
+      bundle ? null : { choices: [['YES', 'Drop it. The spot opens for someone else and the club is told.'], ['NO', 'Keep it. You can also just ignore this email.']] },
       'This question is open for 48 hours. Please reply from this same email address.'
-    ], ['drop-question', entry.signup_id]);
+    ]), ['drop-question', entry.signup_id]);
   } catch (error) {
     logError_('email a drop question', error, entry.signup_id);
     // Not asked after all, so the next try is not held back by the 10 minute wait.
@@ -2120,12 +2137,206 @@ function requestDrop(signupId) {
   return done;
 }
 
+// ---------- When a newer sign-up replaces an older pick ----------
+// Someone who already has a pick that night (waiting or confirmed) and signs up for a position it clashes with (another
+// opening position, say) means the newer one. It replaces the older pick, never anyone else's, but only once they say YES to
+// it: nothing changes until then, and both are held. The newer email shows the change the way the desk shows a player edit,
+// the old position struck through and the new one in bold, and the replaced pick stops counting in its own email: a YES to
+// that one confirms its other nights and leaves this one waiting on the newer sign-up.
+
+function replacesIds_(entry) { return String(entry.replaces || '').split(' ').filter(Boolean); }
+
+// Whether a newer pick still waiting for its YES replaces this one.
+function replacedBy_(entry, signups, now) {
+  return signups.some(function (other) {
+    return other.signup_id !== entry.signup_id && replacesIds_(other).indexOf(entry.signup_id) >= 0 && signupStatus_(other, now) === 'pending';
+  });
+}
+
+// The picks a pick replaces that are still pending or confirmed.
+function replacedPicks_(entry, signups, now) {
+  var ids = replacesIds_(entry);
+  return signups.filter(function (other) {
+    var status = signupStatus_(other, now);
+    return ids.indexOf(other.signup_id) >= 0 && (status === 'pending' || status === 'confirmed');
+  });
+}
+
+// Call while holding the lock, when entry has just been confirmed: what it replaces goes. A waiting pick is released; a
+// confirmed one is dropped, and added to drops so the person and the club are told, as for any drop.
+function applyReplacement_(entry, signups, now, drops) {
+  replacedPicks_(entry, signups, now).forEach(function (old) {
+    var confirmed = signupStatus_(old, now) === 'confirmed';
+    old.status = confirmed ? 'dropped' : 'released';
+    old.drop_at = '';
+    old.updated_at = nowIso_();
+    save_('Signups', old);
+    if (confirmed) drops.push({ entry: old });
+    logRow_('step', 'step:' + old.status, old.batch_id, '-', old.position + ' on ' + old.date + ', replaced by ' + entry.position);
+  });
+}
+
+// "~~Desk organizer (confirmed)~~ → ++Money collector (Front Desk)++" for a pick that replaces others, or ''.
+function changeLine_(entry, signups, now) {
+  var older = replacedPicks_(entry, signups, now);
+  if (!older.length) return '';
+  return older.map(function (old) { return '~~' + position_(old.position).label + (signupStatus_(old, now) === 'confirmed' ? ', confirmed' : ', waiting to confirm') + '~~'; }).join(', ') +
+    ' → ++' + position_(entry.position).label + '++';
+}
+
+// ---------- Everything waiting, in one email ----------
+// One sign-up is already one email: YES confirms every night in it. Someone can still have several things waiting at once
+// (up to MAX_PENDING_PER_EMAIL sign-ups, and a drop asked from the calendar), each with its own email, and people answer the
+// newest one expecting that to be the answer. So while more than one thing waits for an address, every email to it lists
+// them all, numbered, under one code:
+//   YES (or YES except and dates)  does every item listed (the dates are left out of every sign-up listed);
+//   YES to ONLY THIS              does only what that email is about (its trigger); the rest stay waiting;
+//   NO                            declines only the trigger; the rest stay waiting.
+// A follow-up email (confirmed, dropped, kept) lists what is still waiting with YES. The list is stored (Bundles) as sent, so
+// a YES does what the person saw. Earlier emails keep working for their own sign-up or drop.
+
+function bundleCode_(bundleId) { return code_('u:' + bundleId); }
+
+function bundleItems_(bundle) { return String(bundle.items || '').split(' ').filter(Boolean); }
+
+// What waits for a YES from this address, earliest night first: {ref, kind 'b' | 'd', batch | entry, date}.
+function waitingStaff_(email, now) {
+  var items = [];
+  if (!email) return items;
+  var signups = rows_('Signups');
+  var emails = null;
+  rows_('Batches').forEach(function (batch) {
+    if (batchStatus_(batch, now) !== 'pending' || !sameAddress_(batch.email, email)) return;
+    var picks = signups.filter(function (entry) { return entry.batch_id === batch.batch_id && signupStatus_(entry, now) === 'pending' && !replacedBy_(entry, signups, now); });
+    if (picks.length) items.push({ ref: 'b:' + batch.batch_id, kind: 'b', batch: batch, picks: picks, signups: signups, date: picks.map(function (entry) { return entry.date; }).sort()[0] });
+  });
+  signups.forEach(function (entry) {
+    if (entry.status !== 'confirmed' || !(Number(entry.drop_at) > 0) || !(now - Number(entry.drop_at) < DROP_TTL_MS)) return;
+    if (!sameAddress_(contactOf_(entry, emails || (emails = rows_('Emails'))), email)) return;
+    items.push({ ref: 'd:' + entry.signup_id + ':' + entry.drop_at, kind: 'd', entry: entry, date: entry.date });
+  });
+  return items.sort(function (a, b) { return a.date.localeCompare(b.date) || a.ref.localeCompare(b.ref); });
+}
+
+// Whether the question a bundle item names still waits exactly as listed.
+function staffItemWaiting_(ref, batches, signups, now) {
+  var parts = String(ref).split(':');
+  if (parts[0] === 'b') {
+    var batch = batches.filter(function (entry) { return entry.batch_id === parts[1]; })[0];
+    return !!batch && batchStatus_(batch, now) === 'pending';
+  }
+  var entry = signups.filter(function (each) { return each.signup_id === parts[1]; })[0];
+  return !!entry && entry.status === 'confirmed' && entry.drop_at === parts[2] && now - Number(entry.drop_at) < DROP_TTL_MS;
+}
+
+// One numbered line of the list: what YES does to this item, in words.
+function staffItemLine_(item, now) {
+  if (item.kind === 'd') {
+    return { mark: 'DROP', tone: 'drop', text: 'Drop ' + shiftLabel_(item.entry) + ' on ' + dayLabel_(item.entry.date) + '.', short: 'drop that shift', keep: 'keep that shift' };
+  }
+  var changes = item.picks.map(function (entry) { var change = changeLine_(entry, item.signups, now); return change ? shortDay_(entry.date) + ': ' + change : ''; }).filter(Boolean);
+  var plain = item.picks.filter(function (entry) { return !changeLine_(entry, item.signups, now); });
+  var shown = plain.slice(0, 4).map(function (entry) { return shortDay_(entry.date) + ', ' + shiftLabel_(entry); });
+  var text = (plain.length ? 'Confirm ' + plain.length + ' shift' + (plain.length === 1 ? '' : 's') + ': ' + shown.join('; ') + (plain.length > 4 ? '; and ' + (plain.length - 4) + ' more' : '') + '.' : '') +
+    (changes.length ? (plain.length ? ' ' : '') + 'Change ' + changes.join('; ') + '.' : '') + ' Reply by ' + momentLabel_(Number(item.batch.expires_at)).replace(' Pacific Time', '') + ', or ' +
+    (item.picks.length === 1 ? 'it is' : 'they are') + ' released.';
+  return { mark: changes.length ? 'CHANGE' : 'SIGN-UP', tone: changes.length ? 'change' : 'signup', text: text, short: 'confirm that sign-up', keep: 'release that sign-up' };
+}
+
+// "#1 stays waiting", "#1 and #2 stay waiting".
+function othersWaiting_(numbers) {
+  var list = numbers.map(function (number) { return '#' + number; });
+  var text = list.length > 1 ? list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1] : list[0];
+  return text + (list.length > 1 ? ' stay waiting.' : ' stays waiting.');
+}
+
+// When more than one thing waits for this address (or, for an email that asks nothing, anything at all): a new Bundles row and
+// the blocks that list them, with the answers. trigger is what this email asks about ('b:…' or 'd:…:…'), or ''. null otherwise.
+function bundleFor_(to, trigger, now) {
+  var items = waitingStaff_(to, now);
+  var mine = trigger ? items.filter(function (item) { return item.ref === trigger; })[0] || null : null;
+  if (!items.length || (mine && items.length === 1) || (trigger && !mine)) return null;
+  var id = id_();
+  // Appended in one step, so it needs no lock: two emails at once never write the same row.
+  tab_('Bundles').appendRow([id, to, mine ? trigger : '', items.map(function (item) { return item.ref; }).join(' '), nowIso_()].map(function (value) { return "'" + value; }));
+  var lines = items.map(function (item) { return staffItemLine_(item, now); });
+  var count = items.length;
+  var number = mine ? items.indexOf(mine) + 1 : 0;
+  var others = [];
+  items.forEach(function (item, index) { if (item !== mine) others.push(index + 1); });
+  var own = mine ? lines[number - 1] : null;
+  var nights = items.some(function (item) { return item.kind === 'b'; });
+  return {
+    tag: refTag_(bundleCode_(id)),
+    blocks: [
+      { callout: mine ? '**Action needed: ' + count + ' things are waiting for your YES.** One reply answers them all. Nothing changes until you reply.' :
+        '**Still waiting for your YES:** ' + (count === 1 ? 'one thing' : count + ' things') + ', below. Nothing changes until you reply.', tone: 'action' },
+      { waiting: lines.map(function (line, index) { return Object.assign({ number: index + 1, current: index + 1 === number }, line); }) },
+      { choices: mine ? [
+        ['YES', 'Do **all ' + count + '** above.'],
+        ['YES to ONLY THIS', 'Do **only #' + number + '** (' + own.short + '). ' + othersWaiting_(others)],
+        ['NO', 'Do **not** do #' + number + ': ' + own.keep + '. ' + othersWaiting_(others)]
+      ] : [['YES', count === 1 ? 'Do #1 (' + lines[0].short + ').' : 'Do **all ' + count + '** above.']] },
+      'Tap an answer to start a reply with it filled in, then press **Send**. Or reply to this email with just ' + (mine ? '**YES**, **YES to ONLY THIS** or **NO**.' : '**YES**.') +
+        (nights ? ' Can\'t do some of those nights? Reply **YES except** and the dates, or untick them on your nights page: ' + mineLink_(to) : '')
+    ]
+  };
+}
+
+// A follow-up email with everything still waiting listed after its first two lines, and the list's code in its subject.
+function withWaiting_(to, subject, lines) {
+  var bundle = bundleFor_(to, '', Date.now());
+  if (!bundle) return { subject: subject, lines: lines };
+  return { subject: subject + ' ' + bundle.tag, lines: lines.slice(0, 2).concat(bundle.blocks, lines.slice(2)) };
+}
+
+// An answer to an email that listed everything waiting: 'yes' (skip: the dates of a YES except) does every item still waiting
+// as listed, 'only' just the trigger, 'no' declines just the trigger. A follow-up's NO changes nothing.
+function answerStaffBundle_(bundleId, answer, skip, at) {
+  var bundle = rows_('Bundles').filter(function (entry) { return entry.bundle_id === bundleId; })[0];
+  if (!bundle) return;
+  var refs = bundleItems_(bundle);
+  var plan = answer === 'yes' ? refs.map(function (ref) { return [ref, 'yes']; }) : bundle.trigger ? [[bundle.trigger, answer === 'only' ? 'yes' : 'no']] : [];
+  var done = 0;
+  plan.forEach(function (step) {
+    var now = Date.now();
+    if (!staffItemWaiting_(step[0], rows_('Batches'), rows_('Signups'), now)) return;
+    var parts = step[0].split(':');
+    var applied = parts[0] === 'b' ? batchAnswer_(parts[1], step[1], 'email', answer === 'yes' ? skip : null, true) : dropAnswer_(parts[1], step[1], true);
+    if (applied) done += 1;
+  });
+  logRow_('email', 'reply:bundle:' + answer, bundleId, '-', 'listed ' + refs.length + ', done ' + done);
+  try {
+    sweep_();
+  } catch (error) {
+    logError_('finish the sweep after an answer', error, bundleId);
+  }
+  if (plan.length) return;
+  try {
+    if (mailAvailable_()) {
+      var reply = withWaiting_(bundle.email, 'Your CTTC volunteer reply', ['Hello,', 'OK, nothing changed. Everything listed is still waiting for your YES.']);
+      sendMail_(bundle.email, reply.subject, reply.lines, ['bundle-answer-reply', bundleId]);
+    }
+  } catch (error) {
+    logError_('answer a sign-up reply', error, bundleId);
+  }
+}
+
+// Call while holding the lock. A list none of whose items still waits can no longer do anything.
+function pruneBundles_(now) {
+  var batches = rows_('Batches');
+  var signups = rows_('Signups');
+  rows_('Bundles').filter(function (bundle) {
+    return !bundleItems_(bundle).some(function (ref) { return staffItemWaiting_(ref, batches, signups, now); });
+  }).reverse().forEach(function (bundle) { tab_('Bundles').deleteRows(bundle._row, 1); });
+}
+
 // ---------- Answers: YES, NO, CONFIRM, RELEASE ----------
 
 // Applies a YES or NO to one submission. A YES while pending confirms every pick; a NO releases them. A YES after the hold
 // expired (up to LATE_MS later) confirms whichever picks are still free and the confirmation email lists the ones that were
 // not. Anything else changes nothing. skip: the dates of a "YES except" (exceptDates_), whose picks are released instead.
-function batchAnswer_(batchId, answer, channel, skip) {
+function batchAnswer_(batchId, answer, channel, skip, quiet) {
   skip = answer === 'yes' && skip ? skip : [];
   var batch = null;
   var person = null;
@@ -2133,6 +2344,8 @@ function batchAnswer_(batchId, answer, channel, skip) {
   var before = '';
   var late = null;
   var count = 0;
+  var drops = [];
+  var contact = '';
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -2153,14 +2366,22 @@ function batchAnswer_(batchId, answer, channel, skip) {
       applied = true;
       mine.forEach(function (entry) {
         if (signupStatus_(entry, now) !== 'pending') return;
+        // A newer sign-up replaces this pick: it waits on that one's answer, whatever this one says.
+        if (replacedBy_(entry, signups, now)) return;
         var keep = answer === 'yes' && skip.indexOf(entry.date) < 0;
         entry.status = keep ? 'confirmed' : 'released';
         if (keep) entry.confirmed_at = nowIso_();
         entry.updated_at = nowIso_();
         save_('Signups', entry);
+        if (keep) applyReplacement_(entry, signups, now, drops);
         if (keep || answer !== 'yes') count += 1;
       });
-      batch.status = answer === 'yes' && count ? 'confirmed' : 'released';
+      var waitingOnNewer = mine.some(function (entry) { return signupStatus_(entry, now) === 'pending'; });
+      if (!count && waitingOnNewer) {
+        applied = false;
+      } else {
+        batch.status = answer === 'yes' && count ? 'confirmed' : 'released';
+      }
     } else if (answer === 'yes' && changeOfMind_(batch, now)) {
       late = lateConfirm_(batch, mine.filter(function (entry) { return entry.status === 'released' && skip.indexOf(entry.date) < 0; }), signups, now);
       count = late.confirmed;
@@ -2189,9 +2410,11 @@ function batchAnswer_(batchId, answer, channel, skip) {
     save_('Batches', batch);
     if (applied) logRow_('step', 'step:' + batch.status, batchId, '-', (late ? 'late YES: ' + late.confirmed + ' confirmed, ' + late.missed + ' no longer free' : count + ' picks') +
       (skip.length ? ', ' + skip.length + ' night' + (skip.length === 1 ? '' : 's') + ' left out' : ''));
+    if (drops.length) contact = contactOf_(drops[0].entry, rows_('Emails'));
   } finally {
     lock.releaseLock();
   }
+  if (drops.length) tellDropped_(contact, drops);
   logReply_(channel, 'batch', batchId, answer, applied, batch.status);
   try {
     if (late && !applied && mailAvailable_()) {
@@ -2208,11 +2431,14 @@ function batchAnswer_(batchId, answer, channel, skip) {
   } catch (error) {
     logError_('answer a sign-up reply', error, batchId);
   }
+  // quiet: part of an answer to a list (answerBundle_), which sweeps once at the end.
+  if (quiet) return applied;
   try {
     sweep_();
   } catch (error) {
     logError_('finish the sweep after an answer', error, batchId);
   }
+  return applied;
 }
 
 // A sign-up released by a NO in the last LATE_MS: a YES (or YES except) after it confirms whichever nights are still free.
@@ -2324,7 +2550,7 @@ function clubFix_(batchId, keep) {
 }
 
 // Applies a YES or NO to a "drop this shift" email. A YES opens the slot again and tells the person and the club.
-function dropAnswer_(signupId, answer) {
+function dropAnswer_(signupId, answer, quiet) {
   var entry = null;
   var applied = false;
   var lock = LockService.getScriptLock();
@@ -2346,15 +2572,20 @@ function dropAnswer_(signupId, answer) {
     lock.releaseLock();
   }
   logReply_('email', 'drop', entry ? entry.batch_id : signupId, answer, applied, entry ? entry.status : '');
-  if (!applied) return;
-  if (answer === 'yes') return tellDropped_(contact, [{ entry: entry }]);
+  if (!applied) return false;
+  if (answer === 'yes') {
+    tellDropped_(contact, [{ entry: entry }]);
+    return true;
+  }
   try {
     if (mailAvailable_()) {
-      sendMail_(contact, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + dayLabel_(entry.date) + '. Thank you!'], ['drop-kept', entry.signup_id]);
+      var kept = withWaiting_(contact, 'Your CTTC shift stays as it is', ['OK, nothing changed: you are still on for ' + shiftLabel_(entry) + ' on ' + dayLabel_(entry.date) + '. Thank you!']);
+      sendMail_(contact, kept.subject, kept.lines, ['drop-kept', entry.signup_id]);
     }
   } catch (error) {
     logError_('confirm a kept shift', error, entry.batch_id);
   }
+  return true;
 }
 
 // Call without the lock. After confirmed shifts were dropped (by email or on the My nights page): one email to the person and
@@ -2370,11 +2601,13 @@ function tellDropped_(contact, drops) {
   };
   var many = drops.length > 1;
   attempt('confirm a dropped shift', function () {
-    sendMail_(contact, many ? 'Shifts dropped: ' + drops.length + ' CTTC shifts' : 'Shift dropped: ' + shortDay_(first.date), ['Hello ' + firstName_(first.name) + ',',
+    var lines = ['Hello ' + firstName_(first.name) + ',',
       many ? 'Done: you are off these shifts. The spots are open for someone else and the club has been told.' :
         'Done: you are off ' + shiftLabel_(first) + ' on ' + dayLabel_(first.date) + '. The spot is open for someone else and the club has been told.',
       many ? shiftRows_(drops.map(function (drop) { return drop.entry; })) : null,
-      'Thanks for letting us know early. You can see your other nights at ' + mineLink_(contact) + ', or pick another night any time at ' + PAGE_URL + '.'], ['drop-done', first.signup_id]);
+      'Thanks for letting us know early. You can see your other nights at ' + mineLink_(contact) + ', or pick another night any time at ' + PAGE_URL + '.'];
+    var told = withWaiting_(contact, many ? 'Shifts dropped: ' + drops.length + ' CTTC shifts' : 'Shift dropped: ' + shortDay_(first.date), lines);
+    sendMail_(contact, told.subject, told.lines, ['drop-done', first.signup_id]);
   });
   attempt('tell the club about a dropped shift', function () {
     sendMail_(adminEmail_(), many ? 'Staffing: ' + first.name + ' dropped ' + drops.length + ' shifts' : 'Staffing: ' + first.name + ' dropped ' + position_(first.position).label + ' on ' + shortDay_(first.date),
@@ -2494,8 +2727,14 @@ function saveMyNights(code, choice) {
         done.dropped.push(entry.date);
         logRow_('step', 'step:dropped', entry.batch_id, '-', entry.position + ' on ' + entry.date + ', from My nights');
       } else {
+        // Kept, but a newer sign-up replaces it: it waits on that one's YES.
+        if (kept && replacedBy_(entry, signups, now)) {
+          done.skipped += 1;
+          return;
+        }
         entry.status = kept ? 'confirmed' : 'released';
         if (kept) entry.confirmed_at = nowIso_();
+        if (kept) applyReplacement_(entry, signups, now, drops);
         done[kept ? 'confirmed' : 'released'].push(entry.date);
         touched[entry.batch_id] = true;
       }
@@ -2843,10 +3082,19 @@ function emailQuestions_(now) {
     }
   });
   var emails = null;
-  rows_('Signups').forEach(function (entry) {
+  var signups = rows_('Signups');
+  signups.forEach(function (entry) {
     if (entry.status === 'confirmed' && Number(entry.drop_at) > 0 && now - Number(entry.drop_at) < DROP_TTL_MS) {
       questions.push({ code: dropCode_(entry), email: contactOf_(entry, emails || (emails = rows_('Emails'))), after: Number(entry.drop_at), kind: 'drop', id: entry.signup_id });
     }
+  });
+  // An email that listed everything waiting stays a question while anything it listed still waits.
+  var batches = rows_('Batches');
+  rows_('Bundles').forEach(function (bundle) {
+    var refs = bundleItems_(bundle);
+    if (!refs.some(function (ref) { return staffItemWaiting_(ref, batches, signups, now); })) return;
+    questions.push({ code: bundleCode_(bundle.bundle_id), email: bundle.email, after: Date.parse(bundle.created_at) || 0, kind: 'bundle', id: bundle.bundle_id,
+      batches: refs.filter(function (ref) { return ref.charAt(0) === 'b'; }).map(function (ref) { return ref.slice(2); }) });
   });
   return questions;
 }
@@ -2885,18 +3133,21 @@ function checkMail_() {
       }
       if (autoReply_(message)) return;
       var text = replyText_(message);
-      var answer = answerOf_(text);
+      var answer = onlyThis_(text) ? (question.kind === 'bundle' ? 'only' : 'yes') : answerOf_(text);
+      // To a list, a yes that also says "only" or "but" ("yes, only the Monday one") is unclear rather than guessed at.
+      if (question.kind === 'bundle' && answer === 'yes' && /\b(only|but)\b/.test(answerLines_(text)[0] || '')) answer = '';
       var skip = null;
-      var except = question.kind === 'batch' ? exceptOf_(text) : null;
+      var except = question.kind === 'batch' || question.kind === 'bundle' ? exceptOf_(text) : null;
       if (except) {
-        var picked = except.unclear ? null : exceptDates_(except, nightsOf_(question.id));
+        var nights = question.kind === 'bundle' ? [].concat.apply([], question.batches.map(nightsOf_)) : nightsOf_(question.id);
+        var picked = except.unclear ? null : exceptDates_(except, nights);
         if (!picked || picked.missing) {
           if (recent) unclearExcept_(message.getId(), address, String(message.getSubject() || ''), question.id, picked ? picked.missing : null);
           return;
         }
         answer = 'yes';
         skip = picked.dates;
-      } else if (question.kind === 'batch' && answer === 'no' && namesDate_(text)) {
+      } else if ((question.kind === 'batch' || question.kind === 'bundle') && answer === 'no' && namesDate_(text)) {
         // "No for Oct 19 and Nov 2" most likely means only those nights: a NO would release them all, so nothing is guessed.
         if (recent) unclearExcept_(message.getId(), address, String(message.getSubject() || ''), question.id, null);
         return;
@@ -2913,6 +3164,7 @@ function checkMail_() {
   Object.keys(answers).forEach(function (code) {
     var found = answers[code];
     if (found.question.kind === 'batch') batchAnswer_(found.question.id, found.answer, 'email', found.skip);
+    else if (found.question.kind === 'bundle') answerStaffBundle_(found.question.id, found.answer, found.skip, found.at);
     else if (found.question.kind === 'club') clubAnswer_(found.question.id, found.answer);
     else dropAnswer_(found.question.id, found.answer);
   });
@@ -3043,7 +3295,7 @@ function ownWords_(text) {
     var line = lines[i];
     var next = lines[i + 1] || '';
     // A signature or quote marker inside a line ends their words there too (HTML-only replies can run lines together).
-    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC shift |reply (yes|no):|concord table tennis club|_{5,}/i);
+    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC shift |reply (yes|no|yes to only this):|concord table tennis club|_{5,}/i);
     if (glued > 0) {
       mine.push(line.slice(0, glued).trim());
       break;
@@ -3067,6 +3319,13 @@ function answerOf_(text) {
   if (yes && /\b(no|nope|nah|not|can't|cannot|cant|except|excluding|besides|minus|without)\b|\b(apart|other) (from|than)\b/.test(rest)) return '';
   if (no && /\b(yes|yeah|yep|yup)\b/.test(rest)) return '';
   return yes ? 'yes' : no ? 'no' : '';
+}
+
+// YES to ONLY THIS (the button's words), "yes, only this one", "yes just this", "only this (one)", "yes to only this, not the
+// others". Without a yes only the bare words count: "only this week works" is not an answer.
+function onlyThis_(text) {
+  var line = answerLines_(text)[0] || '';
+  return /^(y|yes|yeah|yep|yup|yess+)\b[\s,.:;!-]*(to\s+)?(only|just)\s+(this|that)\b/.test(line) || /^(only|just)\s+(this|that)(\s+one)?[\s.!]*$/.test(line);
 }
 
 // The person's own lines in lower case, from the first that is not empty or a bare greeting ("Hi Sam,"); a leading "ok",
@@ -3414,6 +3673,7 @@ function sweep_() {
     });
     cancelClosed_(signups, rows_('Emails'));
     remind_(signups, rows_('Emails'), now);
+    pruneBundles_(now);
     trimLog_();
   } catch (error) {
     logError_('finish the sweep', error);
@@ -3436,8 +3696,11 @@ function deliverBatch_(batch, signups, now) {
   var mine = signups.filter(function (entry) { return entry.batch_id === batch.batch_id; }).sort(function (a, b) {
     return (a.date + POSITIONS.indexOf(position_(a.position))).localeCompare(b.date + POSITIONS.indexOf(position_(b.position)));
   });
-  var message = batchMail_(batch, mine, now);
   if (!mailAvailable_()) return;
+  // While anything else waits for this address, the question lists it all; a confirmation lists what still waits.
+  var bundle = batch.status === 'pending' ? bundleFor_(batch.email, 'b:' + batch.batch_id, now) : null;
+  var message = batchMail_(batch, mine, now, bundle, signups);
+  if (batch.status === 'confirmed') message = Object.assign(message, withWaiting_(batch.email, message.subject, message.lines));
   try {
     sendMail_(message.to || batch.email, message.subject, message.lines, ['batch:' + batch.status, batch.batch_id], message.to ? CLUB_FOOTER : null);
   } catch (error) {
@@ -3557,7 +3820,8 @@ function replyLink_(subject, answer) {
   return 'mailto:' + Session.getEffectiveUser().getEmail() + '?subject=' + encodeURIComponent('Re: ' + subject) + '&body=' + encodeURIComponent(answer);
 }
 
-function batchMail_(batch, mine, now) {
+function batchMail_(batch, mine, now, bundle, signups) {
+  signups = signups || mine;
   var hello = 'Hello ' + (firstName_(batch.name) || 'there') + ',';
   var deadline = momentLabel_(Number(batch.expires_at));
   var unavailable = mine.filter(function (entry) { return entry.status === 'unavailable'; });
@@ -3586,30 +3850,37 @@ function batchMail_(batch, mine, now) {
     held.forEach(function (entry) { nights[entry.date] = true; });
     var many = Object.keys(nights).length;
     var count = many === 1 ? 'this night' : 'all ' + many + ' nights';
-    var subject = 'Please confirm your CTTC volunteer ' + (many === 1 ? 'night ' : 'nights ') + refTag_(batchCode_(batch));
-    return { subject: subject, lines: [hello,
-      batch.source === 'seed' ? 'You\'re on the club\'s open/close list, which has moved to the new volunteer calendar. Please confirm your nights so they show as yours.' : null,
-      approved ? 'The club approved your email address: from now on we use it for your sign-ups.' : null,
+    var subject = 'Please confirm your CTTC volunteer ' + (many === 1 ? 'night ' : 'nights ') + (bundle ? bundle.tag : refTag_(batchCode_(batch)));
+    // A pick that replaces the person's own earlier pick that night, shown as the change it is.
+    var changes = held.map(function (entry) { var change = changeLine_(entry, signups, now); return change ? [shortDay_(entry.date), change] : null; }).filter(Boolean);
+    var answers = bundle ? bundle.blocks : [
       { callout: 'Please confirm ' + count + ' by **' + deadline + '**.', tone: 'action' },
       { buttons: [['Yes, confirm ' + count, replyLink_(subject, 'YES'), 'good']].concat(many > 1 ? [['Yes, except some nights', mineLink_(batch.email), 'some']] : [],
         [['No, release ' + (many === 1 ? 'it' : 'them'), replyLink_(subject, 'NO'), 'bad']]) },
       many > 1 ? 'The Yes and No buttons open a reply with YES or NO already filled in: just press send. "Yes, except some nights" opens your nights on the club website: untick the ones you can\'t do and tap Save.' :
         'Each button opens a reply with YES or NO already filled in: just press send.',
       many > 1 ? 'Or reply to this email with **YES**, **NO**, or **YES except** and the dates you can\'t do, like **YES except ' + exampleDates_(held) + '**.' :
-        'Or reply to this email with **YES** or **NO**.',
-      { heading: 'Your nights' }, { calendar: held, closed: closedAround_(held) }, { schedule: held },
+        'Or reply to this email with **YES** or **NO**.'];
+    return { subject: subject, lines: [hello,
+      batch.source === 'seed' ? 'You\'re on the club\'s open/close list, which has moved to the new volunteer calendar. Please confirm your nights so they show as yours.' : null,
+      approved ? 'The club approved your email address: from now on we use it for your sign-ups.' : null].concat(answers, [
+      changes.length ? { heading: 'Changes to your earlier sign-up' } : null, changes.length ? { rows: changes } : null,
+      changes.length ? 'Your YES makes ' + (changes.length === 1 ? 'this change' : 'these changes') + '. Until then your earlier ' + (changes.length === 1 ? 'pick stays' : 'picks stay') + ' as ' +
+        (changes.length === 1 ? 'it is' : 'they are') + ', and both are held.' : null,
+      { heading: bundle ? 'Details of this sign-up: your nights' : 'Your nights' }, { calendar: held, closed: closedAround_(held) }, { schedule: held },
       unavailable.length ? { heading: 'No longer free by the time the club approved your email' } : null, unavailable.length ? shiftRows_(unavailable) : null,
       { heading: 'What each position does' }, { roles: held },
       { heading: 'Good to know' },
       { bullets: ['Until you reply, these nights are held for you and show on the calendar as "waiting to confirm".',
         'No reply by ' + deadline + '? They are released so someone else can take them.',
         'Can\'t make a night later on? Untick it on your nights page: ' + mineLink_(batch.email),
-        'Didn\'t sign up? Ignore this email: nothing is confirmed without your YES.'] }] };
+        'Didn\'t sign up? Ignore this email: nothing is confirmed without your YES.'] }]) };
   }
   if (batch.status === 'confirmed') {
     var confirmed = mine.filter(function (entry) { return entry.status === 'confirmed' || entry.status === 'dropped'; });
     var missed = batch.late === 'yes' ? mine.filter(function (entry) { return signupStatus_(entry, now) === 'expired'; }) : [];
     var left = mine.filter(function (entry) { return entry.status === 'released'; });
+    var onNewer = mine.filter(function (entry) { return signupStatus_(entry, now) === 'pending' && replacedBy_(entry, signups, now); });
     // Answered with exceptions, or after a NO, or put right by the club: the email says plainly what is on the schedule now.
     var updated = ['yes except', 'yes again', 'club fix', 'my nights'].indexOf(batch.answer) >= 0;
     return { subject: updated ? 'Understood: your CTTC volunteer nights are updated' : 'You are on the CTTC staff schedule', lines: [hello,
@@ -3619,6 +3890,9 @@ function batchMail_(batch, mine, now) {
       { calendar: confirmed, closed: closedAround_(confirmed) }, updated ? null : { schedule: confirmed },
       missed.length ? { heading: 'Not confirmed: these were no longer free' } : null, missed.length ? shiftRows_(missed) : null,
       left.length ? { heading: 'Left out, as you asked' } : null, left.length ? shiftRows_(left) : null,
+      onNewer.length ? { heading: 'Waiting on your newer sign-up' } : null,
+      onNewer.length ? 'Your newer sign-up replaces ' + (onNewer.length === 1 ? 'this one' : 'these') + ', so ' + (onNewer.length === 1 ? 'it was' : 'they were') + ' not confirmed here. Your YES to that email makes the change.' : null,
+      onNewer.length ? shiftRows_(onNewer) : null,
       { heading: 'Where' }, LOCATION,
       { heading: 'Can\'t make a night after all?' },
       'Untick it on your nights page and tap Save. The rest stay as they are, and the club is told: ' + mineLink_(batch.email)] };
@@ -3673,16 +3947,23 @@ function adminEmail_() { return property_('ADMIN_EMAIL', Session.getEffectiveUse
 function mailAvailable_() { return MailApp.getRemainingDailyQuota() > MIN_QUOTA; }
 
 // **text** is bold in HTML and plain in text; links become clickable (a full stop after one is not part of it).
+// A change is shown as the desk shows a player edit: ~~old~~ struck through in red, ++new++ in bold green (in plain text,
+// "old (replaced)" and the new value).
 function mailHtml_(text) {
-  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]*[A-Za-z0-9_\/=%-])/g, '<a href="$1">$1</a>');
+  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/~~(.+?)~~/g, '<del style="color:#8a3b2b;">$1</del>').replace(/\+\+(.+?)\+\+/g, '<ins style="color:#1f6b3a;font-weight:700;text-decoration:none;">$1</ins>')
+    .replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]*[A-Za-z0-9_\/=%-])/g, '<a href="$1">$1</a>');
 }
 
-function mailText_(text) { return String(text).replace(/\*\*/g, ''); }
+function mailText_(text) { return String(text).replace(/\*\*/g, '').replace(/~~(.+?)~~/g, '$1 (replaced)').replace(/\+\+(.+?)\+\+/g, '$1'); }
 
 // A block is a paragraph string, or { heading }, { callout, tone }, { rows: [[label, value, link]] } or { choices: [[reply, meaning]] }.
 function blockText_(block) {
   if (typeof block === 'string') return mailText_(block);
   if (block.choices) return block.choices.map(function (choice) { return 'Reply ' + choice[0] + ': ' + mailText_(choice[1]); }).join('\n');
+  if (block.waiting) {
+    return block.waiting.map(function (line) { return line.number + '. ' + line.mark + ': ' + mailText_(line.text) + (line.current ? ' (THIS EMAIL)' : ''); }).join('\n');
+  }
   if (block.heading) return block.heading.toUpperCase();
   if (block.callout) return mailText_(block.callout);
   if (block.rows) return block.rows.map(function (row) { return row[0] + ': ' + mailText_(row[1]); }).join('\n');
@@ -3821,15 +4102,29 @@ function blockHtml_(block) {
   }
   if (block.choices) {
     return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 14px;font-size:15px;">' + block.choices.map(function (choice) {
-      return '<tr><td style="padding:4px 12px 4px 0;vertical-align:top;white-space:nowrap;"><span style="display:inline-block;min-width:88px;text-align:center;padding:3px 8px;border-radius:4px;font-weight:700;color:#fff;background:' +
-        (choice[0] === 'YES' ? '#1f6b3a' : '#a3332a') + ';">Reply ' + esc_(choice[0]) + '</span></td><td style="padding:6px 0;vertical-align:top;">' + mailHtml_(choice[1]) + '</td></tr>';
+      var color = choice[0] === 'NO' ? '#a3332a' : choice[0] === 'YES' ? '#1f6b3a' : '#1f4f8f';
+      var button = 'display:inline-block;min-width:88px;text-align:center;font-weight:700;color:#fff;background:' + color + ';';
+      // With a subject, the button starts a reply with the subject (and so its code) and the answer already written.
+      var cell = block.subject ? '<a href="' + esc_(replyLink_(block.subject, choice[0])) + '" style="' + button + 'padding:9px 14px;border-radius:6px;text-decoration:none;">' + esc_(choice[0]) + '</a>' :
+        '<span style="' + button + 'padding:3px 8px;border-radius:4px;">Reply ' + esc_(choice[0]) + '</span>';
+      return '<tr><td style="padding:5px 12px 5px 0;vertical-align:middle;white-space:nowrap;">' + cell + '</td><td style="padding:6px 0;vertical-align:middle;">' + mailHtml_(choice[1]) + '</td></tr>';
     }).join('') + '</table>';
+  }
+  if (block.waiting) {
+    var marks = { drop: '#a3332a', change: '#8a5a00', signup: '#1f4f8f' };
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 14px;font-size:15px;width:100%;border:1px solid #ddd;">' +
+      block.waiting.map(function (line) {
+        return '<tr style="' + (line.current ? 'background:#fff3b0;' : '') + 'border-top:1px solid #ddd;"><td style="padding:8px 10px;vertical-align:top;font-weight:700;font-size:18px;">' + line.number +
+          '</td><td style="padding:8px 10px 8px 0;vertical-align:top;"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:12px;font-weight:700;color:#fff;background:' +
+          (marks[line.tone] || '#555') + ';">' + esc_(line.mark) + '</span>' + (line.current ? ' <strong>THIS EMAIL</strong>' : '') + '<br>' + mailHtml_(line.text) + '</td></tr>';
+      }).join('') + '</table>';
   }
   return '';
 }
 
 function sendMail_(to, subject, lines, log, footer) {
-  var blocks = lines.filter(Boolean);
+  // Each answer is a button that starts the reply (a choices block without its own subject gets this email's).
+  var blocks = lines.filter(Boolean).map(function (block) { return block.choices && !block.subject ? Object.assign({ subject: subject }, block) : block; });
   footer = footer || 'This message is only about your CTTC volunteer sign-up. It does not add you to any mailing list.';
   var body = blocks.map(blockText_).filter(Boolean).concat(footer).join('\n\n');
   var html = '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px;">' + blocks.map(blockHtml_).join('') +

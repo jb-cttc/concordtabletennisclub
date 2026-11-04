@@ -300,7 +300,7 @@ properties.DESK_SHEET_ID = 'desk-sheet-id';
 const setupResult = JSON.parse(JSON.stringify(context.setup()));
 assert.equal(setupResult.players, PLAYERS.filter(player => player[2] === true || /^true$/i.test(player[2])).length + ' active players', 'inactive rows are left out of the player list');
 assert.equal(setupResult.mode, 'directory', 'v1 signs up from the player list only');
-assert.deepEqual(books['private-book-id'].names(), ['Batches', 'Closures', 'Emails', 'Log', 'MemberEmailReport', 'People', 'SeedLinks', 'SeedReport', 'Signups', 'Training']);
+assert.deepEqual(books['private-book-id'].names(), ['Batches', 'Bundles', 'Closures', 'Emails', 'Log', 'MemberEmailReport', 'People', 'SeedLinks', 'SeedReport', 'Signups', 'Training']);
 assert.deepEqual(grids.Emails[0], ['player_id', 'name', 'email', 'phone', 'source', 'status', 'requested_at', 'decided_at', 'batch_id']);
 // Emails on file, as the owner would type them, for everyone but NO_EMAIL.
 PLAYERS.forEach(([id, name]) => { if (!NO_EMAIL.includes(name) && !/Queue$/.test(name)) grids.Emails.push([id, name, emailOf(name), '', 'owner', 'approved', '', '', '']); });
@@ -512,7 +512,16 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.deepEqual(night(F).slots.close, [{ name: 'Ada', pending: false, finalize: true, id: night(F).slots.close[0].id }]);
   assert.match(signUp('Ben Ortiz', [[F, 'close', true]]).problems[0].reason, /already finalizing/, 'one finalizer per night');
   assert.equal(signUp('Ben Ortiz', [[F, 'close']]).ok, true, 'closing without finalizing is fine');
-  assert.match(signUp('Ada Park', [[F, 'money']]).problems[0].reason, /one opening position/, 'checked against earlier sign-ups too');
+  // Her own earlier opening picks that night are not a reason to refuse: the new pick replaces them once she says YES (below).
+  sent.length = 0;
+  assert.equal(signUp('Ada Park', [[F, 'money']]).ok, true, 'a pick that clashes with her own earlier ones replaces them');
+  const swap = signupRows().filter(line => cell('Signups', line, 'player_id') === idOf('Ada Park') && cell('Signups', line, 'date') === F && cell('Signups', line, 'position') === 'money').pop();
+  assert.equal(cell('Signups', swap, 'replaces').split(' ').length, 2, 'both her desk and her setup pick that night');
+  assert.equal(statusOf('Ada Park', F, 'desk'), 'confirmed', 'nothing changes before the YES');
+  reply(emailOf('Ada Park'), 'NO', /^Please confirm your CTTC volunteer night/);
+  assert.equal(statusOf('Ada Park', F, 'money'), 'released');
+  assert.equal(statusOf('Ada Park', F, 'desk'), 'confirmed', 'a NO keeps what she had');
+  assert.match(signUp('Ada Park', [[F, 'desk']]).problems[0].reason, /already signed up for Desk organizer that night/, 'the same position again is refused');
   const many = [];
   for (let day = 0; many.length < 41; day += 1) many.push(['2026-11-02', 'tables']);
   assert.match(signUp('Cal Diaz', many).message, /at most 40/);
@@ -661,7 +670,6 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   // Read as table/barrier setup at once, before the sweep writes anything.
   assert.deepEqual(night(D).slots.tables.map(slot => [slot.name, slot.pending]), [['Gus', false], ['Hal', true]], 'shown under table/barrier setup');
   assert.equal(night(D).slots['desk-backup'], undefined);
-  assert.match(signUp('Gus Hale', [[D, 'money']]).problems[0].reason, /one opening position/, 'still their one opening position that night');
   const logged = () => grids.Log.filter(line => line[2] === 'step:backups-retired');
   assert.equal(logged().length, 0);
   context.sweep();
@@ -672,6 +680,11 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   assert.doesNotMatch(JSON.stringify(signupRows()), /-backup/, 'none left');
   context.sweep();
   assert.equal(logged().length, 1, 'a later sweep has nothing to move');
+  assert.equal(signUp('Gus Hale', [[D, 'money']]).ok, true);
+  const money = signupRows().filter(line => cell('Signups', line, 'player_id') === idOf('Gus Hale') && cell('Signups', line, 'position') === 'money').pop();
+  assert.equal(cell('Signups', money, 'replaces'), cell('Signups', row('Gus Hale'), 'signup_id'), 'still their one opening position that night, so a new one replaces it');
+  reply(emailOf('Gus Hale'), 'NO');
+  assert.equal(statusOf('Gus Hale', D, 'tables'), 'confirmed', 'his NO to the new pick keeps the old one');
   // Hal's YES still confirms it, now as table/barrier setup.
   reply(emailOf('Hal Reed'), 'YES');
   assert.equal(statusOf('Hal Reed', D, 'tables'), 'confirmed');
@@ -1530,6 +1543,105 @@ seedCheck();
   assert.equal(context.checkOptIns_(), false, 'the STAFF and STOP check skips its work within 5 minutes of the last one');
 }
 
+// ---- Everything waiting, in one email; a newer pick replaces the person's own clashing one ----
+{
+  // Tapping an answer button: a new message to the club with the subject and the answer filled in, and the phone's signature.
+  const tap = (message, answer, from = message.to) => {
+    const links = [...message.htmlBody.matchAll(/href="(mailto:[^"]+)"/g)].map(match => new URL(match[1].replace(/&amp;/g, '&')));
+    const link = links.find(url => url.searchParams.get('body') === answer);
+    assert.ok(link, 'the email has a ' + answer + ' button');
+    assert.equal(link.searchParams.get('subject'), 'Re: ' + message.subject, 'with the subject, so its code');
+    clock += 60000;
+    const at = clock;
+    const id = 'e' + messageCount++;
+    mailbox.push({ getId: () => id, getFrom: () => 'Someone <' + from + '>', getSubject: () => link.searchParams.get('subject'), getDate: () => new Date(at),
+      getPlainBody: () => link.searchParams.get('body') + '\n\nSent from my iPhone' });
+    check();
+  };
+  const latest = (address, pattern) => mailTo(address).filter(message => pattern.test(message.subject)).pop();
+  const [A, B, C, W] = ['2026-12-12', '2026-12-19', '2026-12-26', '2026-12-16'];
+  // Two sign-ups waiting: the second email lists both, numbered, with the three answers.
+  const kai = emailOf('Kai Ford');
+  sent.length = 0;
+  assert.equal(signUp('Kai Ford', [[A, 'tables'], [B, 'tables']]).ok, true);
+  const first = latest(kai, /^Please confirm/);
+  assert.doesNotMatch(first.body, /ONLY THIS/, 'one sign-up waiting: the email is as before');
+  assert.equal(signUp('Kai Ford', [[W, 'close']]).ok, true);
+  const second = latest(kai, /^Please confirm/);
+  assert.match(second.subject, /^Please confirm your CTTC volunteer night \[CTTC shift [0-9A-F]{10}\]$/);
+  assert.notEqual(second.subject.slice(-12), first.subject.slice(-12), 'under a new code');
+  assert.match(second.body, /Action needed: 2 things are waiting for your YES\. One reply answers them all\. Nothing changes until you reply\.\n\n1\. SIGN-UP: Confirm 2 shifts: [^\n]+Table\/barrier setup[^\n]+\n2\. SIGN-UP: Confirm 1 shift: [^\n]+Put tables and barriers away[^\n]+ \(THIS EMAIL\)\n\nReply YES: Do all 2 above\.\nReply YES to ONLY THIS: Do only #2 \(confirm that sign-up\)\. #1 stays waiting\.\nReply NO: Do not do #2: release that sign-up\. #1 stays waiting\./);
+  assert.match(second.body, /Can't do some of those nights\? Reply YES except and the dates, or untick them on your nights page: https:\/\/concordtabletennisclub\.com\/\?mine=/);
+  assert.match(second.body, /DETAILS OF THIS SIGN-UP: YOUR NIGHTS/);
+  tap(second, 'YES');
+  assert.deepEqual([statusOf('Kai Ford', A, 'tables'), statusOf('Kai Ford', B, 'tables'), statusOf('Kai Ford', W, 'close')], ['confirmed', 'confirmed', 'confirmed'], 'one YES did both');
+  assert.equal(grids.Log.filter(line => line[2] === 'reply:bundle:yes').pop()[5], 'listed 2, done 2');
+  // YES to ONLY THIS does that sign-up; its confirmation lists what still waits, and a YES to it does that.
+  const lu = emailOf('Lu Chen');
+  assert.equal(signUp('Lu Chen', [[A, 'close']]).ok, true);
+  assert.equal(signUp('Lu Chen', [[B, 'close']]).ok, true);
+  tap(latest(lu, /^Please confirm/), 'YES to ONLY THIS');
+  assert.deepEqual([statusOf('Lu Chen', A, 'close'), statusOf('Lu Chen', B, 'close')], ['pending', 'confirmed']);
+  const thanks = latest(lu, /^You are on the CTTC staff schedule/);
+  assert.match(thanks.subject, /^You are on the CTTC staff schedule \[CTTC shift [0-9A-F]{10}\]$/);
+  assert.match(thanks.body, /Still waiting for your YES: one thing, below\. Nothing changes until you reply\.\n\n1\. SIGN-UP: Confirm 1 shift: [^\n]+\n\nReply YES: Do #1 \(confirm that sign-up\)\./);
+  assert.doesNotMatch(thanks.body, /ONLY THIS|Reply NO/);
+  answerMail(lu, 'Yes, but only Saturday', thanks.subject);
+  assert.equal(statusOf('Lu Chen', A, 'close'), 'pending', 'an unclear yes to a list changes nothing');
+  answerMail(lu, 'YES', thanks.subject);
+  assert.equal(statusOf('Lu Chen', A, 'close'), 'confirmed');
+  // YES except leaves dates out of every sign-up listed.
+  const jo = emailOf('Jo Banks');
+  assert.equal(signUp('Jo Banks', [[A, 'close'], [B, 'close']]).ok, true);
+  assert.equal(signUp('Jo Banks', [[C, 'close']]).ok, true);
+  answerMail(jo, 'YES except Dec 19', latest(jo, /^Please confirm/).subject);
+  assert.deepEqual([statusOf('Jo Banks', A, 'close'), statusOf('Jo Banks', B, 'close'), statusOf('Jo Banks', C, 'close')], ['confirmed', 'released', 'confirmed']);
+  // A drop asked from the calendar and a new sign-up: one reply does both.
+  const joC = signupRows().find(line => cell('Signups', line, 'email') === jo && cell('Signups', line, 'date') === C);
+  assert.equal(run('requestDrop', cell('Signups', joC, 'signup_id')).ok, true);
+  assert.doesNotMatch(latest(jo, /^Drop your CTTC shift/).body, /ONLY THIS/, 'one thing waiting: the drop email is as before');
+  clock += 60000;
+  assert.equal(signUp('Jo Banks', [[W, 'close']]).ok, true);
+  const both = latest(jo, /^Please confirm/);
+  assert.match(both.body, /1\. SIGN-UP: Confirm 1 shift: [^\n]+\n2\. DROP: Drop Put tables and barriers away[^\n]+Saturday, December 26, 2026\./);
+  tap(both, 'YES');
+  assert.deepEqual([statusOf('Jo Banks', W, 'close'), statusOf('Jo Banks', C, 'close')], ['confirmed', 'dropped']);
+  assert.ok(mailTo('owner@example.com').some(message => /^Staffing: Jo Banks dropped /.test(message.subject)), 'the club hears of the drop as always');
+
+  // A pick that clashes with her own confirmed one that night replaces it on YES, shown as a change.
+  sent.length = 0;
+  assert.equal(signUp('Kai Ford', [[A, 'money']]).ok, true);
+  const swap = latest(kai, /^Please confirm/);
+  assert.match(swap.body, /CHANGES TO YOUR EARLIER SIGN-UP\n\n[^\n]+: Table\/barrier setup, confirmed \(replaced\) → Money collector \(Front Desk\)\n\nYour YES makes this change\. Until then your earlier pick stays as it is, and both are held\./);
+  assert.match(swap.htmlBody, /<del style="color:#8a3b2b;">Table\/barrier setup, confirmed<\/del> → <ins style="color:#1f6b3a;font-weight:700;text-decoration:none;">Money collector \(Front Desk\)<\/ins>/, 'as the desk shows a change');
+  assert.equal(statusOf('Kai Ford', A, 'tables'), 'confirmed', 'nothing changes before the YES');
+  reply(kai, 'YES');
+  assert.deepEqual([statusOf('Kai Ford', A, 'money'), statusOf('Kai Ford', A, 'tables')], ['confirmed', 'dropped'], 'the YES makes the change');
+  assert.ok(mailTo('owner@example.com').some(message => /^Staffing: Kai Ford dropped Table\/barrier setup/.test(message.subject)), 'and the club is told, as for a drop');
+  // A replaced pick stops counting in its own, older email.
+  assert.equal(signUp('Lu Chen', [[W, 'tables'], [C, 'tables']]).ok, true);
+  const older = latest(lu, /^Please confirm/);
+  assert.equal(signUp('Lu Chen', [[W, 'money']]).ok, true);
+  const newer = latest(lu, /^Please confirm/);
+  assert.match(newer.body, /CHANGE: Change [^\n]+Table\/barrier setup, waiting to confirm \(replaced\) → Money collector \(Front Desk\)/, 'the list shows the change too');
+  answerMail(lu, 'YES', older.subject);
+  assert.deepEqual([statusOf('Lu Chen', C, 'tables'), statusOf('Lu Chen', W, 'tables')], ['confirmed', 'pending'], 'its other night is confirmed; the replaced one waits on the newer sign-up');
+  assert.match(latest(lu, /^You are on the CTTC staff schedule/).body, /WAITING ON YOUR NEWER SIGN-UP\n\nYour newer sign-up replaces this one, so it was not confirmed here\./);
+  tap(newer, 'YES to ONLY THIS');
+  assert.deepEqual([statusOf('Lu Chen', W, 'money'), statusOf('Lu Chen', W, 'tables')], ['confirmed', 'released']);
+  // What counts as YES to ONLY THIS.
+  for (const [text, only] of [['YES to ONLY THIS', true], ['yes, only this one', true], ['Only this', true], ['yes just this\n\nSent from my iPhone', true], ['Only this week works', false], ['YES', false]]) {
+    assert.equal(context.onlyThis_(text), only, JSON.stringify(text));
+  }
+  // Tidy up, so later checks see the calendar as before.
+  for (const [name, date, position] of [['Kai Ford', A, 'money'], ['Kai Ford', B, 'tables'], ['Kai Ford', W, 'close'], ['Lu Chen', A, 'close'], ['Lu Chen', B, 'close'], ['Lu Chen', W, 'money'], ['Lu Chen', C, 'tables'], ['Jo Banks', A, 'close'], ['Jo Banks', W, 'close']]) {
+    const line = signupRows().filter(row => cell('Signups', row, 'player_id') === idOf(name) && cell('Signups', row, 'date') === date && cell('Signups', row, 'position') === position).pop();
+    line[column('Signups', 'status')] = 'dropped';
+  }
+  context.sweep();
+  assert.equal(grids.Bundles.length, 1, 'lists with nothing left waiting are dropped');
+}
+
 // ---- doGet and the page ----
 const served = context.doGet();
 const initial = JSON.parse(/var INITIAL = (.*);\n/.exec(served.getContent())[1]);
@@ -1801,8 +1913,12 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   [...document.getElementById('night').querySelectorAll('button.add')].find(button => /Add me as Money collector \(Front Desk\) on/.test(button.getAttribute('aria-label'))).click();
   search.value = '';
   const ivy = [...document.querySelectorAll('#picks form')][0];
+  // (Her own pick that night would be replaced now, so the server is made to refuse this one.)
+  const problem = context.pickProblem_;
+  context.pickProblem_ = () => 'Money collector (Front Desk) is already taken that night.';
   ivy.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
-  assert.match(document.getElementById('picks').textContent, /one opening position per night/i, 'the server\'s reason shows under the pick');
+  context.pickProblem_ = problem;
+  assert.match(document.getElementById('picks').textContent, /already taken that night/i, 'the server\'s reason shows under the pick');
   // Picking an untrained name greys out Desk and Money ("Needs training"), and marks such picks.
   [...document.querySelectorAll('.chosen button')][0].click();
   cellFor('2026-12-05').click();
