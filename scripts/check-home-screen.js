@@ -145,6 +145,16 @@ function textPage(userAgent, address, { storage, standalone = false } = {}) {
   const window = dom.window;
   if (storage) for (let i = 0; i < storage.length; i += 1) window.localStorage.setItem(storage.key(i), storage.getItem(storage.key(i)));
   window.matchMedia = query => ({ matches: standalone && /display-mode: standalone/.test(query) });
+  // The phone's clock and whether the page is on the screen, moved by the checks below.
+  let now = Date.parse('2026-11-04T18:00:00Z');
+  let shown = 'visible';
+  window.Date.now = () => now;
+  Object.defineProperty(window.document, 'visibilityState', { configurable: true, get: () => shown });
+  const show = (state, minutes = 0) => {
+    now += minutes * 60000;
+    shown = state;
+    window.document.dispatchEvent(new window.Event('visibilitychange'));
+  };
   const opened = [];
   window.document.addEventListener('click', clicked => {
     const link = clicked.target.closest && clicked.target.closest('a');
@@ -152,7 +162,7 @@ function textPage(userAgent, address, { storage, standalone = false } = {}) {
   });
   window.eval(pageScript);
   window.eval(script);
-  return { window, document: window.document, opened };
+  return { window, document: window.document, opened, show };
 }
 const TEXT = 'https://concordtabletennisclub.com/text.html';
 let text = textPage(IPHONE, TEXT);
@@ -163,6 +173,24 @@ assert.equal(text.document.querySelector('#text-cttc-send').getAttribute('href')
 assert.deepEqual(textPage(IPHONE, TEXT + '?from=home-screen').opened, [SEND], 'from the icon, opening in the browser');
 assert.deepEqual(textPage(IPHONE, TEXT, { standalone: true }).opened, [SEND], 'from the icon, opening as its own app');
 assert.deepEqual(textPage(DESKTOP, TEXT + '?from=home-screen').opened, [SEND], 'a Mac does the same');
+// A second tap on the icon while the app is still open in the background shows the page as it was left, without loading
+// it: back on the screen after 2 minutes or more, it opens Messages again; back sooner (straight after sending), it stays.
+const again = textPage(IPHONE, TEXT, { standalone: true });
+again.show('hidden');
+again.show('visible', 1);
+assert.equal(again.opened.length, 1, 'back from Messages within a minute: stays on the page, no bounce');
+again.show('hidden');
+again.show('visible', 2);
+assert.equal(again.opened.length, 2, 'the icon tapped again 2 minutes later: Messages again');
+again.show('hidden');
+again.show('visible', 60 * 24);
+assert.equal(again.opened.length, 3, 'and the next day');
+again.show('visible', 60 * 24);
+assert.equal(again.opened.length, 3, 'only after being off the screen');
+const browsing = textPage(IPHONE, TEXT);
+browsing.show('hidden');
+browsing.show('visible', 60);
+assert.deepEqual(browsing.opened, [], 'read in the browser, it never opens Messages by itself');
 
 // Chosen from the header button: the steps, for this icon, and its own "added".
 text = textPage(IPHONE, TEXT + '?home-screen');
