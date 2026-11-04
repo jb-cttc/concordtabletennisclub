@@ -374,7 +374,7 @@ assert.deepEqual(timers(), ['sweep every 60']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
-assert.equal(grids.Requests[0].length, 24);
+assert.equal(grids.Requests[0].length, 26);
 assert.deepEqual(grids.Schedule[0], ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']);
 assert.match(grids.About[0][0], /does not change any booking/);
 
@@ -970,6 +970,60 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   cancelLesson(ora);
   assert.deepEqual(lessons(ora).map(line => line[0]), ['cancelled', 'cancelled']);
 
+  // A newer ask replaces a conflicting older one, once the student says YES to it, and its email shows the change.
+  const tia = 'tia@example.com';
+  const tiaForm = entry => form(entry, { name: 'Tia Student', email: tia });
+  const [seven] = open();
+  book(tiaForm(seven));
+  replyTo('ann@example.com', 'YES', /^Lesson request from Tia Student/);
+  sent.length = 0;
+  assert.equal(run('studentChange', { key: seven.key, action: 'cancel', contact: tia }).ok, true);
+  const cancelAsk = sent.pop();
+  const moveTo = open().filter(entry => entry.date !== seven.date).pop();
+  clock += 60000;
+  assert.equal(run('studentChange', { key: seven.key, action: 'move', to: moveTo.key, contact: tia }).ok, true, 'a different change goes through at once');
+  const moveAsk = sent.pop();
+  assert.match(moveAsk.subject, /^Confirm: move your lesson \[CTTC ref/);
+  assert.match(moveAsk.body, /This replaces your earlier request: Cancel it \(replaced\) → Move it to [^\n]+ with Coach Ann\. Only this newer request counts now; the earlier email no longer does\./);
+  assert.match(moveAsk.htmlBody, /<del style="color:#8a3b2b;">Cancel it<\/del> → <ins style="color:#1f6b3a;font-weight:700;text-decoration:none;">Move it to /, 'struck through and in bold, as the desk shows a change');
+  tap(cancelAsk, 'YES');
+  assert.deepEqual(lessons(tia), [['confirmed', 'move:' + moveTo.key]], 'a YES to the replaced question changes nothing');
+  assert.match(mailTo(tia).pop().body, /you have since replaced that request with a newer one, so nothing changed\. Please answer the newer email\./);
+  assert.equal(grids.Log.slice(1).filter(line => line[2] === 'reply:student-r:yes').pop()[5], 'not applied, replaced');
+  tap(moveAsk, 'NO');
+  assert.deepEqual(lessons(tia), [['confirmed', '']], 'NO to the newer one keeps the lesson; the earlier ask is not brought back');
+  // Another coach at the same time: a request for it replaces the student's lesson then, once confirmed by YES.
+  const kitId = addCoach('Kit Coach', 'kit@example.com', '(925) 555-0103');
+  publish(kitId, 'Kit Coach', [slot(seven.date, seven.start, 60, 2)]);
+  const kit = run('openSlots').slots.find(entry => entry.coach === 'Coach Kit');
+  sent.length = 0;
+  assert.equal(run('requestSlot', tiaForm(kit)).ok, true);
+  const swap = latest(tia, /^Confirm your coaching request/);
+  assert.match(swap.body, new RegExp('This replaces your earlier request: Friday, October 9, 2026, 7:00 PM to 7:50 PM with Coach Ann \\(replaced\\) → Friday, October 9, 2026, 7:00 PM to 7:50 PM with Coach Kit, Table 2\\. Your YES to this one cancels the earlier one\\. Until then both are held\\.'));
+  assert.deepEqual(lessons(tia).map(line => line[0]), ['confirmed', 'unverified'], 'nothing changes before the YES');
+  tap(swap, 'YES');
+  assert.deepEqual(lessons(tia).map(line => line[0]), ['cancelled', 'pending'], 'the YES sends the new request and cancels the one it replaces');
+  assert.ok(mailTo('ann@example.com').some(message => message.subject === 'Lesson cancelled by Tia Student'), 'whose coach is told');
+  assert.ok(grids.Log.slice(1).some(line => line[2] === 'step:cancelled' && /^by student, replaced by [0-9A-F]{6}$/.test(line[5])), 'and the log says why');
+  // An older request still waiting for its own YES stops counting while a newer one replaces it.
+  replyTo('kit@example.com', 'NO', /^Lesson request from Tia Student/);
+  const [eight] = open().filter(entry => entry.coach === 'Coach Ann' && entry.date === seven.date && entry.start === seven.start);
+  sent.length = 0;
+  assert.equal(run('requestSlot', tiaForm(eight)).ok, true);
+  const older = latest(tia, /^Confirm your coaching request/);
+  assert.equal(run('requestSlot', tiaForm(run('openSlots').slots.find(entry => entry.coach === 'Coach Kit'))).ok, true);
+  const newer = latest(tia, /^Confirm your coaching request/);
+  assert.match(newer.subject, /^Confirm your coaching request \[CTTC ref [0-9A-F]{10}\]$/, 'one thing waits (the older one is replaced), so it is a plain question');
+  assert.match(newer.body, /This replaces your earlier request: [^\n]+Coach Ann \(replaced\) → [^\n]+Coach Kit, Table 2\./);
+  tap(older, 'YES');
+  assert.deepEqual(lessons(tia).slice(-2).map(line => line[0]), ['unverified', 'unverified'], 'a YES to the older one is told it was replaced');
+  assert.match(mailTo(tia).pop().body, /since replaced that request with a newer one/);
+  tap(newer, 'YES');
+  assert.deepEqual(lessons(tia).slice(-2).map(line => line[0]), ['cancelled', 'pending']);
+  replyTo('kit@example.com', 'NO', /^Lesson request from Tia Student/);
+  grids.Coaches.find(line => line[4] === kitId)[3] = 'disabled';
+  grids.Availability.splice(1, grids.Availability.length, ...grids.Availability.slice(1).filter(line => line[1] !== kitId));
+
   // What counts as which answer, as people write it.
   const answers = [['YES', 'yes'], ['YES to ONLY THIS', 'only'], ['yes to only this, not the others', 'only'], ['Yes, only this one', 'only'], ['yes just this', 'only'],
     ['Only this', 'only'], ['only this one.', 'only'], ['Hi,\nYES to ONLY THIS', 'only'], ['YES to ONLY THIS\n\nSent from my iPhone', 'only'], ['YES to ONLY THISSent from my Galaxy', 'only'],
@@ -1459,7 +1513,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.equal(propose(deeId, deeSet.concat(saturday)).ok, true);
   clock += hours(49);
   context.sweep();
-  const others = grids.Coaches.slice(1).map(line => cell('Coaches', line, 'coach_id')).filter(id => id && id !== deeId).slice(0, 3);
+  const others = grids.Coaches.slice(1).filter(line => cell('Coaches', line, 'status') !== 'disabled').map(line => cell('Coaches', line, 'coach_id')).filter(id => id && id !== deeId).slice(0, 3);
   others.forEach((id, index) => grids.Availability.push(['taken-' + index, id, '2026-10-17', '15:00', '60', 'yes', String(index + 1)]));
   say('Dee Coach', 'YES');
   assert.equal(dee()[dee().length - 1], 'CTTC: Your reply came after the 48-hour window, so nothing was published, and another coach has since taken Sat Oct 17 3:00-4:00 PM. ' +

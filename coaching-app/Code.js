@@ -111,7 +111,11 @@ var TABS = {
     // change is 'cancel' or 'move:' and the new slot, waiting for the student's YES since change_at.
     'verified_at', 'change', 'change_at',
     // reminded is the waiting status ('unverified' or 'pending') a reminder was sent for, so each step is reminded once.
-    'reminded'],
+    'reminded',
+    // A newer ask replaces a conflicting older one (see "When a newer ask replaces an older one"). change_was is the waiting
+    // change a newer change of the same lesson replaced ('cancel@' or 'move:…@' and its change_at); replaces is the request(s)
+    // of the same student at an overlapping time that this request replaces once the student says YES to it.
+    'change_was', 'replaces'],
   // One row per email that asked a student about everything waiting for their YES at once (see "Everything waiting, in one
   // email"). trigger is what that email was sent about ('' for a follow-up that only lists what is waiting); items is every
   // question it listed, space separated: 'v:' and a request id (confirm a new request) or 'c:', a request id and the change's
@@ -685,10 +689,16 @@ function requestSlot(form) {
     var label = studentLabel_(email, guardian || name, phone);
     if (!label) return fail_('Requests are closed for now. Please contact the club.');
     if (minutes !== slot.minutes) splitSlot_(slot.key);
+    // The same student at an overlapping time: this request replaces that one once the student says YES to it.
+    var replaces = requests.filter(function (request) {
+      return request.student_email === email && String(request.student_name).trim().toLowerCase() === name.toLowerCase() && holds_(request, now) &&
+        request.date === slot.date && overlaps_(request.start, request.minutes, start, minutes);
+    }).map(function (request) { return request.request_id; }).join(' ');
     created = {
       request_id: id_(), coach_id: slot.coachId, date: slot.date, start: start, minutes: minutes, student_label: label, student_name: name,
       student_email: email, guardian_name: guardian, note: cleanNote_(form.note), status: 'unverified', created_at: nowIso_(),
-      expires_at: Math.min(now + VERIFY_MS, expiryFor_(slot.date, start)), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table
+      expires_at: Math.min(now + VERIFY_MS, expiryFor_(slot.date, start)), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table,
+      replaces: replaces
     };
     save_('Requests', created);
     logStep_(created);
@@ -1160,8 +1170,12 @@ function studentChange(form) {
     var students = rows_('Students');
     var student = students.filter(function (candidate) { return candidate.email === request.student_email; })[0];
     var owner = email ? email === request.student_email : !!student && phoneDigits_(student.phone) === phone;
-    if (!owner || now - Number(request.change_at || 0) < CHANGE_WAIT_MS) return done;
-    request.change = action === 'move' ? 'move:' + target.key : 'cancel';
+    var wanted = action === 'move' ? 'move:' + target.key : 'cancel';
+    var waiting = !!request.change && holds_(request, now);
+    // The same ask again within 10 minutes sends nothing more; a different one replaces the waiting one (shown in its email).
+    if (!owner || (waiting && request.change === wanted && now - Number(request.change_at || 0) < CHANGE_WAIT_MS)) return done;
+    request.change_was = waiting && request.change !== wanted ? request.change + '@' + request.change_at : '';
+    request.change = wanted;
     request.change_at = String(now);
     save_('Requests', request);
     var coach = coaches.filter(function (candidate) { return candidate.coach_id === request.coach_id; })[0];
@@ -1185,6 +1199,7 @@ function askStudentChange_(question) {
     if (mailAvailable_()) {
       sendStudentMail_(request.student_email, (move ? 'Confirm: move your lesson ' : 'Confirm: cancel your lesson ') + refTag_(changeCode_(request)), [who,
         { callout: '**Action needed:** you asked to ' + (move ? 'move' : 'cancel') + ' ' + studentName_(request) + '\'s lesson. **Nothing changes until you reply.**', tone: 'action' },
+        replacedNote_(request),
         { choices: move ? [['YES', 'Move the lesson to the new time. The new time goes to the coach to accept, and your current time is released.'], ['NO', 'Keep the lesson as it is.']] :
           [['YES', 'Cancel the lesson and release the time.'], ['NO', 'Keep the lesson as it is.']] },
         { heading: move ? 'The change' : 'The lesson to cancel' },
@@ -1260,6 +1275,16 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt, quiet) {
         request.verified_at = nowIso_();
         request.expires_at = String(expiryFor_(request.date, request.start));
         request.reminded = '';
+        // The YES to a replacing request is the YES to the change: the older request(s) it replaces go.
+        replacedRequests_(request, requests, now).forEach(function (old) {
+          old.status = 'cancelled';
+          old.cancelled_by = 'student';
+          old.change = '';
+          old.change_at = '';
+          old.updated_at = nowIso_();
+          save_('Requests', old);
+          logStep_(old, 'replaced by ' + bookingCode_(request));
+        });
       } else {
         request.status = 'cancelled';
         request.cancelled_by = 'student';
@@ -1330,8 +1355,8 @@ function waitingItems_(email, requests, now) {
   var items = [];
   requests.forEach(function (request) {
     if (!email || request.student_email !== email) return;
-    if (effectiveStatus_(request, now) === 'unverified') items.push({ ref: 'v:' + request.request_id, kind: 'v', request: request });
-    if (request.change && holds_(request, now)) items.push({ ref: 'c:' + request.request_id + ':' + request.change_at, kind: 'c', request: request });
+    if (effectiveStatus_(request, now) === 'unverified' && !replacedBy_(request, requests, now)) items.push({ ref: 'v:' + request.request_id, kind: 'v', request: request, requests: requests });
+    if (request.change && holds_(request, now)) items.push({ ref: 'c:' + request.request_id + ':' + request.change_at, kind: 'c', request: request, requests: requests });
   });
   return items.sort(function (a, b) { return (a.request.date + a.request.start).localeCompare(b.request.date + b.request.start) || a.ref.localeCompare(b.ref); });
 }
@@ -1341,7 +1366,7 @@ function itemWaiting_(ref, requests, now) {
   var parts = String(ref).split(':');
   var request = requests.filter(function (entry) { return entry.request_id === parts[1]; })[0];
   if (!request) return false;
-  if (parts[0] === 'v') return effectiveStatus_(request, now) === 'unverified';
+  if (parts[0] === 'v') return effectiveStatus_(request, now) === 'unverified' && !replacedBy_(request, requests, now);
   return !!request.change && request.change_at === parts[2] && holds_(request, now);
 }
 
@@ -1349,12 +1374,88 @@ function bundleCode_(bundleId) { return code_('b:' + bundleId); }
 
 function bundleItems_(bundle) { return String(bundle.items || '').split(' ').filter(Boolean); }
 
+// ---------- When a newer ask replaces an older one ----------
+// A student who asks again about the same lesson, or asks for an overlapping time for the same student, means the newer ask.
+// The newer one replaces the older (never someone else's), but only once they say YES to it: nothing changes until then. The
+// newer email shows the change as the desk shows a player edit, the old value struck through and the new one in bold, and
+// the older question stops counting: a reply to it is told it was replaced, and pointed at the newer one.
+
+// 'Cancel it' or 'Move it to Saturday, … with Coach Ann', for a change ('cancel' or 'move:' and an avail_id).
+function changeWords_(change, coaches, availability) {
+  if (change === 'cancel') return 'Cancel it';
+  var target = availability().filter(function (entry) { return entry.avail_id === String(change).slice(5); })[0];
+  var coach = target && coaches.filter(function (entry) { return entry.coach_id === target.coach_id; })[0];
+  return 'Move it to ' + (target ? dayLabel_(target.date) + ', ' + rangeLabel_(target.start, target.minutes) + (coach ? ' with ' + coachName_(coach) : '') : 'the new time you picked');
+}
+
+// "Friday, October 9, 2026, 7:00 PM to 7:50 PM with Coach Ann".
+function lessonWords_(request, coaches) {
+  var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
+  return dayLabel_(request.date) + ', ' + rangeLabel_(request.start, request.minutes) + (coach ? ' with ' + coachName_(coach) : '');
+}
+
+// The older ask this one replaces, as ~~old~~ → ++new++, or '' when it replaces nothing.
+function replacedChange_(request, coaches, availability, requests) {
+  if (request.change && request.change_was) {
+    return '~~' + changeWords_(request.change_was.split('@')[0], coaches, availability) + '~~ → ++' + changeWords_(request.change, coaches, availability) + '++';
+  }
+  var older = replacedRequests_(request, requests);
+  if (!older.length) return '';
+  return older.map(function (old) { return '~~' + lessonWords_(old, coaches) + '~~'; }).join(', ') + ' → ++' + lessonWords_(request, coaches) + ', Table ' + (Number(request.table) || 1) + '++';
+}
+
+// The requests a request replaces that still hold their time.
+function replacedRequests_(request, requests, now) {
+  var ids = String(request.replaces || '').split(' ').filter(Boolean);
+  return requests.filter(function (entry) { return ids.indexOf(entry.request_id) >= 0 && holds_(entry, now || Date.now()); });
+}
+
+// Whether a newer request still waiting for the student's YES replaces this one.
+function replacedBy_(request, requests, now) {
+  return requests.some(function (other) {
+    return other.request_id !== request.request_id && String(other.replaces || '').split(' ').indexOf(request.request_id) >= 0 && effectiveStatus_(other, now) === 'unverified';
+  });
+}
+
+// The line an email about a replacing ask carries, or null.
+function replacedNote_(request) {
+  var coaches = rows_('Coaches');
+  var offered = null;
+  var change = replacedChange_(request, coaches, function () { return offered || (offered = rows_('Availability')); }, rows_('Requests'));
+  if (!change) return null;
+  return { callout: '**This replaces your earlier request:** ' + change + '. ' + (request.change_was ? 'Only this newer request counts now; the earlier email no longer does.' :
+    'Your YES to this one cancels the earlier one. Until then both are held.'), tone: 'change' };
+}
+
+// A reply to a question a newer ask replaced: nothing changes, and the student is pointed at the newer one (listed below it).
+function replacedAnswer_(requestId, answer) {
+  var request = rows_('Requests').filter(function (entry) { return entry.request_id === requestId; })[0];
+  if (!request) return;
+  logRow_('email', 'reply:student-r:' + answer, requestId, '-', 'not applied, replaced');
+  try {
+    if (mailAvailable_()) sendStudentMail_(request.student_email, 'Your coaching reply', ['Hello,',
+      'You replied to an email about ' + studentName_(request) + '\'s lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ', but you have since replaced that request with a newer one, so **nothing changed**. Please answer the newer email.', bookingLine_(request)],
+      '', ['student-replaced-reply', requestId]);
+  } catch (error) {
+    logError_('answer a student', error, requestId);
+  }
+}
+
 // One numbered line of the list: what YES does to this item, in words.
 function itemLine_(item, coaches, availability) {
   var request = item.request;
   var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
   var coachShown = coach ? coachName_(coach) : 'your coach';
   var when = dayLabel_(request.date) + ', ' + rangeLabel_(request.start, request.minutes);
+  var replaced = replacedChange_(request, coaches, availability, item.requests || []);
+  if (replaced && item.kind === 'v') {
+    return { mark: 'CHANGE', tone: 'move', text: 'Replace ' + studentName_(request) + '\'s lesson: ' + replaced + '. Reply by ' + momentLabel_(Number(request.expires_at)).replace(' Pacific Time', '') +
+      ', or it expires.', short: 'make that change', keep: 'drop the new request and keep the earlier lesson' };
+  }
+  if (replaced) {
+    return { mark: 'CHANGE', tone: 'move', text: 'Change your request for ' + studentName_(request) + '\'s lesson with ' + coachShown + ' on ' + when + ': ' + replaced + '.',
+      short: 'make that change', keep: 'keep that lesson as it is' };
+  }
   if (item.kind === 'v') {
     return { mark: 'NEW REQUEST', tone: 'new', text: 'Send ' + studentName_(request) + '\'s request to ' + coachShown + ': ' + when + ', Table ' + (Number(request.table) || 1) +
       '. Reply by ' + momentLabel_(Number(request.expires_at)).replace(' Pacific Time', '') + ', or it expires.', short: 'send the new request', keep: 'drop that request and release the time' };
@@ -1908,6 +2009,7 @@ function studentMail_(request, coach) {
   if (request.status === 'unverified') {
     return { to: to, subject: 'Confirm your coaching request ' + refTag_(verifyCode_(request)), lines: [who,
       { callout: '**Action needed:** reply to this email by **' + expires + '**.', tone: 'action' },
+      replacedNote_(request),
       { choices: [['YES', 'Send my request to the coach.'], ['NO', 'Cancel my request and release the time.']] },
       { heading: 'Your request' },
       { rows: details.concat([['Coach', coachShown]]) },
@@ -2767,7 +2869,8 @@ function emailQuestions_(now) {
   requests.forEach(function (request) {
     var status = effectiveStatus_(request, now);
     var after = Date.parse(request.created_at) || 0;
-    if (status === 'unverified') questions.push({ code: verifyCode_(request), email: request.student_email, after: after, kind: 'v', id: request.request_id });
+    // A request a newer one replaces is still a question, but its answer is only "that was replaced".
+    if (status === 'unverified') questions.push({ code: verifyCode_(request), email: request.student_email, after: after, kind: replacedBy_(request, requests, now) ? 'r' : 'v', id: request.request_id });
     if (status === 'expired' && lateVerify_(request, requests, availability(), now)) {
       questions.push({ code: verifyCode_(request), email: request.student_email, after: after, before: Number(request.expires_at), kind: 'v', id: request.request_id });
     }
@@ -2775,6 +2878,10 @@ function emailQuestions_(now) {
       questions.push({ code: requestCode_(request), email: cleanEmail_(byId[request.coach_id].email), after: after, kind: 'request', id: request.request_id, coachId: request.coach_id });
     }
     if (request.change && holds_(request, now)) questions.push({ code: changeCode_(request), email: request.student_email, after: Number(request.change_at), kind: 'c', id: request.request_id });
+    if (request.change && holds_(request, now) && request.change_was) {
+      var was = Number(request.change_was.split('@')[1]);
+      if (String(was) !== request.change_at) questions.push({ code: code_('c:' + request.request_id + ':' + was), email: request.student_email, after: was, kind: 'r', id: request.request_id });
+    }
   });
   // An email that listed everything waiting stays a question while anything it listed still waits.
   rows_('Bundles').forEach(function (bundle) {
@@ -2841,6 +2948,7 @@ function checkMail_() {
     if (question.kind === 'slots') answer_(question.id, 'slots', found.answer, 'email');
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
     else if (question.kind === 'b') answerBundle_(question.id, found.answer, found.at);
+    else if (question.kind === 'r') replacedAnswer_(question.id, found.answer);
     else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
   properties.setProperty('MAIL_CHECKED_AT', String(now));
@@ -3006,12 +3114,15 @@ function adminEmail_() { return property_('ADMIN_EMAIL', Session.getEffectiveUse
 
 function mailAvailable_() { return MailApp.getRemainingDailyQuota() > MIN_QUOTA; }
 
-// **text** is bold in HTML and plain in text; links become clickable.
+// **text** is bold in HTML and plain in text; links become clickable. A change is shown as the desk shows a player edit:
+// ~~old~~ struck through in red, ++new++ in bold green (in plain text, "old (replaced)" and the new value).
 function mailHtml_(text) {
-  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>');
+  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/~~(.+?)~~/g, '<del style="color:#8a3b2b;">$1</del>').replace(/\+\+(.+?)\+\+/g, '<ins style="color:#1f6b3a;font-weight:700;text-decoration:none;">$1</ins>')
+    .replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>');
 }
 
-function mailText_(text) { return String(text).replace(/\*\*/g, ''); }
+function mailText_(text) { return String(text).replace(/\*\*/g, '').replace(/~~(.+?)~~/g, '$1 (replaced)').replace(/\+\+(.+?)\+\+/g, '$1'); }
 
 // A block is a paragraph string, or { heading }, { callout, tone }, { rows: [[label, value, link]] }, { steps }, { choices: [[reply, meaning]] },
 // { waiting: [{number, mark, tone, text, current}] } (everything waiting for a student's YES) or { html, text } (text is the
