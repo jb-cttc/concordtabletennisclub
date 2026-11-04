@@ -176,22 +176,31 @@ payments.
   the desk says so: allow pop-ups for the desk and click again.
 - **Layout.** A computer that has never opened the board starts on **Wall** (every
   group at once). A layout picked in the settings strip is remembered on that computer.
-- **A second computer (follow mode).** For a projector on its own laptop: once the
-  main desk has the night open, sign in to the desk on the second computer, open
-  tonight, click **Player board**, and tick **Follow the main desk** in the board's
-  settings strip (move the mouse over the board to show the strip). Follow mode never
-  starts by itself. On a computer not signed in to the club's Google account, the
-  club site's `/desk` page shows a **Sign in with the club's Google account** button
-  after about 10 seconds; it opens Google's sign-in page, then the desk. That desk then shows the main desk's changes (sign-ins, moves,
-  scores, payment checks, the print) about 10 seconds behind, with the same
-  animations, and editing is off there until **Stop following** (or unticking the
-  box). The board remembers the choice: after a reload, clicking **Player board**
-  turns follow mode back on. It checks only while follow mode is on: every 10
-  seconds, once a minute after 20 quiet minutes, and it ends when the night is
-  finalized or after 6 hours. It shows the same marks as the main desk's board:
-  payment checks, 1st visit, trophies, the ▲ for a move up (saved with the night,
-  so it also survives a reload), Late add and Updated. See
-  [Google limits](google-limits.md).
+- **A second computer (follow mode).** For a projector on its own laptop, in either
+  order with the main laptop: sign in to Google on the laptop, click **Organize** on
+  the club site, click **Player board**, and click **Show the main laptop's desk**.
+  - *What is this screen for?* is asked the first time the board opens on a computer
+    and remembered there. **Show the main laptop's desk** turns on follow mode and goes
+    full screen in the same click. **This laptop runs the desk** is for the main desk's
+    own board (one laptop driving the TV). To change the answer later, use **Follow the
+    main desk** in the settings strip (move the mouse over the board to show it).
+  - If the laptop is not signed in to the club's Google account, the club site's
+    `/desk` page shows a **Sign in with the club's Google account** button after about
+    10 seconds. It opens Google's sign-in page, then the desk.
+  - The order does not matter. A board answered before its own desk has finished
+    opening keeps trying until it follows. Before the main laptop has started the
+    night, the board waits, then shows the night once the main desk saves.
+  - That desk then shows the main desk's changes (sign-ins, moves, scores, payment
+    checks, the print) about 10 seconds behind, with the same animations. Editing is
+    off there until **Stop following** (or unticking the box), which also turns the
+    answer off.
+  - It checks only while follow mode is on: every 10 seconds, once a minute after 20
+    quiet minutes. It ends when the night is finalized or after 6 hours; that end
+    keeps the answer, so the board follows again the next time it opens. After a
+    reload, clicking **Player board** follows again. See [Google limits](google-limits.md).
+  - It shows the same marks as the main desk's board: payment checks, 1st visit,
+    trophies, the ▲ for a move up (saved with the night, so it also survives a
+    reload), Late add and Updated.
 - **The screen stays on** while a Player board window is open, full screen or not:
   no sleep and no screen saver (the browser's screen wake lock). The settings strip
   says *Screen stays on*, or *Screen may sleep* where the browser cannot hold it;

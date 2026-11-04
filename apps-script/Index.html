@@ -1949,7 +1949,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     setFollow: function (on) {
       if (!on) { stopFollow('stopped'); return { on: false, message: '' }; }
       var blocked = startFollow();
-      return { on: follow.on, message: blocked };
+      // wait: not yet (the night still loading, or changes still saving), so the board asks again; a finalized night is final.
+      return { on: follow.on, message: blocked, wait: !!blocked && !locked() };
     },
     following: function () { return follow.on; },
     followTick: function () { followCheck(false); return { on: follow.on, lastOk: follow.lastOk, lastCheck: follow.lastCheck }; },
@@ -2463,7 +2464,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   async function followCheck(force) {
     if (!follow.on || follow.busy || window.cttcTab.retired() || navigator.onLine === false) return;
     var now = Date.now();
-    if (now - follow.startedAt > FOLLOW_MAX_MS) { stopFollow('timed out', 'Follow mode ended after 6 hours. Turn it on again on the Player board to keep following.'); return; }
+    if (now - follow.startedAt > FOLLOW_MAX_MS) { stopFollow('timed out', 'Follow mode ended after 6 hours. Click Player board on this desk to keep following.'); return; }
     var every = now - follow.lastChange > FOLLOW_IDLE_AFTER_MS ? FOLLOW_IDLE_MS : FOLLOW_MS;
     if (!force && now - follow.lastCheck < every - 1000) return;
     follow.lastCheck = now;

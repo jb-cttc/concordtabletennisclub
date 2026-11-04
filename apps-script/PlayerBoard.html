@@ -476,6 +476,20 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 .bc output { min-width: 3ch; font-weight: 700; }
 .bc label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 .bc input[type="checkbox"] { accent-color: #e8c06a; }
+/* "What is this screen for?", the first time the board opens on a computer */
+.chooser { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(5, 6, 5, .88); overflow: auto; font-family: Arial, Helvetica, sans-serif; }
+.chooser[hidden] { display: none; }
+.chooser-card { box-sizing: border-box; width: 100%; max-width: 600px; margin: auto; padding: 26px 26px 18px; background: #fff; color: #17211b; border-radius: 8px; border-bottom: 5px solid #c99934; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); }
+.chooser-card h1 { margin: 0 0 16px; font: 700 26px/1.2 Georgia, "Times New Roman", serif; color: #123f2b; }
+.chooser .choice { display: block; box-sizing: border-box; width: 100%; margin: 0 0 12px; padding: 14px 18px; border: 2px solid #176b45; border-radius: 6px; background: #fff; color: #176b45; text-align: left; cursor: pointer; font: inherit; }
+.chooser .choice strong { display: block; font-size: 20px; }
+.chooser .choice span { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; color: #4d5852; }
+.chooser .choice.main { background: #176b45; color: #fff; }
+.chooser .choice.main span { color: #dce9e1; }
+.chooser .choice:hover, .chooser .choice:focus-visible { border-color: #0f5235; }
+.chooser .choice.main:hover, .chooser .choice.main:focus-visible { background: #0f5235; }
+.chooser .choice:focus-visible { outline: 3px solid #c99934; outline-offset: 2px; }
+.chooser-card p { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: #657069; }
 .bc .note { color: #e8c06a; font-weight: 700; max-width: 320px; }
 .bc .note:empty { display: none; }
 .bc .awake { color: #dce9e1; font-size: 12px; }
@@ -498,8 +512,13 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   var model = null;
   var desk = null;
   // A new computer starts on the wall (every group at once, for a projector); a choice made here is remembered.
-  var S = { concept: 'wall', secs: 14, look: 'desk', pay: true, rating: true, follow: false };
-  try { Object.assign(S, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (error) { /* defaults */ }
+  // asked: this computer has answered "What is this screen for?" (the chooser below); follow is its answer.
+  var S = { concept: 'wall', secs: 14, look: 'desk', pay: true, rating: true, follow: false, asked: false };
+  try {
+    var saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    if (saved.follow && saved.asked === undefined) saved.asked = true;
+    Object.assign(S, saved);
+  } catch (error) { /* defaults */ }
   function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(S)); } catch (error) { /* this window only */ } }
 
   board.innerHTML = '<header class="b-top"></header><div class="b-body"></div><footer class="b-foot"></footer>';
@@ -892,6 +911,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function attach(deskWindow) {
     desk = deskWindow;
     notice.hidden = true;
+    ended = false;
     if (S.follow) requestFollow();
   }
 
@@ -900,25 +920,37 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   // while the desk tab behind it has its timers slowed; the desk decides whether a check is due and what to read.
   var followNote = document.getElementById('bc-follow-note');
   function deskBoard() { try { return desk && !desk.closed ? desk.cttcPlayerBoard : null; } catch (error) { return null; } }
+  // The desk still opening tonight (or still saving) answers wait: this window keeps asking every 10 seconds, so a board
+  // opened before the desk finished loading, or before the main desk has started the night, follows on its own.
+  var WAITING = 'Following the main desk: starting as soon as this desk has opened tonight.';
+  // ended: follow mode ended by itself tonight (a finalized night, 6 hours): this window stops asking, but the computer's
+  // answer stays Follow, so next time the board opens here it follows again. Only a person turns the answer off.
+  var ended = false;
   function requestFollow() {
     var link = deskBoard();
     if (!link || !link.setFollow) return;
     var answer = link.setFollow(S.follow) || {};
-    if (S.follow && !answer.on) { S.follow = false; saveSettings(); syncControls(); }
-    followNote.textContent = answer.message || (answer.on ? 'Following' : '');
+    var waiting = S.follow && !answer.on && !!answer.wait;
+    ended = S.follow && !answer.on && !waiting;
+    followNote.textContent = waiting ? 'Starting…' : answer.message || (answer.on ? 'Following' : '');
+    if (waiting) { notice.textContent = WAITING; notice.hidden = false; }
+    else if (notice.textContent === WAITING) notice.hidden = true;
   }
+  // From the desk: Stop following there (no message) turns the answer off; an end by itself (with a message) does not.
   function setFollow(on, message) {
+    followNote.textContent = message || (on ? 'Following' : '');
+    if (!on && message && S.follow) { ended = true; return; }
     S.follow = !!on;
+    ended = false;
     saveSettings();
     syncControls();
-    followNote.textContent = message || (on ? 'Following' : '');
   }
   setInterval(function () {
-    if (!S.follow) return;
+    if (!S.follow || ended) return;
     var link = deskBoard();
     if (!link || !link.followTick) return;
     var beat = link.followTick() || {};
-    if (!beat.on) return;
+    if (!beat.on) { if (!ended) requestFollow(); return; }
     var quiet = Date.now() - (beat.lastOk || 0);
     if (quiet > 90000) { notice.textContent = 'Following the main desk: Google has not answered for ' + Math.round(quiet / 60000) + ' min. Showing the last picture.'; notice.hidden = false; }
     else if (!notice.hidden && /^Following/.test(notice.textContent)) notice.hidden = true;
@@ -974,7 +1006,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   });
   document.getElementById('bc-pay').addEventListener('change', function (event) { S.pay = event.target.checked; saveSettings(); render(); });
   document.getElementById('bc-rating').addEventListener('change', function (event) { S.rating = event.target.checked; saveSettings(); render(); });
-  document.getElementById('bc-follow').addEventListener('change', function (event) { S.follow = event.target.checked; saveSettings(); requestFollow(); });
+  document.getElementById('bc-follow').addEventListener('change', function (event) { S.follow = event.target.checked; S.asked = true; saveSettings(); requestFollow(); });
   // The screen stays on (no sleep, no screen saver) for as long as this window is open, full screen or not: the
   // browser's screen wake lock, asked for again whenever the window comes back into view (the browser drops it while the
   // window is hidden or minimized). Where the browser cannot hold it, the strip says so.
@@ -1006,6 +1038,29 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     fit();
     keepAwake();
   });
+  // ---- "What is this screen for?", asked once per computer ----
+  // A projector laptop's board follows the main desk; the main desk's own board does not. The board cannot tell which it
+  // is, so the first time it opens on a computer it asks. Following goes full screen in the same click (the browser
+  // allows full screen only from a click in this window). The answer is kept with the settings; Follow the main desk in
+  // the strip changes it later.
+  var chooser = document.getElementById('board-chooser');
+  function answer(follow) {
+    if (follow) {
+      var el = document.documentElement;
+      var request = !document.fullscreenElement && el.requestFullscreen ? el.requestFullscreen() : null;
+      if (request && request.then) request.then(keepAwake).catch(function () {});
+    }
+    S.asked = true;
+    S.follow = follow;
+    saveSettings();
+    syncControls();
+    chooser.hidden = true;
+    requestFollow();
+  }
+  document.getElementById('choose-follow').addEventListener('click', function () { answer(true); });
+  document.getElementById('choose-desk').addEventListener('click', function () { answer(false); });
+  chooser.hidden = !!S.asked;
+
   var hideTimer = null;
   function wake() {
     bc.classList.remove('hidden');
@@ -1626,11 +1681,17 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     '<label title="For a second computer: this board shows the changes made on the main desk, checking every 10 seconds"><input id="bc-follow" type="checkbox"> Follow the main desk</label><span class="note" id="bc-follow-note"></span>' +
     '<span class="awake" id="bc-awake" role="status"></span>' +
     '<button type="button" class="full" id="bc-full">Full screen</button>';
+  var CHOOSER = '<div class="chooser" id="board-chooser" role="dialog" aria-modal="true" aria-labelledby="chooser-title" hidden><div class="chooser-card">' +
+    '<h1 id="chooser-title">What is this screen for?</h1>' +
+    '<button type="button" class="choice main" id="choose-follow"><strong>Show the main laptop\'s desk</strong><span>Another laptop is running tonight\'s desk. This screen follows it, a few seconds behind, and goes full screen.</span></button>' +
+    '<button type="button" class="choice" id="choose-desk"><strong>This laptop runs the desk</strong><span>Sign-ins and scores are entered on this laptop.</span></button>' +
+    '<p>Asked once on this computer. To change it later, move the mouse and use <em>Follow the main desk</em> in the settings strip.</p>' +
+    '</div></div>';
   function setup(w) {
     var doc = w.document;
     if (w.cttcBoardPage && w.cttcBoardPage.stop) w.cttcBoardPage.stop();
     doc.documentElement.innerHTML = '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CTTC Player Board</title><style>' + STYLE + '</style></head>' +
-      '<body><div id="screen"><div class="board" id="board" data-look="desk"></div></div><div class="board-notice" id="board-notice" role="status" hidden></div><div class="bc" id="board-controls" role="group" aria-label="Board settings">' + CONTROLS + '</div></body>';
+      '<body><div id="screen"><div class="board" id="board" data-look="desk"></div></div><div class="board-notice" id="board-notice" role="status" hidden></div><div class="bc" id="board-controls" role="group" aria-label="Board settings">' + CONTROLS + '</div>' + CHOOSER + '</body>';
     doc.title = 'CTTC Player Board';
     var script = doc.createElement('script');
     script.textContent = PAGE;

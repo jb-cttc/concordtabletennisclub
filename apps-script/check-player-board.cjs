@@ -51,6 +51,11 @@ const cases = {
     await run(world, 1000);
     assert.equal(board.opened(), 1);
     assert.ok(board.$('#board-controls'), 'the window has its settings strip');
+    // The first time on a computer, the board asks what the screen is for; the main desk's own board does not follow.
+    assert.ok(!board.$('#board-chooser').hidden, 'the board asks once');
+    boardClick(board, '#choose-desk');
+    assert.ok(board.$('#board-chooser').hidden);
+    assert.equal(board.$('#bc-follow').checked, false, 'this laptop runs the desk: no following');
     assert.match(board.$('.b-title strong').textContent, /Round Robin/);
     assert.equal(board.$('.b-count .num').textContent, '30', 'the board counts everyone signed in');
     assert.match(board.$('.b-stage').textContent, /Signing in/);
@@ -386,13 +391,19 @@ const cases = {
     const calls = (name, tab, since) => world.traffic.filter(log => log.name === name && log.tab === tab && log.sentAt >= since);
     const tick = selector => { const box = board.$(selector); box.checked = !box.checked; box.dispatchEvent(new board.w.Event('change', { bubbles: true })); };
 
-    // Off by default: an open board on the second computer adds no checks.
+    // Off until asked: an open board on the second computer adds no checks while "What is this screen for?" is up.
     let since = world.clock.now();
     await run(world, 60000);
     assert.equal(calls('getDeskStamps', projector, since).length, 0, 'no checks until follow mode is turned on');
+    assert.ok(!board.$('#board-chooser').hidden);
 
-    boardClick(board, '[data-set="concept"] [data-value="wall"]');
-    tick('#bc-follow');
+    // One click: follow the main desk, full screen.
+    let fullScreen = 0;
+    board.w.document.documentElement.requestFullscreen = () => { fullScreen += 1; return Promise.resolve(); };
+    boardClick(board, '#choose-follow');
+    assert.equal(fullScreen, 1, 'following goes full screen in the same click');
+    assert.ok(board.$('#board-chooser').hidden);
+    assert.equal(board.$('#bc-follow').checked, true);
     await run(world, 3000);
     assert.ok(!projector.$('#follow-bar').hidden, 'the desk says it is following');
     assert.ok(projector.$('.workspace').classList.contains('following'));
@@ -453,6 +464,54 @@ const cases = {
     assert.equal(calls('getDeskStamps', projector, since).length, 0, 'no checks after follow mode is off');
     assert.ok(calls('logFollowMode', projector, 0).length >= 1, 'usage is logged');
     [main, projector, fresh].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    board.close();
+  },
+
+  // The projector laptop first, in any order: its board is answered before its own desk has finished opening and before
+  // the main desk has started the night. It keeps asking, follows once its desk has opened, and shows the night when the
+  // main desk starts it. An end by itself (6 hours) keeps the answer: Player board again follows again.
+  async projectorFirst() {
+    const world = sim.createWorld({ seed: 73, players: 40 });
+    const projector = world.device().open();
+    await run(world, 200);
+    const board = boardWindow(world, projector);
+    projector.click(projector.$('#player-board'));
+    await run(world, 100);
+    board.w.document.documentElement.requestFullscreen = () => Promise.resolve();
+    boardClick(board, '#choose-follow');
+    assert.equal(board.$('#bc-follow').checked, true, 'still following while the desk opens');
+    assert.match(board.$('#board-notice').textContent, /starting as soon as this desk has opened/);
+    await run(world, 25000);
+    assert.ok(!projector.$('#follow-bar').hidden, 'following once the desk opened');
+    assert.ok(board.$('#board-notice').hidden, 'the waiting note is gone');
+    assert.equal(board.$('#bc-follow-note').textContent, 'Following');
+
+    // The main laptop starts the night afterwards: the projector board shows it.
+    const main = await deskWith(world, 12);
+    await run(world, 25000);
+    assert.equal(board.$('.b-count .num').textContent, '12', 'the projector shows the night the main desk started');
+    assert.ok(board.$$('.wall .panel').length >= 2, 'on the wall');
+
+    // Six hours later follow mode ends by itself; the computer's answer stays Follow.
+    await run(world, 6 * 3600000 + 120000);
+    assert.ok(projector.$('#follow-bar').hidden, 'follow mode ended');
+    assert.match(board.$('#bc-follow-note').textContent, /6 hours/);
+    assert.equal(board.$('#bc-follow').checked, true, 'the answer is kept');
+    const calls = since => world.traffic.filter(log => log.name === 'getDeskStamps' && log.tab === projector && log.sentAt >= since);
+    let since = world.clock.now();
+    await run(world, 120000);
+    assert.equal(calls(since).length, 0, 'no checks once it ended');
+    projector.click(projector.$('#player-board'));
+    await run(world, 3000);
+    assert.ok(!projector.$('#follow-bar').hidden, 'Player board follows again');
+    // Stop following on the desk is a person's choice: the answer turns off.
+    projector.click(projector.$('#stop-follow'));
+    await run(world, 1000);
+    assert.equal(board.$('#bc-follow').checked, false);
+    since = world.clock.now();
+    await run(world, 60000);
+    assert.equal(calls(since).length, 0);
+    [main, projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
     board.close();
   },
 
