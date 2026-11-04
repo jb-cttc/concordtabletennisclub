@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Text CTTC - Concord Table Tennis Club</title>
+  <meta name="description" content="One tap texts the Concord Table Tennis Club that you're coming to today's round robin.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Concord Table Tennis Club">
+  <meta property="og:title" content="Text CTTC - Concord Table Tennis Club">
+  <meta property="og:description" content="One tap texts the club that you're coming to today's round robin.">
+  <meta property="og:image" content="https://concordtabletennisclub.com/assets/icons/text-icon-512.png">
+  <link rel="stylesheet" href="style.css?v=20261103c">
+  <!-- Its own Home Screen icon and name, beside the CTTC one (scripts/sync-nav.js leaves this page's head alone). -->
+  <link rel="icon" href="assets/icons/text-icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/icons/text-apple-touch-icon.png">
+  <link rel="manifest" href="assets/text.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="Text CTTC">
+  <meta name="theme-color" content="#FAF8F3">
+</head>
+<body data-home-screen="text">
+
+<main class="text-cttc">
+  <a class="text-cttc-logo" href="index.html"><img src="assets/logo-transparent.png" alt="Concord Table Tennis Club"></a>
+  <h1>Coming to the round robin today?</h1>
+  <a id="text-cttc-send" class="text-cttc-send" href="sms:+19252383505?&amp;body=I'll%20join%20CTTC's%20RR%20today"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.2A2.5 2.5 0 0 1 4 13.5z"/></svg> Text CTTC: I&rsquo;ll join today</a>
+  <p class="text-cttc-what">Opens Messages to <strong>(925) 238-3505</strong> with &ldquo;I&rsquo;ll join CTTC&rsquo;s RR today&rdquo; filled in. Just tap Send.</p>
+  <p class="text-cttc-links"><a href="tonight.html">See who&rsquo;s playing tonight</a> <span aria-hidden="true">&middot;</span> <a href="index.html">CTTC website</a></p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  // Opened from the Text CTTC icon on the Home Screen: go straight to Messages with the text filled in. A phone may not
+  // let a page open Messages without a tap; then the big button is right there. Opened in the browser (to read it, or to
+  // add the icon), nothing happens until the button is tapped.
+  var standalone = navigator.standalone || ["standalone", "minimal-ui", "fullscreen"].some(function (mode) {
+    return window.matchMedia && window.matchMedia("(display-mode: " + mode + ")").matches;
+  });
+  var fromIcon = standalone || /[?&]from=home-screen(&|$)/.test(window.location.search);
+  var adding = /[?&]home-screen(&|$)/.test(window.location.search);
+  if (fromIcon && !adding) document.getElementById("text-cttc-send").click();
+})();
+</script>
+<script src="navtoggle.js"></script>
+
+</body>
+</html>

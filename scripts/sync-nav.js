@@ -49,6 +49,11 @@ const HEAD_ICONS = '\n  <link rel="icon" href="assets/logo.png" type="image/png"
 
 const NAV_HREFS = new Set(NAV_LINKS.map(function (l) { return l.href; }));
 
+// Pages that are not in the menu themselves but belong to a section: that section's link is highlighted on them.
+const NAV_SECTIONS = {
+  'tonight.html': 'roundrobins.html'
+};
+
 function buildNavBlock(activeHref) {
   var links = NAV_LINKS.map(function (link) {
     var isActive = link.href === activeHref;
@@ -65,7 +70,9 @@ function buildFooterBlock() {
   return '<footer>\n  ' + FOOTER_TEXT + '\n</footer>\n\n<script src="navtoggle.js"></script>';
 }
 
-var htmlFiles = fs.readdirSync(ROOT).filter(function (f) { return f.endsWith('.html') && f !== 'desk.html' && f !== 'cash.html'; });
+// Pages with no site header: the desk's own pages, and Text CTTC (text.html), whose head carries its own Home Screen icon.
+var OWN_PAGES = ['desk.html', 'cash.html', 'text.html'];
+var htmlFiles = fs.readdirSync(ROOT).filter(function (f) { return f.endsWith('.html') && OWN_PAGES.indexOf(f) < 0; });
 var updated = 0;
 var unchanged = 0;
 
@@ -73,7 +80,7 @@ htmlFiles.forEach(function (filename) {
   var filePath = path.join(ROOT, filename);
   var original = fs.readFileSync(filePath, 'utf8');
 
-  var activeHref = NAV_HREFS.has(filename) ? filename : null;
+  var activeHref = NAV_HREFS.has(filename) ? filename : NAV_SECTIONS[filename] || null;
   var newNav = buildNavBlock(activeHref);
   var newFooter = buildFooterBlock();
 

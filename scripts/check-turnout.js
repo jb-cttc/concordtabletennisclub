@@ -13,7 +13,7 @@ const root = path.join(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 assert.equal(read('turnout-app/Turnout.js'), read('turnout.js'), 'turnout-app/Turnout.js is an exact copy of turnout.js: cp turnout.js turnout-app/Turnout.js');
-assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html style\.css navtoggle\.js standings\.js turnout\.js favicon\.svg _site\//, 'the site publishes turnout.js');
+assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html [^\n]*\bturnout\.js\b[^\n]* _site\//, 'the site publishes turnout.js');
 
 // ---- Rating zones: the bottom of each range is in it, the top is not ----
 [[0, 0], [599, 0], [600, 1], [799, 1], [800, 2], [999, 2], [1000, 3], [1199, 3], [1200, 4], [1399, 4], [1400, 5],
@@ -179,15 +179,48 @@ assert.match(read('index.html'), /href="tonight\.html"/, 'the home page links to
   assert.equal(box.querySelector('a').getAttribute('href'), 'sms:+19252383505?&body=' + encodeURIComponent('I\'ll join CTTC\'s RR today'), file);
 });
 assert.ok(!html.includes('sms:+19252383505'), 'the Tonight page itself no longer carries the join link');
+assert.match(html, /<a href="roundrobins\.html" class="active">/, 'Tonight is part of the Round Robins section: its menu link is highlighted');
+
+// Coming back to the button: tonight-launch.js, on both pages, notes where the button sat on the screen when it was
+// tapped and, on Back, scrolls so it sits there again (the home page is built as it loads, so the browser's own guess
+// lands far below it).
+const launchSource = read('tonight-launch.js');
+['index.html', 'roundrobins.html'].forEach(file => {
+  assert.ok(read(file).includes('<script src="tonight-launch.js"></script>'), file + ' loads tonight-launch.js');
+});
+assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html [^\n]*\btonight-launch\.js\b/, 'and the site publishes it');
+function launchPage({ type, stored, buttonTop }) {
+  const dom = new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/index.html' });
+  const window = dom.window;
+  const scrolls = [];
+  if (stored) window.sessionStorage.setItem('cttc-tonight-return', JSON.stringify(stored));
+  window.performance.getEntriesByType = () => [{ type }];
+  window.scrollBy = (x, y) => scrolls.push(y);
+  const button = window.document.querySelector('.tonight-launch');
+  button.getBoundingClientRect = () => ({ top: buttonTop });
+  window.eval(launchSource);
+  return { window, button, scrolls, saved: () => window.sessionStorage.getItem('cttc-tonight-return') };
+}
+const tapped = launchPage({ type: 'navigate', buttonTop: 480 });
+tapped.window.document.addEventListener('click', event => event.preventDefault());
+tapped.button.dispatchEvent(new tapped.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+assert.deepEqual(JSON.parse(tapped.saved()), { page: '/index.html', top: 480 }, 'a tap notes where the button sat');
+assert.equal(tapped.window.history.scrollRestoration, 'manual', 'and the page puts itself back, not the browser');
+const returned = launchPage({ type: 'back_forward', stored: { page: '/index.html', top: 480 }, buttonTop: 1425 });
+assert.equal(returned.scrolls[0], 945, 'on Back the page scrolls the button to where it was');
+assert.equal(returned.saved(), null, 'once');
+assert.deepEqual(launchPage({ type: 'navigate', stored: { page: '/index.html', top: 480 }, buttonTop: 1425 }).scrolls, [], 'an ordinary visit is left alone');
+assert.deepEqual(launchPage({ type: 'back_forward', stored: { page: '/roundrobins.html', top: 480 }, buttonTop: 1425 }).scrolls, [], 'only the page the button was tapped on');
 
 const pageScript = /<script>\n([\s\S]*?)<\/script>\n\n<\/body>/.exec(html)[1];
 const turnoutSource = read('turnout.js');
 const publicRoster = JSON.parse(JSON.stringify(roster));
 const publicPlayers = { players: [{ name: 'Ada Every', currentRating: 1250 }, { name: 'Bo Mondays', currentRating: 640 }, { name: 'Cy Lapsed', currentRating: 1700 }] };
 
-function page({ now, url = '', answers = [] }) {
+// referrer is the page the visitor came from; historyLength is the tab's history (1 for a new tab).
+function page({ now, url = '', answers = [], referrer, historyLength = 2 }) {
   const start = now;
-  const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/tonight.html', pretendToBeVisual: true });
+  const dom = new JSDOM(html.replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/tonight.html', referrer, pretendToBeVisual: true });
   const window = dom.window;
   const calls = [];
   const timers = [];
@@ -206,10 +239,13 @@ function page({ now, url = '', answers = [] }) {
     if (body === null || body === undefined) return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) });
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(JSON.stringify(body))) });
   };
+  const backs = [];
+  Object.defineProperty(window.history, 'length', { value: historyLength });
+  window.history.back = () => backs.push('back');
   window.eval(turnoutSource);
   // Every case says which address the page has: '' is a page before the app was deployed.
   window.eval(pageScript.replace('var TURNOUT_URL = "' + turnoutUrl[1] + '";', 'var TURNOUT_URL = "' + url + '";'));
-  return { window, calls, timers, $: id => window.document.getElementById(id), start };
+  return { window, calls, timers, backs, $: id => window.document.getElementById(id), start };
 }
 const settle = () => new Promise(resolve => setTimeout(resolve, 20));
 const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
@@ -294,6 +330,29 @@ const MONDAY_10AM = Date.parse('2026-10-26T17:00:00Z');
   await settle();
   assert.equal(recovering.$('tonight-status').hidden, true);
   assert.equal(recovering.$('stat-playing').textContent, '4');
+
+  // The bar at the top leads back to where the Tonight button was tapped, the way the browser's Back does, so that page
+  // opens where it was left. Opened any other way, it leads to Round Robins.
+  const back = (referrer, historyLength) => {
+    const tab = page({ now: MONDAY_10AM, url: '', referrer, historyLength });
+    const link = tab.$('tonight-back');
+    // Whether the page took the tap over (going back instead), seen before the check stops jsdom following the link.
+    let handled = null;
+    tab.window.document.addEventListener('click', event => { handled = event.defaultPrevented; event.preventDefault(); });
+    link.dispatchEvent(new tab.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    return { label: link.textContent.trim(), href: link.getAttribute('href'), backs: tab.backs.length, handled };
+  };
+  const site = 'https://concordtabletennisclub.com/';
+  assert.deepEqual(back(undefined), { label: '‹ Round Robins', href: 'roundrobins.html', backs: 0, handled: false }, 'a shared link or a text: the link to Round Robins');
+  assert.equal(back(site + 'index.html').label, '‹ Back to Home');
+  assert.deepEqual(back(site + 'index.html').backs, 1, 'Back to Home is the browser\'s Back, so Home opens where it was left');
+  assert.equal(back(site).label, '‹ Back to Home', 'the home page by its bare address');
+  assert.equal(back(site + '?from=home-screen').label, '‹ Back to Home', 'opened from the Home Screen icon');
+  assert.deepEqual(back(site + 'roundrobins.html'), { label: '‹ Back to Round Robins', href: 'roundrobins.html', backs: 1, handled: true });
+  assert.equal(back(site + 'roundrobins').label, '‹ Back to Round Robins', 'the page without .html');
+  assert.deepEqual(back(site + 'index.html', 1), { label: '‹ Back to Home', href: 'index.html', backs: 0, handled: false }, 'a new tab has nothing to go back to: the link opens Home instead');
+  assert.equal(back(site + 'leaderboard.html').label, '‹ Round Robins', 'from any other page: Round Robins');
+  assert.equal(back('https://www.google.com/').label, '‹ Round Robins', 'from another site: Round Robins');
 
   // On a Friday it is about Monday.
   const friday = page({ now: Date.parse('2026-10-23T17:00:00Z'), url: '' });

@@ -25,8 +25,16 @@ texted, then likely. People who sign in or text move from the forecast into
 at the night's total until more people are playing than were expected
 (`scripts/check-turnout.js` plays out a night to check this).
 
-Beside the "See who's playing tonight" button on the home and Round Robins
-pages, a box invites a text: "Want to be included? (925) 238-3505 Text us".
+The "See who's playing tonight" button on the home and Round Robins pages
+opens the Tonight page, which belongs to the Round Robins section (its menu
+link is highlighted there). A bar at the top leads back: "Back to Home" or
+"Back to Round Robins" after a tap on that page's button, working as the
+browser's Back does; opened any other way (a shared link, a text), it links to
+Round Robins. Coming back by either, `tonight-launch.js` puts the button where
+it was on the screen: the home page is built as it loads, so the browser's own
+guess at the old position lands well below it.
+
+Beside the button, a box invites a text: "Want to be included? (925) 238-3505 Text us".
 Tapping the number always opens Messages with "I'll join CTTC's RR today"
 filled in, whatever the day: one plain link, `sms:+19252383505?&body=`, which
 iPhone, iPad and Mac Messages read after the `&` and Android after the `?`,
@@ -42,6 +50,12 @@ or when the sender's latest text that day says they are not coming
 ("can't make it"). Someone whose text could not be matched and who later
 signs in at the desk is counted twice (once at the front desk, once in
 their zone) until the next day.
+
+The same text has its own Home Screen icon, **Text CTTC** (`text.html`).
+The header's Add to Home Screen button asks which icon to add, CTTC (the
+website) or Text CTTC, and shows the steps on the page to be saved. Opened
+from its icon, `text.html` goes straight to Messages with the join text
+filled in; a phone that wants a tap first gets one big button instead.
 
 Which night: today while it is a round robin day and the round robin is
 still on (before 10 PM Pacific on a Monday or Wednesday, 6 PM on a

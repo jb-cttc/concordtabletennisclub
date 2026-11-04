@@ -52,7 +52,7 @@ const syncNav = fs.readFileSync(path.join(root, 'scripts', 'sync-nav.js'), 'utf8
 const navigation = /const NAV_LINKS = \[([\s\S]*?)\];/.exec(syncNav)[1];
 assert.ok(navigation.includes('index.html'), 'the navigation list was found');
 assert.ok(!navigation.includes('cash'), 'not in the site navigation');
-assert.match(syncNav, /f !== 'cash\.html'/);
+assert.match(syncNav, /OWN_PAGES = \[[^\]]*'cash\.html'/);
 assert.doesNotMatch(html, /<nav>|<footer>/);
 assert.match(fs.readFileSync(path.join(root, '.github', 'workflows', 'update-data.yml'), 'utf8'), /cp \*\.html /, 'top-level pages are published');
 
