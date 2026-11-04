@@ -20,7 +20,7 @@
   function pick(list) { return list[Math.floor(rand() * list.length)]; }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
 
-  // ---- Made-up players (the Equalizer mockup's 24, plus 16 more on the same spread) ----
+  // ---- Made-up players (the Equalizer guide's 24, plus 16 more on the same spread) ----
   var PEOPLE = [
     ["Avery Lin", 2100], ["Bea Torres", 1785], ["Cal Okafor", 1690], ["Dana Wu", 1550], ["Eli Novak", 1440], ["Faye Moreno", 1380],
     ["Gus Patel", 1280], ["Hana Sato", 1195], ["Ivo Rossi", 1145], ["Jo Mensah", 1125], ["Kai Larsen", 1085], ["Lena Brandt", 965],
