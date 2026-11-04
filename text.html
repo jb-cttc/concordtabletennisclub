@@ -34,12 +34,31 @@
   // Opened from the Text CTTC icon on the Home Screen: go straight to Messages with the text filled in. A phone may not
   // let a page open Messages without a tap; then the big button is right there. Opened in the browser (to read it, or to
   // add the icon), nothing happens until the button is tapped.
+  //
+  // A tap on the icon while the app is still open in the background does not load the page again: the phone shows the page
+  // as it was left. So when the page comes back to the screen after AWAY_MS or more, that counts as a fresh tap and Messages
+  // opens again. Back sooner (straight after sending, say), it stays on the page, so it never bounces back into Messages.
+  var AWAY_MS = 2 * 60 * 1000;
   var standalone = navigator.standalone || ["standalone", "minimal-ui", "fullscreen"].some(function (mode) {
     return window.matchMedia && window.matchMedia("(display-mode: " + mode + ")").matches;
   });
   var fromIcon = standalone || /[?&]from=home-screen(&|$)/.test(window.location.search);
   var adding = /[?&]home-screen(&|$)/.test(window.location.search);
-  if (fromIcon && !adding) document.getElementById("text-cttc-send").click();
+  function openMessages() { document.getElementById("text-cttc-send").click(); }
+  if (fromIcon && !adding) openMessages();
+  if (!fromIcon) return;
+  var hiddenAt = null;
+  function cameBack() {
+    if (hiddenAt !== null && Date.now() - hiddenAt >= AWAY_MS) openMessages();
+    hiddenAt = null;
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") { if (hiddenAt === null) hiddenAt = Date.now(); }
+    else cameBack();
+  });
+  // A page the browser kept whole may come back without a visibility change.
+  window.addEventListener("pagehide", function () { if (hiddenAt === null) hiddenAt = Date.now(); });
+  window.addEventListener("pageshow", function (event) { if (event.persisted) cameBack(); });
 })();
 </script>
 <script src="navtoggle.js"></script>

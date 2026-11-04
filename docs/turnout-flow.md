@@ -58,7 +58,10 @@ from its icon, `text.html` goes straight to Messages with the join text
 filled in; a phone that wants a tap first gets one big button instead.
 Checked on an iPhone on November 4, 2026: one tap on the icon shows the page
 for a moment, then Messages opens with the text ready to send, with nothing
-else to tap.
+else to tap. A later tap while the app is still open in the background does
+not load the page again (the phone shows it as it was left), so a page back
+on the screen after 2 minutes or more opens Messages again; back sooner
+(straight after sending), it stays on the page.
 
 Which night: today while it is a round robin day and the round robin is
 still on (before 10 PM Pacific on a Monday or Wednesday, 6 PM on a
