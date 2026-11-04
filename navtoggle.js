@@ -47,21 +47,16 @@
   });
 
   var ICONS = {
-    site: { key: 'cttc-home-screen', name: 'CTTC', icon: 'assets/icons/apple-touch-icon.png',
+    site: { name: 'CTTC', icon: 'assets/icons/apple-touch-icon.png',
       about: 'The club&rsquo;s website: results, Tonight, the calendar.' },
-    text: { key: 'cttc-home-screen-text', name: 'Text CTTC', icon: 'assets/icons/text-apple-touch-icon.png',
+    text: { name: 'Text CTTC', icon: 'assets/icons/text-apple-touch-icon.png',
       about: 'One tap texts the club &ldquo;I&rsquo;ll join CTTC&rsquo;s RR today&rdquo;.' }
   };
 
-  // Once added, the chooser marks that icon, so nobody adds a second by mistake. Android says when an icon is installed;
-  // an iPhone never tells the page, so it is the person's "I added it", or a visit from the icon itself (the start_url
-  // carries ?from=home-screen) when the icon opens in the same browser.
-  function added(kind) { try { return localStorage.getItem(ICONS[kind].key) === 'added'; } catch (error) { return false; } }
-  function markAdded(kind, yes) { try { if (yes) localStorage.setItem(ICONS[kind].key, 'added'); else localStorage.removeItem(ICONS[kind].key); } catch (error) {} }
-  var here = textPage ? 'text' : 'site';
+  // No "already on your Home Screen" mark: a page can't see the Home Screen, and on an iPhone an icon that opens as its own
+  // app keeps its own storage, so the browser never hears of it. A mark would be right for one icon and wrong for the other.
   var params = window.location.search;
   var steps = /[?&]home-screen(&|$)/.test(params);
-  if (saved || /[?&]from=home-screen(&|$)/.test(params)) markAdded(here, true);
   // The markers leave the address, so the address saved on an iPhone is the plain page, except on Text CTTC, where the
   // saved address carries ?from=home-screen: an icon that opens in the browser still knows to open Messages.
   if (window.history.replaceState) {
@@ -77,10 +72,6 @@
     prompt = event;
     if (sheet && sheet.getAttribute('data-steps') === 'text') showSteps('text');
   });
-  window.addEventListener('appinstalled', function () { markAdded(here, true); });
-  if (!textPage && android && navigator.getInstalledRelatedApps) {
-    navigator.getInstalledRelatedApps().then(function (apps) { if (apps && apps.length) markAdded('site', true); }, function () {});
-  }
   if (btn) btn.hidden = false;
 
   function close() { if (sheet) { sheet.remove(); sheet = null; if (btn) btn.focus(); } }
@@ -106,7 +97,7 @@
     return box;
   }
 
-  // Which icon: the website, or the one that opens the text. Each says when it is already on this phone.
+  // Which icon: the website, or the one that opens the text.
   function chooser() {
     var box = newSheet('Add to your Home Screen');
     var first = null;
@@ -115,8 +106,7 @@
       var option = node(kind === 'text' ? 'a' : 'button', 'home-screen-option');
       if (kind === 'text') option.href = 'text.html?home-screen';
       else { option.type = 'button'; option.addEventListener('click', function () { chooseSite(); }); }
-      option.innerHTML = '<img src="' + icon.icon + '" alt=""><span><b>' + icon.name + '</b><small>' + icon.about + '</small>'
-        + (added(kind) ? '<small class="home-screen-on">&#10003; On your Home Screen</small>' : '') + '</span>';
+      option.innerHTML = '<img src="' + icon.icon + '" alt=""><span><b>' + icon.name + '</b><small>' + icon.about + '</small></span>';
       box.appendChild(option);
       if (!first) first = option;
     });
@@ -132,7 +122,6 @@
     if (!prompt) { showSteps('site'); return; }
     close();
     prompt.prompt();
-    prompt.userChoice.then(function (choice) { if (choice.outcome === 'accepted') markAdded('site', true); });
     prompt = null;
   }
 
@@ -153,7 +142,6 @@
       actions.appendChild(first = button('Add ' + icon.name, '', function () {
         close();
         prompt.prompt();
-        prompt.userChoice.then(function (choice) { if (choice.outcome === 'accepted') markAdded(kind, true); });
         prompt = null;
       }));
       box.appendChild(actions);
@@ -172,8 +160,7 @@
     ]).forEach(function (html) { list.appendChild(node('li', '', html)); });
     box.appendChild(list);
     var row = node('div', 'home-screen-actions');
-    row.appendChild(button('Not now', 'plain', close));
-    row.appendChild(first = button('I added it', '', function () { markAdded(kind, true); close(); }));
+    row.appendChild(first = button('Done', '', close));
     box.appendChild(row);
     first.focus();
   }

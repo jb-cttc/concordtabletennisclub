@@ -14,9 +14,8 @@ const root = path.join(__dirname, '..');
 const pngSize = file => { const data = fs.readFileSync(path.join(root, file)); return [data.readUInt32BE(16), data.readUInt32BE(20)]; };
 
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'assets/site.webmanifest'), 'utf8'));
-assert.equal(manifest.start_url, '/?from=home-screen', 'the saved icon opens the home page, marked so the page knows it was added');
+assert.equal(manifest.start_url, '/?from=home-screen', 'the saved icon opens the home page (the marker then leaves the address)');
 assert.equal(manifest.id, '/');
-assert.deepEqual(manifest.related_applications, [{ platform: 'webapp', url: 'https://concordtabletennisclub.com/assets/site.webmanifest' }], 'Android can tell the page the icon is installed');
 assert.equal(manifest.short_name, 'CTTC');
 manifest.icons.forEach(icon => {
   const size = Number(icon.sizes.split('x')[0]);
@@ -62,7 +61,6 @@ assert.match(sheet.textContent, /^Add to your Home Screen/);
 assert.deepEqual(options(sheet).map(option => option.querySelector('b').textContent), ['CTTC', 'Text CTTC']);
 assert.deepEqual(options(sheet).map(option => option.querySelector('img').getAttribute('src')), ['assets/icons/apple-touch-icon.png', 'assets/icons/text-apple-touch-icon.png']);
 assert.equal(options(sheet)[1].getAttribute('href'), 'text.html?home-screen', 'Text CTTC is added from its own page, the page it opens');
-assert.equal(sheet.querySelector('.home-screen-on'), null, 'nothing is on the Home Screen yet');
 sheet.querySelector('.home-screen-box > button.plain').click();
 assert.equal(sheetOf(phone), null, 'Not now closes');
 
@@ -73,26 +71,20 @@ sheet = sheetOf(phone);
 assert.match(sheet.textContent, /Add CTTC to your Home Screen[\s\S]*Tap Share[\s\S]*Add to Home Screen[\s\S]*Tap Add/);
 assert.equal(sheet.querySelector('img').getAttribute('src'), 'assets/icons/apple-touch-icon.png');
 assert.equal(sheet.querySelector('.home-screen-arrow'), null, 'no arrow: the page can\'t see where the browser\'s toolbar is');
-assert.deepEqual(labels(sheet), ['Not now', 'I added it']);
-sheet.querySelectorAll('.home-screen-actions button')[0].click();
-assert.equal(sheetOf(phone), null, 'Not now closes');
+assert.deepEqual(labels(sheet), ['Done']);
+sheet.querySelector('.home-screen-actions button').click();
+assert.equal(sheetOf(phone), null, 'Done closes');
+
+// No "already on your Home Screen" mark: a page can't see the Home Screen, and an iPhone icon that opens as its own app
+// keeps its own storage, so a mark would be right for one icon and wrong for the other. Both choices always look the same.
 phone.button.click();
 options(sheetOf(phone))[0].click();
-[...sheetOf(phone).querySelectorAll('button')].find(button => button.textContent === 'I added it').click();
-assert.equal(sheetOf(phone), null);
-assert.equal(phone.window.localStorage.getItem('cttc-home-screen'), 'added');
-// Added: on any page, the chooser says so beside that icon only.
-phone = page(IPHONE, 'https://concordtabletennisclub.com/about.html', phone.window.localStorage);
+sheetOf(phone).querySelector('.home-screen-actions button').click();
+phone = page(IPHONE, 'https://concordtabletennisclub.com/?from=home-screen', phone.window.localStorage);
+assert.equal(phone.window.location.search, '', 'opened from the icon: the marker leaves the address');
 phone.button.click();
-sheet = sheetOf(phone);
-assert.deepEqual(options(sheet).map(option => !!option.querySelector('.home-screen-on')), [true, false]);
-assert.match(options(sheet)[0].textContent, /On your Home Screen/);
-
-// Opening the site from the icon (in the same browser) marks it added, and the marker leaves the address.
-phone = page(IPHONE, 'https://concordtabletennisclub.com/?from=home-screen');
-assert.equal(phone.window.location.search, '');
-phone.button.click();
-assert.deepEqual(options(sheetOf(phone)).map(option => !!option.querySelector('.home-screen-on')), [true, false]);
+assert.deepEqual(options(sheetOf(phone)).map(option => option.querySelectorAll('small').length), [1, 1], 'each choice: its name and what it does, nothing more');
+assert.doesNotMatch(sheetOf(phone).textContent, /On your Home Screen/);
 // The steps open by themselves when an iPhone was sent to the home page to save it.
 phone = page(IPHONE, 'https://concordtabletennisclub.com/?home-screen');
 assert.match(sheetOf(phone).textContent, /^Add CTTC to your Home Screen/);
@@ -110,9 +102,6 @@ android.button.click();
 options(sheetOf(android))[0].click();
 assert.equal(prompted, 1);
 assert.equal(sheetOf(android), null);
-android.window.dispatchEvent(new android.window.Event('appinstalled'));
-android.button.click();
-assert.ok(options(sheetOf(android))[0].querySelector('.home-screen-on'), 'Android says when it is installed');
 
 // Android without one (Firefox, or already installed): the steps.
 const firefox = page(ANDROID.replace('Chrome/130.0', 'Firefox/130.0'));
@@ -192,19 +181,14 @@ browsing.show('hidden');
 browsing.show('visible', 60);
 assert.deepEqual(browsing.opened, [], 'read in the browser, it never opens Messages by itself');
 
-// Chosen from the header button: the steps, for this icon, and its own "added".
+// Chosen from the header button: the steps, for this icon.
 text = textPage(IPHONE, TEXT + '?home-screen');
 assert.deepEqual(text.opened, [], 'adding it does not open Messages');
 sheet = sheetOf(text);
 assert.match(sheet.textContent, /^Add Text CTTC to your Home Screen[\s\S]*opens Messages[\s\S]*Tap Share[\s\S]*Add to Home Screen[\s\S]*Text CTTC icon is on your Home Screen/);
 assert.equal(sheet.querySelector('img').getAttribute('src'), 'assets/icons/text-apple-touch-icon.png');
 assert.equal(text.window.location.search, '?from=home-screen', 'an iPhone saves the address that is open: it says the icon opened it');
-[...sheet.querySelectorAll('button')].find(button => button.textContent === 'I added it').click();
-assert.equal(text.window.localStorage.getItem('cttc-home-screen-text'), 'added');
-assert.equal(text.window.localStorage.getItem('cttc-home-screen'), null, 'the CTTC icon is a different one');
-phone = page(IPHONE, 'https://concordtabletennisclub.com/', text.window.localStorage);
-phone.button.click();
-assert.deepEqual(options(sheetOf(phone)).map(option => !!option.querySelector('.home-screen-on')), [false, true]);
+assert.deepEqual(labels(sheet), ['Done']);
 // Android: the steps, then one tap on the browser's own prompt once it offers one.
 text = textPage(ANDROID, TEXT + '?home-screen');
 assert.match(sheetOf(text).textContent, /Add to Home screen or Install app/);
