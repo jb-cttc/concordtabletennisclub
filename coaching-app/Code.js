@@ -1306,10 +1306,43 @@ function sweep(event) {
   timed_(event, function () {
     retireCheckTimers_();
     try {
+      try {
+        oneTimeYesToAll_();
+      } catch (error) {
+        logError_('apply the one-time yes to all', error);
+      }
       sweep_();
     } finally {
       checkNow_(false);
     }
+  });
+}
+
+// One time, at the owner's request (2026-11-04). On Nov 3 a student asked to cancel two Friday lessons (booking codes 9E3D15 and
+// 32AF8F), each by its own "Confirm: cancel your lesson" email, then booked a Saturday lesson (367613) and replied YES to that
+// email ten minutes later: a YES meant for all three. Each email then asked about one thing only, so the two cancellations kept
+// waiting. Her YES counts for them too, as it would once every email asks about everything waiting. Runs once (the property
+// below), only while both changes are still waiting, were asked before that YES, and are hers; each step is logged.
+var ONE_TIME_YES_TO_ALL = { property: 'ONE_TIME_YES_TO_ALL_367613', answered: '367613', also: ['9E3D15', '32AF8F'] };
+
+function oneTimeYesToAll_() {
+  var plan = ONE_TIME_YES_TO_ALL;
+  var properties = PropertiesService.getScriptProperties();
+  if (!plan || properties.getProperty(plan.property)) return;
+  var now = Date.now();
+  var requests = rows_('Requests');
+  var byCode = {};
+  requests.forEach(function (request) { byCode[bookingCode_(request)] = request; });
+  var answered = byCode[plan.answered];
+  var yesAt = answered ? Date.parse(answered.verified_at) : NaN;
+  if (!answered || !yesAt) return;
+  properties.setProperty(plan.property, nowIso_());
+  plan.also.forEach(function (code) {
+    var request = byCode[code];
+    var why = !request ? 'not found' : request.student_email !== answered.student_email ? 'another student' : !request.change ? 'no change waiting' :
+      !holds_(request, now) ? 'lesson no longer held' : !(Number(request.change_at) < yesAt) ? 'asked after that YES' : '';
+    logRow_('-', 'one-time-yes-to-all', request ? request.request_id : '-', '-', (why ? 'skipped: ' + why : 'applying') + ', from the YES to ' + plan.answered);
+    if (!why) studentAnswer_(request.request_id, 'c', 'yes', 'email', yesAt);
   });
 }
 

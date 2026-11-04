@@ -263,10 +263,10 @@ const answerMail = (from, word, subject) => {
 const askedBy = (address, pattern = /./) => allSent.filter(message => message.to.toLowerCase() === address && /\[CTTC ref [0-9A-F]{10}\]$/.test(message.subject) && pattern.test(message.subject)).pop().subject;
 const replyTo = (address, word, pattern) => answerMail(address, word, askedBy(address, pattern));
 // A request, then the student's YES to our email: what reaches the coach.
-const book = (form, address = form.email) => {
+const book = (form, address = form.email, word = 'YES') => {
   const result = run('requestSlot', form);
   assert.equal(result.ok, true, result.message);
-  replyTo(address.toLowerCase(), 'YES', /^Confirm your coaching request/);
+  replyTo(address.toLowerCase(), word, /^Confirm your coaching request/);
   return result;
 };
 const latestRequest = email => requestBy(email).pop();
@@ -813,6 +813,41 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.equal(run('requestSlot', form(hour, { name: 'Kai Student', email: 'kai@example.com', length: 25, start: half })).ok, false, 'the old hour key is no longer offered whole');
   replyTo('ann@example.com', 'NO', /^Lesson request from Jo Student/);
   assert.deepEqual(sides().map(entry => entry.status), ['open', 'open']);
+}
+
+// ---- One time (2026-11-04): a YES meant for everything waiting counts for the two cancellations asked just before it ----
+{
+  const zoe = 'zoe@example.com';
+  const codeOf = line => context.bookingCode_({ request_id: cell('Requests', line, 'request_id') });
+  const statuses = () => requestBy(zoe).map(line => cell('Requests', line, 'status'));
+  const [first, second, third] = run('openSlots').slots.filter(entry => entry.coach === 'Coach Ann');
+  for (const picked of [first, second]) {
+    book(form(picked, { name: 'Zoe Student', email: zoe }));
+    replyTo('ann@example.com', 'YES', /^Lesson request from Zoe Student/);
+  }
+  assert.deepEqual(statuses(), ['confirmed', 'confirmed']);
+  for (const picked of [first, second]) assert.equal(run('studentChange', { key: picked.key, action: 'cancel', contact: zoe }).ok, true);
+  book(form(third, { name: 'Zoe Student', email: zoe }), zoe, 'YES to ONLY THIS');
+  assert.deepEqual(statuses(), ['confirmed', 'confirmed', 'pending'], 'her YES went to the new request only');
+  const [a, b, c] = requestBy(zoe);
+  const plan = context.ONE_TIME_YES_TO_ALL;
+  context.ONE_TIME_YES_TO_ALL = { property: 'ONE_TIME_TEST', answered: codeOf(c), also: [codeOf(a), codeOf(b), '000000'] };
+  sent.length = 0;
+  context.sweep();
+  assert.deepEqual(statuses(), ['cancelled', 'cancelled', 'pending'], 'the sweep applies her YES to both cancellations');
+  assert.deepEqual(requestBy(zoe).slice(0, 2).map(line => [cell('Requests', line, 'cancelled_by'), cell('Requests', line, 'change')]), [['student', ''], ['student', '']]);
+  assert.deepEqual(mailTo('ann@example.com').map(message => message.subject), ['Lesson cancelled by Zoe Student', 'Lesson cancelled by Zoe Student'], 'the coach is told, as for any cancellation');
+  assert.deepEqual(mailTo(zoe).map(message => message.subject), ['Coaching lesson cancelled', 'Coaching lesson cancelled']);
+  assert.deepEqual(grids.Log.slice(1).filter(line => line[2] === 'one-time-yes-to-all').map(line => line[5]),
+    ['applying, from the YES to ' + codeOf(c), 'applying, from the YES to ' + codeOf(c), 'skipped: not found, from the YES to ' + codeOf(c)], 'each step is logged');
+  assert.equal(grids.Log.slice(1).filter(line => line[2] === 'reply:student-c:yes' && line[3] === cell('Requests', a, 'request_id')).pop()[5], 'applied, now cancelled');
+  assert.ok(properties.ONE_TIME_TEST);
+  const count = sent.length;
+  context.sweep();
+  assert.equal(sent.length, count, 'it runs once');
+  context.ONE_TIME_YES_TO_ALL = plan;
+  replyTo('ann@example.com', 'NO', /^Lesson request from Zoe Student/);
+  assert.deepEqual(statuses(), ['cancelled', 'cancelled', 'declined']);
 }
 
 // ---- Expiry, and past slots are dropped ----
