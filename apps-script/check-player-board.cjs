@@ -54,11 +54,9 @@ const cases = {
     assert.match(board.$('.b-title strong').textContent, /Round Robin/);
     assert.equal(board.$('.b-count .num').textContent, '30', 'the board counts everyone signed in');
     assert.match(board.$('.b-stage').textContent, /Signing in/);
-    assert.equal(board.$$('.track > .panel').length, 3, 'the carousel shows two groups and the next one waiting');
-
-    // The wall shows every group: every player on the desk is on the board.
-    boardClick(board, '[data-set="concept"] [data-value="wall"]');
-    await run(world, 500);
+    // A new computer opens on the wall, which shows every group: every player on the desk is on the board.
+    assert.equal(board.$('[data-set="concept"] [aria-pressed="true"]').getAttribute('data-value'), 'wall', 'the wall is the default layout');
+    assert.equal(board.$$('.track').length, 0, 'not the carousel');
     const groups = tab.desk().groups;
     assert.equal(board.$$('.wall .panel').length, groups.length);
     groups.forEach(g => g.playerIds.forEach(id => assert.ok(board.text().includes(nameOf(world, id)), nameOf(world, id) + ' is on the board')));
@@ -115,6 +113,7 @@ const cases = {
     assert.match(board.$('.ticker').textContent, new RegExp(nameOf(world, m.playerOneId) + ' beat ' + nameOf(world, m.playerTwoId) + ' 3–1'));
     boardClick(board, '[data-set="concept"] [data-value="carousel"]');
     await run(world, 500);
+    assert.equal(board.$$('.track > .panel').length, 3, 'the carousel shows two groups and the next one waiting');
     assert.ok(board.$$('.xt td.cell').some(td => td.textContent === '3–1'), 'the grid shows the score');
 
     // The spotlight's A–Z list has everyone, with their group.
@@ -146,6 +145,8 @@ const cases = {
     assert.doesNotMatch(tab.status(), /late add/);
 
     // The pips under the carousel pick a group.
+    boardClick(board, '[data-set="concept"] [data-value="carousel"]');
+    await run(world, 500);
     const pips = board.$$('.pips button.pip');
     assert.equal(pips.length, tab.desk().groups.length, 'one pip button per group');
     boardClick(board, '.pips button.pip[data-pick="3"]');

@@ -174,10 +174,15 @@ payments.
   closes or reloads, the board keeps its last picture and says so; **Player board**
   reconnects it without opening a second window. If the browser blocks the window,
   the desk says so: allow pop-ups for the desk and click again.
+- **Layout.** A computer that has never opened the board starts on **Wall** (every
+  group at once). A layout picked in the settings strip is remembered on that computer.
 - **A second computer (follow mode).** For a projector on its own laptop: once the
   main desk has the night open, sign in to the desk on the second computer, open
   tonight, click **Player board**, and tick **Follow the main desk** in the board's
-  settings strip. That desk then shows the main desk's changes (sign-ins, moves,
+  settings strip (move the mouse over the board to show the strip). Follow mode never
+  starts by itself. On a computer not signed in to the club's Google account, the
+  club site's `/desk` page shows a **Sign in with the club's Google account** button
+  after about 10 seconds; it opens Google's sign-in page, then the desk. That desk then shows the main desk's changes (sign-ins, moves,
   scores, payment checks, the print) about 10 seconds behind, with the same
   animations, and editing is off there until **Stop following** (or unticking the
   box). The board remembers the choice: after a reload, clicking **Player board**

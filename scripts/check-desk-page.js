@@ -21,16 +21,25 @@ assert.doesNotMatch(html, /<iframe[^>]*\ssrc=/, 'the frame address is set by the
 
 // The script: one fixed released address, and only a well-formed date is passed on.
 const script = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
-const frame = { src: '' };
-const direct = { href: '' };
+let frame, direct, page;
+function element() { const el = { hidden: false, src: '', href: '', handlers: {} }; el.addEventListener = (name, fn) => { el.handlers[name] = fn; }; return el; }
 function run(search) {
+  const els = {};
+  const timers = [];
+  page = { els, timers, listeners: {} };
+  frame = element();
+  direct = element();
   vm.runInNewContext(script, {
     URL, URLSearchParams,
     location: { search },
-    document: { getElementById: id => id === 'desk' ? frame : direct }
+    setTimeout: (fn, ms) => { timers.push({ fn, ms, cleared: false }); return timers.length; },
+    clearTimeout: id => { if (timers[id - 1]) timers[id - 1].cleared = true; },
+    window: { addEventListener: (name, fn) => { page.listeners[name] = fn; } },
+    document: { getElementById: id => id === 'desk' ? frame : id === 'direct' ? direct : (els[id] = els[id] || element()) }
   });
   return frame.src;
 }
+function wait(ms) { page.timers.filter(t => !t.cleared && t.ms <= ms).forEach(t => { t.cleared = true; t.fn(); }); }
 const base = /new URL\('([^']+)'\)/.exec(script)[1];
 assert.match(base, /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/, 'only a released /exec address, never /dev');
 assert.equal(run(''), base);
@@ -43,6 +52,41 @@ for (const bad of ['?date=2026-9-28', '?date="><script>', '?date=2026-09-28%22',
   assert(!src.includes('evil') && !src.includes('<'), 'nothing from the link leaks into the address');
 }
 assert.equal(new URL(run('?src=https://evil.example')).origin, 'https://script.google.com');
+
+// Not signed in: Google leaves the frame blank, so after 10 seconds without word from the desk a sign-in card covers it.
+// Its button opens the desk directly in this tab, where Google shows its own sign-in page.
+assert.match(html, /<a id="direct"[^>]*target="_top"[^>]*>Sign in with the club's Google account<\/a>/);
+assert.match(html, /<div id="signin"[^>]*hidden>/, 'the card starts hidden');
+run('');
+assert.equal(page.els.signin.hidden, true, 'no card while the desk is loading');
+wait(9000);
+assert.equal(page.els.signin.hidden, true, 'still waiting at 9 seconds');
+wait(10000);
+assert.equal(page.els.signin.hidden, false, 'the card shows when the desk has not opened');
+assert.equal(page.els.fallback.hidden, true);
+// The desk opening later (a slow Google) closes it; a message from anywhere else does not.
+page.listeners.message({ origin: 'https://evil.example', data: { cttcDesk: 'ready' } });
+assert.equal(page.els.signin.hidden, false, 'only the desk itself can close the card');
+page.listeners.message({ origin: 'https://n-abc123-0lu-script.googleusercontent.com', data: { cttcDesk: 'ready' } });
+assert.equal(page.els.signin.hidden, true, 'the desk opened');
+assert.equal(page.els.fallback.hidden, true);
+// Signed in: the desk says so first, and the card never shows.
+run('');
+page.listeners.message({ origin: 'https://n-abc123-0lu-script.googleusercontent.com', data: { cttcDesk: 'ready' } });
+wait(10000);
+assert.equal(page.els.signin.hidden, true, 'a signed-in desk never sees the card');
+// Try again reloads the frame and waits again.
+run('');
+wait(10000);
+frame.src = '';
+page.els.retry.handlers.click();
+assert.equal(page.els.signin.hidden, true);
+assert.match(frame.src, /\/exec$/, 'Try again reloads the desk');
+wait(10000);
+assert.equal(page.els.signin.hidden, false);
+// The desk sends that word only when framed by the club site, to the club site's own address.
+const desk = fs.readFileSync(path.join(root, 'apps-script', 'Index.html'), 'utf8');
+assert.match(desk, /if \(embedded\) \{ try \{ window\.top\.postMessage\(\{ cttcDesk: 'ready' \}, ancestors\[2\]\);/);
 
 // The page is published, but is not part of the site menu and is left alone by the menu updater.
 const navigation = /const NAV_LINKS = \[([\s\S]*?)\];/.exec(fs.readFileSync(path.join(root, 'scripts', 'sync-nav.js'), 'utf8'))[1];

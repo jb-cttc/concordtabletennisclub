@@ -497,7 +497,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   var notice = document.getElementById('board-notice');
   var model = null;
   var desk = null;
-  var S = { concept: 'carousel', secs: 14, look: 'desk', pay: true, rating: true, follow: false };
+  // A new computer starts on the wall (every group at once, for a projector); a choice made here is remembered.
+  var S = { concept: 'wall', secs: 14, look: 'desk', pay: true, rating: true, follow: false };
   try { Object.assign(S, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch (error) { /* defaults */ }
   function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(S)); } catch (error) { /* this window only */ } }
 

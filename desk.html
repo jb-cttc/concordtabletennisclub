@@ -10,23 +10,75 @@
   <style>
     html, body { height: 100%; margin: 0; }
     body { display: flex; flex-direction: column; height: 100dvh; background: #123f2b; }
+    .stage { position: relative; flex: 1; display: flex; }
     iframe { flex: 1; display: block; width: 100%; border: 0; background: #fff; }
     .fallback { margin: 0; padding: 5px 12px; font: 12px Arial, sans-serif; text-align: right; color: #dce9e1; }
     .fallback a { color: #e8c06a; }
+    .fallback[hidden], .signin[hidden] { display: none; }
+    .signin { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: #123f2b; color: #17211b; font: 16px/1.45 Arial, Helvetica, sans-serif; overflow: auto; }
+    .card { box-sizing: border-box; width: 100%; max-width: 560px; padding: 28px 28px 22px; background: #fff; border-radius: 8px; border-bottom: 5px solid #c99934; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+    .card h1 { margin: 0 0 8px; font: 700 26px/1.2 Georgia, "Times New Roman", serif; color: #123f2b; }
+    .card p { margin: 0 0 14px; }
+    .go { display: block; margin: 18px 0 8px; padding: 14px 18px; border-radius: 6px; background: #176b45; color: #fff; font-weight: 700; font-size: 18px; text-align: center; text-decoration: none; }
+    .go:hover, .go:focus-visible { background: #0f5235; }
+    .go:focus-visible, .card button:focus-visible { outline: 3px solid #c99934; outline-offset: 2px; }
+    .after { margin-bottom: 18px; color: #4d5852; font-size: 14px; text-align: center; }
+    .card .more { padding-top: 14px; border-top: 1px solid #d8ddd9; color: #4d5852; font-size: 14px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+    .card button { border: 1px solid #176b45; border-radius: 4px; background: #fff; color: #176b45; padding: 8px 13px; font: 700 14px Arial, Helvetica, sans-serif; cursor: pointer; }
+    .card button.quiet { border-color: transparent; color: #657069; font-weight: 400; text-decoration: underline; }
   </style>
 </head>
 <body>
-  <iframe id="desk" title="CTTC Round Robin Desk"></iframe>
-  <p class="fallback">Blank? The desk opens only for the club's Google account. <a id="direct" target="_blank" rel="noopener">Open it directly</a> to sign in.</p>
+  <div class="stage">
+    <iframe id="desk" title="CTTC Round Robin Desk"></iframe>
+    <div id="signin" class="signin" role="dialog" aria-labelledby="signin-title" hidden>
+      <div class="card">
+        <h1 id="signin-title">Sign in to open the desk</h1>
+        <p>The desk opens only for the club's Google account, and this computer is not signed in to it yet (or this browser keeps Google out of this page).</p>
+        <a id="direct" class="go" target="_top">Sign in with the club's Google account</a>
+        <p class="after">Google's sign-in page opens here. Once you sign in, the desk opens.</p>
+        <p class="more">Signed in to a different Google account on this computer? Google may say <em>You need access</em>. Open a guest or private window, come back to this page, and sign in with the club's account there.</p>
+        <div class="actions"><button id="retry" type="button">Already signed in? Try again</button><button id="dismiss" class="quiet" type="button">The desk is showing: hide this</button></div>
+      </div>
+    </div>
+  </div>
+  <p id="fallback" class="fallback">Opening the desk…</p>
   <script>
     (function () {
       // The desk is owner-only: this address is not a credential. Google will not show its sign-in page inside a frame, so a
-      // visitor who is not signed in to the club's account sees a blank frame and the note below it.
+      // computer that is not signed in to the club's account gets a blank frame. The desk tells this page when it opens
+      // (apps-script/Index.html); if it has not within WAIT_MS, the sign-in card covers the blank frame, and its button
+      // opens the desk directly, where Google shows its own sign-in page and then the desk.
+      var WAIT_MS = 10000;
       var url = new URL('https://script.google.com/macros/s/AKfycbzXI7Kk4hz3JDF0DXJL_wmF6ibKp_Avz5uvwyRD-84OJJ23LfDf9yAZetS97L4zabvzDw/exec');
       var date = new URLSearchParams(location.search).get('date');
       if (/^\d{4}-\d{2}-\d{2}$/.test(date || '')) url.searchParams.set('date', date);
-      document.getElementById('desk').src = url.toString();
+      var frame = document.getElementById('desk');
+      var signin = document.getElementById('signin');
+      var fallback = document.getElementById('fallback');
+      var ready = false;
+      var timer = null;
       document.getElementById('direct').href = url.toString();
+      function open() {
+        ready = false;
+        signin.hidden = true;
+        fallback.hidden = false;
+        clearTimeout(timer);
+        timer = setTimeout(function () { if (!ready) { signin.hidden = false; fallback.hidden = true; } }, WAIT_MS);
+        frame.src = url.toString();
+      }
+      window.addEventListener('message', function (event) {
+        if (!/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/.test(event.origin || '')) return;
+        if (!event.data || event.data.cttcDesk !== 'ready') return;
+        ready = true;
+        clearTimeout(timer);
+        signin.hidden = true;
+        fallback.hidden = true;
+      });
+      document.getElementById('retry').addEventListener('click', open);
+      document.getElementById('dismiss').addEventListener('click', function () { signin.hidden = true; fallback.hidden = true; });
+      open();
     })();
   </script>
 </body>
