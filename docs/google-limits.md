@@ -39,7 +39,13 @@ page call per print, and the mark rides along with the desk's existing
 `getAppState` load and refresh, so it adds no calls, only the settings read above.
 
 **Follow mode** (a second computer's Player board following the main desk) runs
-only while someone ticks *Follow the main desk* on that board. The saves the
+only on a computer whose board was answered *Show the main laptop's desk* (asked
+once per computer; *Follow the main desk* on the board changes it), and only while
+that board is open. A board opened before its desk has loaded retries locally
+with no Google calls; one opened before the main desk starts the night checks
+from then on, so an early setup adds about six stamp checks a minute (once a
+minute after 20 quiet minutes) until the night starts, within the same 6-hour
+cap. The saves the
 desk already makes also set a tiny change stamp in the script cache, after the
 save lets go of the script lock (sessions, payments, the Equalizer, player
 corrections; `touchDesk_` in `SessionIds.js`). The following desk asks for the

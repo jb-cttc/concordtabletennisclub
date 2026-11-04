@@ -87,6 +87,8 @@ tr.conflict td{background:#fdf5f3}
   var trusted = /^(https:\/\/concordtabletennisclub\.com|http:\/\/(localhost|127\.0\.0\.1):\d+)$/;
   var direct = !!ancestors && ancestors.length === 2 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com';
   var embedded = !!ancestors && ancestors.length === 3 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com' && trusted.test(ancestors[2]);
+  // Framed by the club site: tell its page the desk opened, so it does not show its sign-in help (desk.html).
+  if (embedded) { try { window.top.postMessage({ cttcDesk: 'ready' }, ancestors[2]); } catch (error) { /* the site keeps its help */ } }
   if (!ancestors || direct || embedded) return;
   var cover = document.createElement('div');
   cover.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483647;background:#fff;color:#17211b;font:16px Arial,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px';

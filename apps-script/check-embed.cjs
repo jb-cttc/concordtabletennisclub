@@ -9,9 +9,11 @@ const page = read('Index.html');
 // The framing guard: only direct visits, the club site, and localhost (for testing) may show the app.
 const guard = page.match(/<body>\s*<script>([\s\S]*?)<\/script>/)[1];
 const sandbox = 'https://n-abc123-0lu-script.googleusercontent.com';
+let posted = [];
 function runGuard(ancestorOrigins) {
   const appended = [];
-  const window = { location: ancestorOrigins === undefined ? {} : { ancestorOrigins } };
+  posted = [];
+  const window = { location: ancestorOrigins === undefined ? {} : { ancestorOrigins }, top: { postMessage: (data, origin) => posted.push({ data, origin }) } };
   const document = { createElement: () => ({ style: {} }), body: { appendChild: node => appended.push(node) } };
   vm.runInNewContext(guard, { window, document, Array });
   return appended[0];
@@ -36,6 +38,16 @@ assert.ok(runGuard([sandbox, 'https://script.google.com', 'https://evil.example'
 assert.ok(runGuard(['https://evil.example', 'https://script.google.com']), 'an unexpected sandbox origin covers it');
 assert.ok(runGuard(['https://script.google.com']), 'an unexpected chain covers it');
 assert.equal(runGuard(undefined), undefined, 'browsers that cannot report ancestors are not locked out');
+// The one word the desk sends the page around it: "opened", only to the club site (or a local test page) framing it,
+// so the club site's desk page can show sign-in help when Google leaves the frame blank. Nothing else, nowhere else.
+framedBy('https://concordtabletennisclub.com');
+assert.deepEqual(JSON.parse(JSON.stringify(posted)), [{ data: { cttcDesk: 'ready' }, origin: 'https://concordtabletennisclub.com' }]);
+framedBy('http://localhost:3000');
+assert.deepEqual(posted.map(p => p.origin), ['http://localhost:3000']);
+for (const chain of [[sandbox, 'https://script.google.com'], [sandbox, 'https://script.google.com', 'https://evil.example'], [sandbox, 'https://script.google.com', 'https://concordtabletennisclub.com', 'https://evil.example'], undefined]) {
+  runGuard(chain);
+  assert.equal(posted.length, 0, 'nothing is sent unless the club site frames the desk: ' + JSON.stringify(chain));
+}
 
 // The version pill is a plain label.
 const pillScript = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]).find(source => source.includes("getElementById('mode-pill')"));
@@ -53,7 +65,9 @@ assert.deepEqual([pill.pill.textContent, pill.pill.title, pill.body['data-mode']
 pill = runPill('unknown');
 assert.equal(pill.pill.textContent, 'unknown');
 assert.match(page, /<span id="mode-pill" class="mode-pill" data-mode="<\?= deskMode \?>"><\/span>/, 'a label, not a control');
-assert.doesNotMatch(page, /cttc-switch|window\.top\./, 'the desk never talks to or navigates the page around it');
+const readyLine = "  if (embedded) { try { window.top.postMessage({ cttcDesk: 'ready' }, ancestors[2]); } catch (error) { /* the site keeps its help */ } }\n";
+assert.equal(page.split(readyLine).length, 2, 'the "opened" word is sent from one place');
+assert.doesNotMatch(page.replace(readyLine, ''), /cttc-switch|window\.top\./, 'otherwise the desk never talks to or navigates the page around it');
 assert.match(page, /body\[data-mode=dev\] \.top\{box-shadow:inset 0 6px 0 #e8c06a\}/, 'only the dev desk gets the amber strip');
 assert.doesNotMatch(page, /body\[data-mode=live\]/);
 

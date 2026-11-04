@@ -345,8 +345,11 @@ frame `/dev` ("You need access", tested in the VS Code browser), so `/dev` keeps
 allow framing, `doGet` uses `ALLOWALL`, which would let any website frame your signed-in desk, so the
 desk covers itself unless it is opened directly or framed by `https://concordtabletennisclub.com`
 (or `localhost`, for testing). If the desk moves to another address, update that list in
-`apps-script/Index.html`. The page has a small "Open it directly" link because browsers that block
-third-party cookies (Safari, Firefox) may show Google's sign-in page instead of a framed desk. The
+`apps-script/Index.html`. Google will not show its sign-in page inside a frame, so a computer that is
+not signed in to the club's account (or a browser that blocks third-party cookies: Safari, Firefox, private
+windows) gets a blank frame. The framed desk tells `desk.html` it opened (a `postMessage` to the club
+site); if it has not within 10 seconds, the page covers the frame with a sign-in card whose button opens
+the desk directly, where Google shows its sign-in page and then the desk. The
 frame works only after `/exec` is redeployed with this code; until then `/exec` refuses framing.
 
 **Which tab is which:** the desk code always runs on Google, never on localhost, and `/dev` and
