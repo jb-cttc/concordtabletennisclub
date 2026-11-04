@@ -154,6 +154,76 @@ confirms. While it waits, the row has `change = cancel` or
 [CTTC ref …]*. A move is applied only if the new time is still open when they
 reply YES; the new row starts at `pending` (the coach is asked straight away).
 
+While a cancel or move waits, the booking page, the coach page and the public
+Sheet show it on the lesson: **"Cancel requested: waiting for Student … to
+confirm"** (or "Move requested: …"). The lesson still counts as booked until
+the student's YES.
+
+### Everything waiting, in one email
+
+A student can have several things waiting for their YES at one address: a new
+request, and a cancel or move of another lesson, each asked by its own email.
+People answer the newest email and expect that to be the answer. On 3 November
+2026 a student asked to cancel two Friday lessons, then booked a Saturday one
+and replied YES to that email; the two cancellations kept waiting. So **every
+email to a student while more than one thing waits for them lists them all**,
+numbered, under one new reference code, before the email's own details:
+
+| Answer (each is a button) | What it does |
+| --- | --- |
+| **YES** | Every item listed. |
+| **YES to ONLY THIS** | Only the item the email was sent about (marked *THIS EMAIL*); the rest stay waiting. |
+| **NO** | Declines only that item (drops that request, or keeps that lesson); the rest stay waiting. |
+
+A button opens a new email to the club with the subject (so the code) and the
+answer already written; the student presses Send. Replying with the word works
+the same. An email that asks nothing of its own (*Lesson confirmed*, *Coaching
+request sent to …*, a reply to an answer) lists what is still waiting with
+**YES** only, and its subject gets a code. With only one thing waiting, the
+email is as before (YES and NO), with buttons. Earlier emails keep answering
+their own item.
+
+- What each list held is the private **Bundles** tab: `trigger` (the item that
+  email was about, empty for a follow-up) and `items` (`v:{request_id}` for a
+  new request, `c:{request_id}:{change_at}` for a cancel or move). A YES does
+  exactly what was listed, never something asked later. The sweep drops a list
+  once nothing on it waits.
+- Read as **only**: `YES to ONLY THIS`, `yes, only this one`, `yes just this`,
+  `only this`, `yes to only this, not the others`. To a list, any other yes
+  that says *only*, *except* or *but* (`yes, only the Saturday one`) is
+  unclear: nothing changes and the student gets *We could not read your
+  reply*. `yes to all` and `yes, both` are a yes.
+- In the log: `reply:student-b:yes` (or `:only`, `:no`) with `detail`
+  `listed 3, done 3`, then one `reply:student-v` or `reply:student-c` line per
+  item it did. Anything that could not be done (a new time was taken, a
+  request expired) is explained in one *Your coaching reply* email.
+- Texts are unchanged: a texted YES answers the one question last texted.
+
+**One time, 4 November 2026.** At the owner's request the sweep counted that
+student's Saturday YES for her two waiting cancellations (booking codes
+9E3D15 and 32AF8F, from the YES to 367613), as this would have. It ran once
+(script property `ONE_TIME_YES_TO_ALL_367613`) and logged each step as
+`one-time-yes-to-all`.
+
+### The owner's daily summary
+
+The first hourly sweep after 7 AM Pacific emails the owner (the script
+property `SUMMARY_EMAIL`, else `SUMMARY_TO` in `Code.js`) *Coaching daily
+summary: N waiting for a YES, M confirmed yesterday*:
+
+- **Waiting on students:** each new request to confirm and each cancel or move
+  to confirm, with the student, coach, lesson time, booking code and how long it
+  has waited. **Waiting on coaches:** each request to accept and each list of
+  times to publish. *Nothing is waiting for an emailed YES* when there is none.
+- **Yesterday** (the Pacific day): YES answers applied, by kind (new requests,
+  lessons accepted, cancels and moves, coaching times), NO answers applied, and
+  replies to an email listing several things, counted from the Log tab. The Log
+  keeps the latest 500 lines; if it does not reach back to the start of
+  yesterday, the email says the counts may be low.
+
+It is sent once a day (`SUMMARY_SENT` holds the day) and logged as
+`daily-summary`.
+
 ## 4. How replies are recognised (the usual place things stick)
 
 Answers are read by the check (`checkTexts`). It has no timer of its own,

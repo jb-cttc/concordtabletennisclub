@@ -47,6 +47,7 @@
   button.tbl.removing::after { background: #f0d6d6; }
   .tbl.taken { background: #8a8a8a; border-color: #6f6f6f; color: #fff; }
   .tbl .step { display: block; margin-top: 2px; font-size: 0.78rem; font-style: italic; }
+  .tbl .step.change { margin: 4px auto 2px; padding: 2px 6px; border-radius: 4px; background: #fde2e1; color: #7a1f17; font-style: normal; font-weight: 700; }
   .tbl.empty { background: #fff; border: 2px dashed #ddd; color: #aaa; font-weight: 400; }
   .tbl:disabled { opacity: 1; }
   .legend { font-size: 0.85rem; color: #555; margin: 4px 0 8px; }
@@ -353,8 +354,8 @@
       el('b', { text: (entry.status === 'booked' ? 'Booked by ' : 'Requested by ') + entry.student }),
       el('span', { text: entry.coach + ' · ' + when })
     ]);
-    // Who must reply next, so a student or coach can see a request is stuck on them.
-    if (entry.status === 'requested' && entry.step) cell.appendChild(el('span', { 'class': 'step', text: entry.step }));
+    // Who must reply next, so a student or coach can see a request is stuck on them, and a cancel or move not confirmed yet.
+    if ((entry.status === 'requested' || entry.change) && entry.step) cell.appendChild(el('span', { 'class': entry.change ? 'step change' : 'step', text: entry.step }));
     var mine = el('button', { type: 'button', 'class': 'mini', text: 'Mine', 'aria-label': 'This is my lesson: cancel or move ' + entry.student + ' at ' + entry.time });
     mine.addEventListener('click', function () { change(entry); });
     cell.appendChild(mine);
@@ -736,7 +737,8 @@
       var when = time12(cell.slot.start).replace(/ (AM|PM)$/, '') + ' to ' + time12(fromMinutes(toMinutes(cell.slot.start) + (cell.entry ? cell.entry.slot : cell.slot.minutes)));
       if (cell.kind === 'other') return el('div', { 'class': 'tbl taken', style: style }, [el('b', { text: cell.entry.coach }), el('span', { text: when })]);
       if (cell.kind === 'held') {
-        var step = cell.entry.status === 'booked' ? '' : cell.entry.waiting === 'coach' ? 'Your YES needed: reply to our message' : 'Waiting for the student to confirm';
+        var step = cell.entry.change ? (cell.entry.change === 'cancel' ? 'Cancel' : 'Move') + ' requested: waiting for the student to confirm' : cell.entry.status === 'booked' ? '' :
+          cell.entry.waiting === 'coach' ? 'Your YES needed: reply to our message' : 'Waiting for the student to confirm';
         return el('div', { 'class': 'tbl held', style: style }, [el('b', { text: cell.entry.student + (cell.entry.status === 'booked' ? ' booked' : ' requested') }), el('span', { text: when }),
           step ? el('span', { 'class': 'step', text: step }) : null]);
       }
