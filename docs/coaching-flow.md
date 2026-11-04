@@ -221,8 +221,32 @@ summary: N waiting for a YES, M confirmed yesterday*:
   keeps the latest 500 lines; if it does not reach back to the start of
   yesterday, the email says the counts may be low.
 
-It is sent once a day (`SUMMARY_SENT` holds the day) and logged as
-`daily-summary`.
+- **Volunteers**, from the volunteer app's hidden `StaffingDigest` tab in the
+  desk Sheet ([staffing flow](staffing-flow.md), *The owner's daily summary*):
+  sign-ups and drops waiting for a volunteer's YES, emails waiting for the
+  club's approval, anyone with several things waiting, and yesterday's counts.
+  If that app has not written the tab for 2 hours, the email says so.
+
+The subject is *CTTC daily summary: N waiting for a YES, M confirmed
+yesterday*, counting both apps. It is sent once a day (`SUMMARY_SENT` holds
+the day) and logged as `daily-summary`.
+
+### When a newer ask replaces an older one
+
+A student who asks again about the same lesson (a cancel, then a move), or
+asks for an overlapping time for the **same student** (same email and name,
+another coach), means the newer ask. It replaces the older one, never anyone
+else's, but only once they say YES to it; until then nothing changes and both
+are held. The newer email shows the change the way the desk shows a player
+edit: *This replaces your earlier request: ~~Cancel it~~ → **Move it to …***
+(in a list, the item is marked CHANGE). The older question stops counting: a
+reply to it gets *you have since replaced that request … nothing changed* and
+lists the newer one (`reply:student-r:…`, `not applied, replaced`). The YES to
+an overlapping request cancels the one it replaces (`step:cancelled`, `by
+student, replaced by {code}`); its coach is told as for any cancellation. A
+second change of the same lesson takes the place of the first at once (the
+lesson itself is untouched until the YES); `change_was` keeps what it
+replaced, so the older email's code is still recognised.
 
 ## 4. How replies are recognised (the usual place things stick)
 

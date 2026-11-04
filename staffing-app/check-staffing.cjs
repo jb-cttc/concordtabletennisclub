@@ -1633,6 +1633,25 @@ seedCheck();
   for (const [text, only] of [['YES to ONLY THIS', true], ['yes, only this one', true], ['Only this', true], ['yes just this\n\nSent from my iPhone', true], ['Only this week works', false], ['YES', false]]) {
     assert.equal(context.onlyThis_(text), only, JSON.stringify(text));
   }
+  // The hourly sweep writes this app's part of the owner's daily summary to a hidden tab of the desk Sheet.
+  assert.equal(signUp('Kai Ford', [[C, 'close']]).ok, true);
+  const kaiC = latest(kai, /^Please confirm/).subject;
+  assert.equal(signUp('Kai Ford', [[W, 'tables']]).ok, true);
+  const kaiW = latest(kai, /^Please confirm/).subject;
+  clock += 60000;
+  context.sweep();
+  const digest = grids.StaffingDigest;
+  assert.ok(hidden.has('desk-sheet-id/StaffingDigest'), 'a hidden tab');
+  assert.deepEqual(digest[0], ['kind', 'day', 'text']);
+  const kinds = digest.slice(1).map(line => line[0]);
+  assert.deepEqual([...new Set(kinds)], ['updated', 'waiting', 'several', 'day']);
+  assert.ok(digest.some(line => line[0] === 'waiting' && /^\*\*Kai Ford:\*\* 1 shift to confirm \(first [^)]+Put tables and barriers away\)\. Asked \d+ min ago; released .+ without a YES\.$/.test(line[2])));
+  assert.ok(digest.some(line => line[0] === 'several' && line[2] === 'Kai Ford has 2 things waiting at once.'), 'someone with several things waiting is flagged');
+  const today = JSON.parse(digest.filter(line => line[0] === 'day').pop()[2]);
+  assert.ok(today.signups >= 2 && today.confirmed >= 5 && today.lists >= 4 && today.dropped >= 2, JSON.stringify(today));
+  assert.doesNotMatch(JSON.stringify(digest), /@/, 'names only, never an address');
+  answerMail(kai, 'NO', kaiW);
+  answerMail(kai, 'NO', kaiC);
   // Tidy up, so later checks see the calendar as before.
   for (const [name, date, position] of [['Kai Ford', A, 'money'], ['Kai Ford', B, 'tables'], ['Kai Ford', W, 'close'], ['Lu Chen', A, 'close'], ['Lu Chen', B, 'close'], ['Lu Chen', W, 'money'], ['Lu Chen', C, 'tables'], ['Jo Banks', A, 'close'], ['Jo Banks', W, 'close']]) {
     const line = signupRows().filter(row => cell('Signups', row, 'player_id') === idOf(name) && cell('Signups', row, 'date') === date && cell('Signups', row, 'position') === position).pop();

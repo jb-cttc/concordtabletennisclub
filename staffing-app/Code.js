@@ -3635,10 +3635,104 @@ function sweep(event) {
     retireCheckTimers_();
     try {
       sweep_();
+      try {
+        writeDigest_(Date.now());
+      } catch (error) {
+        logError_('write the summary for the owner', error);
+      }
     } finally {
       checkNow_(false);
     }
   });
+}
+
+// ---------- For the owner's daily summary ----------
+// The owner gets one email a day from the coaching app (its "The owner's daily summary"). This app's part of it, written by
+// each hourly sweep to a hidden tab of the desk Sheet (DESK_SHEET_ID, which this app already reads) for the coaching app to
+// read: no new timer, no email, one Sheet write an hour. Rows are [kind, day, text]: 'updated' (when), 'waiting' (each
+// sign-up or drop waiting for a volunteer's YES), 'club' (an email waiting for the club's approval), 'several' (someone with
+// more than one thing waiting at once) and 'day' (that day's counts from the Log tab, as JSON, for today and yesterday).
+var DIGEST_TAB = 'StaffingDigest';
+
+// "12 min", "5 h", "1 day 4 h".
+function ageLabel_(ms) {
+  var minutes = Math.max(0, Math.floor(ms / 60000));
+  if (minutes < 60) return minutes + ' min';
+  var hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + ' h';
+  var days = Math.floor(hours / 24);
+  return days + (days === 1 ? ' day' : ' days') + (hours % 24 ? ' ' + hours % 24 + ' h' : '');
+}
+
+function digestRows_(now) {
+  var today = pacificNow_().date;
+  var rows = [['updated', today, nowIso_()]];
+  var signups = rows_('Signups');
+  var emails = rows_('Emails');
+  var per = {};
+  var count = function (address, name) {
+    var key = addressKey_(address);
+    per[key] = per[key] || { name: name, count: 0 };
+    per[key].count += 1;
+  };
+  var until = function (ms) { return momentLabel_(ms).replace(' Pacific Time', ''); };
+  rows_('Batches').forEach(function (batch) {
+    var status = batchStatus_(batch, now);
+    if (status === 'awaiting_club' && now < Number(batch.expires_at)) {
+      rows.push(['club', today, 'Approve the email for ' + batch.name + ' (reply to "Approve an email for staff sign-ups"). Asked ' + ageLabel_(now - (Date.parse(batch.created_at) || now)) + ' ago.']);
+      return;
+    }
+    if (status !== 'pending') return;
+    var picks = signups.filter(function (entry) { return entry.batch_id === batch.batch_id && signupStatus_(entry, now) === 'pending'; }).sort(function (a, b) { return a.date.localeCompare(b.date); });
+    if (!picks.length) return;
+    var changes = picks.filter(function (entry) { return replacesIds_(entry).length; }).length;
+    rows.push(['waiting', today, '**' + batch.name + ':** ' + picks.length + ' shift' + (picks.length === 1 ? '' : 's') + ' to confirm (first ' + shortDay_(picks[0].date) + ', ' +
+      position_(picks[0].position).label + ')' + (changes ? ', ' + changes + ' replacing an earlier pick' : '') + '. Asked ' + ageLabel_(now - (Date.parse(batch.created_at) || now)) +
+      ' ago; released ' + until(Number(batch.expires_at)) + ' without a YES.']);
+    count(batch.email, batch.name);
+  });
+  signups.forEach(function (entry) {
+    if (entry.status !== 'confirmed' || !(Number(entry.drop_at) > 0) || !(now - Number(entry.drop_at) < DROP_TTL_MS)) return;
+    rows.push(['waiting', today, '**' + entry.name + ':** drop ' + position_(entry.position).label + ' on ' + shortDay_(entry.date) + '. Asked ' + ageLabel_(now - Number(entry.drop_at)) +
+      ' ago; open until ' + until(Number(entry.drop_at) + DROP_TTL_MS) + '.']);
+    count(contactOf_(entry, emails), entry.name);
+  });
+  Object.keys(per).forEach(function (key) {
+    if (per[key].count > 1) rows.push(['several', today, per[key].name + ' has ' + per[key].count + ' things waiting at once.']);
+  });
+  var log = rows_('Log');
+  var dayOf = function (at) { return Utilities.formatDate(new Date(Date.parse(at) || 0), TZ, 'yyyy-MM-dd'); };
+  [addDays_(today, -1), today].forEach(function (day) {
+    var counts = { signups: 0, confirmed: 0, released: 0, expired: 0, dropped: 0, lists: 0, approved: 0 };
+    log.forEach(function (line) {
+      if (dayOf(line.at) !== day) return;
+      var applied = /^applied/.test(line.detail);
+      if (line.kind === 'step:pending') counts.signups += 1;
+      else if (line.kind === 'reply:batch:yes' && applied) counts.confirmed += 1;
+      else if (line.kind === 'reply:batch:no' && applied) counts.released += 1;
+      else if (line.kind === 'step:expired') counts.expired += 1;
+      else if (line.kind === 'step:dropped') counts.dropped += 1;
+      else if (/^reply:bundle:/.test(line.kind)) counts.lists += 1;
+      else if (line.kind === 'reply:club:yes' && applied) counts.approved += 1;
+    });
+    counts.complete = !!log.length && dayOf(log[0].at) < day;
+    rows.push(['day', day, JSON.stringify(counts)]);
+  });
+  return rows;
+}
+
+function writeDigest_(now) {
+  var id = property_('DESK_SHEET_ID', '');
+  if (!id) return;
+  var rows = [['kind', 'day', 'text']].concat(digestRows_(now));
+  var book = SpreadsheetApp.openById(id);
+  var sheet = book.getSheetByName(DIGEST_TAB);
+  if (!sheet) {
+    sheet = book.insertSheet(DIGEST_TAB);
+    sheet.hideSheet();
+  }
+  sheet.clearContents();
+  sheet.getRange(1, 1, rows.length, 3).setNumberFormat('@').setValues(rows);
 }
 
 function sweep_() {

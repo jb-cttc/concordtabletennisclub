@@ -124,6 +124,9 @@ let textReads = 0;
 // Who the coaching page shows, as the desk copies it to its hidden CoachList tab (apps-script/CoachList.js); absent until the
 // desk makes it.
 let coachListGrid = null;
+// The volunteer app's part of the owner's daily summary, as its hourly sweep writes it to a hidden tab of the desk Sheet
+// (staffing-app/Code.js writeDigest_); absent until it does.
+let digestGrid = null;
 books['desk-sheet-id'] = {
   getSheetByName: name => ({
     VoiceTexts: {
@@ -135,6 +138,7 @@ books['desk-sheet-id'] = {
     },
     MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
     CoachList: coachListGrid && { getDataRange: () => ({ getValues: () => coachListGrid.map(line => line.slice()) }) },
+    StaffingDigest: digestGrid && { getDataRange: () => ({ getValues: () => digestGrid.map(line => line.slice()) }) },
     AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? WAKE_KEY : 'key']] }) },
     // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
     JobRuntime: runtimeGrid && {
@@ -1064,8 +1068,9 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   const tally = kind => grids.Log.slice(1).filter(line => line[2] === 'reply:' + kind + ':yes' && /^applied/.test(line[5]) && pacific(Date.parse(line[0])).slice(0, 10) === day).length;
   const confirmed = ['student-v', 'coach-request', 'student-c', 'coach-slots'].reduce((total, kind) => total + tally(kind), 0);
   assert.ok(confirmed >= 10);
-  assert.match(summary.subject, new RegExp('^Coaching daily summary: \\d+ waiting for a YES, ' + confirmed + ' confirmed yesterday$'));
-  assert.match(summary.body, /WAITING ON STUDENTS \(\d+\)\n\n(\d+\. [^\n]+\n)*\d+\. Cancel: Mia Student with Coach Ann, [^\n]+ \(booking [0-9A-F]{6}\)\. Asked \d+ min ago; waits until the student answers\./, 'a cancellation waiting, with its booking code and age');
+  assert.match(summary.subject, new RegExp('^CTTC daily summary: \\d+ waiting for a YES, ' + confirmed + ' confirmed yesterday$'));
+  assert.match(summary.body, /The volunteer app has not reported yet, so it is not in this summary\./, 'until the volunteer app writes its part');
+  assert.match(summary.body, /COACHING: WAITING ON STUDENTS \(\d+\)\n\n(\d+\. [^\n]+\n)*\d+\. Cancel: Mia Student with Coach Ann, [^\n]+ \(booking [0-9A-F]{6}\)\. Asked \d+ min ago; waits until the student answers\./, 'a cancellation waiting, with its booking code and age');
   assert.match(summary.body, new RegExp('Confirmed: ' + confirmed + ' YES answers applied\\nNew requests: ' + tally('student-v') + ' confirmed by the student\\nLessons: ' + tally('coach-request') +
     ' accepted by the coach\\nCancels and moves: ' + tally('student-c') + ' confirmed by the student'), 'yesterday, by kind');
   assert.match(summary.body, /One reply for a list: [1-9]\d* replies to an email listing several things/);
@@ -1075,8 +1080,25 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   context.rows_ = name => (name === 'Requests' || name === 'Coaches' ? [] : rows(name));
   const quiet = JSON.parse(JSON.stringify(context.summaryOf_(clock, next)));
   context.rows_ = rows;
-  assert.match(quiet.subject, /^Coaching daily summary: nothing waiting, \d+ confirmed yesterday$/);
-  assert.deepEqual(quiet.lines.slice(0, 5), [{ callout: '**Nothing is waiting for an emailed YES.**', tone: 'good' }, { heading: 'Waiting on students (0)' }, 'None.', { heading: 'Waiting on coaches (0)' }, 'None.']);
+  assert.match(quiet.subject, /^CTTC daily summary: nothing waiting, \d+ confirmed yesterday$/);
+  assert.deepEqual(quiet.lines.slice(0, 5), [{ callout: '**Nothing is waiting for an emailed YES.**', tone: 'good' }, { heading: 'Coaching: waiting on students (0)' }, 'None.', { heading: 'Coaching: waiting on coaches (0)' }, 'None.']);
+  // The volunteer app's part, as it writes it: what waits for volunteers and the club, who has several things waiting, yesterday's counts.
+  digestGrid = [['kind', 'day', 'text'], ['updated', next, new Date(clock - 30 * 60000).toISOString()],
+    ['waiting', next, '**Vol One:** 2 shifts to confirm (first Sat Dec 12, Table/barrier setup). Asked 3 h ago; released Sun Dec 13, 9:00 AM without a YES.'],
+    ['waiting', next, '**Vol One:** drop Lock-up on Mon Dec 14. Asked 1 h ago; open until Wed Dec 16, 8:00 AM.'],
+    ['club', next, 'Approve the email for Vol Two (reply to "Approve an email for staff sign-ups"). Asked 2 h ago.'],
+    ['several', next, 'Vol One has 2 things waiting at once.'],
+    ['day', day, JSON.stringify({ signups: 4, confirmed: 3, released: 1, expired: 0, dropped: 2, lists: 1, approved: 1, complete: true })]];
+  const withVolunteers = JSON.parse(JSON.stringify(context.summaryOf_(clock, next)));
+  const bothBody = withVolunteers.lines.filter(Boolean).map(context.blockText_).join('\n\n');
+  assert.match(withVolunteers.subject, new RegExp('^CTTC daily summary: \\d+ waiting for a YES, ' + (confirmed + 3) + ' confirmed yesterday$'), 'both apps in the totals');
+  assert.match(bothBody, /VOLUNTEERS: WAITING ON VOLUNTEERS \(2\)\n\n1\. Vol One: 2 shifts to confirm [^\n]+\n2\. Vol One: drop Lock-up [^\n]+\n\nVOLUNTEERS: WAITING ON THE CLUB \(1\)\n\n1\. Approve the email for Vol Two/);
+  assert.match(bothBody, /Vol One has 2 things waiting at once\. Their emails list everything waiting, so one YES can answer it all\./);
+  assert.match(bothBody, /New sign-ups: 4\nConfirmed: 3 sign-ups confirmed by YES\nReleased: 1 by NO, 0 expired without a YES\nDropped: 2 shifts\nOne reply for a list: 1 reply to an email listing several things\nClub approvals: 1/);
+  assert.doesNotMatch(bothBody, /volunteer app last reported|volunteer log does not reach/);
+  digestGrid[1][2] = new Date(clock - 5 * 3600000).toISOString();
+  assert.match(context.summaryOf_(clock, next).lines.filter(Boolean).map(context.blockText_).join('\n'), /The volunteer app last reported 5 h ago, so this part may be out of date\./);
+  digestGrid = null;
   assert.equal(grids.Log.slice(1).filter(line => line[2] === 'daily-summary').length, 2, 'each send is logged');
   context.SUMMARY_HOUR = 99;
   // Tidy up: the lessons left go, and so does every list that no longer waits on anything.

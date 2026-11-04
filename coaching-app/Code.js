@@ -1672,23 +1672,67 @@ function summaryOf_(now, today) {
     }
   });
   var confirmed = Object.keys(counts).reduce(function (total, key) { return total + counts[key]; }, 0);
-  var waiting = students.length + coachItems.length;
+  var volunteers = volunteerSummary_(now, yesterday);
+  var waiting = students.length + coachItems.length + volunteers.waiting;
   var complete = log.length && dayOf(log[0].at) < yesterday;
   return {
-    subject: 'Coaching daily summary: ' + (waiting ? waiting + ' waiting for a YES' : 'nothing waiting') + ', ' + confirmed + ' confirmed yesterday',
+    subject: 'CTTC daily summary: ' + (waiting ? waiting + ' waiting for a YES' : 'nothing waiting') + ', ' + (confirmed + volunteers.confirmed) + ' confirmed yesterday',
     lines: [
       { callout: waiting ? '**' + waiting + (waiting === 1 ? ' thing is' : ' things are') + ' waiting for an emailed YES.**' : '**Nothing is waiting for an emailed YES.**', tone: waiting ? 'action' : 'good' },
-      { heading: 'Waiting on students (' + students.length + ')' },
+      { heading: 'Coaching: waiting on students (' + students.length + ')' },
       students.length ? { steps: students } : 'None.',
-      { heading: 'Waiting on coaches (' + coachItems.length + ')' },
+      { heading: 'Coaching: waiting on coaches (' + coachItems.length + ')' },
       coachItems.length ? { steps: coachItems } : 'None.',
-      { heading: 'Yesterday, ' + dayLabel_(yesterday) },
+      { heading: 'Coaching yesterday, ' + dayLabel_(yesterday) },
       { rows: [['Confirmed', '**' + confirmed + '** YES ' + (confirmed === 1 ? 'answer' : 'answers') + ' applied'],
         ['New requests', counts['student-v'] + ' confirmed by the student'], ['Lessons', counts['coach-request'] + ' accepted by the coach'],
         ['Cancels and moves', counts['student-c'] + ' confirmed by the student'], ['Coaching times', counts['coach-slots'] + ' lists published by the coach'],
         ['NO answers', declined + ' applied'], ['One reply for a list', lists + (lists === 1 ? ' reply' : ' replies') + ' to an email listing several things']] },
       complete ? '' : 'The log does not reach back to the start of yesterday, so these counts may be low.',
       'Each booking code opens that booking\'s whole story on the coaching app\'s ?log page.'
+    ].concat(volunteers.lines)
+  };
+}
+
+// The volunteer sign-up app's part of the summary, from the hidden StaffingDigest tab its hourly sweep writes to the desk Sheet
+// (staffing-app/Code.js, "For the owner's daily summary"): rows [kind, day, text]. {waiting, confirmed, lines}.
+function volunteerSummary_(now, yesterday) {
+  var rows = [];
+  try {
+    var tab = book_('DESK_SHEET_ID').getSheetByName('StaffingDigest');
+    rows = tab ? tab.getDataRange().getValues().slice(1).map(function (line) { return line.map(String); }) : [];
+  } catch (error) {
+    rows = [];
+  }
+  var of = function (kind) { return rows.filter(function (line) { return line[0] === kind; }); };
+  var updated = of('updated')[0];
+  if (!updated) return { waiting: 0, confirmed: 0, lines: [{ heading: 'Volunteer sign-ups' }, 'The volunteer app has not reported yet, so it is not in this summary.'] };
+  var waiting = of('waiting').map(function (line) { return line[2]; });
+  var club = of('club').map(function (line) { return line[2]; });
+  var day = of('day').filter(function (line) { return line[1] === yesterday; })[0];
+  var counts = {};
+  try {
+    counts = day ? JSON.parse(day[2]) : {};
+  } catch (error) {
+    counts = {};
+  }
+  var number = function (key) { return Number(counts[key]) || 0; };
+  var age = now - (Date.parse(updated[2]) || 0);
+  return {
+    waiting: waiting.length + club.length,
+    confirmed: number('confirmed'),
+    lines: [
+      { heading: 'Volunteers: waiting on volunteers (' + waiting.length + ')' },
+      waiting.length ? { steps: waiting } : 'None.',
+      club.length ? { heading: 'Volunteers: waiting on the club (' + club.length + ')' } : '', club.length ? { steps: club } : '',
+      of('several').length ? { callout: of('several').map(function (line) { return line[2]; }).join(' ') + ' Their emails list everything waiting, so one YES can answer it all.', tone: 'action' } : '',
+      { heading: 'Volunteers yesterday, ' + dayLabel_(yesterday) },
+      day ? { rows: [['New sign-ups', String(number('signups'))], ['Confirmed', '**' + number('confirmed') + '** sign-up' + (number('confirmed') === 1 ? '' : 's') + ' confirmed by YES'],
+        ['Released', number('released') + ' by NO, ' + number('expired') + ' expired without a YES'], ['Dropped', number('dropped') + ' shift' + (number('dropped') === 1 ? '' : 's')],
+        ['One reply for a list', number('lists') + (number('lists') === 1 ? ' reply' : ' replies') + ' to an email listing several things'], ['Club approvals', String(number('approved'))]] } :
+        'The volunteer app has no counts for yesterday.',
+      day && !counts.complete ? 'The volunteer log does not reach back to the start of yesterday, so these counts may be low.' : '',
+      age > 2 * 3600000 ? 'The volunteer app last reported ' + ageLabel_(age) + ' ago, so this part may be out of date.' : ''
     ]
   };
 }
