@@ -124,6 +124,9 @@ let textReads = 0;
 // Who the coaching page shows, as the desk copies it to its hidden CoachList tab (apps-script/CoachList.js); absent until the
 // desk makes it.
 let coachListGrid = null;
+// The volunteer app's part of the owner's daily summary, as its hourly sweep writes it to a hidden tab of the desk Sheet
+// (staffing-app/Code.js writeDigest_); absent until it does.
+let digestGrid = null;
 books['desk-sheet-id'] = {
   getSheetByName: name => ({
     VoiceTexts: {
@@ -135,6 +138,7 @@ books['desk-sheet-id'] = {
     },
     MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
     CoachList: coachListGrid && { getDataRange: () => ({ getValues: () => coachListGrid.map(line => line.slice()) }) },
+    StaffingDigest: digestGrid && { getDataRange: () => ({ getValues: () => digestGrid.map(line => line.slice()) }) },
     AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? WAKE_KEY : 'key']] }) },
     // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
     JobRuntime: runtimeGrid && {
@@ -228,6 +232,9 @@ vm.runInContext(source, context);
 // Keep every log line until the trimming check, so earlier checks can read a booking's whole story.
 const LOG_KEEP = context.LOG_KEEP;
 context.LOG_KEEP = 1e6;
+// The owner's daily summary is checked on its own (below), so the other checks count only their own emails.
+const SUMMARY_HOUR = context.SUMMARY_HOUR;
+context.SUMMARY_HOUR = 99;
 const run = (name, ...args) => JSON.parse(JSON.stringify(context[name](...args) ?? null));
 const hours = count => count * 3600 * 1000;
 const mailTo = (address, from = 0) => sent.slice(from).filter(message => message.to.toLowerCase() === address);
@@ -263,10 +270,10 @@ const answerMail = (from, word, subject) => {
 const askedBy = (address, pattern = /./) => allSent.filter(message => message.to.toLowerCase() === address && /\[CTTC ref [0-9A-F]{10}\]$/.test(message.subject) && pattern.test(message.subject)).pop().subject;
 const replyTo = (address, word, pattern) => answerMail(address, word, askedBy(address, pattern));
 // A request, then the student's YES to our email: what reaches the coach.
-const book = (form, address = form.email) => {
+const book = (form, address = form.email, word = 'YES') => {
   const result = run('requestSlot', form);
   assert.equal(result.ok, true, result.message);
-  replyTo(address.toLowerCase(), 'YES', /^Confirm your coaching request/);
+  replyTo(address.toLowerCase(), word, /^Confirm your coaching request/);
   return result;
 };
 const latestRequest = email => requestBy(email).pop();
@@ -309,7 +316,7 @@ assert.match(setupResult.privateSheet, /^https:\/\/docs\.google\.com\/spreadshee
 assert.match(setupResult.publicSheet, /^https:\/\/docs\.google\.com\/spreadsheets\//);
 assert.notEqual(setupResult.privateSheet, setupResult.publicSheet);
 assert.equal(created.length, 2, 'one private and one public Sheet');
-assert.deepEqual(books['private-book-id'].names(), ['Availability', 'Coaches', 'Log', 'Requests', 'Students', 'Waitlist'], 'the send log is a private tab');
+assert.deepEqual(books['private-book-id'].names(), ['Availability', 'Bundles', 'Coaches', 'Log', 'Requests', 'Students', 'Waitlist'], 'the send log and the bundled questions are private tabs');
 assert.deepEqual(books['public-book-id'].names(), ['About', 'Schedule'], 'the public Sheet has only the schedule and a note');
 assert.deepEqual(timers(), ['sweep every 60'], 'one timer: the hourly sweep, which runs the check too (the desk wakes it in between)');
 context.setup();
@@ -371,7 +378,7 @@ assert.deepEqual(timers(), ['sweep every 60']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
-assert.equal(grids.Requests[0].length, 24);
+assert.equal(grids.Requests[0].length, 26);
 assert.deepEqual(grids.Schedule[0], ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']);
 assert.match(grids.About[0][0], /does not change any booking/);
 
@@ -570,7 +577,7 @@ assert.match(verifyMail.htmlBody, /<td style="padding:3px 16px 3px 0;[^"]*">Tabl
 assert.match(verifyMail.htmlBody, /<td[^>]*>Table 1<\/td><td[^>]*>Table 2<\/td>/, 'the day\'s tables are drawn');
 assert.match(verifyMail.htmlBody, /<td rowspan="2" style="[^"]*#fff3b0[^"]*"><strong>&#9733; YOUR LESSON<\/strong><br>Coach Ann \u00b7 7:00 PM to 7:50 PM<br><strong>Waiting for your YES/, 'with the student\'s time highlighted');
 assert.equal((verifyMail.htmlBody.match(/YOUR LESSON/g) || []).length, 1);
-assert.doesNotMatch(verifyMail.htmlBody.replace(/Sam Student/g, ''), PRIVATE);
+assert.doesNotMatch(verifyMail.htmlBody.replace(/Sam Student|mailto:owner@example\.com/g, ''), PRIVATE, 'nothing private but the club\'s own reply address');
 assert.match(verifyMail.body, /You will show on the site as "Student Sam"/);
 assert.doesNotMatch(verifyMail.body.replace(/sam@example\.com|Sam Student/g, ''), PRIVATE);
 assert.equal(run('openSlots').slots.length, 6, 'the time is held while we wait');
@@ -815,6 +822,295 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.deepEqual(sides().map(entry => entry.status), ['open', 'open']);
 }
 
+// ---- One time (2026-11-04): a YES meant for everything waiting counts for the two cancellations asked just before it ----
+{
+  const zoe = 'zoe@example.com';
+  const codeOf = line => context.bookingCode_({ request_id: cell('Requests', line, 'request_id') });
+  const statuses = () => requestBy(zoe).map(line => cell('Requests', line, 'status'));
+  const [first, second, third] = run('openSlots').slots.filter(entry => entry.coach === 'Coach Ann');
+  for (const picked of [first, second]) {
+    book(form(picked, { name: 'Zoe Student', email: zoe }));
+    replyTo('ann@example.com', 'YES', /^Lesson request from Zoe Student/);
+  }
+  assert.deepEqual(statuses(), ['confirmed', 'confirmed']);
+  for (const picked of [first, second]) assert.equal(run('studentChange', { key: picked.key, action: 'cancel', contact: zoe }).ok, true);
+  book(form(third, { name: 'Zoe Student', email: zoe }), zoe, 'YES to ONLY THIS');
+  assert.deepEqual(statuses(), ['confirmed', 'confirmed', 'pending'], 'her YES went to the new request only');
+  const [a, b, c] = requestBy(zoe);
+  const plan = context.ONE_TIME_YES_TO_ALL;
+  context.ONE_TIME_YES_TO_ALL = { property: 'ONE_TIME_TEST', answered: codeOf(c), also: [codeOf(a), codeOf(b), '000000'] };
+  sent.length = 0;
+  context.sweep();
+  assert.deepEqual(statuses(), ['cancelled', 'cancelled', 'pending'], 'the sweep applies her YES to both cancellations');
+  assert.deepEqual(requestBy(zoe).slice(0, 2).map(line => [cell('Requests', line, 'cancelled_by'), cell('Requests', line, 'change')]), [['student', ''], ['student', '']]);
+  assert.deepEqual(mailTo('ann@example.com').map(message => message.subject), ['Lesson cancelled by Zoe Student', 'Lesson cancelled by Zoe Student'], 'the coach is told, as for any cancellation');
+  assert.deepEqual(mailTo(zoe).map(message => message.subject), ['Coaching lesson cancelled', 'Coaching lesson cancelled']);
+  assert.deepEqual(grids.Log.slice(1).filter(line => line[2] === 'one-time-yes-to-all').map(line => line[5]),
+    ['applying, from the YES to ' + codeOf(c), 'applying, from the YES to ' + codeOf(c), 'skipped: not found, from the YES to ' + codeOf(c)], 'each step is logged');
+  assert.equal(grids.Log.slice(1).filter(line => line[2] === 'reply:student-c:yes' && line[3] === cell('Requests', a, 'request_id')).pop()[5], 'applied, now cancelled');
+  assert.ok(properties.ONE_TIME_TEST);
+  const count = sent.length;
+  context.sweep();
+  assert.equal(sent.length, count, 'it runs once');
+  context.ONE_TIME_YES_TO_ALL = plan;
+  replyTo('ann@example.com', 'NO', /^Lesson request from Zoe Student/);
+  assert.deepEqual(statuses(), ['cancelled', 'cancelled', 'declined']);
+}
+
+// ---- Everything waiting, in one email: YES does it all, YES to ONLY THIS just that email's own item ----
+{
+  // Tapping an answer button: the mail app opens a new message to the club with the subject and the answer filled in, and the
+  // phone adds its signature.
+  const tap = (message, answer, from = message.to) => {
+    const links = [...message.htmlBody.matchAll(/href="(mailto:[^"]+)"/g)].map(match => new URL(match[1].replace(/&amp;/g, '&')));
+    const link = links.find(url => url.searchParams.get('body') === answer);
+    assert.ok(link, 'the email has a ' + answer + ' button');
+    assert.equal(link.pathname, 'owner@example.com', 'the button replies to the club');
+    assert.equal(link.searchParams.get('subject'), 'Re: ' + message.subject, 'with the subject, so its code');
+    clock += 60000;
+    const at = clock;
+    const id = 'e' + messageCount++;
+    mailbox.push({ getId: () => id, getFrom: () => from, getSubject: () => link.searchParams.get('subject'), getDate: () => new Date(at),
+      getPlainBody: () => link.searchParams.get('body') + '\n\nSent from my iPhone' });
+    check();
+  };
+  const lessons = email => requestBy(email).map(line => [cell('Requests', line, 'status'), cell('Requests', line, 'change')]);
+  const latest = (email, pattern) => mailTo(email).filter(message => pattern.test(message.subject)).pop();
+  const open = () => run('openSlots').slots.filter(entry => entry.coach === 'Coach Ann');
+  const confirmedPair = email => {
+    const picked = open().slice(0, 2);
+    for (const entry of picked) {
+      book(form(entry, { name: 'Mia Student', email }));
+      replyTo('ann@example.com', 'YES', /^Lesson request from Mia Student/);
+    }
+    return picked;
+  };
+
+  // The case of Nov 3 2026: two cancellations, then a new request, then one YES to the newest email.
+  const mia = 'mia@example.com';
+  const [one, two] = confirmedPair(mia);
+  sent.length = 0;
+  assert.equal(run('studentChange', { key: one.key, action: 'cancel', contact: mia }).ok, true);
+  const first = sent[0];
+  assert.match(first.subject, /^Confirm: cancel your lesson \[CTTC ref [0-9A-F]{10}\]$/, 'one thing waiting: the email is as before');
+  assert.match(first.body, /Reply YES: Cancel the lesson and release the time\.\nReply NO: Keep the lesson as it is\./);
+  assert.doesNotMatch(first.body, /ONLY THIS/);
+  assert.equal([...first.htmlBody.matchAll(/href="mailto:/g)].length, 2, 'with a button for each answer');
+  assert.equal(run('studentChange', { key: two.key, action: 'cancel', contact: mia }).ok, true);
+  const second = sent[1];
+  assert.match(second.subject, /^Confirm: cancel your lesson \[CTTC ref [0-9A-F]{10}\]$/);
+  assert.notEqual(second.subject, first.subject);
+  assert.match(second.body, /Action needed: 2 things are waiting for your YES\. One reply answers them all\. Nothing changes until you reply\.\n\n1\. CANCEL: Cancel Student Mia's lesson with Coach Ann: [^\n]+\.\n2\. CANCEL: Cancel Student Mia's lesson with Coach Ann: [^\n]+\. \(THIS EMAIL\)\n\nReply YES: Do all 2 above\.\nReply YES to ONLY THIS: Do only #2 \(cancel that lesson\)\. #1 stays waiting\.\nReply NO: Do not do #2: keep that lesson\. #1 stays waiting\./,
+    'the second lists both, numbered, with the three answers');
+  // The board shows a cancellation that waits for the student.
+  const board = run('openSlots');
+  const held = board.board.filter(entry => [one.key, two.key].includes(entry.key));
+  assert.deepEqual(held.map(entry => [entry.status, entry.change, entry.step]), [['booked', 'cancel', 'Cancel requested: waiting for Student Mia to confirm'], ['booked', 'cancel', 'Cancel requested: waiting for Student Mia to confirm']]);
+  assert.ok(board.schedule.some(entry => entry.summary === 'Student Mia has session with Coach Ann. Cancel requested: waiting for Student Mia to confirm'), 'and so does the schedule list');
+  assert.deepEqual(run('coachBoard', annId).board.filter(entry => entry.student === 'Student Mia').map(entry => entry.change), ['cancel', 'cancel'], 'and the coach page');
+  assertPublicIsAnonymous();
+  // Her new request: the email lists all three, the new one marked as this email's.
+  const [three] = open().filter(entry => entry.date >= two.date && entry.start > two.start || entry.date > two.date);
+  sent.length = 0;
+  assert.equal(run('requestSlot', form(three, { name: 'Mia Student', email: mia })).ok, true);
+  const newest = latest(mia, /^Confirm your coaching request/);
+  assert.match(newest.subject, /^Confirm your coaching request \[CTTC ref [0-9A-F]{10}\]$/);
+  assert.match(newest.body, /^Hello Mia Student,\n\nAction needed: 3 things are waiting for your YES\.[^\n]*\n\n1\. CANCEL: [^\n]+\n2\. CANCEL: [^\n]+\n3\. NEW REQUEST: Send Student Mia's request to Coach Ann: [^\n]+, Table \d\. Reply by [^\n]+, or it expires\. \(THIS EMAIL\)\n\nReply YES: Do all 3 above\.\nReply YES to ONLY THIS: Do only #3 \(send the new request\)\. #1 and #2 stay waiting\.\nReply NO: Do not do #3: drop that request and release the time\. #1 and #2 stay waiting\.\n\nTap an answer to start a reply with it filled in, then press Send\. Or reply to this email with just YES, YES to ONLY THIS or NO\. Send it from this email address\./,
+    'everything waiting, in one email, before the details');
+  assert.match(newest.body, /DETAILS OF #3, WHAT THIS EMAIL IS ABOUT: YOUR REQUEST\n\nWhen: /, 'its own details follow, labelled');
+  assert.equal((newest.body.match(/^Reply YES: /gm) || []).length, 1, 'one set of answers');
+  assert.match(newest.htmlBody, /background:#fff3b0;[^>]*><td[^>]*>3<\/td>[^]*THIS EMAIL/, 'its own line is highlighted');
+  assert.deepEqual([...newest.htmlBody.matchAll(/href="mailto:[^"]+&amp;body=([^"]+)"/g)].map(match => decodeURIComponent(match[1])), ['YES', 'YES to ONLY THIS', 'NO']);
+  assert.doesNotMatch(newest.htmlBody.replace(/Mia Student|mailto:owner@example\.com/g, ''), PRIVATE);
+  // She taps YES: both cancellations and the new request, as she meant.
+  sent.length = 0;
+  tap(newest, 'YES');
+  assert.deepEqual(lessons(mia).slice(-3), [['cancelled', ''], ['cancelled', ''], ['pending', '']], 'one YES did all three');
+  assert.deepEqual(mailTo('ann@example.com').map(message => message.subject.replace(/ \[CTTC ref \w+\]$/, '')), ['Lesson cancelled by Mia Student', 'Lesson cancelled by Mia Student', 'Lesson request from Mia Student'],
+    'the coach hears about all three');
+  assert.deepEqual(mailTo(mia).map(message => message.subject.replace(/ \[CTTC ref \w+\]$/, '')).sort(), ['Coaching lesson cancelled', 'Coaching lesson cancelled', 'Coaching request sent to Coach Ann (not confirmed yet)']);
+  assert.ok(mailTo(mia).every(message => !/Still waiting for your YES|\[CTTC ref/.test(message.subject + message.body)), 'nothing is left waiting, so nothing more is listed');
+  assert.deepEqual(grids.Log.slice(1).filter(line => line[2] === 'reply:student-b:yes').pop()[5], 'listed 3, done 3');
+  assert.equal(run('openSlots').board.filter(entry => entry.change).length, 0);
+  replyTo('ann@example.com', 'NO', /^Lesson request from Mia Student/);
+
+  // YES to ONLY THIS does just that email's own item; the next email lists what still waits, and its YES does that.
+  const ned = 'ned@example.com';
+  const [lesson] = confirmedPair(ned);
+  clock += 11 * 60000;
+  assert.equal(run('studentChange', { key: lesson.key, action: 'cancel', contact: ned }).ok, true);
+  const single = latest(ned, /^Confirm: cancel your lesson/);
+  const later = open().filter(entry => entry.date > lesson.date || entry.start > lesson.start).pop();
+  sent.length = 0;
+  assert.equal(run('requestSlot', form(later, { name: 'Mia Student', email: ned })).ok, true);
+  const both = latest(ned, /^Confirm your coaching request/);
+  assert.match(both.body, /Reply YES to ONLY THIS: Do only #2 \(send the new request\)\. #1 stays waiting\./);
+  tap(both, 'YES to ONLY THIS');
+  assert.deepEqual(lessons(ned).slice(-3).map(line => line.join(' ').trim()), ['confirmed cancel', 'confirmed', 'pending'], 'only the new request went ahead');
+  const follow = latest(ned, /^Coaching request sent to Coach Ann/);
+  assert.match(follow.subject, /^Coaching request sent to Coach Ann \(not confirmed yet\) \[CTTC ref [0-9A-F]{10}\]$/, 'the follow-up can be answered too');
+  assert.match(follow.body, /NOT confirmed until the coach accepts\.\n\nStill waiting for your YES: one thing, below\. Nothing changes until you reply\.\n\n1\. CANCEL: Cancel Student Mia's lesson with Coach Ann: [^\n]+\.\n\nReply YES: Do #1 \(cancel that lesson\)\.\n\nTap an answer to start a reply with it filled in, then press Send\. Or reply to this email with just YES\./);
+  assert.doesNotMatch(follow.body, /ONLY THIS|Reply NO/, 'an email that asks nothing of its own offers YES only');
+  replyTo(ned, 'Yes, but only the Friday one', /^Coaching request sent/);
+  assert.equal(lessons(ned)[0][1], 'cancel', 'an unclear yes to a list changes nothing');
+  assert.match(mailTo(ned).pop().subject, /^We could not read your reply$/);
+  replyTo(ned, 'yes', /^Coaching request sent/);
+  assert.deepEqual(lessons(ned)[0], ['cancelled', ''], 'the YES to the follow-up did what it listed');
+  replyTo('ann@example.com', 'NO', /^Lesson request from Mia Student/);
+
+  // NO to a list declines just that email's own item; an earlier email still answers its own.
+  const ora = 'ora@example.com';
+  const [early, late] = confirmedPair(ora);
+  assert.equal(run('studentChange', { key: early.key, action: 'cancel', contact: ora }).ok, true);
+  const alone = latest(ora, /^Confirm: cancel your lesson/);
+  assert.equal(run('studentChange', { key: late.key, action: 'cancel', contact: ora }).ok, true);
+  const pair = latest(ora, /^Confirm: cancel your lesson/);
+  tap(pair, 'NO');
+  assert.deepEqual(lessons(ora), [['confirmed', 'cancel'], ['confirmed', '']], 'NO kept the second lesson, and the first still waits');
+  assert.match(mailTo(ora).pop().body, /OK, nothing changed\. Student Mia's lesson on [^\n]+ stays as it is\.[^]*Still waiting for your YES: one thing[^]*1\. CANCEL: /, 'the reply lists what still waits');
+  tap(alone, 'YES');
+  assert.deepEqual(lessons(ora), [['cancelled', ''], ['confirmed', '']], 'the first email still did its own');
+  clock += 11 * 60000;
+  cancelLesson(ora);
+  assert.deepEqual(lessons(ora).map(line => line[0]), ['cancelled', 'cancelled']);
+
+  // A newer ask replaces a conflicting older one, once the student says YES to it, and its email shows the change.
+  const tia = 'tia@example.com';
+  const tiaForm = entry => form(entry, { name: 'Tia Student', email: tia });
+  const [seven] = open();
+  book(tiaForm(seven));
+  replyTo('ann@example.com', 'YES', /^Lesson request from Tia Student/);
+  sent.length = 0;
+  assert.equal(run('studentChange', { key: seven.key, action: 'cancel', contact: tia }).ok, true);
+  const cancelAsk = sent.pop();
+  const moveTo = open().filter(entry => entry.date !== seven.date).pop();
+  clock += 60000;
+  assert.equal(run('studentChange', { key: seven.key, action: 'move', to: moveTo.key, contact: tia }).ok, true, 'a different change goes through at once');
+  const moveAsk = sent.pop();
+  assert.match(moveAsk.subject, /^Confirm: move your lesson \[CTTC ref/);
+  assert.match(moveAsk.body, /This replaces your earlier request: Cancel it \(replaced\) → Move it to [^\n]+ with Coach Ann\. Only this newer request counts now; the earlier email no longer does\./);
+  assert.match(moveAsk.htmlBody, /<del style="color:#8a3b2b;">Cancel it<\/del> → <ins style="color:#1f6b3a;font-weight:700;text-decoration:none;">Move it to /, 'struck through and in bold, as the desk shows a change');
+  tap(cancelAsk, 'YES');
+  assert.deepEqual(lessons(tia), [['confirmed', 'move:' + moveTo.key]], 'a YES to the replaced question changes nothing');
+  assert.match(mailTo(tia).pop().body, /you have since replaced that request with a newer one, so nothing changed\. Please answer the newer email\./);
+  assert.equal(grids.Log.slice(1).filter(line => line[2] === 'reply:student-r:yes').pop()[5], 'not applied, replaced');
+  tap(moveAsk, 'NO');
+  assert.deepEqual(lessons(tia), [['confirmed', '']], 'NO to the newer one keeps the lesson; the earlier ask is not brought back');
+  // Another coach at the same time: a request for it replaces the student's lesson then, once confirmed by YES.
+  const kitId = addCoach('Kit Coach', 'kit@example.com', '(925) 555-0103');
+  publish(kitId, 'Kit Coach', [slot(seven.date, seven.start, 60, 2)]);
+  const kit = run('openSlots').slots.find(entry => entry.coach === 'Coach Kit');
+  sent.length = 0;
+  assert.equal(run('requestSlot', tiaForm(kit)).ok, true);
+  const swap = latest(tia, /^Confirm your coaching request/);
+  assert.match(swap.body, new RegExp('This replaces your earlier request: Friday, October 9, 2026, 7:00 PM to 7:50 PM with Coach Ann \\(replaced\\) → Friday, October 9, 2026, 7:00 PM to 7:50 PM with Coach Kit, Table 2\\. Your YES to this one cancels the earlier one\\. Until then both are held\\.'));
+  assert.deepEqual(lessons(tia).map(line => line[0]), ['confirmed', 'unverified'], 'nothing changes before the YES');
+  tap(swap, 'YES');
+  assert.deepEqual(lessons(tia).map(line => line[0]), ['cancelled', 'pending'], 'the YES sends the new request and cancels the one it replaces');
+  assert.ok(mailTo('ann@example.com').some(message => message.subject === 'Lesson cancelled by Tia Student'), 'whose coach is told');
+  assert.ok(grids.Log.slice(1).some(line => line[2] === 'step:cancelled' && /^by student, replaced by [0-9A-F]{6}$/.test(line[5])), 'and the log says why');
+  // An older request still waiting for its own YES stops counting while a newer one replaces it.
+  replyTo('kit@example.com', 'NO', /^Lesson request from Tia Student/);
+  const [eight] = open().filter(entry => entry.coach === 'Coach Ann' && entry.date === seven.date && entry.start === seven.start);
+  sent.length = 0;
+  assert.equal(run('requestSlot', tiaForm(eight)).ok, true);
+  const older = latest(tia, /^Confirm your coaching request/);
+  assert.equal(run('requestSlot', tiaForm(run('openSlots').slots.find(entry => entry.coach === 'Coach Kit'))).ok, true);
+  const newer = latest(tia, /^Confirm your coaching request/);
+  assert.match(newer.subject, /^Confirm your coaching request \[CTTC ref [0-9A-F]{10}\]$/, 'one thing waits (the older one is replaced), so it is a plain question');
+  assert.match(newer.body, /This replaces your earlier request: [^\n]+Coach Ann \(replaced\) → [^\n]+Coach Kit, Table 2\./);
+  tap(older, 'YES');
+  assert.deepEqual(lessons(tia).slice(-2).map(line => line[0]), ['unverified', 'unverified'], 'a YES to the older one is told it was replaced');
+  assert.match(mailTo(tia).pop().body, /since replaced that request with a newer one/);
+  tap(newer, 'YES');
+  assert.deepEqual(lessons(tia).slice(-2).map(line => line[0]), ['cancelled', 'pending']);
+  replyTo('kit@example.com', 'NO', /^Lesson request from Tia Student/);
+  grids.Coaches.find(line => line[4] === kitId)[3] = 'disabled';
+  grids.Availability.splice(1, grids.Availability.length, ...grids.Availability.slice(1).filter(line => line[1] !== kitId));
+
+  // What counts as which answer, as people write it.
+  const answers = [['YES', 'yes'], ['YES to ONLY THIS', 'only'], ['yes to only this, not the others', 'only'], ['Yes, only this one', 'only'], ['yes just this', 'only'],
+    ['Only this', 'only'], ['only this one.', 'only'], ['Hi,\nYES to ONLY THIS', 'only'], ['YES to ONLY THIS\n\nSent from my iPhone', 'only'], ['YES to ONLY THISSent from my Galaxy', 'only'],
+    ['Only this week works for me', ''], ['Yes to all', 'yes'], ['yes, both', 'yes'], ['Yes please', 'yes'], ['NO', 'no'], ['No thanks', 'no']];
+  for (const [text, expected] of answers) assert.equal(context.replyAnswer_(text, true), expected, JSON.stringify(text));
+  assert.equal(context.replyAnswer_('Yes, only the Saturday one', true), '', 'to a list, a yes with "only" is unclear');
+  assert.equal(context.replyAnswer_('Yes, but call me first', true), '');
+  assert.equal(context.replyAnswer_('Yes, but call me first', false), 'yes', 'to one question it is the usual yes');
+  assert.equal(context.ownWords_('YES to ONLY THIS\n\nReply YES to ONLY THIS: Do only #2'), 'YES to ONLY THIS', 'our own answer lines, quoted, are cut off');
+
+  // ---- The owner's daily summary: what waits for a YES, and how many were confirmed the day before ----
+  context.SUMMARY_HOUR = SUMMARY_HOUR;
+  const day = pacific(clock).slice(0, 10);
+  const next = context.addDays_(day, 1);
+  assert.equal(run('studentChange', { key: open()[0].key, action: 'cancel', contact: ora }).ok, false, 'nothing of hers is held now');
+  const [pip] = confirmedPair('pip@example.com');
+  clock += 11 * 60000;
+  assert.equal(run('studentChange', { key: pip.key, action: 'cancel', contact: 'pip@example.com' }).ok, true);
+  const summaries = () => sent.filter(message => message.to === context.SUMMARY_TO);
+  sent.length = 0;
+  context.SUMMARY_HOUR = Number(pacific(clock).slice(11, 13)) + 1;
+  context.sweep();
+  assert.equal(summaries().length, 0, 'not before the hour');
+  context.SUMMARY_HOUR = SUMMARY_HOUR;
+  context.sweep();
+  assert.equal(summaries().length, 1, 'the first sweep after it sends one');
+  assert.match(context.SUMMARY_TO, /^[a-z0-9.]+@gmail\.com$/, "to the owner's address");
+  context.sweep();
+  assert.equal(summaries().length, 1, 'once a day');
+  properties.SUMMARY_EMAIL = 'other@example.com';
+  delete properties.SUMMARY_SENT;
+  context.sweep();
+  assert.equal(sent.pop().to, 'other@example.com', 'a SUMMARY_EMAIL property sends it elsewhere');
+  delete properties.SUMMARY_EMAIL;
+  // Tomorrow's summary, as it reads today's log.
+  const tomorrow = context.summaryOf_(clock, next);
+  const summary = { subject: tomorrow.subject, body: tomorrow.lines.filter(Boolean).map(context.blockText_).join('\n\n') };
+  const tally = kind => grids.Log.slice(1).filter(line => line[2] === 'reply:' + kind + ':yes' && /^applied/.test(line[5]) && pacific(Date.parse(line[0])).slice(0, 10) === day).length;
+  const confirmed = ['student-v', 'coach-request', 'student-c', 'coach-slots'].reduce((total, kind) => total + tally(kind), 0);
+  assert.ok(confirmed >= 10);
+  assert.match(summary.subject, new RegExp('^CTTC daily summary: \\d+ waiting for a YES, ' + confirmed + ' confirmed yesterday$'));
+  assert.match(summary.body, /The volunteer app has not reported yet, so it is not in this summary\./, 'until the volunteer app writes its part');
+  assert.match(summary.body, /COACHING: WAITING ON STUDENTS \(\d+\)\n\n(\d+\. [^\n]+\n)*\d+\. Cancel: Mia Student with Coach Ann, [^\n]+ \(booking [0-9A-F]{6}\)\. Asked \d+ min ago; waits until the student answers\./, 'a cancellation waiting, with its booking code and age');
+  assert.match(summary.body, new RegExp('Confirmed: ' + confirmed + ' YES answers applied\\nNew requests: ' + tally('student-v') + ' confirmed by the student\\nLessons: ' + tally('coach-request') +
+    ' accepted by the coach\\nCancels and moves: ' + tally('student-c') + ' confirmed by the student'), 'yesterday, by kind');
+  assert.match(summary.body, /One reply for a list: [1-9]\d* replies to an email listing several things/);
+  assert.match(summary.body, /The log does not reach back to the start of yesterday/, 'the test log starts that day, and the summary says so');
+  // With nothing waiting, it says so.
+  const rows = context.rows_;
+  context.rows_ = name => (name === 'Requests' || name === 'Coaches' ? [] : rows(name));
+  const quiet = JSON.parse(JSON.stringify(context.summaryOf_(clock, next)));
+  context.rows_ = rows;
+  assert.match(quiet.subject, /^CTTC daily summary: nothing waiting, \d+ confirmed yesterday$/);
+  assert.deepEqual(quiet.lines.slice(0, 5), [{ callout: '**Nothing is waiting for an emailed YES.**', tone: 'good' }, { heading: 'Coaching: waiting on students (0)' }, 'None.', { heading: 'Coaching: waiting on coaches (0)' }, 'None.']);
+  // The volunteer app's part, as it writes it: what waits for volunteers and the club, who has several things waiting, yesterday's counts.
+  digestGrid = [['kind', 'day', 'text'], ['updated', next, new Date(clock - 30 * 60000).toISOString()],
+    ['waiting', next, '**Vol One:** 2 shifts to confirm (first Sat Dec 12, Table/barrier setup). Asked 3 h ago; released Sun Dec 13, 9:00 AM without a YES.'],
+    ['waiting', next, '**Vol One:** drop Lock-up on Mon Dec 14. Asked 1 h ago; open until Wed Dec 16, 8:00 AM.'],
+    ['club', next, 'Approve the email for Vol Two (reply to "Approve an email for staff sign-ups"). Asked 2 h ago.'],
+    ['several', next, 'Vol One has 2 things waiting at once.'],
+    ['day', day, JSON.stringify({ signups: 4, confirmed: 3, released: 1, expired: 0, dropped: 2, lists: 1, approved: 1, complete: true })]];
+  const withVolunteers = JSON.parse(JSON.stringify(context.summaryOf_(clock, next)));
+  const bothBody = withVolunteers.lines.filter(Boolean).map(context.blockText_).join('\n\n');
+  assert.match(withVolunteers.subject, new RegExp('^CTTC daily summary: \\d+ waiting for a YES, ' + (confirmed + 3) + ' confirmed yesterday$'), 'both apps in the totals');
+  assert.match(bothBody, /VOLUNTEERS: WAITING ON VOLUNTEERS \(2\)\n\n1\. Vol One: 2 shifts to confirm [^\n]+\n2\. Vol One: drop Lock-up [^\n]+\n\nVOLUNTEERS: WAITING ON THE CLUB \(1\)\n\n1\. Approve the email for Vol Two/);
+  assert.match(bothBody, /Vol One has 2 things waiting at once\. Their emails list everything waiting, so one YES can answer it all\./);
+  assert.match(bothBody, /New sign-ups: 4\nConfirmed: 3 sign-ups confirmed by YES\nReleased: 1 by NO, 0 expired without a YES\nDropped: 2 shifts\nOne reply for a list: 1 reply to an email listing several things\nClub approvals: 1/);
+  assert.doesNotMatch(bothBody, /volunteer app last reported|volunteer log does not reach/);
+  digestGrid[1][2] = new Date(clock - 5 * 3600000).toISOString();
+  assert.match(context.summaryOf_(clock, next).lines.filter(Boolean).map(context.blockText_).join('\n'), /The volunteer app last reported 5 h ago, so this part may be out of date\./);
+  digestGrid = null;
+  assert.equal(grids.Log.slice(1).filter(line => line[2] === 'daily-summary').length, 2, 'each send is logged');
+  context.SUMMARY_HOUR = 99;
+  // Tidy up: the lessons left go, and so does every list that no longer waits on anything.
+  replyTo('pip@example.com', 'YES', /^Confirm: cancel your lesson/);
+  clock += 11 * 60000;
+  cancelLesson('pip@example.com');
+  cancelLesson(ned);
+  context.sweep();
+  assert.deepEqual(requestRows().filter(line => /^(unverified|pending|confirmed)$/.test(cell('Requests', line, 'status'))), [], 'nothing of these checks is left held');
+  assert.ok(grids.Bundles.slice(1).every(line => line[3].split(' ').some(ref => context.itemWaiting_(ref, context.rows_('Requests'), clock))), 'lists with nothing waiting are dropped');
+}
+
 // ---- Expiry, and past slots are dropped ----
 const lateSlot = run('openSlots').slots[0];
 sent.length = 0;
@@ -845,6 +1141,8 @@ assert.equal(cell('Coaches', coachRow(annId), 'ask_ref'), '', 'nothing is left w
 clock = START;
 inbox.length = 0;
 mailbox.length = 0;
+// So does the time of the last email check, or replies from now on would look older than it.
+delete properties.MAIL_CHECKED_AT;
 inbound('Ann Coach', 'COACH', clock - 60000);
 
 // ---- Races, public Sheet failures, mail failures ----
@@ -1237,7 +1535,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.equal(propose(deeId, deeSet.concat(saturday)).ok, true);
   clock += hours(49);
   context.sweep();
-  const others = grids.Coaches.slice(1).map(line => cell('Coaches', line, 'coach_id')).filter(id => id && id !== deeId).slice(0, 3);
+  const others = grids.Coaches.slice(1).filter(line => cell('Coaches', line, 'status') !== 'disabled').map(line => cell('Coaches', line, 'coach_id')).filter(id => id && id !== deeId).slice(0, 3);
   others.forEach((id, index) => grids.Availability.push(['taken-' + index, id, '2026-10-17', '15:00', '60', 'yes', String(index + 1)]));
   say('Dee Coach', 'YES');
   assert.equal(dee()[dee().length - 1], 'CTTC: Your reply came after the 48-hour window, so nothing was published, and another coach has since taken Sat Oct 17 3:00-4:00 PM. ' +

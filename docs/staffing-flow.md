@@ -197,6 +197,8 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | `SeedLinks`, `SeedReport` | owner / import | The seed import's fix-up loop (section 6). |
 | `MemberEmailReport` | import | What `importMemberEmails` added, kept and could not match (full names; private). |
 | `Log` | app | One row per email/text sent, reply read, step or error. Recipients are codes; never an address or number. |
+| `Bundles` | app | One row per email that listed everything waiting for someone's YES (section 4, *Everything waiting*): `trigger` and `items` (`b:{batch_id}`, `d:{signup_id}:{drop_at}`). Dropped by the sweep once nothing on it waits. |
+| `StaffingDigest` (hidden, in the **desk** Sheet) | app | This app's part of the owner's daily summary email, rewritten by each hourly sweep (section 4, *The owner's daily summary*). |
 
 ## 4. How a sign-up moves
 
@@ -289,6 +291,53 @@ to lock in … or RELEASE to cancel". The coaching app reads the same number and
 takes a bare YES or NO from its own people as an answer, so staffing texts use
 words coaching ignores. `STOP` turns staffing texts off silently (coaching
 already answers STOP). Drops are by email only.
+
+### Everything waiting, in one email
+
+One sign-up is already one email, and its YES confirms every night in it.
+Someone can still have several things waiting at once (up to 3 sign-ups, plus
+a drop asked from the calendar), each with its own email, and people answer
+the newest one. So while more than one thing waits for an address, **every
+email to it lists them all**, numbered (SIGN-UP, CHANGE, DROP), under one new
+code, with tappable answers:
+
+| Answer | What it does |
+| --- | --- |
+| **YES** (or **YES except** and dates) | Everything listed; the dates are left out of every sign-up listed. |
+| **YES to ONLY THIS** | Only the sign-up or drop that email is about (marked *THIS EMAIL*); the rest stay waiting. |
+| **NO** | Declines only that one; the rest stay waiting. |
+
+The confirmation (*You are on the CTTC staff schedule*), *Shift dropped* and
+*Your CTTC shift stays as it is* emails list whatever still waits, with **YES**
+and a code. Earlier emails keep answering their own sign-up or drop. Texts are
+unchanged (CONFIRM answers the sign-up last texted). To a list, a yes that
+also says *only* or *but* ("yes, but only Saturday") is unclear and changes
+nothing. Logged as `reply:bundle:yes` (or `:only`, `:no`) with `listed 2, done 2`.
+
+### When a newer sign-up replaces an older pick
+
+A pick that clashes with the person's **own** pick that night (another opening
+position, waiting or confirmed) is no longer refused. It replaces the older
+pick once they say **YES** to the newer sign-up (`Signups.replaces`); until
+then both are held and nothing changes. The newer email shows *Changes to your
+earlier sign-up* the way the desk shows a player edit: the old position struck
+through, the new one in bold. A YES to the older email confirms its other
+nights and leaves the replaced one *Waiting on your newer sign-up*. On the
+newer YES a replaced waiting pick is released, and a replaced confirmed pick is
+dropped (the person and the club are told, as for any drop). A NO to the newer
+sign-up keeps what they had. The same position again that night is still
+refused ("You already signed up for … that night").
+
+### The owner's daily summary
+
+Each hourly sweep rewrites a hidden `StaffingDigest` tab in the desk Sheet
+(rows `kind`, `day`, `text`): when it ran, each sign-up or drop waiting for a
+volunteer's YES (name, first night, age, deadline), each email waiting for the
+club's approval, anyone with several things waiting at once, and the day's
+counts from the `Log` tab for today and yesterday (new sign-ups, confirmed,
+released, expired, dropped, replies to a list, club approvals). The coaching
+app's 7 AM summary to the owner reads it (`docs/coaching-flow.md`, *The
+owner's daily summary*). Names only, never an address.
 
 ## 5. Emails on file, and approving a new one
 

@@ -111,7 +111,16 @@ var TABS = {
     // change is 'cancel' or 'move:' and the new slot, waiting for the student's YES since change_at.
     'verified_at', 'change', 'change_at',
     // reminded is the waiting status ('unverified' or 'pending') a reminder was sent for, so each step is reminded once.
-    'reminded'],
+    'reminded',
+    // A newer ask replaces a conflicting older one (see "When a newer ask replaces an older one"). change_was is the waiting
+    // change a newer change of the same lesson replaced ('cancel@' or 'move:…@' and its change_at); replaces is the request(s)
+    // of the same student at an overlapping time that this request replaces once the student says YES to it.
+    'change_was', 'replaces'],
+  // One row per email that asked a student about everything waiting for their YES at once (see "Everything waiting, in one
+  // email"). trigger is what that email was sent about ('' for a follow-up that only lists what is waiting); items is every
+  // question it listed, space separated: 'v:' and a request id (confirm a new request) or 'c:', a request id and the change's
+  // change_at (confirm that cancel or move). A YES does every item; YES to ONLY THIS just the trigger. Rows are only ever appended.
+  Bundles: ['bundle_id', 'email', 'trigger', 'items', 'created_at'],
   // One row per message sent (logSent_), reply read (logReply_) or failure (logError_), newest last; the sweep keeps the latest
   // LOG_KEEP. to is already a code, never an address or number; detail never holds one either. Shown, with ref coded too, at the
   // web app's address with ?log (see logView_).
@@ -459,8 +468,16 @@ function waitingOn_(request, now) {
   return status === 'unverified' ? 'student' : status === 'pending' ? 'coach' : '';
 }
 
-// The public wording for a held time: "Booked", or who it is waiting on.
+// 'cancel' or 'move' while a change the student asked for waits for their YES, else ''.
+function changeWaiting_(request, now) {
+  return request.change && holds_(request, now) ? (request.change === 'cancel' ? 'cancel' : 'move') : '';
+}
+
+// The public wording for a held time: "Booked", or who it is waiting on. A cancel or move the student asked for shows until they
+// confirm it, so the coach and the student can both see it is not done yet.
 function stepLabel_(request, coach, now) {
+  var change = changeWaiting_(request, now);
+  if (change) return (change === 'cancel' ? 'Cancel' : 'Move') + ' requested: waiting for ' + studentName_(request) + ' to confirm';
   var waiting = waitingOn_(request, now);
   return waiting === 'student' ? 'Waiting for ' + studentName_(request) + ' to confirm' : waiting === 'coach' ? 'Waiting for ' + coach + ' to accept' : 'Booked';
 }
@@ -530,7 +547,7 @@ function board_(coaches, availability, requests, now) {
       time: rangeLabel_(entry.start, entry.minutes), table: Number(entry.table) || 1, coach: coachName_(byId[entry.coach_id]), coachId: entry.coach_id,
       status: holder ? (effectiveStatus_(holder, now) === 'confirmed' ? 'booked' : 'requested') : soon ? 'closed' : 'open',
       student: holder ? studentName_(holder) : '', waitlist: !!holder && !soon, waiting: holder ? waitingOn_(holder, now) : '',
-      step: holder ? stepLabel_(holder, coachName_(byId[entry.coach_id]), now) : ''
+      step: holder ? stepLabel_(holder, coachName_(byId[entry.coach_id]), now) : '', change: holder ? changeWaiting_(holder, now) : ''
     };
   }).sort(function (a, b) { return (a.date + a.start).localeCompare(b.date + b.start) || a.table - b.table; });
   // No waitlist while another table is open at the same time: the student can just request that one.
@@ -558,7 +575,7 @@ function scheduleEntries_(slots, coaches, requests, now) {
     var step = stepLabel_(request, coach, now);
     entries.push({
       date: request.date, start: request.start, minutes: Number(request.minutes), coach: coach, status: booked ? 'Booked' : step, student: studentName_(request),
-      summary: studentName_(request) + (booked ? ' has session with ' + coach : ' requested a session with ' + coach + '. ' + step)
+      summary: studentName_(request) + (booked ? ' has session with ' + coach + (changeWaiting_(request, now) ? '. ' + step : '') : ' requested a session with ' + coach + '. ' + step)
     });
   });
   return entries.sort(function (a, b) { return (a.date + a.start + a.coach).localeCompare(b.date + b.start + b.coach); });
@@ -672,10 +689,16 @@ function requestSlot(form) {
     var label = studentLabel_(email, guardian || name, phone);
     if (!label) return fail_('Requests are closed for now. Please contact the club.');
     if (minutes !== slot.minutes) splitSlot_(slot.key);
+    // The same student at an overlapping time: this request replaces that one once the student says YES to it.
+    var replaces = requests.filter(function (request) {
+      return request.student_email === email && String(request.student_name).trim().toLowerCase() === name.toLowerCase() && holds_(request, now) &&
+        request.date === slot.date && overlaps_(request.start, request.minutes, start, minutes);
+    }).map(function (request) { return request.request_id; }).join(' ');
     created = {
       request_id: id_(), coach_id: slot.coachId, date: slot.date, start: start, minutes: minutes, student_label: label, student_name: name,
       student_email: email, guardian_name: guardian, note: cleanNote_(form.note), status: 'unverified', created_at: nowIso_(),
-      expires_at: Math.min(now + VERIFY_MS, expiryFor_(slot.date, start)), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table
+      expires_at: Math.min(now + VERIFY_MS, expiryFor_(slot.date, start)), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table,
+      replaces: replaces
     };
     save_('Requests', created);
     logStep_(created);
@@ -868,7 +891,8 @@ function coachBoard(coachId) {
     ok: true, id: coach.coach_id, label: coach.label, name: coachName_(coach), ready: ready_(coach), email: !!cleanEmail_(coach.email), text: !!phoneDigits_(coach.phone),
     tables: TABLES, days: days, textNumber: TEXT_NUMBER,
     board: board_(rows_('Coaches'), rows_('Availability'), rows_('Requests'), now).map(function (entry) {
-      return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student, waiting: entry.waiting };
+      return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student, waiting: entry.waiting,
+        change: entry.change };
     }),
     pending: pending, pendingSince: pending ? momentLabel_(Number(coach.ask_made)) : ''
   };
@@ -1146,8 +1170,12 @@ function studentChange(form) {
     var students = rows_('Students');
     var student = students.filter(function (candidate) { return candidate.email === request.student_email; })[0];
     var owner = email ? email === request.student_email : !!student && phoneDigits_(student.phone) === phone;
-    if (!owner || now - Number(request.change_at || 0) < CHANGE_WAIT_MS) return done;
-    request.change = action === 'move' ? 'move:' + target.key : 'cancel';
+    var wanted = action === 'move' ? 'move:' + target.key : 'cancel';
+    var waiting = !!request.change && holds_(request, now);
+    // The same ask again within 10 minutes sends nothing more; a different one replaces the waiting one (shown in its email).
+    if (!owner || (waiting && request.change === wanted && now - Number(request.change_at || 0) < CHANGE_WAIT_MS)) return done;
+    request.change_was = waiting && request.change !== wanted ? request.change + '@' + request.change_at : '';
+    request.change = wanted;
     request.change_at = String(now);
     save_('Requests', request);
     var coach = coaches.filter(function (candidate) { return candidate.coach_id === request.coach_id; })[0];
@@ -1169,15 +1197,16 @@ function askStudentChange_(question) {
   var current = { date: request.date, coachId: request.coach_id, start: request.start, minutes: request.minutes, kind: move ? 'from' : 'cancel' };
   try {
     if (mailAvailable_()) {
-      sendMail_(request.student_email, (move ? 'Confirm: move your lesson ' : 'Confirm: cancel your lesson ') + refTag_(changeCode_(request)), [who,
+      sendStudentMail_(request.student_email, (move ? 'Confirm: move your lesson ' : 'Confirm: cancel your lesson ') + refTag_(changeCode_(request)), [who,
         { callout: '**Action needed:** you asked to ' + (move ? 'move' : 'cancel') + ' ' + studentName_(request) + '\'s lesson. **Nothing changes until you reply.**', tone: 'action' },
+        replacedNote_(request),
         { choices: move ? [['YES', 'Move the lesson to the new time. The new time goes to the coach to accept, and your current time is released.'], ['NO', 'Keep the lesson as it is.']] :
           [['YES', 'Cancel the lesson and release the time.'], ['NO', 'Keep the lesson as it is.']] },
         { heading: move ? 'The change' : 'The lesson to cancel' },
         { rows: move ? [['Now', when + ', ' + coachLabel + ', Table ' + (Number(request.table) || 1)], ['New time', move]] :
           lessonRows_(request).concat([['Coach', coachLabel]]) }].concat(
         scheduleBlocks_('On the schedule', move ? [current, { date: target.date, coachId: target.coachId, start: target.start, minutes: target.minutes, kind: 'to' }] : [current]), [
-        'If you did not ask for this, ignore this email.', bookingLine_(request)]), null, ['student-change-confirm', request.request_id]);
+        'If you did not ask for this, ignore this email.', bookingLine_(request)]), 'c:' + request.request_id + ':' + request.change_at, ['student-change-confirm', request.request_id]);
     }
   } catch (error) {
     logError_('email a student about a change', error, request.request_id);
@@ -1212,8 +1241,9 @@ function textStudentQuestion_(student, ref, body) {
   save_('Students', student);
 }
 
-// Applies a student's YES or NO. kind 'v' confirms a new request; 'c' a cancellation or move.
-function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
+// Applies a student's YES or NO. kind 'v' confirms a new request; 'c' a cancellation or move. quiet (for an answer to a list,
+// answerBundle_) sends no reply and runs no sweep, and returns {applied, reply} for the caller to report.
+function studentAnswer_(requestId, kind, answer, channel, answeredAt, quiet) {
   var reply = '';
   var applied = true;
   var request = null;
@@ -1245,6 +1275,16 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
         request.verified_at = nowIso_();
         request.expires_at = String(expiryFor_(request.date, request.start));
         request.reminded = '';
+        // The YES to a replacing request is the YES to the change: the older request(s) it replaces go.
+        replacedRequests_(request, requests, now).forEach(function (old) {
+          old.status = 'cancelled';
+          old.cancelled_by = 'student';
+          old.change = '';
+          old.change_at = '';
+          old.updated_at = nowIso_();
+          save_('Requests', old);
+          logStep_(old, 'replaced by ' + bookingCode_(request));
+        });
       } else {
         request.status = 'cancelled';
         request.cancelled_by = 'student';
@@ -1286,15 +1326,255 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt) {
     lock.releaseLock();
   }
   logReply_(channel, 'student-' + kind, requestId, answer, applied, request.status);
+  if (quiet) return { applied: applied, reply: reply };
   if (reply) {
     try {
       if (channel === 'text') sendText_({ name: student.name, phone: student.phone }, 'CTTC: ' + reply, ['student-answer-reply', requestId]);
-      else if (mailAvailable_()) sendMail_(request.student_email, 'Your coaching lesson', [reply, bookingLine_(request)], null, ['student-answer-reply', requestId]);
+      else if (mailAvailable_()) sendStudentMail_(request.student_email, 'Your coaching lesson', [reply, bookingLine_(request)], '', ['student-answer-reply', requestId]);
     } catch (error) {
       logError_('answer a student', error, requestId);
     }
   }
   sweep_();
+}
+
+// ---------- Everything waiting, in one email ----------
+// A student can have several things waiting for their YES at once: a new request, and a cancel or move of another lesson, each
+// asked by its own email. People answer the newest email and expect that to be the answer (Nov 3 2026: two cancellations kept
+// waiting after a YES meant for all three). So every email to a student while more than one thing waits for them lists them all,
+// numbered, under one reference code, with three answers:
+//   YES               does every item listed;
+//   YES to ONLY THIS  does only the item that email is about (its trigger) and leaves the rest waiting;
+//   NO                declines only the trigger (drops that request, keeps that lesson) and leaves the rest waiting.
+// An email that asks nothing itself (a follow-up such as "Lesson confirmed") lists what is still waiting with YES only. Each answer
+// is a button that opens a reply with the subject and the answer filled in. The list is stored (Bundles) as it was sent, so a YES
+// does what the student saw, never something asked later. Earlier emails keep working for their own item.
+
+// What is waiting for a YES from this address, earliest lesson first: {ref, kind 'v' | 'c', request}.
+function waitingItems_(email, requests, now) {
+  var items = [];
+  requests.forEach(function (request) {
+    if (!email || request.student_email !== email) return;
+    if (effectiveStatus_(request, now) === 'unverified' && !replacedBy_(request, requests, now)) items.push({ ref: 'v:' + request.request_id, kind: 'v', request: request, requests: requests });
+    if (request.change && holds_(request, now)) items.push({ ref: 'c:' + request.request_id + ':' + request.change_at, kind: 'c', request: request, requests: requests });
+  });
+  return items.sort(function (a, b) { return (a.request.date + a.request.start).localeCompare(b.request.date + b.request.start) || a.ref.localeCompare(b.ref); });
+}
+
+// Whether the question a bundle item names is still waiting exactly as listed.
+function itemWaiting_(ref, requests, now) {
+  var parts = String(ref).split(':');
+  var request = requests.filter(function (entry) { return entry.request_id === parts[1]; })[0];
+  if (!request) return false;
+  if (parts[0] === 'v') return effectiveStatus_(request, now) === 'unverified' && !replacedBy_(request, requests, now);
+  return !!request.change && request.change_at === parts[2] && holds_(request, now);
+}
+
+function bundleCode_(bundleId) { return code_('b:' + bundleId); }
+
+function bundleItems_(bundle) { return String(bundle.items || '').split(' ').filter(Boolean); }
+
+// ---------- When a newer ask replaces an older one ----------
+// A student who asks again about the same lesson, or asks for an overlapping time for the same student, means the newer ask.
+// The newer one replaces the older (never someone else's), but only once they say YES to it: nothing changes until then. The
+// newer email shows the change as the desk shows a player edit, the old value struck through and the new one in bold, and
+// the older question stops counting: a reply to it is told it was replaced, and pointed at the newer one.
+
+// 'Cancel it' or 'Move it to Saturday, … with Coach Ann', for a change ('cancel' or 'move:' and an avail_id).
+function changeWords_(change, coaches, availability) {
+  if (change === 'cancel') return 'Cancel it';
+  var target = availability().filter(function (entry) { return entry.avail_id === String(change).slice(5); })[0];
+  var coach = target && coaches.filter(function (entry) { return entry.coach_id === target.coach_id; })[0];
+  return 'Move it to ' + (target ? dayLabel_(target.date) + ', ' + rangeLabel_(target.start, target.minutes) + (coach ? ' with ' + coachName_(coach) : '') : 'the new time you picked');
+}
+
+// "Friday, October 9, 2026, 7:00 PM to 7:50 PM with Coach Ann".
+function lessonWords_(request, coaches) {
+  var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
+  return dayLabel_(request.date) + ', ' + rangeLabel_(request.start, request.minutes) + (coach ? ' with ' + coachName_(coach) : '');
+}
+
+// The older ask this one replaces, as ~~old~~ → ++new++, or '' when it replaces nothing.
+function replacedChange_(request, coaches, availability, requests) {
+  if (request.change && request.change_was) {
+    return '~~' + changeWords_(request.change_was.split('@')[0], coaches, availability) + '~~ → ++' + changeWords_(request.change, coaches, availability) + '++';
+  }
+  var older = replacedRequests_(request, requests);
+  if (!older.length) return '';
+  return older.map(function (old) { return '~~' + lessonWords_(old, coaches) + '~~'; }).join(', ') + ' → ++' + lessonWords_(request, coaches) + ', Table ' + (Number(request.table) || 1) + '++';
+}
+
+// The requests a request replaces that still hold their time.
+function replacedRequests_(request, requests, now) {
+  var ids = String(request.replaces || '').split(' ').filter(Boolean);
+  return requests.filter(function (entry) { return ids.indexOf(entry.request_id) >= 0 && holds_(entry, now || Date.now()); });
+}
+
+// Whether a newer request still waiting for the student's YES replaces this one.
+function replacedBy_(request, requests, now) {
+  return requests.some(function (other) {
+    return other.request_id !== request.request_id && String(other.replaces || '').split(' ').indexOf(request.request_id) >= 0 && effectiveStatus_(other, now) === 'unverified';
+  });
+}
+
+// The line an email about a replacing ask carries, or null.
+function replacedNote_(request) {
+  var coaches = rows_('Coaches');
+  var offered = null;
+  var change = replacedChange_(request, coaches, function () { return offered || (offered = rows_('Availability')); }, rows_('Requests'));
+  if (!change) return null;
+  return { callout: '**This replaces your earlier request:** ' + change + '. ' + (request.change_was ? 'Only this newer request counts now; the earlier email no longer does.' :
+    'Your YES to this one cancels the earlier one. Until then both are held.'), tone: 'change' };
+}
+
+// A reply to a question a newer ask replaced: nothing changes, and the student is pointed at the newer one (listed below it).
+function replacedAnswer_(requestId, answer) {
+  var request = rows_('Requests').filter(function (entry) { return entry.request_id === requestId; })[0];
+  if (!request) return;
+  logRow_('email', 'reply:student-r:' + answer, requestId, '-', 'not applied, replaced');
+  try {
+    if (mailAvailable_()) sendStudentMail_(request.student_email, 'Your coaching reply', ['Hello,',
+      'You replied to an email about ' + studentName_(request) + '\'s lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ', but you have since replaced that request with a newer one, so **nothing changed**. Please answer the newer email.', bookingLine_(request)],
+      '', ['student-replaced-reply', requestId]);
+  } catch (error) {
+    logError_('answer a student', error, requestId);
+  }
+}
+
+// One numbered line of the list: what YES does to this item, in words.
+function itemLine_(item, coaches, availability) {
+  var request = item.request;
+  var coach = coaches.filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
+  var coachShown = coach ? coachName_(coach) : 'your coach';
+  var when = dayLabel_(request.date) + ', ' + rangeLabel_(request.start, request.minutes);
+  var replaced = replacedChange_(request, coaches, availability, item.requests || []);
+  if (replaced && item.kind === 'v') {
+    return { mark: 'CHANGE', tone: 'move', text: 'Replace ' + studentName_(request) + '\'s lesson: ' + replaced + '. Reply by ' + momentLabel_(Number(request.expires_at)).replace(' Pacific Time', '') +
+      ', or it expires.', short: 'make that change', keep: 'drop the new request and keep the earlier lesson' };
+  }
+  if (replaced) {
+    return { mark: 'CHANGE', tone: 'move', text: 'Change your request for ' + studentName_(request) + '\'s lesson with ' + coachShown + ' on ' + when + ': ' + replaced + '.',
+      short: 'make that change', keep: 'keep that lesson as it is' };
+  }
+  if (item.kind === 'v') {
+    return { mark: 'NEW REQUEST', tone: 'new', text: 'Send ' + studentName_(request) + '\'s request to ' + coachShown + ': ' + when + ', Table ' + (Number(request.table) || 1) +
+      '. Reply by ' + momentLabel_(Number(request.expires_at)).replace(' Pacific Time', '') + ', or it expires.', short: 'send the new request', keep: 'drop that request and release the time' };
+  }
+  if (request.change === 'cancel') {
+    return { mark: 'CANCEL', tone: 'cancel', text: 'Cancel ' + studentName_(request) + '\'s lesson with ' + coachShown + ': ' + when + '.', short: 'cancel that lesson', keep: 'keep that lesson' };
+  }
+  var target = availability().filter(function (entry) { return entry.avail_id === request.change.slice(5); })[0];
+  var targetCoach = target && coaches.filter(function (entry) { return entry.coach_id === target.coach_id; })[0];
+  var to = target ? dayLabel_(target.date) + ', ' + rangeLabel_(target.start, target.minutes) + (targetCoach ? ' with ' + coachName_(targetCoach) : '') : 'the new time you picked';
+  return { mark: 'MOVE', tone: 'move', text: 'Move ' + studentName_(request) + '\'s lesson with ' + coachShown + ' on ' + when + ' to ' + to + '.', short: 'move that lesson',
+    keep: 'keep that lesson where it is' };
+}
+
+// "#1 stays waiting", "#1 and #2 stay waiting", "#1, #2 and #4 stay waiting".
+function othersWaiting_(numbers) {
+  var list = numbers.map(function (number) { return '#' + number; });
+  var text = list.length > 1 ? list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1] : list[0];
+  return text + (list.length > 1 ? ' stay waiting.' : ' stays waiting.');
+}
+
+// The list and the answers. mine is the item the email is about (null for a follow-up).
+function waitingBlocks_(items, mine, lines) {
+  var count = items.length;
+  var number = mine ? items.indexOf(mine) + 1 : 0;
+  var others = [];
+  items.forEach(function (item, index) { if (item !== mine) others.push(index + 1); });
+  var own = mine ? lines[number - 1] : null;
+  return [
+    { callout: mine ? '**Action needed: ' + count + ' things are waiting for your YES.** One reply answers them all. Nothing changes until you reply.' :
+      '**Still waiting for your YES:** ' + (count === 1 ? 'one thing' : count + ' things') + ', below. Nothing changes until you reply.', tone: 'action' },
+    { waiting: lines.map(function (line, index) { return Object.assign({ number: index + 1, current: index + 1 === number }, line); }) },
+    { choices: mine ? [
+      ['YES', 'Do **all ' + count + '** above.'],
+      ['YES to ONLY THIS', 'Do **only #' + number + '** (' + own.short + '). ' + othersWaiting_(others)],
+      ['NO', 'Do **not** do #' + number + ': ' + own.keep + '. ' + othersWaiting_(others)]
+    ] : [['YES', count === 1 ? 'Do #1 (' + lines[0].short + ').' : 'Do **all ' + count + '** above.']] },
+    'Tap an answer to start a reply with it filled in, then press **Send**. Or reply to this email with just ' + (mine ? '**YES**, **YES to ONLY THIS** or **NO**.' : '**YES**.') +
+      ' Send it from this email address.'
+  ];
+}
+
+// Sends an email to a student. When more than one thing waits for their YES at that address (or, for an email that asks nothing,
+// anything at all), the email lists them all under one new code (see above). trigger is what this email asks about ('v:…' or
+// 'c:…:…'), or '' for one that asks nothing. Otherwise it goes out as written.
+function sendStudentMail_(to, subject, lines, trigger, log, cc) {
+  var now = Date.now();
+  var requests = rows_('Requests');
+  var items = waitingItems_(to, requests, now);
+  var mine = trigger ? items.filter(function (item) { return item.ref === trigger; })[0] || null : null;
+  // An email whose own question no longer waits keeps its own answers rather than being turned into a list.
+  if (!items.length || (mine && items.length === 1) || (trigger && !mine)) return sendMail_(to, subject, lines, cc, log);
+  var coaches = rows_('Coaches');
+  var offered = null;
+  var availability = function () { return offered || (offered = rows_('Availability')); };
+  var bundle = [id_(), to, mine ? trigger : '', items.map(function (item) { return item.ref; }).join(' '), nowIso_()];
+  // Appended in one step, so no lock is needed: two emails at once never write the same row.
+  tab_('Bundles').appendRow(bundle.map(function (value) { return "'" + value; }));
+  var tag = refTag_(bundleCode_(bundle[0]));
+  var coded = /\[CTTC ref [0-9A-F]{10}\]/;
+  subject = coded.test(subject) ? subject.replace(coded, tag) : subject + ' ' + tag;
+  var section = waitingBlocks_(items, mine, items.map(function (item) { return itemLine_(item, coaches, availability); }));
+  var rest = lines.slice(1);
+  if (mine) {
+    // The list and its answers replace the email's own "Action needed" line and YES/NO; its details follow, labelled.
+    var callout = rest.filter(function (block) { return block && block.callout && block.tone === 'action'; })[0];
+    rest = rest.filter(function (block) { return block !== callout && !(block && block.choices); });
+    var heading = rest.filter(function (block) { return block && block.heading; })[0];
+    var label = 'Details of #' + (items.indexOf(mine) + 1) + ', what this email is about';
+    if (heading) rest[rest.indexOf(heading)] = { heading: label + ': ' + heading.heading.toLowerCase() };
+    else rest.unshift({ heading: label });
+    lines = [lines[0]].concat(section, rest);
+  } else {
+    lines = lines.slice(0, 2).concat(section, lines.slice(2));
+  }
+  sendMail_(to, subject, lines, cc, log);
+}
+
+// A student's answer to an email that listed everything waiting: 'yes' does every item still waiting as listed, 'only' just the
+// trigger, 'no' declines just the trigger. Items already answered another way are skipped; anything that could not be done is
+// explained in one reply, which lists whatever is still waiting.
+function answerBundle_(bundleId, answer, answeredAt) {
+  var bundle = rows_('Bundles').filter(function (entry) { return entry.bundle_id === bundleId; })[0];
+  if (!bundle) return;
+  var refs = bundleItems_(bundle);
+  var plan = answer === 'yes' ? refs.map(function (ref) { return [ref, 'yes']; }) : bundle.trigger ? [[bundle.trigger, answer === 'only' ? 'yes' : 'no']] : [];
+  var notes = [];
+  var done = 0;
+  plan.forEach(function (step) {
+    var parts = step[0].split(':');
+    var now = Date.now();
+    var request = rows_('Requests').filter(function (entry) { return entry.request_id === parts[1]; })[0];
+    if (!request) return;
+    if (parts[0] === 'c' && request.change_at !== parts[2]) {
+      // Answered already, or asked again since (that newer question has its own email).
+      if (request.change) notes.push('You asked again to change ' + studentName_(request) + '\'s lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ', so please answer the newer email for that one.');
+      return;
+    }
+    var status = effectiveStatus_(request, now);
+    if (parts[0] === 'v' && !(status === 'unverified' || (status === 'expired' && !request.verified_at && !request.cancelled_by))) return;
+    var result = studentAnswer_(parts[1], parts[0], step[1], 'email', answeredAt, true);
+    if (result && result.reply) notes.push(result.reply);
+    else if (result && result.applied) done += 1;
+  });
+  logRow_('email', 'reply:student-b:' + answer, bundleId, '-', 'listed ' + refs.length + ', done ' + done);
+  sweep_();
+  if (!plan.length) notes.push('OK, nothing changed. Everything listed is still waiting for your YES.');
+  try {
+    if (notes.length && mailAvailable_()) sendStudentMail_(bundle.email, 'Your coaching reply', ['Hello,'].concat(notes), '', ['student-answer-reply', bundleId]);
+  } catch (error) {
+    logError_('answer a student', error, bundleId);
+  }
+}
+
+// Call while holding the lock. A bundle none of whose items still waits can no longer do anything.
+function pruneBundles_(requests, now) {
+  rows_('Bundles').filter(function (bundle) {
+    return !bundleItems_(bundle).some(function (ref) { return itemWaiting_(ref, requests, now); });
+  }).reverse().forEach(function (bundle) { tab_('Bundles').deleteRow(bundle._row); });
 }
 
 // ---------- Expiry, email and the public schedule ----------
@@ -1306,11 +1586,184 @@ function sweep(event) {
   timed_(event, function () {
     retireCheckTimers_();
     try {
+      try {
+        oneTimeYesToAll_();
+      } catch (error) {
+        logError_('apply the one-time yes to all', error);
+      }
       sweep_();
+      try {
+        dailySummary_();
+      } catch (error) {
+        logError_('send the daily summary', error);
+      }
     } finally {
       checkNow_(false);
     }
   });
+}
+
+// ---------- The owner's daily summary ----------
+// Once a day, at the first hourly sweep after SUMMARY_HOUR (Pacific), the owner gets one email: everything waiting for an emailed
+// YES (or a line saying nothing is), and how many YES answers were applied the day before, counted from the Log tab. One email a
+// day, read from Sheets the app already reads: no Gmail reads and no timer of its own. SUMMARY_EMAIL in the script properties,
+// when set, sends it elsewhere.
+var SUMMARY_TO = 'jaybeecpsu@gmail.com';
+var SUMMARY_HOUR = 7;
+
+function dailySummary_() {
+  var today = pacificNow_();
+  if (Number(today.time.slice(0, 2)) < SUMMARY_HOUR) return;
+  var properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty('SUMMARY_SENT') === today.date || !mailAvailable_()) return;
+  // Marked first: at most one a day, even if the send fails.
+  properties.setProperty('SUMMARY_SENT', today.date);
+  var summary = summaryOf_(Date.now(), today.date);
+  sendMail_(property_('SUMMARY_EMAIL', SUMMARY_TO), summary.subject, summary.lines, null, ['daily-summary', today.date], CLUB_FOOTER);
+}
+
+// "12 min", "5 h", "1 day 4 h".
+function ageLabel_(ms) {
+  var minutes = Math.max(0, Math.floor(ms / 60000));
+  if (minutes < 60) return minutes + ' min';
+  var hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + ' h';
+  var days = Math.floor(hours / 24);
+  return days + (days === 1 ? ' day' : ' days') + (hours % 24 ? ' ' + hours % 24 + ' h' : '');
+}
+
+function summaryOf_(now, today) {
+  var coaches = rows_('Coaches');
+  var shown = function (coachId) {
+    var coach = coaches.filter(function (entry) { return entry.coach_id === coachId; })[0];
+    return coach ? coachName_(coach) : 'a coach';
+  };
+  var students = [];
+  var coachItems = [];
+  rows_('Requests').forEach(function (request) {
+    var status = effectiveStatus_(request, now);
+    var lesson = request.student_name + ' with ' + shown(request.coach_id) + ', ' + dayLabel_(request.date) + ', ' + rangeLabel_(request.start, request.minutes) +
+      ' (booking ' + bookingCode_(request) + ')';
+    var until = momentLabel_(Number(request.expires_at)).replace(' Pacific Time', '');
+    if (status === 'unverified') students.push('**New request:** ' + lesson + '. Asked ' + ageLabel_(now - Date.parse(request.created_at)) + ' ago; expires ' + until + '.');
+    var change = changeWaiting_(request, now);
+    if (change) students.push('**' + (change === 'cancel' ? 'Cancel' : 'Move') + ':** ' + lesson + '. Asked ' + ageLabel_(now - Number(request.change_at)) + ' ago; waits until the student answers.');
+    if (status === 'pending') coachItems.push('**' + shown(request.coach_id) + ' to accept:** ' + lesson + '. Waiting ' + ageLabel_(now - Date.parse(request.verified_at)) + '; expires ' + until + '.');
+  });
+  coaches.forEach(function (coach) {
+    var list = active_(coach) && proposalOf_(coach, now);
+    if (list) coachItems.push('**' + coachName_(coach) + ' to publish ' + list.length + (list.length === 1 ? ' time' : ' times') + ':** sent ' +
+      ageLabel_(now - Number(coach.ask_made)) + ' ago; lapses ' + replyBy_(coach.ask_made).replace(' Pacific Time', '') + '.');
+  });
+  // Yesterday's answers, by the Pacific day they were applied on.
+  var yesterday = addDays_(today, -1);
+  var log = rows_('Log');
+  var dayOf = function (at) { return Utilities.formatDate(new Date(Date.parse(at) || 0), TZ, 'yyyy-MM-dd HH:mm').slice(0, 10); };
+  var counts = { 'student-v': 0, 'coach-request': 0, 'student-c': 0, 'coach-slots': 0 };
+  var declined = 0;
+  var lists = 0;
+  log.forEach(function (line) {
+    var reply = /^reply:([a-z-]+):(yes|no|only)$/.exec(line.kind);
+    if (!reply || dayOf(line.at) !== yesterday) return;
+    if (reply[1] === 'student-b') lists += 1;
+    else if (/^applied/.test(line.detail)) {
+      if (reply[2] === 'no') declined += 1;
+      else if (reply[1] in counts) counts[reply[1]] += 1;
+    }
+  });
+  var confirmed = Object.keys(counts).reduce(function (total, key) { return total + counts[key]; }, 0);
+  var volunteers = volunteerSummary_(now, yesterday);
+  var waiting = students.length + coachItems.length + volunteers.waiting;
+  var complete = log.length && dayOf(log[0].at) < yesterday;
+  return {
+    subject: 'CTTC daily summary: ' + (waiting ? waiting + ' waiting for a YES' : 'nothing waiting') + ', ' + (confirmed + volunteers.confirmed) + ' confirmed yesterday',
+    lines: [
+      { callout: waiting ? '**' + waiting + (waiting === 1 ? ' thing is' : ' things are') + ' waiting for an emailed YES.**' : '**Nothing is waiting for an emailed YES.**', tone: waiting ? 'action' : 'good' },
+      { heading: 'Coaching: waiting on students (' + students.length + ')' },
+      students.length ? { steps: students } : 'None.',
+      { heading: 'Coaching: waiting on coaches (' + coachItems.length + ')' },
+      coachItems.length ? { steps: coachItems } : 'None.',
+      { heading: 'Coaching yesterday, ' + dayLabel_(yesterday) },
+      { rows: [['Confirmed', '**' + confirmed + '** YES ' + (confirmed === 1 ? 'answer' : 'answers') + ' applied'],
+        ['New requests', counts['student-v'] + ' confirmed by the student'], ['Lessons', counts['coach-request'] + ' accepted by the coach'],
+        ['Cancels and moves', counts['student-c'] + ' confirmed by the student'], ['Coaching times', counts['coach-slots'] + ' lists published by the coach'],
+        ['NO answers', declined + ' applied'], ['One reply for a list', lists + (lists === 1 ? ' reply' : ' replies') + ' to an email listing several things']] },
+      complete ? '' : 'The log does not reach back to the start of yesterday, so these counts may be low.',
+      'Each booking code opens that booking\'s whole story on the coaching app\'s ?log page.'
+    ].concat(volunteers.lines)
+  };
+}
+
+// The volunteer sign-up app's part of the summary, from the hidden StaffingDigest tab its hourly sweep writes to the desk Sheet
+// (staffing-app/Code.js, "For the owner's daily summary"): rows [kind, day, text]. {waiting, confirmed, lines}.
+function volunteerSummary_(now, yesterday) {
+  var rows = [];
+  try {
+    var tab = book_('DESK_SHEET_ID').getSheetByName('StaffingDigest');
+    rows = tab ? tab.getDataRange().getValues().slice(1).map(function (line) { return line.map(String); }) : [];
+  } catch (error) {
+    rows = [];
+  }
+  var of = function (kind) { return rows.filter(function (line) { return line[0] === kind; }); };
+  var updated = of('updated')[0];
+  if (!updated) return { waiting: 0, confirmed: 0, lines: [{ heading: 'Volunteer sign-ups' }, 'The volunteer app has not reported yet, so it is not in this summary.'] };
+  var waiting = of('waiting').map(function (line) { return line[2]; });
+  var club = of('club').map(function (line) { return line[2]; });
+  var day = of('day').filter(function (line) { return line[1] === yesterday; })[0];
+  var counts = {};
+  try {
+    counts = day ? JSON.parse(day[2]) : {};
+  } catch (error) {
+    counts = {};
+  }
+  var number = function (key) { return Number(counts[key]) || 0; };
+  var age = now - (Date.parse(updated[2]) || 0);
+  return {
+    waiting: waiting.length + club.length,
+    confirmed: number('confirmed'),
+    lines: [
+      { heading: 'Volunteers: waiting on volunteers (' + waiting.length + ')' },
+      waiting.length ? { steps: waiting } : 'None.',
+      club.length ? { heading: 'Volunteers: waiting on the club (' + club.length + ')' } : '', club.length ? { steps: club } : '',
+      of('several').length ? { callout: of('several').map(function (line) { return line[2]; }).join(' ') + ' Their emails list everything waiting, so one YES can answer it all.', tone: 'action' } : '',
+      { heading: 'Volunteers yesterday, ' + dayLabel_(yesterday) },
+      day ? { rows: [['New sign-ups', String(number('signups'))], ['Confirmed', '**' + number('confirmed') + '** sign-up' + (number('confirmed') === 1 ? '' : 's') + ' confirmed by YES'],
+        ['Released', number('released') + ' by NO, ' + number('expired') + ' expired without a YES'], ['Dropped', number('dropped') + ' shift' + (number('dropped') === 1 ? '' : 's')],
+        ['One reply for a list', number('lists') + (number('lists') === 1 ? ' reply' : ' replies') + ' to an email listing several things'], ['Club approvals', String(number('approved'))]] } :
+        'The volunteer app has no counts for yesterday.',
+      day && !counts.complete ? 'The volunteer log does not reach back to the start of yesterday, so these counts may be low.' : '',
+      age > 2 * 3600000 ? 'The volunteer app last reported ' + ageLabel_(age) + ' ago, so this part may be out of date.' : ''
+    ]
+  };
+}
+
+// One time, at the owner's request (2026-11-04). On Nov 3 a student asked to cancel two Friday lessons (booking codes 9E3D15 and
+// 32AF8F), each by its own "Confirm: cancel your lesson" email, then booked a Saturday lesson (367613) and replied YES to that
+// email ten minutes later: a YES meant for all three. Each email then asked about one thing only, so the two cancellations kept
+// waiting. Her YES counts for them too, as it would once every email asks about everything waiting. Runs once (the property
+// below), only while both changes are still waiting, were asked before that YES, and are hers; each step is logged.
+var ONE_TIME_YES_TO_ALL = { property: 'ONE_TIME_YES_TO_ALL_367613', answered: '367613', also: ['9E3D15', '32AF8F'] };
+
+function oneTimeYesToAll_() {
+  var plan = ONE_TIME_YES_TO_ALL;
+  var properties = PropertiesService.getScriptProperties();
+  if (!plan || properties.getProperty(plan.property)) return;
+  var now = Date.now();
+  var requests = rows_('Requests');
+  var byCode = {};
+  requests.forEach(function (request) { byCode[bookingCode_(request)] = request; });
+  var answered = byCode[plan.answered];
+  var yesAt = answered ? Date.parse(answered.verified_at) : NaN;
+  if (!answered || !yesAt) return;
+  properties.setProperty(plan.property, nowIso_());
+  plan.also.forEach(function (code) {
+    var request = byCode[code];
+    var why = !request ? 'not found' : request.student_email !== answered.student_email ? 'another student' : !request.change ? 'no change waiting' :
+      !holds_(request, now) ? 'lesson no longer held' : !(Number(request.change_at) < yesAt) ? 'asked after that YES' : '';
+    logRow_('-', 'one-time-yes-to-all', request ? request.request_id : '-', '-', (why ? 'skipped: ' + why : 'applying') + ', from the YES to ' + plan.answered);
+    if (!why) studentAnswer_(request.request_id, 'c', 'yes', 'email', yesAt, true);
+  });
+  // Both applied before anyone is emailed, so no email lists the other as still waiting.
 }
 
 // Call while holding the lock. Makes the Coaches tab match CLUB_COACHES: a listed coach is added if missing and switched back
@@ -1388,6 +1841,7 @@ function sweep_() {
     });
     askCoaches_(coaches, requests, now);
     remindWaiting_(coaches, students, requests, now);
+    pruneBundles_(requests, now);
     notifyWaitlist_(coaches, now);
     var today = pacificNow_().date;
     rows_('Availability').filter(function (entry) { return entry.date < today; }).reverse().forEach(function (entry) {
@@ -1414,8 +1868,10 @@ function deliver_(request, coach, field, compose) {
     if (!message.text && !mailAvailable_()) return;
     try {
       var log = [field + ':' + request.status, request.request_id];
+      var lines = message.text ? null : message.lines.concat(bookingLine_(request));
       if (message.text) sendText_(message.person, message.text, log);
-      else sendMail_(message.to, message.subject, message.lines.concat(bookingLine_(request)), message.cc, log);
+      else if (field === 'student_emailed') sendStudentMail_(message.to, message.subject, lines, request.status === 'unverified' ? 'v:' + request.request_id : '', log, message.cc);
+      else sendMail_(message.to, message.subject, lines, message.cc, log);
     } catch (error) {
       logError_('send ' + field + ':' + request.status, error, request.request_id);
       return;
@@ -1454,11 +1910,11 @@ function remindWaiting_(coaches, students, requests, now) {
     if (status === 'unverified') {
       attempt(function () {
         var ask = studentMail_(request, coach);
-        sendMail_(ask.to, 'Reminder: ' + ask.subject, [who,
+        sendStudentMail_(ask.to, 'Reminder: ' + ask.subject, [who,
           { callout: '**Still waiting for you:** ' + lesson + ' has **not** been sent to the coach yet. Reply **YES** to this email by **' + deadline +
             '** to send it. If you do not reply, the request expires and the time is released.', tone: 'action' },
           'Reply from this same email address. Replying to the earlier "Confirm your coaching request" email works too.'
-        ].concat(ask.lines.slice(2), bookingLine_(request)), null, ['student-reminder', request.request_id]);
+        ].concat(ask.lines.slice(2), bookingLine_(request)), 'v:' + request.request_id, ['student-reminder', request.request_id]);
       });
       attempt(function () {
         textStudentQuestion_(student, 'v:' + request.request_id, 'CTTC: Reminder: reply YES to send ' + studentName_(request) + '\'s request to ' + coachName_(coach) + ': ' +
@@ -1477,9 +1933,9 @@ function remindWaiting_(coaches, students, requests, now) {
         if (phoneDigits_(coach.phone) && coach.ask_ref === request.request_id) sendText_(coach, requestQuestion_(request, true), ['coach-reminder', request.request_id]);
     });
     attempt(function () {
-        sendMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
+        sendStudentMail_(request.student_email, 'Your coaching request is waiting on ' + coachName_(coach), [who,
           { callout: lesson + ' is **waiting for ' + coachName_(coach) + ' to accept it.** You confirmed it, so **nothing more is needed from you**. It is not booked until the coach accepts.', tone: 'action' },
-          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.', bookingLine_(request)], null, ['student-waiting-on-coach', request.request_id]);
+          'If the coach has not answered by **' + deadline + '**, the request expires, the time is released and the club follows up. We email you as soon as the coach answers.', bookingLine_(request)], '', ['student-waiting-on-coach', request.request_id]);
     });
   });
 }
@@ -1597,6 +2053,7 @@ function studentMail_(request, coach) {
   if (request.status === 'unverified') {
     return { to: to, subject: 'Confirm your coaching request ' + refTag_(verifyCode_(request)), lines: [who,
       { callout: '**Action needed:** reply to this email by **' + expires + '**.', tone: 'action' },
+      replacedNote_(request),
       { choices: [['YES', 'Send my request to the coach.'], ['NO', 'Cancel my request and release the time.']] },
       { heading: 'Your request' },
       { rows: details.concat([['Coach', coachShown]]) },
@@ -1888,7 +2345,7 @@ function ownWords_(text) {
     var next = lines[i + 1] || '';
     // Some apps send only HTML, and Gmail's plain-text version can run lines together ("YESSent from my Galaxy"): a signature
     // or quote marker inside a line ends their words there too.
-    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no):|concord table tennis club|_{5,}/i);
+    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no|yes to only this):|concord table tennis club|_{5,}/i);
     if (glued > 0) {
       mine.push(line.slice(0, glued).trim());
       break;
@@ -1905,18 +2362,36 @@ function ownWords_(text) {
 // case, after a greeting or "ok" ("Yes, see you Friday", "ok yes", "no thanks", "y"). A yes or no further in ("there is no
 // parking", "I have no idea", an out-of-office note) is not an answer, and nor is a line with both ("Yes, but no").
 function answerOf_(text) {
-  // A greeting on its own line ("Hi John,", "Good morning,") comes before the answer.
-  var line = (ownWords_(text).split('\n').filter(function (each) {
-    return each && !/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b(?!.*\b(y|yes|yeah|yep|yup|n|no|nope|nah)\b)[^.!?]{0,30}[,.!:]*$/i.test(each);
-  })[0] || '').toLowerCase()
-    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hey|hello|dear|good (morning|afternoon|evening))\b[\s,.!:-]*([a-z]+[\s,.!:-]+)?(?=(y|yes|yeah|yep|yup|n|no|nope|nah)\b))+/, '')
-    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries)\b[\s,.!:-]*)+/, '');
+  var line = answerLine_(text);
   var rest = line.replace(/\bno (problem|worries|prob|issues?|rush)\b/g, ' ');
   var yes = /^(y|yes|yeah|yep|yup|yess+)\b/.test(line);
   var no = /^(n|no|nope|nah)\b/.test(line);
   if (yes && /\b(no|nope|nah|not|can't|cannot|cant)\b/.test(rest)) return '';
   if (no && /\b(yes|yeah|yep|yup)\b/.test(rest)) return '';
   return yes ? 'yes' : no ? 'no' : '';
+}
+
+// The first line of the person's own words, lower case, with a greeting or "ok" before the answer taken off.
+function answerLine_(text) {
+  // A greeting on its own line ("Hi John,", "Good morning,") comes before the answer.
+  return (ownWords_(text).split('\n').filter(function (each) {
+    return each && !/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b(?!.*\b(y|yes|yeah|yep|yup|n|no|nope|nah)\b)[^.!?]{0,30}[,.!:]*$/i.test(each);
+  })[0] || '').toLowerCase()
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries|hi|hey|hello|dear|good (morning|afternoon|evening))\b[\s,.!:-]*([a-z]+[\s,.!:-]+)?(?=(y|yes|yeah|yep|yup|n|no|nope|nah)\b))+/, '')
+    .replace(/^((ok|okay|sure|great|thanks|thank you|no problem|no worries)\b[\s,.!:-]*)+/, '');
+}
+
+// An emailed answer: 'yes', 'only' (YES to ONLY THIS: just what that email is about), 'no' or '' (unclear: it gets the "we could
+// not read your reply" email). "YES to ONLY THIS" is the button's text; "yes, only this one", "yes just this", "only this (one)" and
+// "yes to only this, not the others" mean the same. To an email that lists several things (listed), a yes that also says "only",
+// "except" or "but" ("yes, only the Saturday one") is unclear rather than guessed at; "yes to all" and "yes, both" are a yes.
+function replyAnswer_(text, listed) {
+  var line = answerLine_(text);
+  // Without a yes, only the bare words count: "only this week works" is not an answer.
+  if (/^(y|yes|yeah|yep|yup|yess+)\b[\s,.:;!-]*(to\s+)?(only|just)\s+(this|that)\b/.test(line) || /^(only|just)\s+(this|that)(\s+one)?[\s.!]*$/.test(line)) return 'only';
+  var answer = answerOf_(text);
+  if (listed && answer === 'yes' && /\b(only|except|but)\b/.test(line)) return '';
+  return answer;
 }
 
 function requestQuestion_(request, again) {
@@ -2438,7 +2913,8 @@ function emailQuestions_(now) {
   requests.forEach(function (request) {
     var status = effectiveStatus_(request, now);
     var after = Date.parse(request.created_at) || 0;
-    if (status === 'unverified') questions.push({ code: verifyCode_(request), email: request.student_email, after: after, kind: 'v', id: request.request_id });
+    // A request a newer one replaces is still a question, but its answer is only "that was replaced".
+    if (status === 'unverified') questions.push({ code: verifyCode_(request), email: request.student_email, after: after, kind: replacedBy_(request, requests, now) ? 'r' : 'v', id: request.request_id });
     if (status === 'expired' && lateVerify_(request, requests, availability(), now)) {
       questions.push({ code: verifyCode_(request), email: request.student_email, after: after, before: Number(request.expires_at), kind: 'v', id: request.request_id });
     }
@@ -2446,6 +2922,15 @@ function emailQuestions_(now) {
       questions.push({ code: requestCode_(request), email: cleanEmail_(byId[request.coach_id].email), after: after, kind: 'request', id: request.request_id, coachId: request.coach_id });
     }
     if (request.change && holds_(request, now)) questions.push({ code: changeCode_(request), email: request.student_email, after: Number(request.change_at), kind: 'c', id: request.request_id });
+    if (request.change && holds_(request, now) && request.change_was) {
+      var was = Number(request.change_was.split('@')[1]);
+      if (String(was) !== request.change_at) questions.push({ code: code_('c:' + request.request_id + ':' + was), email: request.student_email, after: was, kind: 'r', id: request.request_id });
+    }
+  });
+  // An email that listed everything waiting stays a question while anything it listed still waits.
+  rows_('Bundles').forEach(function (bundle) {
+    if (!bundleItems_(bundle).some(function (ref) { return itemWaiting_(ref, requests, now); })) return;
+    questions.push({ code: bundleCode_(bundle.bundle_id), email: bundle.email, after: Date.parse(bundle.created_at) || 0, kind: 'b', id: bundle.bundle_id });
   });
   return questions;
 }
@@ -2486,7 +2971,9 @@ function checkMail_() {
       }
       if (autoReply_(message)) return;
       var body = replyText_(message);
-      var answer = answerOf_(body);
+      var answer = replyAnswer_(body, question.kind === 'b');
+      // YES to ONLY THIS means YES to an email that asks about one thing.
+      if (answer === 'only' && question.kind !== 'b') answer = 'yes';
       if (!answer) {
         seen.unreadable = (seen.unreadable || 0) + 1;
         seen.odd = oddCharacters_(ownWords_(body).split('\n')[0] || body);
@@ -2504,6 +2991,8 @@ function checkMail_() {
     var question = found.question;
     if (question.kind === 'slots') answer_(question.id, 'slots', found.answer, 'email');
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
+    else if (question.kind === 'b') answerBundle_(question.id, found.answer, found.at);
+    else if (question.kind === 'r') replacedAnswer_(question.id, found.answer);
     else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
   properties.setProperty('MAIL_CHECKED_AT', String(now));
@@ -2582,7 +3071,8 @@ function unreadableReply_(messageId, address, subject) {
     cache.put('unread:' + messageId, '1', 21600);
     try {
       sendMail_(address, 'We could not read your reply', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') + '", but could not tell whether it was YES or NO.',
-        { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both).', tone: 'action' }], null, ['unreadable-reply', messageId]);
+        { callout: 'Please **reply to that email again** saying just **YES** or **NO** (not both)' + (/^(re:\s*)?(reminder:\s*)?(confirm|your coaching|coaching|lesson)/i.test(subject) ?
+          ', or **YES to ONLY THIS** if that email listed several things and you want only the one it was about.' : '.'), tone: 'action' }], null, ['unreadable-reply', messageId]);
     } catch (error) {
       logError_('tell a sender their reply was unreadable', error, messageId);
     }
@@ -2656,22 +3146,37 @@ function checkStudentTexts_() {
   });
 }
 
+// The club account, which sends every email and reads the replies.
+function clubAddress_() { return Session.getEffectiveUser().getEmail(); }
+
+// A mailto: link that starts a reply to the club with this subject and the answer as its whole text.
+function replyLink_(reply, answer) {
+  return 'mailto:' + reply.to + '?subject=' + encodeURIComponent(reply.subject) + '&body=' + encodeURIComponent(answer);
+}
+
 function adminEmail_() { return property_('ADMIN_EMAIL', Session.getEffectiveUser().getEmail()); }
 
 function mailAvailable_() { return MailApp.getRemainingDailyQuota() > MIN_QUOTA; }
 
-// **text** is bold in HTML and plain in text; links become clickable.
+// **text** is bold in HTML and plain in text; links become clickable. A change is shown as the desk shows a player edit:
+// ~~old~~ struck through in red, ++new++ in bold green (in plain text, "old (replaced)" and the new value).
 function mailHtml_(text) {
-  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>');
+  return esc_(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/~~(.+?)~~/g, '<del style="color:#8a3b2b;">$1</del>').replace(/\+\+(.+?)\+\+/g, '<ins style="color:#1f6b3a;font-weight:700;text-decoration:none;">$1</ins>')
+    .replace(/(https:\/\/[A-Za-z0-9_.\/?=&;%-]+)/g, '<a href="$1">$1</a>');
 }
 
-function mailText_(text) { return String(text).replace(/\*\*/g, ''); }
+function mailText_(text) { return String(text).replace(/\*\*/g, '').replace(/~~(.+?)~~/g, '$1 (replaced)').replace(/\+\+(.+?)\+\+/g, '$1'); }
 
-// A block is a paragraph string, or { heading }, { callout, tone }, { rows: [[label, value, link]] }, { steps }, { choices: [[reply, meaning]] }
-// or { html, text } (text is the plain-text stand-in).
+// A block is a paragraph string, or { heading }, { callout, tone }, { rows: [[label, value, link]] }, { steps }, { choices: [[reply, meaning]] },
+// { waiting: [{number, mark, tone, text, current}] } (everything waiting for a student's YES) or { html, text } (text is the
+// plain-text stand-in). sendMail_ gives choices a reply address and subject, so each answer is a button that starts the reply.
 function blockText_(block) {
   if (typeof block === 'string') return mailText_(block);
   if (block.choices) return block.choices.map(function (choice) { return 'Reply ' + choice[0] + ': ' + mailText_(choice[1]); }).join('\n');
+  if (block.waiting) {
+    return block.waiting.map(function (line) { return line.number + '. ' + line.mark + ': ' + mailText_(line.text) + (line.current ? ' (THIS EMAIL)' : ''); }).join('\n');
+  }
   if (block.heading) return block.heading.toUpperCase();
   if (block.callout) return mailText_(block.callout);
   if (block.rows) return block.rows.map(function (row) { return row[0] + ': ' + mailText_(row[1]); }).join('\n');
@@ -2694,16 +3199,30 @@ function blockHtml_(block) {
   }
   if (block.choices) {
     return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 14px;font-size:15px;">' + block.choices.map(function (choice) {
-      return '<tr><td style="padding:4px 12px 4px 0;vertical-align:top;white-space:nowrap;"><span style="display:inline-block;min-width:88px;text-align:center;padding:3px 8px;border-radius:4px;font-weight:700;color:#fff;background:' +
-        (choice[0] === 'YES' ? '#1f6b3a' : '#a3332a') + ';">Reply ' + esc_(choice[0]) + '</span></td><td style="padding:6px 0;vertical-align:top;">' + mailHtml_(choice[1]) + '</td></tr>';
+      var color = choice[0] === 'NO' ? '#a3332a' : choice[0] === 'YES' ? '#1f6b3a' : '#1f4f8f';
+      var button = 'display:inline-block;min-width:88px;text-align:center;font-weight:700;color:#fff;background:' + color + ';';
+      // The button starts a reply to the club with the subject (and so its reference code) and the answer already written.
+      var cell = block.reply ? '<a href="' + esc_(replyLink_(block.reply, choice[0])) + '" style="' + button + 'padding:9px 14px;border-radius:6px;text-decoration:none;">' +
+        esc_(choice[0]) + '</a>' : '<span style="' + button + 'padding:3px 8px;border-radius:4px;">Reply ' + esc_(choice[0]) + '</span>';
+      return '<tr><td style="padding:5px 12px 5px 0;vertical-align:middle;white-space:nowrap;">' + cell + '</td><td style="padding:6px 0;vertical-align:middle;">' + mailHtml_(choice[1]) + '</td></tr>';
     }).join('') + '</table>';
+  }
+  if (block.waiting) {
+    var marks = { cancel: '#a3332a', move: '#8a5a00', 'new': '#1f4f8f' };
+    return '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:0 0 14px;font-size:15px;width:100%;border:1px solid #ddd;">' +
+      block.waiting.map(function (line) {
+        return '<tr style="' + (line.current ? 'background:#fff3b0;' : '') + 'border-top:1px solid #ddd;"><td style="padding:8px 10px;vertical-align:top;font-weight:700;font-size:18px;">' + line.number +
+          '</td><td style="padding:8px 10px 8px 0;vertical-align:top;"><span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:12px;font-weight:700;color:#fff;background:' +
+          (marks[line.tone] || '#555') + ';">' + esc_(line.mark) + '</span>' + (line.current ? ' <strong>THIS EMAIL</strong>' : '') + '<br>' + mailHtml_(line.text) + '</td></tr>';
+      }).join('') + '</table>';
   }
   if (block.steps) return '<ol style="margin:0 0 12px;padding-left:22px;">' + block.steps.map(function (step) { return '<li style="margin:0 0 6px;">' + mailHtml_(step) + '</li>'; }).join('') + '</ol>';
   return block.html || '';
 }
 
 function sendMail_(to, subject, lines, cc, log, footer) {
-  var blocks = lines.filter(Boolean);
+  var reply = { to: clubAddress_(), subject: /^re:/i.test(subject) ? subject : 'Re: ' + subject };
+  var blocks = lines.filter(Boolean).map(function (block) { return block.choices && !block.reply ? Object.assign({ reply: reply }, block) : block; });
   footer = footer || 'This message is only about your coaching request. It does not add you to the results mailing list.';
   var body = blocks.map(blockText_).filter(Boolean).concat(footer).join('\n\n');
   var html = '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#222;max-width:560px;">' + blocks.map(blockHtml_).join('') +
