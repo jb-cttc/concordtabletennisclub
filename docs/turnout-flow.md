@@ -56,6 +56,9 @@ The header's Add to Home Screen button asks which icon to add, CTTC (the
 website) or Text CTTC, and shows the steps on the page to be saved. Opened
 from its icon, `text.html` goes straight to Messages with the join text
 filled in; a phone that wants a tap first gets one big button instead.
+Checked on an iPhone on November 4, 2026: one tap on the icon shows the page
+for a moment, then Messages opens with the text ready to send, with nothing
+else to tap.
 
 Which night: today while it is a round robin day and the round robin is
 still on (before 10 PM Pacific on a Monday or Wednesday, 6 PM on a
