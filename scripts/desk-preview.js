@@ -163,6 +163,8 @@ const rpc = {
   },
   getDeskStamps: function (date) { return stamps[date] || { s: '', p: '', e: '' }; },
   logFollowMode: function () { return true; },
+  noteDeskEvent: function (date, event) { stamps[date] = Object.assign({ s: '', p: '', e: '' }, stamps[date], { ev: event }); return true; },
+  setFollowScreen: function (date, choice) { const screen = Object.assign({}, choice, { at: Date.now() }); stamps[date] = Object.assign({ s: '', p: '', e: '' }, stamps[date], { screen: screen }); return screen; },
   // The Equalizer, kept in memory only: enough to switch a night to it, draw it, and print its sheets.
   getEqualizerState: function (date) { return equalizers[date] || { session: null, roster: [], setup: null, results: {}, history: [] }; },
   switchDayEvent: function (date, to) { return { revision: 1, status: 'draft', sessionId: 'session-' + date + '-' + to }; },

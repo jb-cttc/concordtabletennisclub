@@ -613,6 +613,62 @@ const cases = {
     board.close();
   },
 
+  // Projector screen on the main desk: the following board takes the layout, slide time, look and checks chosen there,
+  // with no reads of the night, and a follower that opens later takes them too.
+  async followScreen() {
+    const world = sim.createWorld({ seed: 75 });
+    const main = await deskWith(world, 16);
+    const follower = async () => {
+      const projector = world.device().open();
+      await run(world, 15000);
+      const board = boardWindow(world, projector);
+      projector.click(projector.$('#player-board'));
+      await run(world, 1000);
+      boardClick(board, '#choose-follow');
+      await run(world, 5000);
+      return { projector, board };
+    };
+    const { projector, board } = await follower();
+    const pressed = (b, key) => b.$('[data-set="' + key + '"] [aria-pressed="true"]').getAttribute('data-value');
+    assert.ok(board.$('.wall'), 'a new computer starts on the wall');
+    assert.ok(projector.$('#screen-control').hidden, 'the following desk has no Projector screen control');
+    assert.ok(!main.$('#screen-control').hidden);
+    const choose = (key, value) => main.click(main.$('#screen-panel [data-screen="' + key + '"] [data-value="' + value + '"]'));
+    main.click(main.$('#screen-control'));
+    assert.ok(!main.$('#screen-panel').hidden);
+    assert.equal(main.$('#screen-panel').querySelectorAll('[aria-pressed="true"]').length, 0, 'nothing chosen from the desk yet');
+    const since = world.clock.now();
+    choose('concept', 'carousel');
+    await run(world, 15000);
+    assert.ok(board.$('.carousel'), 'the projector shows the carousel');
+    assert.equal(pressed(board, 'concept'), 'carousel', 'and its own settings strip says so');
+    assert.match(main.status(), /Projector screen: Layout Carousel/);
+    const reads = world.traffic.filter(log => log.tab === projector && log.sentAt >= since).map(log => log.name);
+    assert.ok(reads.every(name => name === 'getDeskStamps'), 'a screen choice reads nothing else: ' + reads.join(', '));
+    choose('look', 'green');
+    choose('pay', 'false');
+    await run(world, 15000);
+    assert.equal(board.$('#board').dataset.look, 'green');
+    assert.equal(board.$('#bc-pay').checked, false);
+    assert.equal(pressed(board, 'concept'), 'carousel', 'a later choice keeps the earlier ones');
+    // Changed on the projector itself, then chosen again on the desk: the desk's choice shows again.
+    boardClick(board, '[data-set="concept"] [data-value="wall"]');
+    await run(world, 15000);
+    assert.ok(board.$('.wall'), 'the projector\'s own strip still works');
+    choose('concept', 'carousel');
+    await run(world, 15000);
+    assert.ok(board.$('.carousel'), 'the same choice again from the desk counts');
+    // A follower that opens later takes the desk's choice.
+    const late = await follower();
+    assert.ok(late.board.$('.carousel'));
+    assert.equal(late.board.$('#board').dataset.look, 'green');
+    // Google keeps only settings it knows.
+    assert.throws(() => world.server.run('setFollowScreen', world.date, { concept: 'x', secs: 99 }), /nothing to show/);
+    [main, projector, late.projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    board.close();
+    late.board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);

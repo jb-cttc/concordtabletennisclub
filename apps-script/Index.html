@@ -27,7 +27,7 @@
 })();
 </script>
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">CTTC Desk<small>Concord Table Tennis Club</small></div><button id="show-tour" class="tour-launch" type="button" title="Show me how this all works" aria-label="Show me how this all works">?</button><div class="date-tools"><span id="network-activity" role="status" aria-live="polite"></span><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><label>Session date<input id="date" type="date"></label><button id="load" class="secondary" type="button">Load session</button><a class="change-link" href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
-<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div id="follow-bar" class="follow-bar" role="status" hidden><span id="follow-text"></span><button id="stop-follow" class="small" type="button">Stop following</button></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="event-switch" class="group-size event-switch" role="group" aria-label="Event"><button type="button" data-event="rr" aria-pressed="true" title="The usual round robin: groups by rating">Round robin</button><button type="button" data-event="equalizer" aria-pressed="false" title="The Equalizer: head starts by rating, RR → Finals or Double Elimination">Equalizer</button></div><div id="eq-options" class="eq-options" hidden></div><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="player-board" class="secondary" type="button" title="Open a window for the gym TV that follows this desk: groups, sign-ins, payment checks and scores">Player board</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button><button id="print-labels" class="small print-labels" type="button" aria-expanded="false" aria-controls="print-labels-panel" hidden></button></div><div id="print-labels-panel" class="print-labels-panel" role="group" aria-label="Print labels" hidden><p id="print-labels-text"></p><div class="draft-actions"><button id="labels-keep" class="small" type="button">Clear labels</button><button id="labels-forget" class="small" type="button">Undo the print</button><button id="labels-cancel" class="small" type="button">Cancel</button></div></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div><div id="equalizer" class="equalizer matches" hidden></div></section></div></main>
+<main class="shell"><div id="status" class="statusbar busy">Loading player directory...</div><div id="draft-recovery" class="draft-recovery" role="status" aria-live="polite" hidden><span id="draft-message"></span><div class="draft-actions"><button id="recover-draft" class="small" type="button" hidden>Recover draft</button><button id="export-draft" class="small" type="button" hidden>Download copy</button><button id="discard-draft" class="small" type="button" hidden>Discard device copy</button></div></div><div id="publish-bar" class="publish-bar" hidden></div><div id="follow-bar" class="follow-bar" role="status" hidden><span id="follow-text"></span><button id="stop-follow" class="small" type="button">Stop following</button></div><div class="workspace"><aside class="sidebar"><button id="toggle-side" class="side-toggle" type="button" aria-expanded="true" aria-label="Hide the player panel" title="Hide the player panel">&laquo;</button><span class="side-label" aria-hidden="true">Player directory</span><section class="section"><h2>Player directory</h2><input id="search" class="search" type="search" placeholder="Search players" autocomplete="off"><ul id="results" class="results"></ul></section><section class="section"><h2>Add a player</h2><form id="new-player" class="new-player"><input id="new-name" required maxlength="80" placeholder="Full name"><input id="new-rating" type="number" min="0" max="4000" placeholder="Rating"><button class="small" type="submit">Add</button></form><p class="hint">New players are saved to the database immediately.</p></section></aside><section><div class="toolbar"><div><h1 style="font-size:28px;margin-bottom:4px">Session workspace</h1><p id="session-meta" class="hint"></p></div><div class="toolbar-actions"><div id="event-switch" class="group-size event-switch" role="group" aria-label="Event"><button type="button" data-event="rr" aria-pressed="true" title="The usual round robin: groups by rating">Round robin</button><button type="button" data-event="equalizer" aria-pressed="false" title="The Equalizer: head starts by rating, RR → Finals or Double Elimination">Equalizer</button></div><div id="eq-options" class="eq-options" hidden></div><div id="group-size" class="group-size" role="group" aria-label="Group size"><span>Groups of</span><button type="button" data-group-size="5" aria-pressed="false" title="Groups of 5 (or 4)">5</button><button type="button" data-group-size="6" aria-pressed="true" title="Groups of 6 (or 5)">6</button><button type="button" data-group-size="7" aria-pressed="false" title="Groups of 7 (or 6)">7</button></div><button id="rebuild" class="secondary" type="button">Rebuild by rating</button><button id="print-sheets" class="secondary" type="button">Print RR Sheets</button><button id="player-board" class="secondary" type="button" title="Open a window for the gym TV that follows this desk: groups, sign-ins, payment checks and scores">Player board</button><button id="screen-control" class="secondary" type="button" aria-expanded="false" aria-controls="screen-panel" title="Change the layout on a laptop whose Player board follows this desk">Projector screen</button><button id="clear-roster" class="secondary" type="button">Clear</button><button id="device-save" class="secondary" type="button">Save on device</button><button id="save" class="primary" type="button">Save to Sheets</button><button id="finalize" class="primary danger" type="button">Finalize RR Results</button></div></div><div id="screen-panel" class="screen-panel" role="group" aria-label="Projector screen" hidden><p>For a laptop whose Player board follows this desk: it changes within about 10 seconds. A choice here stays until the next one, here or on that laptop.</p><div class="screen-choices"><div class="group-size" role="group" aria-label="Layout" data-screen="concept"><span>Layout</span><button type="button" data-value="carousel" aria-pressed="false">Carousel</button><button type="button" data-value="wall" aria-pressed="false">Wall</button><button type="button" data-value="spot" aria-pressed="false">Spotlight + names</button></div><div class="group-size" role="group" aria-label="Slide every" data-screen="secs"><span>Slide every</span><button type="button" data-value="10" aria-pressed="false">10s</button><button type="button" data-value="14" aria-pressed="false">14s</button><button type="button" data-value="20" aria-pressed="false">20s</button></div><div class="group-size" role="group" aria-label="Look" data-screen="look"><span>Look</span><button type="button" data-value="desk" aria-pressed="false">Desk</button><button type="button" data-value="green" aria-pressed="false">Dark</button></div><div class="group-size" role="group" aria-label="Payment checks" data-screen="pay"><span>Payment checks</span><button type="button" data-value="true" aria-pressed="false">Show</button><button type="button" data-value="false" aria-pressed="false">Hide</button></div><div class="group-size" role="group" aria-label="Ratings" data-screen="rating"><span>Ratings</span><button type="button" data-value="true" aria-pressed="false">Show</button><button type="button" data-value="false" aria-pressed="false">Hide</button></div></div><button id="screen-close" class="small" type="button">Close</button></div><p id="promotion-context" class="hint promotion-context"></p><div id="summary-row" class="summary-row" hidden><p id="group-summary" class="group-summary"></p><button id="toggle-organizer" class="small" type="button" aria-expanded="true" aria-controls="organizer-fold">Collapse organizer</button><button id="print-labels" class="small print-labels" type="button" aria-expanded="false" aria-controls="print-labels-panel" hidden></button></div><div id="print-labels-panel" class="print-labels-panel" role="group" aria-label="Print labels" hidden><p id="print-labels-text"></p><div class="draft-actions"><button id="labels-keep" class="small" type="button">Clear labels</button><button id="labels-forget" class="small" type="button">Undo the print</button><button id="labels-cancel" class="small" type="button">Cancel</button></div></div><div id="empty" class="empty"><strong>No players on this roster.</strong><p class="hint">Search the directory and add today's participants.</p></div><div id="organizer-fold" class="fold"><div class="fold-inner"><div id="groups" class="groups"></div></div></div><div id="matches" class="matches"></div><div id="equalizer" class="equalizer matches" hidden></div></section></div></main>
 <style>
 .top-logo{display:block;flex:none;width:52px;height:52px}.top-logo img{display:block;width:100%;height:100%;object-fit:contain;clip-path:polygon(50% 11%,76% 14%,79% 17%,79% 81%,77% 85%,50% 95%,23% 85%,21% 81%,21% 17%,24% 14%);transform:scale(1.2)}.top-inner .brand{min-width:0}.tour-launch{flex:none;display:grid;place-items:center;width:30px;height:30px;padding:0;border:2px solid #dce9e1;border-radius:50%;background:transparent;color:#fff;font:700 19px Arial,sans-serif}.tour-launch:hover,.tour-launch:focus-visible{background:#dce9e1;color:#123f2b}.date-tools{margin-left:auto}.change-link{align-self:center;color:#dce9e1;font:12px Arial,sans-serif;white-space:nowrap}.change-link:hover{color:#fff}
 @media(max-width:760px){.top-inner{flex-direction:row;flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.top-inner .brand{font-size:20px;flex:1}.date-tools{width:100%;margin-left:0;justify-content:space-between}.date-tools label{flex:1;max-width:220px}}
@@ -2445,7 +2445,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (follow.on) return '';
     var blocked = followBlocked();
     if (blocked) { setStatus(blocked, 'error'); return blocked; }
-    Object.assign(follow, { on: true, busy: false, stamps: null, startedAt: Date.now(), lastCheck: 0, lastOk: Date.now(), lastChange: Date.now(), lastRead: 0, loggedAt: Date.now(), checks: 0, reads: 0, stamplessReads: 0, note: '' });
+    Object.assign(follow, { on: true, busy: false, stamps: null, screenAt: 0, startedAt: Date.now(), lastCheck: 0, lastOk: Date.now(), lastChange: Date.now(), lastRead: 0, loggedAt: Date.now(), checks: 0, reads: 0, stamplessReads: 0, note: '' });
     clearTimeout(autoSyncTimer);
     clearInterval(follow.timer);
     follow.timer = setInterval(function () { followCheck(false); }, FOLLOW_MS);
@@ -2487,6 +2487,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         follow.stamps = stamps;
       }
       // The main desk switched between the round robin and the Equalizer: show the same one, and read it.
+      // The main desk's Projector screen choice, once per choice (and again when follow mode starts).
+      var screen = stamps && stamps.screen;
+      if (screen && screen.at !== follow.screenAt && window.cttcPlayerBoard && window.cttcPlayerBoard.followScreen && window.cttcPlayerBoard.followScreen(screen)) follow.screenAt = screen.at;
       var event = stamps && stamps.ev;
       if (followEvent(event)) { var shown = event === 'equalizer' ? 'e' : 's'; if (areas.indexOf(shown) < 0) areas.push(shown); }
       // No switch known (none in the last 6 hours): the event this desk is not showing changed, so read the whole night
@@ -2565,6 +2568,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
   function renderFollow() {
     document.querySelector('.workspace').classList.toggle('following', follow.on);
+    screenButton.hidden = follow.on;
+    if (follow.on) closeScreen();
     followBar.hidden = !follow.on;
     if (!follow.on) return;
     var ago = function (t) { var s = Math.round((Date.now() - t) / 1000); return s < 60 ? s + ' s ago' : Math.round(s / 60) + ' min ago'; };
@@ -2572,6 +2577,57 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     document.getElementById('follow-text').textContent = 'Following the main desk: changes made there show here and on this Player board, checked every ' + (idle ? 'minute (quiet for 20 minutes)' : '10 seconds') + '. Editing is off on this computer.' + (follow.lastCheck ? ' Last check ' + ago(follow.lastCheck) + '.' : '') + (follow.note && follow.lastOk < follow.lastCheck ? ' ' + follow.note : '');
   }
   document.getElementById('stop-follow').addEventListener('click', function () { stopFollow('stopped'); });
+
+  // ---- Projector screen: the main desk chooses what a following board shows (layout, slide time, look, checks) ----
+  // Each choice is one cache write (setFollowScreen), handed to the follower with the stamps it already checks. Only
+  // the settings chosen here are sent; this computer remembers them to show which are set.
+  var SCREEN_KEY = 'cttc-follow-screen-v1';
+  var screenButton = document.getElementById('screen-control');
+  var screenPanel = document.getElementById('screen-panel');
+  var screenChoice = {};
+  try { screenChoice = JSON.parse(localStorage.getItem(SCREEN_KEY) || '{}') || {}; } catch (error) { screenChoice = {}; }
+  function renderScreen() {
+    screenPanel.querySelectorAll('[data-screen]').forEach(function (seg) {
+      var key = seg.getAttribute('data-screen');
+      seg.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(screenChoice[key] !== undefined && String(screenChoice[key]) === b.getAttribute('data-value'))); });
+    });
+  }
+  function closeScreen() { screenPanel.hidden = true; screenButton.setAttribute('aria-expanded', 'false'); }
+  screenButton.addEventListener('click', function () {
+    var open = screenPanel.hidden;
+    screenPanel.hidden = !open;
+    screenButton.setAttribute('aria-expanded', String(open));
+    renderScreen();
+  });
+  document.getElementById('screen-close').addEventListener('click', closeScreen);
+  screenPanel.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-screen] button');
+    if (!button || follow.on) return;
+    var key = button.parentNode.getAttribute('data-screen');
+    var raw = button.getAttribute('data-value');
+    screenChoice[key] = key === 'secs' ? Number(raw) : key === 'pay' || key === 'rating' ? raw === 'true' : raw;
+    try { localStorage.setItem(SCREEN_KEY, JSON.stringify(screenChoice)); } catch (error) { /* shown until reload */ }
+    renderScreen();
+    screenSend.said = button.parentNode.getAttribute('aria-label') + ' ' + button.textContent;
+    sendScreen();
+  });
+  // One send at a time, always the latest choice, so two quick clicks cannot reach Google in the wrong order.
+  var screenSend = { busy: false, again: false, said: '' };
+  function sendScreen() {
+    if (screenSend.busy) { screenSend.again = true; return; }
+    screenSend.busy = true;
+    screenSend.again = false;
+    var said = screenSend.said;
+    call('setFollowScreen', loadedDate || date.value, Object.assign({}, screenChoice)).then(function () {
+      if (!screenSend.again) setStatus('Projector screen: ' + said + '. A laptop following this desk changes within about 10 seconds.');
+    }).catch(function (error) {
+      if (!screenSend.again) setStatus('The projector screen choice did not reach Google: ' + (error && error.message || error) + '. Try again.', 'error');
+    }).finally(function () {
+      screenSend.busy = false;
+      if (screenSend.again) sendScreen();
+    });
+  }
+
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshFromGoogle(); });
 
   window.cttcTab.onRetire(function () { clearTimeout(autoSyncTimer); });
@@ -2602,6 +2658,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 .promotion-badge{display:block;margin-top:2px;font:11px Arial,sans-serif;color:#7a5200;font-weight:700}
 .follow-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:10px 14px;margin:-6px 0 18px;border:1px solid var(--line);border-left:3px solid var(--green);border-radius:4px;background:#fff;color:var(--muted);font:13px/1.5 Arial,sans-serif}
 .follow-bar[hidden]{display:none}
+.screen-panel{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:10px 14px;margin:0 0 14px;border:1px solid var(--line);border-left:3px solid var(--green);border-radius:4px;background:var(--panel);color:var(--muted);font:13px/1.5 Arial,sans-serif}
+.screen-panel[hidden]{display:none}
+.screen-panel p{margin:0;flex:1 1 100%}
+.screen-choices{display:flex;flex-wrap:wrap;gap:8px 10px;flex:1 1 auto}
+.screen-choices .group-size button{padding:7px 10px}
 .workspace.following{pointer-events:none;opacity:.55}
 .workspace.following #player-board,.workspace.following #toggle-organizer,.workspace.following #toggle-side,.workspace.following .match-group h3{pointer-events:auto}
 .late-badge{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#fff3d9;border:1px solid #c99934;color:#7a5200;font:700 10px/1.3 Arial,sans-serif;letter-spacing:.03em;text-transform:uppercase;vertical-align:2px;white-space:nowrap}
