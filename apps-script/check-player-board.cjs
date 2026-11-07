@@ -669,6 +669,74 @@ const cases = {
     late.board.close();
   },
 
+  // A player who arrives after the Equalizer's sheets print joins the group the desk picks: nobody else moves, every
+  // match keeps its id and result, Google takes it even once a result is in, and only that group's sheet needs printing.
+  async equalizerLateAdd() {
+    const world = sim.createWorld({ seed: 77, players: 24 });
+    const main = await deskWith(world, 19);
+    main.click(main.$('#event-switch [data-event="equalizer"]'));
+    await run(world, 20000);
+    const board = boardWindow(world, main);
+    main.click(main.$('#player-board'));
+    await run(world, 1000);
+    const eqData = () => main.window.cttcDesk.equalizerPrint();
+    const groupsNow = () => JSON.parse(JSON.stringify(eqData().event.groups.map(g => ({ sides: g.sides.slice(), matches: g.matches.map(m => m.id + ':' + m.players.join('v')) }))));
+    assert.deepEqual(groupsNow().map(g => g.sides.length), [4, 4, 4, 4, 3]);
+
+    // Before the print a sign-in draws again, as before; after it, the desk asks for a group.
+    main.window.cttcPlayerBoard.printed();
+    await run(world, 3000);
+    const row = main.$('#equalizer .match.match-pending[data-eq-match]');
+    const scored = row.getAttribute('data-eq-match');
+    main.click(row.querySelector('[data-side="0"][data-games="2"]'));
+    await run(world, 20000);
+    const before = groupsNow();
+    const late = world.players[19].player_id;
+    main.addPlayer(late);
+    await run(world, 500);
+    assert.ok(!eqData().event.ratings[late], 'not placed until a group is picked');
+    assert.match(main.status(), /pick their group/);
+    const picker = main.$('#equalizer .eq-late');
+    assert.ok(picker, 'the desk asks which group');
+    assert.equal(picker.querySelectorAll('[data-eq-late]').length, 5);
+    main.click(picker.querySelector('[data-eq-late-cancel]'));
+    assert.ok(!main.$('#equalizer .eq-late'), 'Cancel adds nobody');
+    main.addPlayer(late);
+    await run(world, 500);
+    main.click(main.$('#equalizer [data-eq-late="5"]'));
+    await run(world, 20000);
+    const after = groupsNow();
+    assert.deepEqual(after.slice(0, 4), before.slice(0, 4), 'the other groups are untouched');
+    assert.deepEqual(after[4].sides, before[4].sides.concat([late]), 'the late player joins Group 5');
+    assert.deepEqual(after[4].matches.slice(0, 3), before[4].matches, 'Group 5\'s matches keep their ids');
+    assert.equal(after[4].matches.length, 6);
+    assert.match(main.status(), /joins Group 5 as a late add/);
+    assert.ok(main.$('#equalizer [data-eq-print-group="5"]'), 'Print sheet beside Group 5');
+    assert.match(main.window.cttcPlayerBoard.printNote(), /Late add since the sheets printed: replace the sheet for Group 5/);
+    assert.ok(board.text().includes(nameOf(world, late)), 'the board shows the late add');
+    // Google has it, with the result still there.
+    const saved = world.server.run('getEqualizerState', world.date);
+    assert.deepEqual(JSON.parse(JSON.stringify(saved.setup.draw.late)).map(x => [x.id, x.group]), [[late, 5]]);
+    assert.ok(saved.roster.includes(late));
+    assert.ok(saved.results[scored], 'the result already in stays');
+    assert.equal(main.syncNote(), '');
+    // A group of 4 takes a fifth; a whole new draw is still refused once a result is in.
+    const second = world.players[20].player_id;
+    main.addPlayer(second);
+    await run(world, 500);
+    main.click(main.$('#equalizer [data-eq-late="2"]'));
+    await run(world, 20000);
+    assert.equal(groupsNow()[1].sides.length, 5);
+    assert.equal(groupsNow()[1].matches.length, 10);
+    assert.equal(world.server.run('getEqualizerState', world.date).setup.draw.late.length, 2);
+    // One group's sheet prints on its own and leaves the print mark alone.
+    main.click(main.$('#equalizer [data-eq-print-group="5"]'));
+    assert.equal(main.window.document.querySelectorAll('.eq-group-sheet').length, 1);
+    assert.ok(main.$('.eq-group-sheet').textContent.includes(nameOf(world, late)));
+    [main].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);

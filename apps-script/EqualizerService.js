@@ -204,12 +204,15 @@ function saveEqualizerSetup(sessionDate, setup) {
       var started = rows_('BracketMatches').some(function (row) { return String(row.session_id) === sessionId; });
       if (started) {
         if (bracket && String(bracket.draw_json) === (draw ? JSON.stringify(draw) : '')) return equalizerSaved_(session);
-        throw new Error(EQUALIZER_STARTED_MESSAGE);
+        // A late add: the same draw with players put into groups, every result still standing.
+        var saved = bracket && parseDraw_(bracket.draw_json);
+        var late = saved && draw && equalizerRules_().lateAddProblem(saved, draw, equalizerResultsFor_(sessionId)) === '';
+        if (!late || String(setup.format) !== String(bracket.format) || String(setup.play) !== String(bracket.play) || Number(setup.bestOf) !== Number(bracket.best_of)) throw new Error(EQUALIZER_STARTED_MESSAGE);
       }
       writeEqualizerRoster_(sessionId, roster, draw);
       writeBracketRow_(sessionId, setup, draw);
       session = bumpSession_(session, roster.length ? 'active' : String(session.status));
-      appendAudit_('session_saved', 'session', sessionId, { variant: 'equalizer', revision: Number(session.revision), players: roster.length, format: setup.format, play: setup.play, bestOf: Number(setup.bestOf) === 5 ? 5 : 3, drawn: !!draw });
+      appendAudit_('session_saved', 'session', sessionId, { variant: 'equalizer', revision: Number(session.revision), players: roster.length, format: setup.format, play: setup.play, bestOf: Number(setup.bestOf) === 5 ? 5 : 3, drawn: !!draw, lateAdds: draw && draw.late ? draw.late.length : 0 });
       return equalizerSaved_(session);
     });
   });

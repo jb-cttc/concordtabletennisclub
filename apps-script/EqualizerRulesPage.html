@@ -609,12 +609,26 @@
       snapshot.groups.forEach(function (members, index) {
         var number = index + 1;
         var matches = [];
-        RR.roundRobinRounds(members).forEach(function (pairs, round) {
+        // Late adds (addLate) join after the draw: the drawn players keep their matches, ids and rounds, so results
+        // already in stay with their matches; each late player's matches are numbered after them, in the rounds the
+        // whole group's schedule gives (a group of 3 has a bye each round, which the fourth player fills).
+        var late = lateIn(snapshot, number);
+        var drawn = members.filter(function (id) { return late.indexOf(id) < 0; });
+        RR.roundRobinRounds(drawn).forEach(function (pairs, round) {
           pairs.forEach(function (pair) {
             matches.push({ id: "G" + number + "-" + (matches.length + 1), group: number, round: round + 1, players: pair, bestOf: settings.groupBestOf });
           });
         });
-        groups.push({ number: number, sides: members.slice(), matches: matches });
+        late.forEach(function (lateId, n) {
+          var before = drawn.concat(late.slice(0, n + 1));
+          RR.roundRobinRounds(before).forEach(function (pairs, round) {
+            pairs.forEach(function (pair) {
+              if (pair.indexOf(lateId) < 0) return;
+              matches.push({ id: "G" + number + "-" + (matches.length + 1), group: number, round: round + 1, players: pair, bestOf: settings.groupBestOf, late: true });
+            });
+          });
+        });
+        groups.push({ number: number, sides: members.slice(), matches: matches, late: late });
       });
       var slots = groups.map(function (g, n) { return "finals-" + (n + 1); });
       bracket = B.build(slots, { elimination: "single", bestOf: settings.bestOf, finalsBestOf: settings.finalsBestOf });
@@ -624,6 +638,57 @@
       bracket = B.build(snapshot.entrants, settings);
     }
     return { format: snapshot.format, play: snapshot.play, bestOf: snapshot.bestOf, ruleVersion: snapshot.ruleVersion, settings: settings, ratings: ratings, sides: sides, sideById: sideById, sideRatings: sideRatings, sitOut: snapshot.sitOut.slice(), groups: groups, bracket: bracket, snapshot: snapshot };
+  }
+
+  // The players added to a group after the draw, in the order they came.
+  function lateIn(snapshot, number) {
+    return (snapshot.late || []).filter(function (entry) { return entry.group === number; }).map(function (entry) { return entry.id; });
+  }
+
+  // A player who arrives after the sheets print joins one group the organizer picks (RR -> Finals singles), without
+  // drawing again: every other group, match id and result stays as it is. Returns the new snapshot.
+  var LATE_GROUP_MAX = 6;
+  function addLate(snapshot, player, groupNumber, at) {
+    if (!snapshot || snapshot.format !== "groups") throw new Error("A late player can join a group only in RR -> Finals.");
+    if (snapshot.play !== "singles") throw new Error("A late player can join a group only in singles.");
+    var id = String(player && player.id || "");
+    var rating = Number(player && player.rating);
+    var number = Number(groupNumber);
+    if (!id || !Number.isFinite(rating)) throw new Error("The late player needs an id and a rating.");
+    if (Object.prototype.hasOwnProperty.call(snapshot.ratings, id)) throw new Error("That player is already in the Equalizer.");
+    if (!Number.isInteger(number) || number < 1 || number > snapshot.groups.length) throw new Error("There is no Group " + groupNumber + ".");
+    if (snapshot.groups[number - 1].length >= LATE_GROUP_MAX) throw new Error("Group " + number + " already has " + LATE_GROUP_MAX + " players.");
+    if (snapshot.teams.length >= MAX_PLAYERS) throw new Error("The Equalizer takes at most " + MAX_PLAYERS + " players.");
+    var next = JSON.parse(JSON.stringify(snapshot));
+    next.ratings[id] = rating;
+    next.teams.push([id]);
+    next.groups[number - 1].push(id);
+    next.late = (next.late || []).concat([{ id: id, group: number, at: Number(at) || 0 }]);
+    return next;
+  }
+  // The draw without its late adds, to compare two draws.
+  function withoutLate(snapshot) {
+    var late = (snapshot.late || []).map(function (entry) { return entry.id; });
+    var copy = JSON.parse(JSON.stringify(snapshot));
+    late.forEach(function (id) { delete copy.ratings[id]; });
+    copy.teams = copy.teams.filter(function (members) { return late.indexOf(members[0]) < 0; });
+    copy.groups = copy.groups.map(function (members) { return members.filter(function (id) { return late.indexOf(id) < 0; }); });
+    delete copy.late;
+    return copy;
+  }
+  // '' when after is before with late players added and every result in still stands, or why not.
+  function lateAddProblem(before, after, results) {
+    if (!before || !after) return "The Equalizer has not been drawn yet.";
+    var known = (before.late || []).map(function (entry) { return JSON.stringify(entry); });
+    var now = (after.late || []).map(function (entry) { return JSON.stringify(entry); });
+    if (now.length <= known.length || known.some(function (entry, i) { return now[i] !== entry; })) return "This is not a late add to the draw.";
+    if (JSON.stringify(withoutLate(before)) !== JSON.stringify(withoutLate(after))) return "The draw changed apart from the late add.";
+    var then = resolve(fromSnapshot(before), results || {});
+    var next = resolve(fromSnapshot(after), results || {});
+    var lost = Object.keys(results || {}).filter(function (id) {
+      return then.byId[id] && then.byId[id].status === "done" && (!next.byId[id] || next.byId[id].status !== "done" || next.byId[id].players.join("|") !== then.byId[id].players.join("|"));
+    });
+    return lost.length ? "Match " + lost[0] + " already has a result that the late add would change (the Finals have started)." : "";
   }
 
   function create(setup, rng) {
@@ -728,7 +793,8 @@
     var status = {};
     if (event.format === "groups") {
       var knockoutSize = event.groups.length;
-      for (var position = 2; position <= GROUP_SIZE; position += 1) {
+      var largest = Math.max.apply(null, event.groups.map(function (g) { return g.sides.length; }).concat([GROUP_SIZE]));
+      for (var position = 2; position <= largest; position += 1) {
         var withPosition = event.groups.filter(function (g) { return g.sides.length >= position; }).length;
         var from = knockoutSize + 1;
         for (var p = 2; p < position; p += 1) from += event.groups.filter(function (g) { return g.sides.length >= p; }).length;
@@ -837,6 +903,9 @@
     create: create,
     draw: draw,
     fromSnapshot: fromSnapshot,
+    addLate: addLate,
+    withoutLate: withoutLate,
+    lateAddProblem: lateAddProblem,
     scoreProblem: scoreProblem,
     resolve: resolve,
     callOrder: callOrder,

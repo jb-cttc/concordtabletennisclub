@@ -1405,6 +1405,8 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function drawSignature(d) {
     var snap = d.eq && d.eq.event && d.eq.event.snapshot;
     if (!snap) return '';
+    // A late add (a player put into a group after the print) is not a new draw: only that group's sheet changes.
+    if (snap.late && window.CTTCEqualizer && window.CTTCEqualizer.withoutLate) snap = window.CTTCEqualizer.withoutLate(snap);
     var text = JSON.stringify([snap.teams, snap.groups, snap.entrants, snap.sitOut]);
     var hash = 2166136261;
     for (var i = 0; i < text.length; i += 1) { hash ^= text.charCodeAt(i); hash = Math.imul(hash, 16777619) >>> 0; }
@@ -1824,7 +1826,12 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function printNote() {
     var d = data();
     if (!d || !d.printed) return '';
-    if (d.event === 'equalizer') return d.eq && d.printed.sig !== drawSignature(d) ? 'The draw changed since this device last printed: replace every sheet.' : '';
+    if (d.event === 'equalizer') {
+      if (d.eq && d.printed.sig !== drawSignature(d)) return 'The draw changed since this device last printed: replace every sheet.';
+      var late = (d.eq && d.eq.event.snapshot.late || []).filter(function (x) { return x.at > d.printed.at; });
+      var groups = late.map(function (x) { return x.group; }).filter(function (n, i, all) { return all.indexOf(n) === i; }).sort(function (a, b) { return a - b; });
+      return groups.length ? 'Late add' + (late.length > 1 ? 's' : '') + ' since the sheets printed: replace the sheet' + (groups.length > 1 ? 's' : '') + ' for Group' + (groups.length > 1 ? 's ' + groups.join(', ') : ' ' + groups[0]) + '.' : '';
+    }
     var numbers = Object.keys(changedGroups(d)).map(Number);
     if (!numbers.length) return '';
     var list = numbers.length === 1 ? 'Group ' + numbers[0] : 'Groups ' + numbers.slice(0, -1).join(', ') + ' and ' + numbers[numbers.length - 1];
@@ -1859,7 +1866,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     return true;
   }
 
-  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, fromGoogle: fromGoogle, build: build,
+  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, eqPrintedAt: function () { var d = data(); return d && d.event === 'equalizer' && d.printed ? Number(d.printed.at) || 0 : 0; }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, fromGoogle: fromGoogle, build: build,
     // Follow mode, between the board window's Follow the main desk and the desk (Index.html).
     setFollow: function (on) { return window.cttcDesk && window.cttcDesk.setFollow ? window.cttcDesk.setFollow(on) : { on: false, message: '' }; },
     followTick: function () { return window.cttcDesk && window.cttcDesk.followTick ? window.cttcDesk.followTick() : { on: false }; },

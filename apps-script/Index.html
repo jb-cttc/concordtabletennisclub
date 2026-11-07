@@ -373,6 +373,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     sentence: sentence,
     reportDeskProblem: reportDeskProblem,
     confirm: function (text) { return confirm(text); },
+    printedAt: function () { return window.cttcPlayerBoard && window.cttcPlayerBoard.eqPrintedAt ? window.cttcPlayerBoard.eqPrintedAt() : 0; },
     changed: function () { if (state.event === 'equalizer') state.roster = eqDesk.roster(); render(); }
   });
   var EVENT_KEY = 'cttc-event-v1:';

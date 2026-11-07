@@ -87,10 +87,13 @@ const cases = {
     switchTo(tab, 'equalizer');
     await run(world, 15000);
     for (let i = 0; i < 4; i += 1) { scoreNext(tab); await run(world, 3000); }
-    // Adding someone after the first result is refused; the options are fixed.
+    // Someone arriving after the first result is not drawn in: the desk asks for a group (Cancel adds nobody); the
+    // options are fixed.
     const late = world.players[12];
     tab.addPlayer(late.player_id);
-    assert.match(tab.status(), /has started/);
+    assert.match(tab.status(), /arrived after the draw was set: pick their group/);
+    tab.click(tab.$('#equalizer [data-eq-late-cancel]'));
+    assert.ok(!tab.$('#equalizer .eq-late'));
     assert.ok(tab.$('#eq-options [data-eq-choice="format"]').disabled, 'options are fixed once a result is in');
     await run(world, 15000);
     assert.equal(Object.keys(googleEq(world).results).length, 4, 'every result reached Google');

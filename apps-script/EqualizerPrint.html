@@ -359,7 +359,11 @@
     var ev = data.event;
     return ev.format === 'groups' ? ev.groups.map(function (group) { return groupSheet(data, group); }).concat([finalsSheet(data)]) : doubleSheets(data);
   }
-  window.cttcEqualizerPrint = function (data) { P.show(sheets(data), '', 'Equalizer sheet preview'); };
+  // group: one group's sheet only (a late add), which leaves the print mark as it is.
+  window.cttcEqualizerPrint = function (data, group) {
+    if (group) { P.show(data.event.groups.filter(function (g) { return g.number === group; }).map(function (g) { return groupSheet(data, g); }), '', 'Group ' + group + ' sheet preview', { mark: false }); return; }
+    P.show(sheets(data), '', 'Equalizer sheet preview');
+  };
   window.cttcEqualizerPrint.sheets = sheets;
 })();
 </script>
