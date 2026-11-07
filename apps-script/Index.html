@@ -1111,7 +1111,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       if (!byId[id] || !eqDesk.add(id)) return false;
       state.roster = eqDesk.roster();
       render();
-      setStatus(player(id).name + ' added to the Equalizer' + (source ? ' from ' + source : '') + '.');
+      var lateGroup = /Group (\d+) \(late add\)/.exec(eqDesk.where(id));
+      setStatus(lateGroup
+        ? player(id).name + ' joins Group ' + lateGroup[1] + ' as a late add' + (source ? ' from ' + source : '') + '. Nobody else moved, and the results stay. Print Group ' + lateGroup[1] + '\u2019s sheet again (Print sheet, beside the group).'
+        : player(id).name + ' added to the Equalizer' + (source ? ' from ' + source : '') + '.');
       return true;
     }
     if (!byId[id] || state.roster.indexOf(id) >= 0 || locked() || pendingRecovery || follow.on) return false;

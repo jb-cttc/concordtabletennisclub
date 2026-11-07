@@ -38,8 +38,9 @@ round robin night **?** opens the usual desk tour.
    fixed.
 
    **Late arrival (RR → Finals singles):** after the print or the first result,
-   signing someone in no longer redraws. The desk asks which group they join
-   (**Group 1 · 4 players** … **Cancel**). Nobody else moves; every match keeps
+   signing someone in no longer redraws. When one group is smaller than every
+   other (a group of 3 among groups of 4), they go straight into it. Otherwise
+   the desk asks which group they join (**Group 1 · 4 players** … **Cancel**). Nobody else moves; every match keeps
    its number and any result already in stays. The late player plays everyone
    in that group: in a group of 3 they fill the round each player sat out; a
    group of 4 becomes 5 with one more round. A group that has finished, or

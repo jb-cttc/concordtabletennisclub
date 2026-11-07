@@ -115,6 +115,9 @@ window.CTTCEqualizerDesk = function (desk) {
     if (eq.roster.indexOf(id) >= 0) return false;
     if (lateMode()) {
       eq.arriving = id;
+      // One group smaller than every other (a group of 3 among 4s): the late player goes there with no question.
+      var only = shortGroup();
+      if (only) return joinLate(only);
       desk.changed();
       desk.setStatus(player(id).name + ' arrived after the draw was set: pick their group in the yellow box above the groups.');
       return false;
@@ -125,6 +128,16 @@ window.CTTCEqualizerDesk = function (desk) {
     eq.roster.push(id);
     redraw(false);
     return true;
+  }
+  // The one group that can take a late player and is smaller than every other, or 0 when there is a choice to make.
+  function shortGroup() {
+    var ev = event();
+    var view = E.resolve(ev, eq.results);
+    var open = ev.groups.filter(function (g) { return g.sides.length < 6 && !view.tables[g.number - 1].complete; });
+    if (!open.length) return 0;
+    var least = Math.min.apply(null, ev.groups.map(function (g) { return g.sides.length; }));
+    var smallest = ev.groups.filter(function (g) { return g.sides.length === least; });
+    return smallest.length === 1 && open.indexOf(smallest[0]) >= 0 ? smallest[0].number : 0;
   }
   // Put the arriving player into a group: nobody else moves, and every match and result stays.
   function joinLate(number) {

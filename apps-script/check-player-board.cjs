@@ -692,18 +692,9 @@ const cases = {
     await run(world, 20000);
     const before = groupsNow();
     const late = world.players[19].player_id;
+    // Group 5 is the one group smaller than the rest: the late player goes there with no question.
     main.addPlayer(late);
-    await run(world, 500);
-    assert.ok(!eqData().event.ratings[late], 'not placed until a group is picked');
-    assert.match(main.status(), /pick their group/);
-    const picker = main.$('#equalizer .eq-late');
-    assert.ok(picker, 'the desk asks which group');
-    assert.equal(picker.querySelectorAll('[data-eq-late]').length, 5);
-    main.click(picker.querySelector('[data-eq-late-cancel]'));
-    assert.ok(!main.$('#equalizer .eq-late'), 'Cancel adds nobody');
-    main.addPlayer(late);
-    await run(world, 500);
-    main.click(main.$('#equalizer [data-eq-late="5"]'));
+    assert.ok(!main.$('#equalizer .eq-late'), 'no group to pick: Group 5 is the short one');
     await run(world, 20000);
     const after = groupsNow();
     assert.deepEqual(after.slice(0, 4), before.slice(0, 4), 'the other groups are untouched');
@@ -720,8 +711,17 @@ const cases = {
     assert.ok(saved.roster.includes(late));
     assert.ok(saved.results[scored], 'the result already in stays');
     assert.equal(main.syncNote(), '');
-    // A group of 4 takes a fifth; a whole new draw is still refused once a result is in.
+    // Every group has 4 now, so the next one is asked which group (Cancel adds nobody); a group of 4 takes a fifth.
     const second = world.players[20].player_id;
+    main.addPlayer(second);
+    await run(world, 500);
+    assert.ok(!eqData().event.ratings[second], 'not placed until a group is picked');
+    assert.match(main.status(), /pick their group/);
+    const picker = main.$('#equalizer .eq-late');
+    assert.ok(picker, 'the desk asks which group');
+    assert.equal(picker.querySelectorAll('[data-eq-late]').length, 5);
+    main.click(picker.querySelector('[data-eq-late-cancel]'));
+    assert.ok(!main.$('#equalizer .eq-late'), 'Cancel adds nobody');
     main.addPlayer(second);
     await run(world, 500);
     main.click(main.$('#equalizer [data-eq-late="2"]'));
