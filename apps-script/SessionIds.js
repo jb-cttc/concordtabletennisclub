@@ -19,6 +19,8 @@ function equalizerSessionId_(sessionDate) {
 // s (groups, scores, the print mark, moves), p (payments, Zeffy passes, first visits), e (the Equalizer), d (a player's
 // name or rating corrected in the directory). The cache
 // keeps a stamp up to 6 hours; one lost or unreadable makes the follower read that area once.
+// Beside the stamps, ev: the event the main desk last switched to (rr or equalizer). A switch that moves no players
+// (one event already has results, or neither has players yet) changes no saved data, so this is how a follower knows.
 var DESK_STAMP_AREAS_ = ['s', 'p', 'e', 'd'];
 function deskStampKey_(sessionDate, area) { return 'desk-stamp:' + sessionDate + ':' + area; }
 function touchDesk_(area, sessionDate) {
@@ -26,6 +28,17 @@ function touchDesk_(area, sessionDate) {
     var day = sessionDate || Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM-dd');
     CacheService.getScriptCache().put(deskStampKey_(day, area), String(Date.now()), 21600);
   } catch (error) { /* a following desk falls back to reading the night once a minute */ }
+}
+function deskEventKey_(sessionDate) { return 'desk-stamp:' + sessionDate + ':ev'; }
+function touchDeskEvent_(sessionDate, event) {
+  try { CacheService.getScriptCache().put(deskEventKey_(sessionDate), event, 21600); } catch (error) { /* a following desk keeps its view */ }
+}
+// From the main desk when it switches between the round robin and the Equalizer: one cache write, no Sheet.
+function noteDeskEvent(sessionDate, event) {
+  validateSessionDate_(sessionDate);
+  if (event !== 'rr' && event !== 'equalizer') throw new Error('Unknown event: ' + event);
+  touchDeskEvent_(sessionDate, event);
+  return true;
 }
 // After a desk action on a session id: the round robin's or the Equalizer's area (a switch between them, both).
 function touchDeskSession_(sessionId, both) {
@@ -49,8 +62,10 @@ function getDeskStamps(sessionDate) {
   validateSessionDate_(sessionDate);
   var keys = DESK_STAMP_AREAS_.map(function (area) { return deskStampKey_(sessionDate, area); });
   var found;
-  try { found = CacheService.getScriptCache().getAll(keys) || {}; } catch (error) { return null; }
+  try { found = CacheService.getScriptCache().getAll(keys.concat(deskEventKey_(sessionDate))) || {}; } catch (error) { return null; }
   var out = {};
   DESK_STAMP_AREAS_.forEach(function (area, i) { out[area] = found[keys[i]] || ''; });
+  var event = found[deskEventKey_(sessionDate)];
+  out.ev = event === 'rr' || event === 'equalizer' ? event : '';
   return out;
 }

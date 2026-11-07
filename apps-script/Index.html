@@ -440,6 +440,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.event = to;
       state.roster = to === 'rr' ? target : eqDesk.roster();
       setStatus((to === 'rr' ? 'Showing the round robin' : 'Showing the Equalizer') + ' for ' + shortDate(loadedDate) + (started && roster.length ? '. The ' + (from === 'rr' ? 'round robin' : 'Equalizer') + ' has results, so its players stay there; each event keeps its own players.' : '.'));
+      // Nothing saved changes, so tell a desk in follow mode which event this desk now shows (switchDayEvent does it above).
+      if (!follow.on) call('noteDeskEvent', loadedDate, to).catch(function () { /* a follower keeps its view */ });
     }
     rememberEvent(loadedDate, to);
     render();
@@ -2484,10 +2486,18 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         areas = force || !before ? ['s', 'p', 'e', 'd'] : ['s', 'p', 'e', 'd'].filter(function (area) { return stamps[area] !== before[area]; });
         follow.stamps = stamps;
       }
+      // The main desk switched between the round robin and the Equalizer: show the same one, and read it.
+      var event = stamps && stamps.ev;
+      if (followEvent(event)) { var shown = event === 'equalizer' ? 'e' : 's'; if (areas.indexOf(shown) < 0) areas.push(shown); }
+      // No switch known (none in the last 6 hours): the event this desk is not showing changed, so read the whole night
+      // and open on the event that has players, as a fresh load does.
+      else if (stamps && !event && areas.indexOf(state.event === 'equalizer' ? 's' : 'e') >= 0) areas = ['s', 'p', 'e', 'd'];
       if (areas.length) {
         if (!force) follow.lastChange = Date.now();
         follow.lastRead = Date.now();
         await followRead(sessionDate, areas, force);
+        // A full load opens on the event that has players; the main desk's own choice wins.
+        if (follow.on && sessionDate === loadedDate) followEvent(event);
       }
       if (follow.on && locked()) stopFollow('finalized', 'The night is finalized: the board shows the final results, and follow mode is off.');
     } catch (error) {
@@ -2497,6 +2507,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       if (follow.on && Date.now() - follow.loggedAt >= FOLLOW_LOG_MS) followLog('on');
       renderFollow();
     }
+  }
+  function followEvent(event) {
+    if ((event !== 'rr' && event !== 'equalizer') || event === state.event || equalizerUnavailable || !loadedDate) return false;
+    state.event = event;
+    state.roster = event === 'rr' ? rrRoster() : eqDesk.roster();
+    rememberEvent(loadedDate, event);
+    render();
+    return true;
   }
   // Read what changed: a full load at the start or when the event or status changed; otherwise only the part that moved.
   async function followRead(sessionDate, areas, force) {

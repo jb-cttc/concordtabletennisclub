@@ -329,6 +329,7 @@ function switchDayEvent(sessionDate, to, roster) {
         bumpSession_(eq, 'draft');
       }
       appendAudit_('event_switched', 'session', to === 'equalizer' ? eqId : rrId, { to: to, players: roster.length });
+      touchDeskEvent_(sessionDate, to);
       return { rrSession: findRow_('Sessions', 'session_id', rrId) ? getSession(rrId) : null, equalizer: equalizerState_(sessionDate) };
     });
   });

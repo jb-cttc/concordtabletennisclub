@@ -551,6 +551,68 @@ const cases = {
     board.close();
   },
 
+  // Follow mode across a switch between the round robin and the Equalizer, including the switches that move no players
+  // (the round robin already has scores; or neither event has players yet), which change nothing saved.
+  async followEventSwitch() {
+    const shown = tab => tab.$('#event-switch [aria-pressed="true"]').getAttribute('data-event');
+    const follower = async world => {
+      const projector = world.device().open();
+      await run(world, 15000);
+      const board = boardWindow(world, projector);
+      projector.click(projector.$('#player-board'));
+      await run(world, 1000);
+      const box = board.$('#bc-follow');
+      box.checked = true;
+      box.dispatchEvent(new board.w.Event('change', { bubbles: true }));
+      await run(world, 5000);
+      return { projector, board };
+    };
+    let world = sim.createWorld({ seed: 73 });
+    let main = await deskWith(world, 16);
+    let { projector, board } = await follower(world);
+    assert.equal(shown(projector), 'rr');
+    // Players move across: both events' saves change.
+    main.click(main.$('#event-switch [data-event="equalizer"]'));
+    await run(world, 25000);
+    assert.equal(shown(projector), 'equalizer', 'the players moved to the Equalizer');
+    assert.match(board.$('.b-title strong').textContent, /The Equalizer/);
+    main.click(main.$('#event-switch [data-event="rr"]'));
+    await run(world, 25000);
+    assert.equal(shown(projector), 'rr', 'and back');
+    // The round robin has a score, so the switch only changes what the main desk shows.
+    main.scoreMatch(0, 'one', 1);
+    await run(world, 25000);
+    main.click(main.$('#event-switch [data-event="equalizer"]'));
+    await run(world, 25000);
+    assert.equal(shown(main), 'equalizer');
+    assert.equal(shown(projector), 'equalizer', 'a switch that moves no one still reaches the follower');
+    assert.match(board.$('.b-title strong').textContent, /The Equalizer/);
+    // A follower that opens after the switch shows it too (its own load would open on the round robin, which has players).
+    const late = await follower(world);
+    assert.equal(shown(late.projector), 'equalizer', 'a fresh follower opens on the main desk\'s event');
+    main.click(main.$('#event-switch [data-event="rr"]'));
+    await run(world, 25000);
+    assert.equal(shown(projector), 'rr');
+    assert.equal(shown(late.projector), 'rr');
+    [main, projector, late.projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    board.close();
+    late.board.close();
+
+    // The Equalizer chosen before anyone signs in; the sign-ins then change only the Equalizer.
+    world = sim.createWorld({ seed: 74 });
+    main = world.device().open();
+    await run(world, 15000);
+    ({ projector, board } = await follower(world));
+    main.click(main.$('#event-switch [data-event="equalizer"]'));
+    await run(world, 3000);
+    world.players.slice(0, 8).forEach(p => main.addPlayer(p.player_id));
+    await run(world, 30000);
+    assert.equal(shown(projector), 'equalizer', 'an empty switch reaches the follower');
+    assert.equal(board.$('.b-count .num').textContent, '8', 'with the Equalizer sign-ins');
+    [main, projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    board.close();
+  },
+
   async equalizerToFinals() {
     const world = sim.createWorld({ seed: 43 });
     const tab = await deskWith(world, 16);

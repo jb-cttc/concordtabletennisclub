@@ -48,7 +48,10 @@ minute after 20 quiet minutes) until the night starts, within the same 6-hour
 cap. The saves the
 desk already makes also set a tiny change stamp in the script cache, after the
 save lets go of the script lock (sessions, payments, the Equalizer, player
-corrections; `touchDesk_` in `SessionIds.js`). The following desk asks for the
+corrections; `touchDesk_` in `SessionIds.js`). A switch between the round robin
+and the Equalizer also notes which event the main desk shows, in the same cache
+(`noteDeskEvent`, one cache write per switch), so the follower shows the same one
+even when the switch moves no players. The following desk asks for the
 stamps (`getDeskStamps`, a cache read: no Sheet, Gmail or settings reads) every
 10 seconds, once a minute after 20 quiet minutes, and reads only the part that
 moved: the night's session and marks (`getFollowState`, which skips the player
