@@ -321,7 +321,8 @@
     show(tournamentSheets(desk, result.records), warning, 'RR sheet preview');
   }
   // The preview: the sheets on screen with Close preview and Print, ready for the browser's print.
-  function show(sheets, warning, label) {
+  // options.mark false: a single sheet reprinted, which does not count as printing the night's sheets.
+  function show(sheets, warning, label, options) {
     var toolbar = el('div', 'print-preview-toolbar');
     var close = el('button', '', 'Close preview');
     var printButton = el('button', '', 'Print');
@@ -334,10 +335,10 @@
     });
     printButton.addEventListener('click', function () {
       // The Player board remembers what printed, to mark groups that change afterwards.
-      if (window.cttcPlayerBoard) window.cttcPlayerBoard.printed();
+      if (window.cttcPlayerBoard && !(options && options.mark === false)) window.cttcPlayerBoard.printed();
       window.print();
     });
-    var since = window.cttcPlayerBoard ? window.cttcPlayerBoard.printNote() : '';
+    var since = window.cttcPlayerBoard && !(options && options.mark === false) ? window.cttcPlayerBoard.printNote() : '';
     if (since) warning = warning ? warning + ' ' + since : since;
     if (warning) toolbar.appendChild(el('span', 'print-preview-warning', warning));
     toolbar.append(close, printButton);

@@ -12,6 +12,7 @@
 .match.eq-waiting .player-cell{font-style:italic}
 .eq-foot{font:12px Arial,sans-serif;color:var(--muted)}
 .eq-notice{font:13px Arial,sans-serif;background:#fff8e6;border:1px solid #ecd9a4;border-radius:6px;padding:10px 12px;margin:0 0 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.eq-notice .hint{flex-basis:100%;margin:0;color:var(--muted)}
 .eq-notice select{padding:5px;border:1px solid #aeb7b1;border-radius:4px;font:13px Arial,sans-serif}
 .eq-champion{font:15px Arial,sans-serif;background:#eef6f0;border:1px solid #b9d6c3;border-radius:6px;padding:12px 14px;margin:0 0 12px}
 .eq-places{font:13px Arial,sans-serif;margin:6px 0 0;padding:0;list-style:none;columns:2 220px}.eq-places b{display:inline-block;min-width:64px;color:var(--muted);font-weight:400}
@@ -37,7 +38,7 @@ window.CTTCEqualizerDesk = function (desk) {
 
   var eq = blank('');
   function blank(date) {
-    return { date: date, session: null, roster: [], setup: Object.assign({ oddPlayer: '', sitOutId: '' }, E.DEFAULT_SETUP), draw: null, results: {}, known: {}, history: [], drafts: {}, seed: freshSeed() };
+    return { date: date, session: null, roster: [], setup: Object.assign({ oddPlayer: '', sitOutId: '' }, E.DEFAULT_SETUP), draw: null, results: {}, known: {}, history: [], drafts: {}, seed: freshSeed(), arriving: '' };
   }
   function freshSeed() { return Math.floor(Math.random() * 2147483646) + 1; }
   function rng(seed) {
@@ -103,16 +104,80 @@ window.CTTCEqualizerDesk = function (desk) {
     if (hasResults()) return 'The Equalizer has started (a result is in), so its players are fixed. Late arrivals can play Open Play.';
     return '';
   }
+  // After the sheets print (or once a result is in), a player who arrives joins the group the organizer picks, with no
+  // new draw (RR -> Finals singles; E.addLate). Before that, every sign-in draws again as usual.
+  function lateMode() {
+    var ev = event();
+    return !!ev && ev.format === 'groups' && ev.play === 'singles' && !finalized() && (hasResults() || !!(desk.printedAt && desk.printedAt()));
+  }
   function add(id) {
+    if (finalized()) { desk.setStatus(blockedReason(), 'error'); return false; }
+    if (eq.roster.indexOf(id) >= 0) return false;
+    if (lateMode()) {
+      eq.arriving = id;
+      // One group smaller than every other (a group of 3 among 4s): the late player goes there with no question.
+      var only = shortGroup();
+      if (only) return joinLate(only);
+      desk.changed();
+      desk.setStatus(player(id).name + ' arrived after the draw was set: pick their group in the yellow box above the groups.');
+      return false;
+    }
     var reason = blockedReason();
     if (reason) { desk.setStatus(reason, 'error'); return false; }
-    if (eq.roster.indexOf(id) >= 0) return false;
     if (eq.roster.length >= E.MAX_PLAYERS) { desk.setStatus('The Equalizer takes at most ' + E.MAX_PLAYERS + ' players.', 'error'); return false; }
     eq.roster.push(id);
     redraw(false);
     return true;
   }
+  // The one group that can take a late player and is smaller than every other, or 0 when there is a choice to make.
+  function shortGroup() {
+    var ev = event();
+    var view = E.resolve(ev, eq.results);
+    var open = ev.groups.filter(function (g) { return g.sides.length < 6 && !view.tables[g.number - 1].complete; });
+    if (!open.length) return 0;
+    var least = Math.min.apply(null, ev.groups.map(function (g) { return g.sides.length; }));
+    var smallest = ev.groups.filter(function (g) { return g.sides.length === least; });
+    return smallest.length === 1 && open.indexOf(smallest[0]) >= 0 ? smallest[0].number : 0;
+  }
+  // Put the arriving player into a group: nobody else moves, and every match and result stays.
+  function joinLate(number) {
+    var id = eq.arriving;
+    if (!id || !lateMode() || eq.roster.indexOf(id) >= 0) { eq.arriving = ''; desk.changed(); return false; }
+    var next;
+    try {
+      next = E.addLate(eq.draw, { id: id, rating: Number(player(id).currentRating) || 0 }, number, Date.now());
+      var problem = E.lateAddProblem(eq.draw, next, eq.results);
+      if (problem) throw new Error(problem);
+    } catch (error) {
+      desk.setStatus(player(id).name + ' was not added: ' + error.message, 'error');
+      return false;
+    }
+    eq.arriving = '';
+    eq.roster.push(id);
+    eq.draw = next;
+    saveSetup();
+    desk.changed();
+    desk.setStatus(player(id).name + ' joins Group ' + number + ' as a late add. Nobody else moved, and the results stay. Print Group ' + number + '\u2019s sheet again (Print sheet, beside the group).');
+    return true;
+  }
+  // A late add removed again before any result: only they come out, nobody else moves.
+  function removeLate(id) {
+    var draw = eq.draw;
+    var entry = (draw && draw.late || []).filter(function (x) { return x.id === id; })[0];
+    if (!entry) return false;
+    var next = JSON.parse(JSON.stringify(draw));
+    delete next.ratings[id];
+    next.teams = next.teams.filter(function (members) { return members[0] !== id; });
+    next.groups[entry.group - 1] = next.groups[entry.group - 1].filter(function (other) { return other !== id; });
+    next.late = next.late.filter(function (x) { return x.id !== id; });
+    if (!next.late.length) delete next.late;
+    eq.roster = eq.roster.filter(function (other) { return other !== id; });
+    eq.draw = next;
+    saveSetup();
+    return true;
+  }
   function remove(id) {
+    if (!hasResults() && !finalized() && removeLate(id)) return true;
     var reason = blockedReason();
     if (reason) { desk.setStatus(reason, 'error'); return false; }
     if (eq.roster.indexOf(id) < 0) return false;
@@ -310,7 +375,9 @@ window.CTTCEqualizerDesk = function (desk) {
     }).join('');
     var note = table.note ? '<p class="tiebreak-note">' + esc(ev.sides.reduce(function (text, side) { return text.split(side.id).join(sideName(ev, side.id).join(' & ')); }, table.note)) + '</p>' : '';
     var matches = view.matches.filter(function (m) { return m.bracket === 'G' && m.group === table.number; });
-    return '<section class="match-group"><h3><span class="group-title">Group ' + table.number + '</span><span class="count">' + table.played + ' / ' + table.total + ' complete</span></h3>' +
+    var late = ev.groups[table.number - 1].late || [];
+    var lateNote = late.length ? '<p class="eq-section-note">Late add' + (late.length > 1 ? 's' : '') + ': ' + late.map(function (id) { return esc(player(id).name); }).join(', ') + ' (after the draw; nobody else moved). <button type="button" class="small" data-eq-print-group="' + table.number + '">Print sheet</button></p>' : '';
+    return '<section class="match-group"><h3><span class="group-title">Group ' + table.number + '</span><span class="count">' + table.played + ' / ' + table.total + ' complete</span></h3>' + lateNote +
       '<table class="standings"><thead><tr><th>' + (ev.play === 'doubles' ? 'Team' : 'Player') + '</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + rows + '</tbody></table>' + note +
       matches.map(function (m) { return matchRow(ev, view, m); }).join('') + '</section>';
   }
@@ -332,6 +399,18 @@ window.CTTCEqualizerDesk = function (desk) {
       return '<option value="' + esc(id) + '"' + (setup.sitOutId === id ? ' selected' : '') + '>' + esc(player(id).name) + ' sits out</option>';
     }).join('') + '<option value="team-of-three"' + (setup.oddPlayer === 'team-of-three' ? ' selected' : '') + '>One team of three (rotates each game)</option>';
     return '<div class="eq-notice"><strong>' + eq.roster.length + ' players for doubles:</strong> choose how to handle the odd player, or add someone to fill in. <select data-eq-odd aria-label="Odd player">' + options + '</select></div>';
+  }
+  function lateNotice(ev, view) {
+    if (!eq.arriving || eq.roster.indexOf(eq.arriving) >= 0) return '';
+    if (!lateMode()) { eq.arriving = ''; return ''; }
+    var p = player(eq.arriving);
+    var buttons = view.tables.map(function (table) {
+      var size = ev.groups[table.number - 1].sides.length;
+      var full = table.complete || size >= 6;
+      return '<button type="button" class="small" data-eq-late="' + table.number + '"' + (full ? ' disabled title="' + (table.complete ? 'This group has finished' : 'This group is full') + '"' : '') + '>Group ' + table.number + ' · ' + size + ' players</button>';
+    }).join('');
+    return '<div class="eq-notice eq-late" role="group" aria-label="Late arrival"><span><strong>' + esc(p.name) + '</strong> (' + esc(String(p.currentRating || 0)) + ') arrived after the draw was set. Add them to:</span>' + buttons +
+      '<button type="button" class="small" data-eq-late-cancel>Cancel</button><span class="hint">Nobody else moves and the results stay; ' + (hasResults() ? 'the Equalizer has started, so it cannot be drawn again.' : 'to draw everyone again instead, use Draw again after adding them to any group.') + '</span></div>';
   }
   function minutes(ev) {
     var estimate = E.estimate(ev).minutes;
@@ -356,7 +435,7 @@ window.CTTCEqualizerDesk = function (desk) {
     var done = view.matches.filter(function (m) { return m.status === 'done'; }).length;
     var total = view.matches.filter(function (m) { return m.status !== 'bye' && m.status !== 'skipped'; }).length;
     var summary = eq.roster.length + ' players · ' + (ev.play === 'doubles' ? ev.sides.length + ' teams · ' : '') + (ev.format === 'groups' ? ev.groups.length + ' groups of ' + ev.groups.map(function (g) { return g.sides.length; }).join('/') : ev.bracket.size - ev.sides.length + ' byes') + ' · best of ' + ev.bestOf + ' · about ' + minutes(ev) + ' · ' + done + ' of ' + total + ' matches complete';
-    var html = '<p class="group-summary">' + esc(summary) + '</p>' + oddNotice(ev);
+    var html = '<p class="group-summary">' + esc(summary) + '</p>' + oddNotice(ev) + lateNotice(ev, view);
     if (ev.sitOut.length) html += '<p class="eq-sitout">Sitting out (Open Play): ' + ev.sitOut.map(function (id) { return esc(player(id).name); }).join(', ') + '</p>';
     if (view.finished) {
       var places = ev.sides.map(function (side) { return { side: side, place: view.places[side.id] }; }).filter(function (x) { return x.place; }).sort(function (a, b) { return a.place.place - b.place.place; });
@@ -467,6 +546,11 @@ window.CTTCEqualizerDesk = function (desk) {
 
   // ---- Clicks inside the workspace and the options ----
   root.addEventListener('click', function (e) {
+    var late = e.target.closest('button[data-eq-late]');
+    if (late && !late.disabled) { joinLate(Number(late.getAttribute('data-eq-late'))); return; }
+    if (e.target.closest('button[data-eq-late-cancel]')) { eq.arriving = ''; desk.changed(); desk.setStatus('Not added.'); return; }
+    var sheet = e.target.closest('button[data-eq-print-group]');
+    if (sheet) { if (window.cttcEqualizerPrint) window.cttcEqualizerPrint(printData(), Number(sheet.getAttribute('data-eq-print-group'))); return; }
     var ball = e.target.closest('[data-eq-score]');
     if (ball) { tapBall(ball.getAttribute('data-eq-score'), Number(ball.getAttribute('data-side')), Number(ball.getAttribute('data-games'))); return; }
     var badge = e.target.closest('button[data-eq-winner]');
@@ -493,9 +577,22 @@ window.CTTCEqualizerDesk = function (desk) {
     if (!side) return '';
     var partners = side.members.filter(function (m) { return m !== id; }).map(function (m) { return player(m).name.split(' ')[0]; });
     var group = ev.groups.filter(function (g) { return g.sides.indexOf(side.id) >= 0; })[0];
-    return (partners.length ? 'with ' + partners.join(' & ') : '') + (group ? (partners.length ? ', ' : '') + 'Group ' + group.number : '');
+    return (partners.length ? 'with ' + partners.join(' & ') : '') + (group ? (partners.length ? ', ' : '') + 'Group ' + group.number + ((group.late || []).indexOf(id) >= 0 ? ' (late add)' : '') : '');
   }
 
+  // What the printed group sheets and brackets need (EqualizerPrint.html), or null before there is a draw.
+  function printData() {
+    var ev = event();
+    if (!ev) return null;
+    var view = E.resolve(ev, eq.results);
+    return {
+      date: eq.date, event: ev, view: view,
+      names: function (sideId) { return sideName(ev, sideId); },
+      playerName: function (id) { return player(id).name; },
+      headStart: function (m) { return headStartFor(ev, view, m); },
+      roundName: function (m) { return roundName(ev, m); }
+    };
+  }
   return {
     where: where,
     load: load,
@@ -515,18 +612,7 @@ window.CTTCEqualizerDesk = function (desk) {
     state: function () { return eq; },
     setSession: function (session) { eq.session = session; },
     // What the printed group sheets and brackets need (EqualizerPrint.html), or null before there is a draw.
-    printData: function () {
-      var ev = event();
-      if (!ev) return null;
-      var view = E.resolve(ev, eq.results);
-      return {
-        date: eq.date, event: ev, view: view,
-        names: function (sideId) { return sideName(ev, sideId); },
-        playerName: function (id) { return player(id).name; },
-        headStart: function (m) { return headStartFor(ev, view, m); },
-        roundName: function (m) { return roundName(ev, m); }
-      };
-    }
+    printData: printData
   };
 };
 </script>

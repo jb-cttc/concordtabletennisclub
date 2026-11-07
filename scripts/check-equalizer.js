@@ -327,6 +327,50 @@ const floorResults = E.playerResults(floor, floorView);
 assert.equal(floorResults.lo.after, 0, 'never below 0');
 assert.equal(floorResults.lo.raw, -8 * floorResults.lo.losses, 'raw keeps the full points');
 
+// ---- A late add: a player put into one group after the draw, nobody else moved, every result kept ----
+(function () {
+  let seed = 11;
+  const rng = () => (seed = (seed * 16807) % 2147483647, (seed - 1) / 2147483646);
+  const field = Array.from({ length: 19 }, (_, i) => ({ id: 'late-p' + i, rating: 1000 + i * 37 }));
+  const drawn = E.draw({ format: 'groups', play: 'singles', bestOf: 3, players: field }, rng);
+  const before = E.fromSnapshot(drawn);
+  assert.deepEqual(before.groups.map(g => g.sides.length), [4, 4, 4, 4, 3]);
+  const results = {};
+  before.groups.forEach(g => { const m = g.matches[0]; results[m.id] = { winnerId: m.players[0], games: [2, 1] }; });
+  [[5, 4, 6], [1, 5, 10]].forEach(([number, size, matches]) => {
+    const after = E.addLate(drawn, { id: 'late-x' + number, rating: 1500 }, number, 1);
+    const event = E.fromSnapshot(after);
+    const group = event.groups[number - 1];
+    assert.equal(group.sides.length, size);
+    assert.equal(group.matches.length, matches, 'everyone in Group ' + number + ' plays the late player');
+    assert.deepEqual(group.late, ['late-x' + number]);
+    assert.deepEqual(group.matches.slice(0, before.groups[number - 1].matches.length), before.groups[number - 1].matches, 'the drawn matches keep their ids and rounds');
+    assert.deepEqual(event.groups.filter(g => g.number !== number).map(g => g.matches), before.groups.filter(g => g.number !== number).map(g => g.matches), 'the other groups are untouched');
+    assert.equal(E.lateAddProblem(drawn, after, results), '');
+    assert.deepEqual(E.withoutLate(after), JSON.parse(JSON.stringify(drawn)));
+    // Played out, everyone has a place (a group of 5 places its fifth too).
+    let played = Object.assign({}, results);
+    let view;
+    for (let i = 0; i < 300; i += 1) { view = E.resolve(event, played); if (view.finished) break; const m = E.callOrder(view)[0]; played[m.id] = { winnerId: m.players[1], games: [1, 2] }; }
+    assert.ok(view.finished);
+    assert.equal(Object.keys(view.places).length, event.sides.length);
+  });
+  // A group of 3 gains no extra round: the late player fills each round's bye.
+  const filled = E.fromSnapshot(E.addLate(drawn, { id: 'late-y', rating: 1500 }, 5, 1)).groups[4];
+  assert.equal(Math.max(...filled.matches.map(m => m.round)), 3);
+  assert.throws(() => E.addLate(drawn, { id: field[0].id, rating: 1 }, 5, 1), /already in the Equalizer/);
+  assert.throws(() => E.addLate(drawn, { id: 'late-z', rating: 1 }, 9, 1), /There is no Group 9/);
+  const doubles = E.draw({ format: 'groups', play: 'doubles', bestOf: 3, players: field.slice(0, 16) }, rng);
+  assert.throws(() => E.addLate(doubles, { id: 'late-z', rating: 1 }, 1, 1), /only in singles/);
+  assert.match(E.lateAddProblem(drawn, E.draw({ format: 'groups', play: 'singles', bestOf: 3, players: field }, rng), {}), /not a late add/);
+  // Once the Finals have a result, a late add that would reopen a group is refused.
+  const event = E.fromSnapshot(drawn);
+  let all = {};
+  let view;
+  for (let i = 0; i < 300; i += 1) { view = E.resolve(event, all); const final = view.matches.find(m => m.bracket !== 'G' && m.status === 'done'); if (final || view.finished) break; const m = E.callOrder(view)[0]; all[m.id] = { winnerId: m.players[0], games: [2, 0] }; }
+  assert.match(E.lateAddProblem(drawn, E.addLate(drawn, { id: 'late-z', rating: 1 }, 1, 1), all), /Finals have started/);
+})();
+
 // ---- The desk's copies are current (npm run sync:desk) ----
 const sync = require('./sync-desk-standings');
 assert.equal(fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'EqualizerRulesPage.html'), 'utf8'), sync.equalizerPageCopy(), 'apps-script/EqualizerRulesPage.html is stale: run npm run sync:desk');

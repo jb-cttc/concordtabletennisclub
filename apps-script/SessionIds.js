@@ -19,6 +19,8 @@ function equalizerSessionId_(sessionDate) {
 // s (groups, scores, the print mark, moves), p (payments, Zeffy passes, first visits), e (the Equalizer), d (a player's
 // name or rating corrected in the directory). The cache
 // keeps a stamp up to 6 hours; one lost or unreadable makes the follower read that area once.
+// Beside the stamps, ev: the event the main desk last switched to (rr or equalizer). A switch that moves no players
+// (one event already has results, or neither has players yet) changes no saved data, so this is how a follower knows.
 var DESK_STAMP_AREAS_ = ['s', 'p', 'e', 'd'];
 function deskStampKey_(sessionDate, area) { return 'desk-stamp:' + sessionDate + ':' + area; }
 function touchDesk_(area, sessionDate) {
@@ -26,6 +28,41 @@ function touchDesk_(area, sessionDate) {
     var day = sessionDate || Utilities.formatDate(new Date(), 'America/Los_Angeles', 'yyyy-MM-dd');
     CacheService.getScriptCache().put(deskStampKey_(day, area), String(Date.now()), 21600);
   } catch (error) { /* a following desk falls back to reading the night once a minute */ }
+}
+function deskEventKey_(sessionDate) { return 'desk-stamp:' + sessionDate + ':ev'; }
+function touchDeskEvent_(sessionDate, event) {
+  try { CacheService.getScriptCache().put(deskEventKey_(sessionDate), event, 21600); } catch (error) { /* a following desk keeps its view */ }
+}
+// From the main desk when it switches between the round robin and the Equalizer: one cache write, no Sheet.
+function noteDeskEvent(sessionDate, event) {
+  validateSessionDate_(sessionDate);
+  if (event !== 'rr' && event !== 'equalizer') throw new Error('Unknown event: ' + event);
+  touchDeskEvent_(sessionDate, event);
+  return true;
+}
+// The projector screen chosen on the main desk (Projector screen, Index.html): the layout, slide time, look, payment
+// checks and ratings a following board shows. Only what the desk chose is kept; one cache write per choice, returned
+// with the stamps, so a follower reads it with no extra call.
+function deskScreenKey_(sessionDate) { return 'desk-stamp:' + sessionDate + ':screen'; }
+function cleanScreen_(choice) {
+  var clean = {};
+  if (!choice || typeof choice !== 'object') return clean;
+  if (/^(carousel|wall|spot)$/.test(String(choice.concept))) clean.concept = String(choice.concept);
+  if (/^(desk|green)$/.test(String(choice.look))) clean.look = String(choice.look);
+  var secs = Number(choice.secs);
+  if (Number.isInteger(secs) && secs >= 10 && secs <= 20) clean.secs = secs;
+  if (typeof choice.pay === 'boolean') clean.pay = choice.pay;
+  if (typeof choice.rating === 'boolean') clean.rating = choice.rating;
+  return clean;
+}
+function setFollowScreen(sessionDate, choice) {
+  validateSessionDate_(sessionDate);
+  var clean = cleanScreen_(choice);
+  if (!Object.keys(clean).length) throw new Error('Projector screen: nothing to show.');
+  // The time makes the same choice made again (after a change on the projector itself) count as new.
+  clean.at = Date.now();
+  CacheService.getScriptCache().put(deskScreenKey_(sessionDate), JSON.stringify(clean), 21600);
+  return clean;
 }
 // After a desk action on a session id: the round robin's or the Equalizer's area (a switch between them, both).
 function touchDeskSession_(sessionId, both) {
@@ -49,8 +86,13 @@ function getDeskStamps(sessionDate) {
   validateSessionDate_(sessionDate);
   var keys = DESK_STAMP_AREAS_.map(function (area) { return deskStampKey_(sessionDate, area); });
   var found;
-  try { found = CacheService.getScriptCache().getAll(keys) || {}; } catch (error) { return null; }
+  try { found = CacheService.getScriptCache().getAll(keys.concat(deskEventKey_(sessionDate), deskScreenKey_(sessionDate))) || {}; } catch (error) { return null; }
   var out = {};
   DESK_STAMP_AREAS_.forEach(function (area, i) { out[area] = found[keys[i]] || ''; });
+  var event = found[deskEventKey_(sessionDate)];
+  out.ev = event === 'rr' || event === 'equalizer' ? event : '';
+  var screen = null;
+  try { screen = JSON.parse(found[deskScreenKey_(sessionDate)] || 'null'); } catch (error) { screen = null; }
+  if (screen) { var at = Number(screen.at) || 0; screen = cleanScreen_(screen); if (Object.keys(screen).length) { screen.at = at; out.screen = screen; } }
   return out;
 }

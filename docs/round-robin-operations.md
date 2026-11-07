@@ -194,6 +194,14 @@ payments.
     checks, the print) about 10 seconds behind, with the same animations. Editing is
     off there until **Stop following** (or unticking the box), which also turns the
     answer off.
+  - It also follows the main desk's switch between **Round robin** and **Equalizer**,
+    even when the switch moves no players.
+  - **Projector screen** on the main desk (next to **Player board**) changes the
+    following board without going to that laptop: layout (Carousel, Wall, Spotlight +
+    names), slide time, look, payment checks and ratings, within about 10 seconds.
+    Only what is picked there is sent; a choice stays until the next one, on the desk
+    or in that laptop's own settings strip, and a board that starts following later
+    takes it too.
   - It checks only while follow mode is on: every 10 seconds, once a minute after 20
     quiet minutes. It ends when the night is finalized or after 6 hours; that end
     keeps the answer, so the board follows again the next time it opens. After a

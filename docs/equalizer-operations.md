@@ -33,9 +33,24 @@ round robin night **?** opens the usual desk tour.
      robins.
 
    The defaults are RR → Finals, singles, best of 3. Every change redraws at
-   once; **Draw again** reshuffles. Players can be added (and the draw
-   changes) until the first result is entered; after that the players,
-   options and draw are fixed, and a late arrival plays Open Play.
+   once; **Draw again** reshuffles. Until the sheets print, each sign-in draws
+   again. After the print (or once a result is in) the options and draw are
+   fixed.
+
+   **Late arrival (RR → Finals singles):** after the print or the first result,
+   signing someone in no longer redraws. When one group is smaller than every
+   other (a group of 3 among groups of 4), they go straight into it. Otherwise
+   the desk asks which group they join (**Group 1 · 4 players** … **Cancel**). Nobody else moves; every match keeps
+   its number and any result already in stays. The late player plays everyone
+   in that group: in a group of 3 they fill the round each player sat out; a
+   group of 4 becomes 5 with one more round. A group that has finished, or
+   that already has 6 players, cannot take one, and once the Finals have a
+   result no late add is possible. The group shows **Late add** with **Print
+   sheet**, which prints just that group's sheet, and the print preview names
+   the groups with late adds since the sheets printed. Before the first result,
+   a late add can be removed again (only they come out), and **Draw again**
+   still redraws everyone. In doubles, or Double Elimination, a late arrival
+   still plays Open Play once a result is in.
 4. **Odd number in doubles**: the desk shows a choice: someone sits out
    (picked, or drawn at random; they play Open Play), or one **team of
    three**. A team of three plays at the average of all three; the team
