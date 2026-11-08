@@ -381,6 +381,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
         renderDirectory();
       }).catch(function () { /* the next load shows them */ });
     },
+    // After an Equalizer finalize or reopen: the publish hold and its bar, as after a round robin's.
+    publishChanged: function () { refreshPublish(); },
     printedAt: function () { return window.cttcPlayerBoard && window.cttcPlayerBoard.eqPrintedAt ? window.cttcPlayerBoard.eqPrintedAt() : 0; },
     changed: function () { if (state.event === 'equalizer') state.roster = eqDesk.roster(); render(); }
   });
@@ -2001,7 +2003,10 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }
   function renderPublish() {
     var info = publish.info;
-    var show = !!info && info.state !== 'none' && info.sessionDate === date.value && !!state.session && state.session.status === 'finalized';
+    // The round robin's or the Equalizer's publish, whichever this date finalized (the Equalizer's id ends -equalizer).
+    var equalizerPublish = !!info && /-equalizer$/.test(String(info.sessionId || ''));
+    var finalized = equalizerPublish ? eqDesk.locked() : !!state.session && state.session.status === 'finalized';
+    var show = !!info && info.state !== 'none' && info.sessionDate === date.value && finalized;
     publishBar.hidden = !show;
     if (!show) return;
     var done = info.state === 'emailed';
@@ -2043,14 +2048,15 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
   }, 1000);
   publishBar.addEventListener('click', async function (e) {
     var button = e.target.closest('#publish-now');
-    if (!button || !state.session) return;
+    var info = publish.info;
+    if (!button || !info || !info.sessionId) return;
     var name = button.dataset.call;
     var question = name === 'sendEmailNow'
       ? 'Send the results email to the distribution list now?'
       : 'Publish this session to the club site now?\n\nOnce it is published it can no longer be reopened here.';
     if (!confirm(question)) return;
     button.disabled = true;
-    try { publishApply(await call(name, state.session.sessionId)); }
+    try { publishApply(await call(name, info.sessionId)); }
     catch (error) { setStatus(error.message, 'error'); button.disabled = false; }
   });
 
