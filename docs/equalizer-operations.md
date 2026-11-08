@@ -151,8 +151,13 @@ by hand: fix things at the desk.
 
 ## Not built yet
 
-- The site's Equalizer pages (Rated Games, `/equalizer`, profile records,
-  Hall of Fame). Until then the site shows round robins only. A player's profile shows their EQ rating
+- The site's own Equalizer pages (Rated Games, `/equalizer`, profile records,
+  Hall of Fame). Until then the **Round Robins** page shows the newest
+  Equalizer above its recent results (anchor `#eq-DATE`, the email's link):
+  the champion, every group with its winner, and the Finals bracket with the
+  byes and a trophy for the champion. Dates in `PILOTS` in `roundrobins.html`
+  (2026-11-07) also show the pilot banner: the rules and a request for
+  feedback. A player's profile shows their EQ rating
   beside the RR rating, and their Equalizers in Recent Sessions (labelled
   Equalizer, the change from their previous Equalizer); the leaderboard and
   rating chart are RR only.

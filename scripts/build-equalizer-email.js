@@ -193,7 +193,7 @@ function buildHtml(s, footer, unsubscribeUrl) {
     '<table style="' + TABLE + 'margin-bottom:' + (s.explain ? '12' : '20') + 'px;">' + moverRows(s.movers.losers, '⬇️', '#8B1A1A') + '</table>' +
     (s.explain ? '<p style="font-size:0.82rem;color:#555;margin:0 0 20px;background:#f7f9f7;padding:8px 10px;"><strong>New: your Equalizer rating.</strong> ' + escapeHtml(EXPLAINER.replace(/^New: your Equalizer rating\. /, '')) + '</p>' : '') +
     '<h2 style="' + H2 + '">Event Totals</h2><p style="font-size:0.9rem;color:#333;margin-bottom:20px;">' + escapeHtml(totalsText(s.totals, s.format)) + '</p>' +
-    '<p style="font-size:0.85rem;"><a href="' + SITE_URL + '/leaderboard.html" style="color:#8B1A1A;">Find your player page, with your EQ rating →</a></p>' +
+    '<p style="font-size:0.85rem;"><a href="' + SITE_URL + '/roundrobins.html#eq-' + s.date + '" style="color:#8B1A1A;">See the groups and the Finals bracket →</a></p>' +
     '<p style="font-size:0.75rem;color:#999;margin-top:24px;">Concord Table Tennis Club &middot; Walnut Creek, CA</p>' +
     (footer ? '<p style="font-size:0.72rem;color:#999;margin-top:8px;">You are receiving this because this address subscribed to CTTC results. <a href="' + unsubscribeUrl + '" style="color:#999;">Unsubscribe</a></p>' : '') +
     '</div>';
@@ -222,7 +222,7 @@ function buildText(s, footer, unsubscribeUrl) {
   lines.push('');
   if (s.explain) lines.push(EXPLAINER, '');
   lines.push('EVENT TOTALS', '  ' + totalsText(s.totals, s.format), '');
-  lines.push('Find your player page, with your EQ rating: ' + SITE_URL + '/leaderboard.html');
+  lines.push('The groups and the Finals bracket: ' + SITE_URL + '/roundrobins.html#eq-' + s.date);
   if (footer) lines.push('', 'You are receiving this because this address subscribed to CTTC results.', 'Unsubscribe: ' + unsubscribeUrl);
   return lines.join('\n');
 }

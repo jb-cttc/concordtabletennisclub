@@ -9,7 +9,7 @@
   <meta property="og:title" content="Round Robin Archive - Concord Table Tennis Club">
   <meta property="og:description" content="Browse results from 240+ round robin sessions at Concord Table Tennis Club, going back to January 2024.">
   <meta property="og:url" content="https://latkecrszy.github.io/concordtabletennisclub/roundrobins.html">
-  <link rel="stylesheet" href="style.css?v=20261104">
+  <link rel="stylesheet" href="style.css?v=20261108">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="assets/site.webmanifest">
@@ -69,6 +69,8 @@
   <p>Every Monday and Wednesday night, players are divided into groups of 5 or 6 by rating and play a round robin against everyone in their group. Results are posted after each session. Ratings are updated based on wins and losses within the group.</p>
 
   <p class="pilot-note"><strong>New:</strong> we&rsquo;re piloting a weekly Saturday round robin starting October 31, and will post updates here on how it&rsquo;s going.</p>
+
+  <section id="equalizer-results" class="eq-results" hidden></section>
 
   <h2>Recent results</h2>
 
@@ -793,6 +795,220 @@
     .catch(function () {
       if (window.scrollToArchiveHash) window.scrollToArchiveHash();
     });
+}());
+</script>
+
+<script>
+// The newest Equalizer (published by scripts/lib/finalized-equalizer.js): its groups with each winner, then the Finals
+// bracket and the champion. A pilot Equalizer also gets a banner with the rules and a request for feedback.
+(function () {
+  "use strict";
+  var PILOTS = { "2026-11-07": true };
+  var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  var DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var root = document.getElementById("equalizer-results");
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function longDate(date) {
+    var p = date.split("-").map(Number);
+    return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] + ", " + MONTHS[p[1] - 1] + " " + p[2] + ", " + p[0];
+  }
+  function sideName(names) { return names.join(" & "); }
+  function playerLink(name) {
+    var a = el("a", null, name);
+    a.href = "player.html?name=" + encodeURIComponent(name);
+    return a;
+  }
+
+  function banner() {
+    var box = el("div", "eq-pilot");
+    var lead = el("p");
+    lead.innerHTML = "<strong>Experimental pilot.</strong> This was our first <strong>Equalizer</strong>, a new way to play the round robin where every match is close. We&rsquo;re collecting feedback to refine it: tell us what you think at the desk or through the <a href=\"contact.html\">contact page</a>.";
+    var list = el("ul");
+    [
+      "Groups of 4 play a round robin. Each group winner goes on to a single-elimination Finals; the best group winners get a bye.",
+      "Head starts: the lower-rated player starts every game ahead, 1 point for every 40 rating points between the two, up to 8.",
+      "Every match is best of 3 and worth 8 points of a separate Equalizer rating; forfeits move none.",
+      "Your round robin rating never changes in an Equalizer. Everyone’s Equalizer rating started as a copy of their round robin rating."
+    ].forEach(function (text) { list.appendChild(el("li", null, text)); });
+    box.append(lead, list);
+    return box;
+  }
+
+  // Each group's table from its matches, ranked by the club's round robin rules (standings.js), winner first.
+  function groups(eq) {
+    var ratingOf = {};
+    eq.sides.forEach(function (side) { ratingOf[sideName(side.names)] = side.rating; });
+    var byGroup = {};
+    eq.matches.filter(function (m) { return m.stage === "G"; }).forEach(function (m) {
+      var number = Number(/^G(\d+)-/.exec(m.id)[1]);
+      var rows = byGroup[number] = byGroup[number] || {};
+      var names = m.sides.map(sideName);
+      names.forEach(function (name) { rows[name] = rows[name] || { name: name, ratingBefore: ratingOf[name], matches: [], wins: 0, losses: 0, gamesWon: 0, gamesLost: 0, forfeits: 0 }; });
+      var loser = names[1 - m.winner];
+      [0, 1].forEach(function (i) {
+        var row = rows[names[i]];
+        var won = m.winner === i;
+        row.matches.push({ opponent: names[1 - i], gamesWon: m.forfeit ? 0 : m.games[i], gamesLost: m.forfeit ? 0 : m.games[1 - i], forfeitedBy: m.forfeit ? loser : "" });
+        if (won) row.wins += 1; else row.losses += 1;
+        if (!m.forfeit) { row.gamesWon += m.games[i]; row.gamesLost += m.games[1 - i]; }
+        if (m.forfeit && !won) row.forfeits += 1;
+      });
+    });
+    var grid = el("div", "latest-results-groups");
+    Object.keys(byGroup).map(Number).sort(function (a, b) { return a - b; }).forEach(function (number) {
+      var players = Object.keys(byGroup[number]).map(function (name) { return byGroup[number][name]; });
+      var ranked = window.CTTCStandings.sortByGroupResult(players);
+      var described = window.CTTCStandings.describeWinner(players);
+      var section = el("section", "latest-results-group");
+      section.appendChild(el("h3", null, "Group " + number));
+      var table = el("table", "session-group-table");
+      var head = el("tr");
+      ["Name", "Matches", "Games", "EQ start"].forEach(function (label) { head.appendChild(el("th", null, label)); });
+      var thead = el("thead");
+      thead.appendChild(head);
+      var tbody = el("tbody");
+      ranked.forEach(function (row, index) {
+        var tr = el("tr", index === 0 ? "group-winner-row" : null);
+        var name = el("td");
+        if (index === 0) {
+          var trophy = el("span", "group-winner-trophy", "🏆 ");
+          trophy.setAttribute("aria-label", "Group winner");
+          name.appendChild(trophy);
+        }
+        name.appendChild(playerLink(row.name));
+        var record = el("td", null, row.wins + "-" + row.losses);
+        if (row.forfeits) record.appendChild(el("sup", "forfeit-mark", "F"));
+        tr.append(name, record, el("td", null, row.gamesWon + "-" + row.gamesLost), el("td", null, String(row.ratingBefore)));
+        tbody.appendChild(tr);
+      });
+      table.append(thead, tbody);
+      section.appendChild(table);
+      if (described && described.text) section.appendChild(el("p", "group-note", described.text));
+      if (players.some(function (row) { return row.forfeits; })) section.appendChild(el("p", "group-note", "F: forfeited a match (no rating points move)."));
+      grid.appendChild(section);
+    });
+    return grid;
+  }
+
+  // The Finals as columns, round by round: every match with its score and a check for the winner, byes named, and the
+  // champion's trophy on the Final.
+  function bracket(eq) {
+    var byId = {};
+    var rounds = 0;
+    eq.matches.filter(function (m) { return m.stage === "W"; }).forEach(function (m) {
+      byId[m.id] = m;
+      rounds = Math.max(rounds, Number(/^W(\d+)-/.exec(m.id)[1]));
+    });
+    if (!rounds) return null;
+    var champion = sideName(eq.champion || []);
+    var wrap = el("div", "eq-bracket");
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", "Finals bracket");
+    function roundName(r) { var left = rounds - r; return left === 0 ? "Final" : left === 1 ? "Semifinals" : left === 2 ? "Quarterfinals" : "Round " + r; }
+    function line(name, games, won, extra) {
+      var row = el("div", "eq-slot" + (won ? " won" : ""));
+      var who = el("span", "eq-name");
+      if (name) who.appendChild(playerLink(name)); else who.textContent = "—";
+      if (won && name === champion && extra === "final") who.insertBefore(el("span", "eq-trophy", "🏆 "), who.firstChild);
+      row.appendChild(who);
+      row.appendChild(el("span", "eq-score", games));
+      if (won) row.appendChild(el("span", "eq-check", "✓"));
+      return row;
+    }
+    for (var r = 1; r <= rounds; r += 1) {
+      var column = el("div", "eq-round");
+      column.appendChild(el("h4", null, roundName(r)));
+      var list = el("div", "eq-matches");
+      var count = Math.pow(2, rounds - r);
+      for (var i = 1; i <= count; i += 1) {
+        var m = byId["W" + r + "-" + i];
+        var box = el("div", "eq-match" + (r === rounds ? " final" : ""));
+        if (m) {
+          [0, 1].forEach(function (side) {
+            var games = m.forfeit ? (m.winner === side ? "" : "F") : String(m.games[side]);
+            box.appendChild(line(sideName(m.sides[side]), games, m.winner === side, r === rounds ? "final" : ""));
+          });
+          if (m.headStart && m.headStart.points) box.appendChild(el("p", "eq-hs", sideName(m.sides[m.headStart.side]).split(" ")[0] + " started each game at " + m.headStart.points + "–0"));
+        } else if (r === 1) {
+          // A bye: the player who went straight on is the one in the next match not coming from the match beside it.
+          var next = byId["W2-" + Math.ceil(i / 2)];
+          var who = next ? sideName(next.sides[(i - 1) % 2]) : "";
+          box.className += " bye";
+          box.appendChild(line(who, "", false));
+          box.appendChild(el("p", "eq-hs", "Bye to the " + roundName(2).toLowerCase()));
+        } else {
+          box.appendChild(line("", "", false));
+          box.appendChild(line("", "", false));
+        }
+        list.appendChild(box);
+      }
+      column.appendChild(list);
+      wrap.appendChild(column);
+    }
+    if (champion) {
+      var crown = el("div", "eq-round eq-champion-col");
+      crown.appendChild(el("h4", null, "Champion"));
+      var card = el("div", "eq-champion");
+      card.appendChild(el("span", "eq-champion-trophy", "🏆"));
+      card.appendChild(playerLink(champion));
+      crown.appendChild(card);
+      wrap.appendChild(crown);
+    }
+    return wrap;
+  }
+
+  function render(session) {
+    var eq = session.equalizer;
+    root.id = "eq-" + session.date;
+    root.innerHTML = "";
+    var heading = el("h2", null, "The Equalizer");
+    heading.appendChild(el("span", "eq-date", " · " + longDate(session.date)));
+    root.appendChild(heading);
+    if (PILOTS[session.date]) root.appendChild(banner());
+    var champion = sideName(eq.champion || []);
+    var final = eq.matches.filter(function (m) { return m.stage !== "G"; }).pop();
+    if (champion) {
+      var lead = el("p", "eq-winner-line");
+      lead.append("🏆 ");
+      var strong = el("strong");
+      strong.appendChild(playerLink(champion));
+      lead.appendChild(strong);
+      lead.append(" wins the Equalizer" + (final && !final.forfeit ? ", beating " + sideName(final.sides[1 - final.winner]) + " " + final.games[final.winner] + "–" + final.games[1 - final.winner] + " in the Final." : "."));
+      root.appendChild(lead);
+    }
+    var players = session.groups && session.groups[0] ? session.groups[0].players.length : eq.sides.length;
+    root.appendChild(el("p", "session-source", players + " players · " + (eq.format === "groups" ? "round robin groups, then a Finals" : "double elimination") + " · best of " + eq.bestOf + ", " + eq.play));
+    if (eq.format === "groups") {
+      root.appendChild(el("h3", "eq-subhead", "Groups"));
+      root.appendChild(groups(eq));
+    }
+    var drawn = bracket(eq);
+    if (drawn) {
+      root.appendChild(el("h3", "eq-subhead", eq.format === "groups" ? "Finals" : "Bracket"));
+      var scroll = el("div", "eq-bracket-scroll");
+      scroll.appendChild(drawn);
+      root.appendChild(scroll);
+    }
+    root.hidden = false;
+    if (location.hash === "#" + root.id) root.scrollIntoView();
+  }
+
+  fetch("data/sessions.json", { cache: "no-cache" })
+    .then(function (r) { return r.json(); })
+    .then(function (sessions) {
+      var latest = sessions.filter(function (s) { return s.variant === "equalizer"; }).sort(function (a, b) { return b.date.localeCompare(a.date); })[0];
+      if (!latest) return null;
+      return fetch("data/session-details-" + latest.date.slice(0, 4) + ".json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (details) {
+        return details.find(function (d) { return d.variant === "equalizer" && d.date === latest.date; }) || null;
+      });
+    })
+    .then(function (session) { if (session && session.equalizer) render(session); })
+    .catch(function () { /* the rest of the page does not depend on it */ });
 }());
 </script>
 
