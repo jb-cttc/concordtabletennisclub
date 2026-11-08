@@ -207,6 +207,8 @@ assert.equal(flow.totals.days, 4);
 (() => {
   const club = sim.createWorld({ seed: 52, players: 12, date: '2026-12-09' });
   const cx = club.server.context;
+  // These targets were worked out at the usual fees; the Friday and Saturday special has its own checks (check-night-fees).
+  cx.SPECIAL_NIGHTS.splice(0);
   const go = (name, ...args) => club.server.run(name, ...args);
   const pid = name => club.players.find(player => player.display_name === name + ' Example').player_id;
   go('ensureMemberStatusTable_');

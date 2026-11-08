@@ -2824,6 +2824,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .payment-trigger{min-width:86px;padding:7px;border:1px solid #aebbb2;border-radius:3px;background:#fff;color:#24392d}
 .payment-control.paid .payment-trigger{background:#e4f3e9;border-color:#82be99;color:#125436;font-weight:700}
 .payment-control.unsynced .payment-trigger{border-style:dashed}
+/* A volunteer playing free on a special night (Volunteers.js): gold, so nobody asks them to pay. */
+.payment-control.free:not(.paid) .payment-trigger{background:#fff3c4;border:2px solid #b88a00;color:#5c4300;font-weight:700}
 #sync-note{position:fixed;left:12px;bottom:12px;max-width:min(420px,calc(100vw - 24px));padding:8px 12px;border-left:4px solid var(--gold);background:#fff3d9;box-shadow:0 4px 12px #17211b2b;font:13px Arial,sans-serif;z-index:1500}#sync-note[hidden]{display:none}
 @media print{#sync-note{display:none}}
 .payment-options .unpaid{border-top:1px solid #dce3df;color:#8a3b2b}
@@ -2842,6 +2844,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // Players on their first visit tonight, who pay $10 instead of the visitor fee: worked out by Google (NightFees.js),
   // and changed for the night from the payment menu.
   var firstVisits = {};
+  // A special night (NightFees.js): everyone pays special.fee, and freeVolunteers { playerId: 'open' | 'close' } pay nothing.
+  var special = null;
+  var freeVolunteers = {};
   // Payments recorded elsewhere on the desk (a Clover card payment): a note for the button, and the players whose
   // payment is still on its way to Google.
   var notes = {};
@@ -2933,7 +2938,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     changed.forEach(syncPayment);
   }
   // status: what the Player board shows, a payment recorded (any method, or a Zeffy pass) and a first visit; never how.
-  function paymentStatus(playerId) { return { paid: !!methods[playerId] || !!covered[playerId], first: !!firstVisits[playerId] }; }
+  // free: a volunteer playing free tonight, who owes nothing.
+  function paymentStatus(playerId) { return { paid: !!methods[playerId] || !!covered[playerId] || !!freeVolunteers[playerId], first: !!firstVisits[playerId], free: !!freeVolunteers[playerId] }; }
   window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function (options) { refreshPayments(options); }, status: paymentStatus };
   var initialPayment = window.cttcRequest('getPrivatePaymentOverview', dateField.value);
   window.cttcInitialPaymentOverview = initialPayment;
@@ -3003,21 +3009,26 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       control.classList.toggle('paid', !!method);
       control.classList.toggle('pass', !!covered[playerId]);
       control.classList.toggle('unsynced', waiting);
+      var free = freeVolunteers[playerId];
+      control.classList.toggle('free', !!free);
       var trigger = control.querySelector('.payment-trigger');
-      var label = method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : 'Payment';
+      var label = method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : free ? 'FREE \u2713' : 'Payment';
       if (trigger.textContent !== label) trigger.textContent = label;
       var junior = window.cttcStatusOf && window.cttcStatusOf(playerId) === 'junior';
       var intro = !!firstVisits[playerId] && !junior;
-      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : waiting ? 'Saved on this device; syncing to Google' : method ? 'Paid by ' + method + (method === 'credit' && notes[playerId] ? ' (' + notes[playerId] + ')' : '') + '; change method on hover' : 'Choose payment method' + (intro ? ' · first visit, $10' : '');
+      var freeText = free ? 'Plays free tonight: one of the first 2 volunteers to ' + (free === 'open' ? 'open' : 'close') + '. Nothing to collect.' : '';
+      trigger.title = covered[playerId] ? 'Zeffy monthly play pass' : waiting ? 'Saved on this device; syncing to Google' : method ? 'Paid by ' + method + (method === 'credit' && notes[playerId] ? ' (' + notes[playerId] + ')' : '') + '; change method on hover' :
+        free ? freeText : 'Choose payment method' + (special ? ' · $' + special.fee + ' tonight (Friday and Saturday special)' : intro ? ' · first visit, $10' : '');
       var first = control.querySelector('.first-visit');
       if (first) {
-        first.hidden = junior;
+        // On a special night everyone pays the same, so there is no first-visit fee to choose.
+        first.hidden = junior || !!special;
         first.setAttribute('aria-pressed', intro ? 'true' : 'false');
         var firstText = intro ? 'First visit $10 \u2713' : 'First visit $10';
         if (first.textContent !== firstText) first.textContent = firstText;
         first.title = intro ? 'Charging the $10 first-visit fee tonight. Click to charge the usual fee.' : 'Charge the $10 first-visit fee tonight';
       }
-      trigger.setAttribute('aria-label', 'Payment for ' + control.parentNode.querySelector('.identity strong').textContent + ': ' + (method || 'unpaid'));
+      trigger.setAttribute('aria-label', 'Payment for ' + control.parentNode.querySelector('.identity strong').textContent + ': ' + (method || (free ? 'free tonight, volunteer' : 'unpaid')));
       trigger.disabled = !!covered[playerId];
       var unpaid = control.querySelector('.unpaid');
       if (unpaid) unpaid.hidden = !method;
@@ -3060,6 +3071,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     (result.coveredIds || []).forEach(function (playerId) { covered[playerId] = true; });
     firstVisits = {};
     (result.firstVisitIds || []).forEach(function (playerId) { firstVisits[playerId] = true; });
+    special = result.special || null;
+    freeVolunteers = Object.assign({}, result.freeVolunteers || {});
+    window.cttcSpecialNight = special;
+    document.dispatchEvent(new CustomEvent('cttc:special-night', { detail: { special: special, freeVolunteers: Object.assign({}, freeVolunteers) } }));
     outbox.entries('setFirstVisit').forEach(function (entry) {
       if (entry.args[0] !== selectedDate) return;
       if (entry.args[2]) firstVisits[entry.args[1]] = true;
@@ -3106,7 +3121,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function tipFor(playerId) {
     var current = statuses[playerId];
     if (current === 'junior') return notes[playerId];
-    var base = current === 'member' ? 'Member' : firstVisits[playerId] ? 'Visitor on a first visit: $10 tonight' : 'Visitor';
+    var special = window.cttcSpecialNight;
+    var base = current === 'member' ? 'Member' : firstVisits[playerId] && !special ? 'Visitor on a first visit: $10 tonight' : 'Visitor';
+    if (special) base += ' · $' + special.fee + ' tonight (Friday and Saturday special)';
     var linked = notes[playerId] ? ' · ' + notes[playerId] : '';
     return base + linked + ' · click to mark ' + (current === 'member' ? 'Visitor' : 'Member');
   }
@@ -3149,7 +3166,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       });
     }
     var current = statuses[playerId] || '';
-    var intro = current === 'visitor' && !!firstVisits[playerId];
+    var intro = current === 'visitor' && !!firstVisits[playerId] && !window.cttcSpecialNight;
     var label = intro ? '1st' : LABELS[current] || '?';
     if (badge.textContent !== label) badge.textContent = label;
     var className = 'member-badge' + (current ? ' ' + current : '') + (intro ? ' intro' : '') + (badge.classList.contains('open') ? ' open' : '');
@@ -3173,6 +3190,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     firstVisits = event.detail || {};
     decorate();
   });
+  document.addEventListener('cttc:special-night', decorate);
   ['open-roster', 'groups'].forEach(function (id) {
     new MutationObserver(decorate).observe(document.getElementById(id), { childList: true, subtree: true });
   });
@@ -4406,6 +4424,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .volunteer-signups .volunteer-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
 .volunteer-signups .roster-status{font-size:12px}
 .volunteer-signups .roster-status.muted{color:var(--muted)}
+/* A volunteer playing free tonight (Volunteers.js): the gold tag the payment button also wears. */
+.volunteer-signups .free-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:9px;background:#fff3c4;border:1px solid #b88a00;color:#5c4300;font:700 11px Arial,sans-serif;letter-spacing:0.03em;vertical-align:1px}
+.volunteer-signups .free-tag.waiting{background:#fff;border-style:dashed;font-weight:400}
+.volunteer-signups .special-note{margin:6px 0;padding:6px 9px;border-left:4px solid #b88a00;background:#fffbea;font-size:13px}
 </style>
 <script>
 // Tonight's volunteers (Volunteers.js): who signed up in the volunteer app to open or close on this date, with RR and Open
@@ -4421,14 +4443,19 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   heading.textContent = 'Tonight’s volunteers';
   var message = document.createElement('p');
   message.className = 'hint';
+  // A special night: what everyone pays and who plays free.
+  var specialNote = document.createElement('p');
+  specialNote.className = 'special-note';
+  specialNote.hidden = true;
   var list = document.createElement('ul');
   var refresh = document.createElement('button');
   refresh.type = 'button';
   refresh.className = 'small secondary';
   refresh.textContent = 'Refresh';
-  section.append(heading, message, list, refresh);
+  section.append(heading, message, specialNote, list, refresh);
   (document.querySelector('.voice-suggestions') || document.getElementById('new-player').closest('.section')).after(section);
   var volunteers = [];
+  var special = null;
   var connected = true;
   var loaded = false;
   var requestNumber = 0;
@@ -4455,6 +4482,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       identity.className = 'identity';
       var name = document.createElement('strong');
       name.textContent = volunteer.name;
+      if (volunteer.free) {
+        // Free once confirmed; a spot still waiting for its YES is marked so.
+        var tag = document.createElement('span');
+        tag.className = 'free-tag' + (volunteer.waiting ? ' waiting' : '');
+        tag.textContent = volunteer.waiting ? 'FREE if confirmed' : 'PLAYS FREE';
+        tag.title = (volunteer.waiting ? 'Holds a free spot, but has not confirmed yet. ' : '') + 'One of the first 2 volunteers to ' + (volunteer.free === 'open' ? 'open' : 'close') + ' tonight: nothing to collect.';
+        name.appendChild(tag);
+      }
       var roles = document.createElement('span');
       roles.textContent = volunteer.roles.join(', ') + (volunteer.waiting ? ' · waiting to confirm' : '');
       identity.append(name, roles);
@@ -4482,6 +4517,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       list.appendChild(item);
     });
     if (!loaded) return;
+    var freeCount = volunteers.filter(function (volunteer) { return volunteer.free && !volunteer.waiting; }).length;
+    specialNote.hidden = !special;
+    specialNote.textContent = special ? 'Friday and Saturday special: everyone pays $' + special.fee + ' tonight. The first 2 volunteers to open and the first 2 to close play free' +
+      (freeCount ? ' (' + freeCount + ' tonight, marked PLAYS FREE; their payment button says FREE).' : '; nobody has earned it tonight yet.') : '';
     message.textContent = !connected ? 'Not connected to the volunteer sign-ups yet (desk script property CTTC_STAFFING_DB_ID).' :
       volunteers.length ? 'Signed up to open or close on this date. Add the ones who are playing.' : 'No volunteers signed up for this date.';
   }
@@ -4498,6 +4537,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       if (current !== requestNumber || date.value !== selectedDate) return;
       connected = answer.connected;
       volunteers = answer.volunteers;
+      special = answer.special || null;
       loaded = true;
       render();
     } catch (error) {

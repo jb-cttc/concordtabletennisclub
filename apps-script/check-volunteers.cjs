@@ -40,6 +40,7 @@ const context = {
   ]
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(__dirname + '/NightFees.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync(__dirname + '/Volunteers.js', 'utf8'), context);
 const list = date => JSON.parse(JSON.stringify(context.listVolunteers(date)));
 
@@ -72,6 +73,65 @@ property = 'staffing-sheet';
 signups = [['date', 'player_id', 'name', 'status']];
 assert.throws(() => list('2026-10-21'), /no position column/, 'a changed Sheet is reported, not misread');
 assert.throws(() => list('tonight'), /Invalid date/);
+
+// ---- The Friday and Saturday special (NightFees.js) ----
+assert.equal(context.specialNight_('2026-11-13').fee, 5, 'the first Friday');
+assert.equal(context.specialNight_('2026-12-26').fee, 5, 'the last Saturday');
+assert.equal(context.specialNight_('2026-11-07'), null, 'not before November 13');
+assert.equal(context.specialNight_('2027-01-01'), null, 'not after December 31');
+assert.equal(context.specialNight_('2026-11-16'), null, 'Mondays are ordinary');
+assert.equal(context.specialNight_(''), null);
+for (const status of ['junior', 'member', 'visitor', undefined]) {
+  assert.equal(context.nightFee_(status, false, '2026-11-20'), 5, 'everyone pays $5: ' + status);
+  assert.equal(context.nightFee_(status, true, '2026-11-20'), 5, 'a first visit too: ' + status);
+  assert.equal(context.nightFee_(status, false, '2026-11-20', true), 0, 'a free volunteer pays nothing: ' + status);
+}
+assert.equal(context.nightFee_('visitor', false, '2026-11-18', true), 15, 'free only on a special night');
+assert.equal(context.nightFee_('visitor', true, '2026-11-18'), 10);
+assert.equal(context.nightFee_('member', false), 10, 'no date: the usual fees');
+
+// The free-night rule is the volunteer app's, word for word (it tells people; the desk charges them).
+const rule = text => /\/\/ THE FREE-NIGHT RULE[\s\S]*?\n}\n/.exec(text)[0];
+assert.equal(rule(fs.readFileSync(__dirname + '/Volunteers.js', 'utf8')), rule(fs.readFileSync(__dirname + '/../staffing-app/Code.js', 'utf8')),
+  'freeSpots_ is the same in apps-script/Volunteers.js and staffing-app/Code.js');
+
+// Friday November 20: by sign-up time, the first 2 openers and the first 2 closers. Ray opens and closes: free once, so the
+// second closing spot passes to Ron. Mia holds a spot while she has not confirmed; Old Pending's hold has expired.
+const SPECIAL = '2026-11-20';
+const at = minutes => new Date(Date.parse('2026-11-01T10:00:00Z') + minutes * 60000).toISOString();
+const free = (id, date, position, playerId, name, status, created, extra = {}) => {
+  const line = ['s' + id, 'b', date, position, '', playerId, name, name.split(' ')[0].toLowerCase() + '@example.com', status, created, extra.expires || '', ''];
+  return extra.told ? line.concat(['', '', '', '', '', '', '', extra.told]) : line;
+};
+const told = header.concat(['updated_at', 'drop_at', 'reminded', 'seed_key', 'cancelled_by', 'notified', 'replaces', 'free_night']);
+signups = [told,
+  free(1, SPECIAL, 'lockup', 'p-old', 'Old Pending', 'pending', at(0), { expires: String(NOW - 1) }),
+  free(2, SPECIAL, 'tables', 'p-ray', 'Ray Example', 'confirmed', at(1)),
+  free(3, SPECIAL, 'close', 'p-ray', 'Ray Example', 'confirmed', at(2)),
+  free(4, SPECIAL, 'money', 'p-mia', 'Mia Example', 'pending', at(3), { expires: String(NOW + 3600000) }),
+  free(5, SPECIAL, 'desk', 'p-late', 'Late Opener', 'confirmed', at(4)),
+  free(6, SPECIAL, 'close', '', 'Walk In Helper', 'confirmed', at(5)),
+  free(7, SPECIAL, 'lockup', 'p-ron', 'Ron Example', 'confirmed', at(6)),
+  free(8, SPECIAL, 'close', 'p-no', 'Said No', 'released', at(0)),
+  free(9, SPECIAL, 'close', 'p-last', 'Last Closer', 'confirmed', at(7))];
+const special = list(SPECIAL);
+assert.deepEqual(special.special, { fee: 5 });
+assert.deepEqual(special.volunteers.map(v => [v.name, v.free, v.waiting]), [
+  ['Late Opener', '', false], ['Mia Example', 'open', true], ['Raymond Example', 'open', false], ['Ron Example', 'close', false], ['Last Closer', '', false], ['Walk In Helper', 'close', false]
+], 'Ray and Mia hold the opening spots (Mia once she confirms); the walk-in and Ron the closing ones');
+const freeOn = date => JSON.parse(JSON.stringify(context.freeVolunteerFinder_()(date)));
+assert.deepEqual(freeOn(SPECIAL), { 'p-ray': 'open', 'p-ron': 'close' }, 'only confirmed directory players are charged nothing');
+// Someone told they play free keeps the spot ahead of an earlier sign-up time.
+signups.push(free(10, SPECIAL, 'tables', 'p-early', 'Early Bird', 'confirmed', at(-10)));
+assert.deepEqual(freeOn(SPECIAL), { 'p-early': 'open', 'p-ray': 'open', 'p-ron': 'close' }, 'an earlier sign-up moves ahead of anyone not yet told (Mia here)');
+signups[5] = free(5, SPECIAL, 'desk', 'p-late', 'Late Opener', 'confirmed', at(4), { told: '2026-11-02T00:00:00.000Z' });
+assert.deepEqual(freeOn(SPECIAL), { 'p-late': 'open', 'p-early': 'open', 'p-ray': 'close' },
+  'someone already told keeps the spot ahead of earlier sign-ups; Ray, no longer free as an opener, takes the first closing spot');
+assert.deepEqual(freeOn('2026-11-18'), {}, 'nobody is free on an ordinary night');
+assert.equal(list('2026-11-18').special, undefined);
+property = null;
+assert.deepEqual(freeOn(SPECIAL), {}, 'not connected: nobody is free, the desk works as before');
+property = 'staffing-sheet';
 
 const source = fs.readFileSync(__dirname + '/Volunteers.js', 'utf8');
 assert.doesNotMatch(source, /setValue|appendRow|insertSheet|deleteRow|GmailApp|MailApp|\.reply\(|UrlFetchApp/, 'read-only: no writes, texts or emails');

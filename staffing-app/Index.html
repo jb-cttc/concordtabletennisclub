@@ -142,18 +142,41 @@
   /* Share a night's crew to the club's WhatsApp group: WhatsApp opens with the message typed; the sender picks the group. */
   a.share { display: inline-block; margin: 0 0 10px; padding: 7px 14px; border-radius: 4px; background: #1f6b3a; color: #fff; font-weight: 600; font-size: 0.9rem; text-decoration: none; }
   a.share:focus-visible { outline: 3px solid #1f4f8f; outline-offset: 2px; }
+  /* The Friday and Saturday special: gold, the colour the desk uses for a volunteer who plays free. */
+  .perk-hint { margin: 0 0 8px; padding: 6px 10px; border-left: 4px solid #b88a00; background: #fff8dc; border-radius: 4px; font-size: 0.88rem; color: #4a3600; }
+  .day .star { position: absolute; top: 1px; left: 3px; font-size: 0.7rem; line-height: 1; color: #8a6400; }
+  .full .star, .closed .star { color: #ffe08a; }
+  .legend .key.star { background: #fff3c4; border: 1px solid #b88a00; color: #6b4b00; }
+  /* A phone keeps the legend to one line: the special's note above it already says what the star means. */
+  @media (max-width: 520px) { #perkKey { display: none; } .day .star { top: 0; left: 1px; font-size: 0.6rem; } }
+  .perk { margin: 0 0 12px; padding: 10px 12px; border: 2px solid #b88a00; border-radius: 8px; background: #fff8dc; color: #2b2100; }
+  .perk h3 { margin: 0 0 4px; color: #6b4b00; text-transform: none; letter-spacing: 0; font-size: 1rem; }
+  .perk p { margin: 0 0 6px; font-size: 0.92rem; }
+  .perk ul { margin: 4px 0 6px; padding: 0; list-style: none; font-size: 0.92rem; }
+  .perk li { margin: 2px 0; }
+  .perk .left { font-weight: 700; color: #6b4b00; }
+  .perk .full-up { color: #555; }
+  .perk details { font-size: 0.85rem; color: #4a3600; }
+  .perk details summary { cursor: pointer; color: #1f4f8f; text-decoration: underline; }
+  .perk details ul { list-style: disc; padding-left: 18px; font-size: 0.85rem; }
+  .chip .gift { margin-left: 4px; padding: 0 6px; border-radius: 8px; background: #fff3c4; border: 1px solid #b88a00; color: #5c4300; font-size: 0.72rem; font-weight: 700; font-style: normal; }
+  .part-free { display: block; font-size: 0.8rem; color: #6b4b00; font-weight: 700; margin-top: 1px; }
+  .pick-free { margin: 4px 0 0; padding: 4px 8px; border-left: 3px solid #b88a00; background: #fff8dc; font-size: 0.85rem; color: #4a3600; }
+  .mine-state.free { background: #fff3c4; color: #5c4300; border: 1px solid #b88a00; }
   .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 </style>
 </head>
 <body>
 <h1>Volunteer signups</h1>
 <p class="hint">Tap a club night to see its open spots, add as many as you like, then send once and reply YES to our email.</p>
+<p id="perkHint" class="perk-hint" hidden></p>
 <ul class="legend" aria-label="What the colors and marks mean">
   <li><span class="key needs" aria-hidden="true">!</span><span class="l">Needs people</span><span class="s" aria-hidden="true">Needs</span></li>
   <li><span class="key covered" aria-hidden="true">+</span><span class="l">Minimum crew (more help welcome)</span><span class="s" aria-hidden="true">Minimum</span></li>
   <li><span class="key full" aria-hidden="true">&#10003;</span><span class="l">Fully staffed</span><span class="s" aria-hidden="true">Full</span></li>
   <li><span class="key closed" aria-hidden="true">&#215;</span>Closed</li>
   <li><span class="key" style="background:#1f4f8f;width:10px;height:10px;border-radius:50%" aria-hidden="true"></span><span class="l">Your picks</span><span class="s" aria-hidden="true">Yours</span></li>
+  <li id="perkKey" hidden><span class="key star" aria-hidden="true">&#9733;</span><span class="l">Free play spot open</span><span class="s" aria-hidden="true">Free</span></li>
 </ul>
 <section id="mine" class="panel mine" hidden aria-labelledby="mineTitle"></section>
 <div id="message" role="status" aria-live="polite"></div>
@@ -231,6 +254,41 @@
   });
 
   function positionOf(id) { return board.positions.filter(function (spec) { return spec.id === id; })[0]; }
+  // ----- The Friday and Saturday special (night.free, from freeSpots_ in Code.js) -----
+  // "Fri, Nov 13" style dates for the special's span.
+  function monthDay(date) { return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(date.slice(5, 7)) - 1] + ' ' + Number(date.slice(8, 10)); }
+  function freeLeft(night) { return night.free ? night.free.open.left + night.free.close.left : 0; }
+  function partWord(part) { return part === 'open' ? 'opening' : 'closing'; }
+  // What one part of a special night says: who holds the free spots and how many are left.
+  function freeLine(night, part) {
+    var spot = night.free[part];
+    var names = spot.people.map(function (person) { return person.name + (person.pending ? ' (waiting to confirm)' : ' \u2713'); });
+    var left = spot.left === 1 ? '1 free spot left' : spot.left + ' free spots left';
+    return { names: names, left: spot.left, text: (names.length ? names.join(', ') + (spot.left ? '. ' : '') : '') + (spot.left ? left : '. Both taken') };
+  }
+  // The gold box at the top of a special night: the deal, who has it, how many are left, and the rules in full behind a tap.
+  function perkBox(night) {
+    var box = el('div', { 'class': 'perk', role: 'note' }, [
+      el('h3', { text: '\ud83c\udf81 Volunteer tonight, play free' }),
+      el('p', {}, ['Tonight everyone pays $' + night.free.fee + '. The ', el('b', { text: 'first ' + night.free.spots + ' people to sign up to open' }), ' and the ',
+        el('b', { text: 'first ' + night.free.spots + ' to sign up to close' }), ' play free.'])]);
+    var list = el('ul');
+    ['open', 'close'].forEach(function (part) {
+      var line = freeLine(night, part);
+      list.appendChild(el('li', {}, [el('b', { text: (part === 'open' ? 'Opening' : 'Closing') + ': ' }),
+        line.names.length ? line.names.join(', ') + ' ' : '',
+        el('span', { 'class': line.left ? 'left' : 'full-up', text: line.left ? (line.names.length ? '\u00b7 ' : '') + (line.left === 1 ? '1 free spot left' : line.left + ' free spots left') :
+          '\u00b7 free spots taken' })]));
+    });
+    box.appendChild(list);
+    box.appendChild(el('details', {}, [el('summary', { text: 'How it works' }), el('ul', {}, [
+      el('li', { text: 'Free spots go in sign-up order: the time you tap Send.' }),
+      el('li', { text: 'Your spot is held while we wait for your YES. It counts once you reply YES to our email; if you don\'t confirm in time, it passes to the next person.' }),
+      el('li', { text: 'If someone with a free spot drops out, the next person in line plays free and we email them.' }),
+      el('li', { text: 'Opening and closing the same night? You play free once, and the other free spot passes to the next volunteer.' }),
+      el('li', { text: 'Nothing to show at the door: the desk sees who plays free.' })])]));
+    return box;
+  }
   function nightOf(date) { return board.nights.filter(function (night) { return night.date === date; })[0]; }
   function picksOn(date) { return picks.filter(function (pick) { return pick.date === date; }); }
 
@@ -319,11 +377,13 @@
     if (!night) return el('span', { 'class': 'day', 'aria-hidden': 'true', text: String(day) });
     if (night.status === 'past') return el('span', { 'class': 'day past', title: 'Past', text: String(day) });
     var mine = picksOn(date).length;
-    var label = night.day + ': ' + WORDS[night.status] + (night.note && night.status !== 'closed' ? ' (' + night.note + ')' : '') + (night.bookable ? '' : night.status === 'closed' ? '' : ', sign-ups closed') + (mine ? ', ' + mine + ' of your picks' : '');
+    var star = night.bookable && freeLeft(night) > 0;
+    var label = night.day + ': ' + WORDS[night.status] + (night.note && night.status !== 'closed' ? ' (' + night.note + ')' : '') + (night.bookable ? '' : night.status === 'closed' ? '' : ', sign-ups closed') +
+      (star ? ', ' + freeLeft(night) + ' free play ' + (freeLeft(night) === 1 ? 'spot' : 'spots') + ' open' : '') + (mine ? ', ' + mine + ' of your picks' : '');
     var cell = el('button', { type: 'button', 'class': 'day ' + night.status + (date === selected ? ' selected' : '') + (night.bookable ? '' : ' late'),
       'aria-label': label, 'aria-pressed': date === selected ? 'true' : 'false', 'data-date': date }, [
       el('span', { text: String(day) }), el('span', { 'class': 'mark', 'aria-hidden': 'true', text: MARKS[night.status] || '' }),
-      mine ? el('span', { 'class': 'mine', 'aria-hidden': 'true' }) : null]);
+      mine ? el('span', { 'class': 'mine', 'aria-hidden': 'true' }) : null, star ? el('span', { 'class': 'star', 'aria-hidden': 'true', text: '\u2605' }) : null]);
     cell.addEventListener('click', function () { selected = selected === date ? '' : date; partOpen = {}; show(''); drawCalendar(); if (selected) focusNight(); });
     return cell;
   }
@@ -361,6 +421,7 @@
     }
     // Open with changes (closures.json: reduced play area, or a holiday): still needs volunteers.
     if (night.note) panel.appendChild(el('p', { 'class': 'night-note', text: '\u2139 ' + night.note }));
+    if (night.free) panel.appendChild(perkBox(night));
     panel.appendChild(shareLink(night));
     if (phone()) { /* the opening and closing bars below say what is needed */ }
     else if (night.missing.length) panel.appendChild(el('p', { 'class': 'muted', text: 'Still needed: ' + night.missing.join(', ') + '.' }));
@@ -375,7 +436,8 @@
       // A phone: a bar saying whether this half of the night needs anyone; tap it for the positions.
       var state = partState(night, part);
       var bar = el('details', { 'class': 'part', 'data-part': part }, [
-        el('summary', {}, [el('span', {}, [el('span', { 'class': 'part-name', text: parts[part] }), el('span', { 'class': 'part-state state-' + state.level, text: state.text })])]),
+        el('summary', {}, [el('span', {}, [el('span', { 'class': 'part-name', text: parts[part] }), el('span', { 'class': 'part-state state-' + state.level, text: state.text }),
+          state.free ? el('span', { 'class': 'part-free', text: state.free }) : null])]),
         el('div', { 'class': 'part-body' }, rows)]);
       if (partOpen[part]) bar.open = true;
       bar.addEventListener('toggle', function () { partOpen[part] = bar.open; postHeight(); });
@@ -399,6 +461,10 @@
       more.length ? { level: 'covered', text: '+ ' + more.map(function (spec) { return ((spec.full || spec.min) - confirmed(spec)) + ' more for ' + name(spec); }).join(', ') } :
       { level: 'full', text: '\u2713 All set' };
     if (waiting) state.text += ' \u00b7 ' + waiting + ' waiting to confirm';
+    if (night.free) {
+      var left = night.free[part].left;
+      state.free = '\ud83c\udf81 ' + (left ? (left === 1 ? '1 free spot left' : left + ' free spots left') : 'Free spots taken');
+    }
     return state;
   }
   function positionRow(night, spec) {
@@ -411,8 +477,9 @@
     var dropBox = el('div');
     night.slots[spec.id].forEach(function (slot) {
       var text = slot.name + (slot.finalize ? ' (also finalizing)' : '');
-      if (slot.pending) { chips.appendChild(el('li', {}, [el('span', { 'class': 'chip wait', text: text + ' · waiting to confirm' })])); return; }
-      var chip = el('button', { type: 'button', 'class': 'chip ok', 'aria-label': text + ', confirmed. Tap if this is you and you need to drop it.' }, ['✓ ' + text]);
+      var gift = slot.free ? el('span', { 'class': 'gift', text: slot.pending ? 'free if confirmed' : 'plays free' }) : null;
+      if (slot.pending) { chips.appendChild(el('li', {}, [el('span', { 'class': 'chip wait' }, [text + ' · waiting to confirm', gift])])); return; }
+      var chip = el('button', { type: 'button', 'class': 'chip ok', 'aria-label': text + ', confirmed' + (slot.free ? ', plays free' : '') + '. Tap if this is you and you need to drop it.' }, ['✓ ' + text, gift]);
       chip.addEventListener('click', function () { dropOffer(dropBox, night, spec, slot); });
       chips.appendChild(el('li', {}, [chip]));
     });
@@ -445,6 +512,10 @@
     var names = function (spec) { return night.slots[spec.id].filter(function (slot) { return !slot.pending; }).map(function (slot) { return slot.name; }); };
     var lines = ['🏓 *CTTC volunteers: ' + night.day + '*', night.time];
     if (night.note) lines.push('ℹ️ ' + night.note);
+    if (night.free) {
+      lines.push('', '🎁 *Volunteer tonight, play free:* the first ' + night.free.spots + ' to sign up to open and the first ' + night.free.spots + ' to close play free (everyone else pays $' + night.free.fee + ').');
+      ['open', 'close'].forEach(function (part) { lines.push('• ' + (part === 'open' ? 'Opening' : 'Closing') + ': ' + freeLine(night, part).text); });
+    }
     if (night.missing.length) lines.push('', '⚠️ *Still needed:* ' + night.missing.join(', '));
     else if (night.status === 'covered') lines.push('', '➕ *Minimum crew is in.* ' + ((night.wanted || []).length ? 'To be fully staffed: ' + night.wanted.join(', ') : 'More help is welcome.'));
     else lines.push('', '✅ Fully staffed. Thank you all!');
@@ -537,6 +608,8 @@
       var remove = el('button', { type: 'button', 'class': 'plain', text: 'Remove' });
       remove.addEventListener('click', function () { removePick(pick); redraw(); });
       item.appendChild(el('div', { 'class': 'pick-actions' }, [repeat, remove]));
+      var freeNote = night && pickFree(night, pick);
+      if (freeNote) item.appendChild(el('p', { 'class': 'pick-free', text: freeNote }));
       if (untrained(pick.position)) item.appendChild(el('p', { 'class': 'pick-error', text: 'Needs training: ask the club. Remove this pick or choose Table setup or Closing.' }));
       lastProblems.filter(function (problem) { return problem.date === pick.date && problem.position === pick.position; }).forEach(function (problem) {
         item.appendChild(el('p', { 'class': 'pick-error', role: 'alert', text: problem.reason }));
@@ -546,6 +619,18 @@
     picksBox.appendChild(list);
     picksBox.appendChild(keep || detailsForm());
     if (keep) keep.syncEmail();
+  }
+  // What a pick on a special night would mean for the volunteer: a free spot is open for them (they are last in sign-up order,
+  // so it is theirs only if one is left), they already get one for the other half, or the free spots are taken.
+  function pickFree(night, pick) {
+    if (!night.free) return '';
+    var part = positionOf(pick.position).part;
+    var mine = picksOn(night.date);
+    var openPick = mine.some(function (other) { return positionOf(other.position).part === 'open'; });
+    if (part === 'close' && openPick && night.free.open.left > 0) return '\ud83c\udf81 You would already play free for opening that night (once per person).';
+    if (mine.filter(function (other) { return positionOf(other.position).part === part; })[0] !== pick) return '';
+    if (night.free[part].left > 0) return '\ud83c\udf81 A free spot for ' + partWord(part) + ' is open: you play free that night once you reply YES to our email.';
+    return 'The free spots for ' + partWord(part) + ' that night are taken. Everyone pays $' + night.free.fee + '; if a free spot opens up, the next person in line gets it.';
   }
   function field(labelText, input, note) {
     return [el('label', { 'for': input.id, text: labelText }), input, note ? el('p', { 'class': 'muted', id: input.id + 'Note', text: note }) : null];
@@ -721,7 +806,11 @@
       var nightBox = el('input', { type: 'checkbox', 'aria-label': night.label });
       nightBox.checked = true;
       var own = [];
-      function state(shift) { return el('span', { 'class': 'mine-state' + (shift.status === 'pending' ? ' wait' : ''), text: shift.status === 'pending' ? 'waiting' : 'confirmed' }); }
+      function state(shift) {
+        var label = el('span', { 'class': 'mine-state' + (shift.status === 'pending' ? ' wait' : ''), text: shift.status === 'pending' ? 'waiting' : 'confirmed' });
+        if (!shift.free) return label;
+        return el('span', {}, [label, el('span', { 'class': 'mine-state free', text: shift.free === 'yes' ? '\ud83c\udf81 plays free' : '\ud83c\udf81 free once confirmed' })]);
+      }
       if (night.shifts.length === 1) {
         var only = night.shifts[0];
         var label = el('label', { 'class': 'check' }, [nightBox, el('span', {}, [night.short, state(only), el('span', { 'class': 'mine-what', text: only.label })])]);
@@ -774,6 +863,13 @@
     if (!result.ok) { empty(calendar); calendar.appendChild(el('p', { text: result.message })); postHeight(); return; }
     var first = !board;
     board = result;
+    var perkHint = document.getElementById('perkHint');
+    perkHint.hidden = !board.perk;
+    document.getElementById('perkKey').hidden = !board.perk;
+    if (board.perk) {
+      perkHint.textContent = '\ud83c\udf81 Fridays and Saturdays, ' + monthDay(board.perk.from) + ' to ' + monthDay(board.perk.to) + ': the first ' + board.perk.spots + ' people to sign up to open and the first ' +
+        board.perk.spots + ' to close play free that night (\u2605 on the calendar). Everyone else pays $' + board.perk.fee + '.';
+    }
     // On first opening, the next night still open for sign-ups (tonight, until an hour before the club opens) is shown at
     // once, so people see who is on and what is needed without a tap. Not when a My nights link opened the page (that list
     // is why they came), and never scrolled to or focused: the page sits inside the home page.

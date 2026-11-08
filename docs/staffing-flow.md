@@ -188,7 +188,7 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 
 | Tab | Who writes | What |
 | --- | --- | --- |
-| `Signups` | app | One row per pick: `date`, `position`, `status`, `expires_at`, `drop_at`, `reminded`, `seed_key`. |
+| `Signups` | app | One row per pick: `date`, `position`, `status`, `expires_at`, `drop_at`, `reminded`, `seed_key`, `free_night` (section 11). |
 | `Batches` | app | One row per submission: the one email that asks YES or NO about all its picks. `emailed` / `texted` = the status last sent. |
 | `Emails` | owner, imports, app | The one approved email (and mobile) on file per player, plus requests waiting for the club (`status` `pending`) and old rows (`replaced`, `declined`). |
 | `People` | app | Everyone who signed up, by email; the mobile on file and text opt-in (`texts`). |
@@ -511,3 +511,60 @@ All of this lives in `canTake_`; tests cover both modes.
 | A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date) or add it to `Closures`. Changes show within an hour. |
 | *Action needed: the staffing app cannot …* | A step of the reply check has failed at every attempt for 30 minutes (`ALERT_AFTER_MS`); the email names what is affected and what to do. Failures that clear sooner are in the `Log` tab, not emailed. When the step works again the club gets *Resolved: the staffing app can … again*. |
 | No texts | The person needs a mobile **on file** (`Emails.phone`) **and** `People.texts = yes` (they texted STAFF from that phone). |
+| Someone says they should be playing free | Section 11: only **confirmed** volunteers, in sign-up order; a waiting hold keeps the spot but is not free yet. The calendar's gold box on that night shows who holds each free spot. |
+
+## 11. The Friday and Saturday special
+
+From **Friday, November 13 to Thursday, December 31, 2026**, every Friday and
+Saturday costs **$5** for everyone, and the **first 2 people to sign up to open
+and the first 2 to sign up to close play free** that night (`PERK_NIGHTS` and
+`FREE_SPOTS` in `Code.js`; the desk's `SPECIAL_NIGHTS` in
+`apps-script/NightFees.js` and the home page carry the same dates).
+
+**Who plays free** (`freeSpots_`, word for word the same in `Code.js` and the
+desk's `Volunteers.js`, and a test checks it):
+
+- Opening is any opening position (desk organizer, money collector, table
+  setup); closing is lock-up or putting tables away.
+- Free spots go in **sign-up order**: the time the person tapped Send
+  (`Signups.created_at`), not when they replied YES.
+- A pick **waiting for its YES holds its place**, but plays free only once
+  confirmed. If it expires, is answered NO or dropped, the next person in line
+  moves up.
+- **One free night per person.** Someone among the first 2 openers who also
+  closes is skipped among the closers, so that closing spot passes to the next
+  closer: up to 4 different people a night.
+- Once someone has been **told** they play free (`Signups.free_night`), they
+  keep their place ahead of everyone else, so nobody is told and then loses it
+  (unless they drop).
+
+**What volunteers see.** While the special runs, the page explains it under
+its title and the legend adds **★ Free**. A special night with a free spot
+left and still open for sign-ups has a **★** in the corner of its calendar
+day. Its panel opens with a gold box: "Volunteer tonight, play free", who
+holds each free spot ("Ada ✓, Ben (waiting to confirm)"), how many are left,
+and *How it works* behind a tap. Name chips carry **plays free** or **free if
+confirmed**, a phone's Opening and Closing bars say "🎁 1 free spot left", and
+each pick in *My picks* says whether a free spot is open for it, already theirs
+for the other half of the night, or taken. Share to WhatsApp adds the free
+spots too. My nights marks the shift **🎁 plays free** or **🎁 free once
+confirmed**.
+
+**Emails.** The confirm email has a gold box, *You hold a free spot: Sat, Nov
+28 (one of the first 2 to open). It is yours once you reply YES*, or, when the
+spots are taken, says everyone pays $5 and that the next in line is emailed if
+one opens. The confirmation says *You play free: …* and writes `free_night`.
+When someone moves up (someone ahead dropped or never confirmed), the hourly
+sweep (`awardFree_`, after confirmations go out) emails them once, *Good news:
+you play free at CTTC on Sat, Nov 28*, and writes `free_night`. The day-before
+reminder says *You play free tomorrow*, or that everyone pays $5.
+
+**At the desk.** The desk reads the same `Signups` rows: a confirmed free
+volunteer's payment button is gold and reads **FREE ✓**, *Tonight's
+volunteers* tags them **PLAYS FREE**, and the cash flow page and Clover
+matching count them at $0 (see
+[Session fees](round-robin-operations.md#session-fees-and-zeffy)).
+
+**Ending or extending it.** Change the dates in `PERK_NIGHTS` (`Code.js`),
+`SPECIAL_NIGHTS` (`apps-script/NightFees.js`) and the `data-until` attributes
+on `index.html` and `firstvisit.html` together, then release both apps.

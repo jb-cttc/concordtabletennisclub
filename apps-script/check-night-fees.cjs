@@ -142,5 +142,49 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal(firstButton(fresh, old).getAttribute('aria-pressed'), 'true');
   assert.deepEqual(fresh.errors, []);
 
-  console.log('Night fee checks passed: first visits, the organizer\'s choice, each night\'s status, Clover, the desk page');
+  // ---------------------------------------------------------------------------------------------------------------
+  // The Friday and Saturday special on the desk page: everyone pays $5, no first-visit fee to choose, and the confirmed
+  // volunteers in the free spots (the volunteer app's Signups tab) show FREE on their payment button and pay nothing.
+  const FRIDAY = '2026-11-20';
+  const club = sim.createWorld({ seed: 79, players: 6, date: FRIDAY });
+  const [opener, closer, waiting, paying] = club.players.map(player => player.player_id);
+  const nameOf = id => club.players.find(player => player.player_id === id).display_name;
+  const signup = (n, id, position, status, minutes) => ['s' + n, 'b', FRIDAY, position, '', id, nameOf(id), 'v' + n + '@example.com', status,
+    new Date(Date.parse('2026-11-01T10:00:00Z') + minutes * 60000).toISOString(), status === 'pending' ? String(Date.parse('2026-11-30T00:00:00Z')) : '', ''];
+  const staffing = [['signup_id', 'batch_id', 'date', 'position', 'finalize', 'player_id', 'name', 'email', 'status', 'created_at', 'expires_at', 'confirmed_at'],
+    signup(1, opener, 'desk', 'confirmed', 1), signup(2, waiting, 'tables', 'pending', 2), signup(3, paying, 'tables', 'confirmed', 3), signup(4, closer, 'lockup', 'confirmed', 4)];
+  club.server.properties.CTTC_STAFFING_DB_ID = 'staffing-sheet';
+  club.server.context.SpreadsheetApp.openById = id => {
+    assert.equal(id, 'staffing-sheet');
+    return { getSheetByName: name => (name === 'Signups' ? { getDataRange: () => ({ getValues: () => staffing.map(line => line.slice()) }) } : null) };
+  };
+  const overview = plain(club.server.run('getPrivatePaymentOverview', FRIDAY));
+  assert.deepEqual(overview.special, { fee: 5 });
+  assert.deepEqual(overview.freeVolunteers, { [opener]: 'open', [closer]: 'close' }, 'the waiting volunteer is not free until they confirm');
+  const page = club.device().open();
+  await club.clock.run(15000);
+  [opener, closer, waiting, paying].forEach(id => page.addPlayer(id));
+  await club.clock.run(30000);
+  const pageRow = id => page.window.document.querySelector('[data-payment-player="' + id + '"]').parentNode;
+  const trigger = id => pageRow(id).querySelector('.payment-trigger');
+  assert.equal(trigger(opener).textContent, 'FREE ✓', 'a free volunteer\'s button says so');
+  assert.ok(pageRow(opener).querySelector('.payment-control').classList.contains('free'));
+  assert.match(trigger(opener).title, /Plays free tonight: one of the first 2 volunteers to open\. Nothing to collect\./);
+  assert.match(trigger(closer).title, /first 2 volunteers to close/);
+  assert.equal(trigger(paying).textContent, 'Payment');
+  assert.match(trigger(paying).title, /\$5 tonight \(Friday and Saturday special\)/);
+  assert.equal(pageRow(paying).querySelector('.payment-options .first-visit').hidden, true, 'no first-visit fee on a special night');
+  assert.equal(page.window.cttcPayments.status(opener).paid, true, 'the player board counts a free volunteer as settled');
+  const section = page.window.document.querySelector('.volunteer-signups');
+  assert.match(section.querySelector('.special-note').textContent, /everyone pays \$5 tonight\. The first 2 volunteers to open and the first 2 to close play free \(2 tonight, marked PLAYS FREE/);
+  const tags = [...section.querySelectorAll('li')].map(item => [item.querySelector('strong').firstChild.textContent, (item.querySelector('.free-tag') || {}).textContent || '']);
+  assert.deepEqual(tags.sort(), [[nameOf(closer), 'PLAYS FREE'], [nameOf(opener), 'PLAYS FREE'], [nameOf(paying), ''], [nameOf(waiting), 'FREE if confirmed']].sort());
+  assert.deepEqual(page.errors, []);
+  // The cash flow page: $5 each, nothing from the free volunteers.
+  const fridayFlow = plain(club.server.run('getCashFlow', FRIDAY, FRIDAY));
+  const owed = {};
+  fridayFlow.days[0].playerList.forEach(player => { owed[player.name] = [player.owed, !!player.volunteer]; });
+  assert.deepEqual(owed, { [nameOf(opener)]: [0, true], [nameOf(closer)]: [0, true], [nameOf(waiting)]: [5, false], [nameOf(paying)]: [5, false] });
+
+  console.log('Night fee checks passed: first visits, the organizer\'s choice, each night\'s status, Clover, the desk page, the Friday and Saturday special');
 })().catch(error => { console.error(error); process.exit(1); });

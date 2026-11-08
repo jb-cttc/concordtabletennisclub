@@ -1661,6 +1661,96 @@ seedCheck();
   assert.equal(grids.Bundles.length, 1, 'lists with nothing left waiting are dropped');
 }
 
+// ---- The Friday and Saturday special: the first 2 to open and the first 2 to close play free (Saturday November 28) ----
+{
+  const SAT = '2026-11-28';
+  const before = sent.length;
+  const last = (name, pattern) => mailTo(emailOf(name), before).filter(message => pattern.test(message.subject)).pop();
+  const lineOf = (name, position) => signupRows().filter(row => cell('Signups', row, 'player_id') === idOf(name) && cell('Signups', row, 'date') === SAT && cell('Signups', row, 'position') === position).pop();
+  assert.equal(context.perkNight_('2026-11-27').fee, 5, 'Fridays from November 13');
+  assert.equal(context.perkNight_('2026-11-13').fee, 5);
+  assert.equal(context.perkNight_('2026-12-31'), null, 'December 31 is a Thursday');
+  assert.equal(context.perkNight_('2026-12-26').fee, 5);
+  assert.equal(context.perkNight_('2026-11-07'), null, 'not before November 13');
+  assert.equal(context.perkNight_('2027-01-02'), null, 'not after December 31');
+  assert.equal(context.perkNight_('2026-11-23'), null, 'Mondays are ordinary');
+  assert.deepEqual(board().perk, { from: '2026-11-13', to: '2026-12-31', fee: 5, spots: 2 }, 'the page explains the special while it runs');
+  assert.equal(night('2026-11-30').free, null, 'an ordinary night has no free spots');
+  assert.deepEqual(night(SAT).free, { fee: 5, spots: 2, open: { left: 2, people: [] }, close: { left: 2, people: [] } });
+
+  // Ada opens and closes, and confirms: she plays free as an opener. One free night per person, so her closing spot passes on.
+  signAndConfirm('Ada Park', [[SAT, 'tables'], [SAT, 'close']]);
+  let told = last('Ada Park', /^You are on the CTTC staff schedule/);
+  assert.match(told.body, /🎁 You play free: Sat, Nov 28 \(one of the first 2 to open\)\. Nothing to do: the desk sees it\./);
+  assert.ok(cell('Signups', lineOf('Ada Park', 'tables'), 'free_night'), 'the opening pick is marked: she was told');
+  assert.equal(cell('Signups', lineOf('Ada Park', 'close'), 'free_night'), '', 'the closing pick earned nothing');
+  // Ivy holds the second opening spot while he has not confirmed; Eve is third.
+  assert.equal(signUp('Ivy Wong', [[SAT, 'tables']]).ok, true);
+  assert.match(last('Ivy Wong', /^Please confirm/).body, /🎁 You hold a free spot: Sat, Nov 28 \(one of the first 2 to open\)\. It is yours once you reply YES\. If you don't confirm in time, it passes to the next volunteer\./);
+  clock += 60000;
+  assert.equal(signUp('Eve Stone', [[SAT, 'tables']]).ok, true);
+  assert.match(last('Eve Stone', /^Please confirm/).body, /Friday and Saturday special: on Sat, Nov 28 everyone pays \$5\. The free spots \(the first 2 to open and the first 2 to close\) are already held\. If one opens up, the next volunteer in sign-up order plays free and we email them\./);
+  assert.doesNotMatch(last('Eve Stone', /^Please confirm/).body, /🎁/);
+  // Closers: Ada is already free, so the two closing spots go to Fay and Gus; Hal is third.
+  signAndConfirm('Fay Moss', [[SAT, 'close']]);
+  signAndConfirm('Gus Hale', [[SAT, 'lockup']]);
+  signAndConfirm('Hal Reed', [[SAT, 'close']]);
+  assert.match(last('Fay Moss', /^You are on/).body, /🎁 You play free: Sat, Nov 28 \(one of the first 2 to close\)/);
+  assert.match(last('Gus Hale', /^You are on/).body, /one of the first 2 to close/);
+  assert.doesNotMatch(last('Hal Reed', /^You are on/).body, /🎁/);
+  let free = night(SAT).free;
+  assert.deepEqual(free.open, { left: 0, people: [{ name: 'Ada', pending: false }, { name: 'Ivy', pending: true }] }, 'a waiting holder keeps the spot');
+  assert.deepEqual(free.close, { left: 0, people: [{ name: 'Fay', pending: false }, { name: 'Gus', pending: false }] });
+  const slots = night(SAT).slots;
+  assert.deepEqual(slots.tables.map(slot => [slot.name, !!slot.free]), [['Ada', true], ['Ivy', true], ['Eve', false]], 'chips say who plays free');
+  assert.deepEqual(slots.close.map(slot => [slot.name, !!slot.free]), [['Ada', false], ['Fay', true], ['Hal', false]]);
+  assert.ok(!JSON.stringify(night(SAT)).includes('signupId'), 'no sign-up ids leak for waiting picks');
+  // Eve confirms before Ivy: sign-up order, not confirmation order, decides. She is told the spots are taken.
+  reply(emailOf('Eve Stone'), 'YES');
+  assert.doesNotMatch(last('Eve Stone', /^You are on/).body, /🎁/);
+  reply(emailOf('Ivy Wong'), 'YES');
+  assert.match(last('Ivy Wong', /^You are on/).body, /🎁 You play free: Sat, Nov 28 \(one of the first 2 to open\)/);
+  // The desk's copy of the rule says the same (apps-script/Volunteers.js has the same freeSpots_, word for word).
+  const people = JSON.parse(JSON.stringify(context.freeSpots_(context.rows_('Signups').filter(entry => entry.date === SAT), clock).map(spot => [spot.key, spot.part, spot.confirmed])));
+  assert.deepEqual(people, [['p:' + idOf('Ada Park'), 'open', true], ['p:' + idOf('Ivy Wong'), 'open', true], ['p:' + idOf('Fay Moss'), 'close', true], ['p:' + idOf('Gus Hale'), 'close', true]]);
+  // My nights marks the free night.
+  const ada = /\?mine=([0-9A-F]{20})/.exec(told.body)[1];
+  resetLimits();
+  const mine = run('myNights', ada).nights.find(entry => entry.date === SAT);
+  assert.deepEqual(mine.shifts.map(shift => shift.free), ['yes', ''], 'the opening shift plays free, the closing one is not why');
+
+  // Ivy drops: the spot passes to Eve, who is emailed once.
+  const count = sent.length;
+  lineOf('Ivy Wong', 'tables')[column('Signups', 'status')] = 'dropped';
+  context.sweep();
+  const news = mailTo(emailOf('Eve Stone'), count).filter(message => /^Good news/.test(message.subject));
+  assert.equal(news.length, 1);
+  assert.equal(news[0].subject, 'Good news: you play free at CTTC on Sat, Nov 28');
+  assert.match(news[0].body, /🎁 You play free on Saturday, November 28, 2026\. A free spot opened up, and you are now one of the first 2 to open that night\./);
+  assert.match(news[0].body, /Everyone else pays \$5 that night\./);
+  assert.ok(cell('Signups', lineOf('Eve Stone', 'tables'), 'free_night'));
+  context.sweep();
+  assert.equal(mailTo(emailOf('Eve Stone'), count).filter(message => /^Good news/.test(message.subject)).length, 1, 'told once');
+  assert.equal(sent.slice(count).filter(message => /^Good news/.test(message.subject)).length, 1, 'nobody else moved up');
+  assert.deepEqual(night(SAT).free.open.people.map(person => person.name), ['Ada', 'Eve']);
+  // Told means kept: a sign-up with an earlier time (a late YES re-holding an old pick, say) never moves Eve down.
+  const rows = context.rows_('Signups').filter(entry => entry.date === SAT);
+  rows.push({ signup_id: 'zz', date: SAT, position: 'money', player_id: 'p99', status: 'confirmed', created_at: '2026-01-01T00:00:00.000Z' });
+  assert.deepEqual(JSON.parse(JSON.stringify(context.freeSpots_(rows, clock).filter(spot => spot.part === 'open').map(spot => spot.key))), ['p:' + idOf('Ada Park'), 'p:' + idOf('Eve Stone')]);
+
+  // The day-before reminder says who plays free, and what everyone else pays.
+  const remindedFrom = sent.length;
+  const was = clock;
+  clock = pacificAt('2026-11-27', '09:30');
+  context.remind_(context.rows_('Signups').filter(entry => entry.date === SAT), context.rows_('Emails'), clock);
+  clock = was;
+  assert.match(mailTo(emailOf('Eve Stone'), remindedFrom)[0].body, /🎁 You play free tomorrow: you are one of the first 2 to open\. Nothing to do: the desk sees it\./);
+  assert.match(mailTo(emailOf('Hal Reed'), remindedFrom)[0].body, /Friday and Saturday special: everyone pays \$5 tomorrow\./);
+
+  // Tidy up, so later checks see the calendar as before.
+  signupRows().filter(row => cell('Signups', row, 'date') === SAT).forEach(row => { row[column('Signups', 'status')] = 'dropped'; });
+}
+
 // ---- doGet and the page ----
 const served = context.doGet();
 const initial = JSON.parse(/var INITIAL = (.*);\n/.exec(served.getContent())[1]);
@@ -1893,7 +1983,9 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   const legend = [...document.querySelectorAll('.legend li')];
   assert.deepEqual(legend.slice(0, 3).map(li => li.querySelector('.key').textContent + li.querySelector('.l').textContent),
     ['!Needs people', '+Minimum crew (more help welcome)', '\u2713Fully staffed'], 'three levels: needs people, minimum crew (+), fully staffed (check)');
-  assert.deepEqual(legend.map(li => (li.querySelector('.s') || li).textContent.replace(/^[!+\u2713\u00d7]/, '')), ['Needs', 'Minimum', 'Full', 'Closed', 'Yours'], 'short words for a phone\'s one-line legend');
+  assert.deepEqual(legend.map(li => (li.querySelector('.s') || li).textContent.replace(/^[!+\u2713\u00d7]/, '')), ['Needs', 'Minimum', 'Full', 'Closed', 'Yours', 'Free'], 'short words for a phone\'s one-line legend');
+  // The Friday and Saturday special's key shows only while the special runs (board.perk).
+  assert.equal(document.getElementById('perkKey').hidden, !dom.window.board.perk);
   assert.ok(legend.every(li => !li.querySelector('.s') || li.querySelector('.s').getAttribute('aria-hidden') === 'true'), 'screen readers keep the long words');
   assert.equal([...again.querySelectorAll('button.add')].find(button => /Add me as Money collector \(Front Desk\) on/.test(button.getAttribute('aria-label'))).disabled, true, 'one opening position per night, on the page too');
   assert.match(again.textContent, /The opener and round robin organizer: first in at 6:40 PM, has the key lockbox/, 'each position says what it does, with this night\'s time');

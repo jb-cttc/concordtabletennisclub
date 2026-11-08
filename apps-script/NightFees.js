@@ -1,5 +1,6 @@
 // What one night costs each player: Junior $5, Member $10, Visitor $15, and $10 on a player's first visit
-// (firstvisit.html). The desk, the cash flow page and Clover matching all take the fee from here.
+// (firstvisit.html); on a special night (SPECIAL_NIGHTS) $5 for everyone and nothing for a volunteer who earned a free night.
+// The desk, the cash flow page and Clover matching all take the fee from here.
 //
 // A first visit is worked out, not typed in: a night is a player's first visit when their directory record was created
 // that day and they have no earlier night on the desk (round robin or Open Play). Players from the club's older records
@@ -14,7 +15,26 @@
 var NIGHT_FEES = { junior: 5, member: 10, visitor: 15, intro: 10 };
 var FIRST_VISIT_HEADERS = ['session_date', 'player_id', 'first_visit', 'updated_at'];
 
-function nightFee_(status, firstVisit) {
+// The Friday and Saturday special: on these nights everyone pays fee (junior, member, visitor and first visit alike), and the
+// volunteers who earned a free night (Volunteers.js, freeVolunteers_) pay nothing. Dates are inclusive, Pacific. The home
+// page (index.html, data-until) and the volunteer app (staffing-app/Code.js, PERK_NIGHTS) carry the same dates.
+var SPECIAL_NIGHTS = [{ from: '2026-11-13', to: '2026-12-31', weekdays: [5, 6], fee: 5 }];
+
+// The special that covers date ('YYYY-MM-DD'), or null.
+function specialNight_(date) {
+  date = String(date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  var weekday = new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10))).getUTCDay();
+  return SPECIAL_NIGHTS.filter(function (special) {
+    return date >= special.from && date <= special.to && special.weekdays.indexOf(weekday) >= 0;
+  })[0] || null;
+}
+
+// date and free are optional: without a date the usual fees apply. free: the player earned a free night as a volunteer.
+function nightFee_(status, firstVisit, date, free) {
+  var special = specialNight_(date);
+  if (special && free) return 0;
+  if (special) return special.fee;
   if (status === 'junior') return NIGHT_FEES.junior;
   if (firstVisit) return NIGHT_FEES.intro;
   return NIGHT_FEES[status] || NIGHT_FEES.visitor;

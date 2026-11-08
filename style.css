@@ -628,6 +628,31 @@ td {
   text-transform: uppercase;
 }
 
+/* The Friday and Saturday special: the club's red, so it reads as an offer, not as the standing where-and-when box. */
+.announcement.special {
+  border-color: var(--red);
+  background: #fbf1ee;
+}
+
+.announcement.special h2 {
+  color: var(--red);
+  border-bottom-color: #e6c3bd;
+}
+
+.announcement.special a {
+  color: var(--red);
+}
+
+.announcement.special .announcement-tag {
+  background: var(--red);
+}
+
+.fee-special {
+  padding: 8px 12px;
+  border-left: 4px solid var(--red);
+  background: #fbf1ee;
+}
+
 .two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;

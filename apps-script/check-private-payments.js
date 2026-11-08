@@ -60,6 +60,8 @@ const context = {
   ensureHeader_: (sheet, headers) => { if (!sheet.getLastRow || sheet.getLastRow()) return; sheet.getRange(1, 1, 1, headers.length).setValues([headers]); },
   formatTable_() {}, appendAudit_() {},
   playerAliases_: () => ({ 'danielle chen': 'b' }),
+  // The Friday and Saturday special is checked in check-night-fees.cjs; these dates are ordinary nights.
+  specialNight_: () => null,
   firstVisitIdsOn_: (sessionDate, playerRows) => { assert.ok(Array.isArray(playerRows), 'first visits reuse the Players rows already read'); return ['b']; },
   displayDate_: value => String(value),
   validateSessionDate_: date => { if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Invalid date'); },
