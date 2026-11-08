@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-11-08",
-  "latestSessionDate": "2026-11-04",
+  "latestSessionDate": "2026-11-07",
   "players": [
     {
       "name": "Kai Zarehbin",
@@ -3236,7 +3236,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 1750,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1750,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Kyint Ng",
@@ -3448,7 +3456,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 1739,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1739,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Danny Yip",
@@ -8320,7 +8336,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 1606,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1606,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Vincent Cheng",
@@ -18160,7 +18184,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 1389,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1389,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Tom Zeng",
@@ -21128,7 +21160,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 1375,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1375,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Tom Corio",
@@ -24728,7 +24768,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 1289,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1289,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Matthew Moriguchi - Hb",
@@ -35600,7 +35648,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 1153,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1153,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Zia Mubashair",
@@ -36920,7 +36976,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 1111,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1111,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Jim Petalio",
@@ -42072,7 +42136,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 980,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 980,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Iman Mukherjee",
@@ -42380,7 +42452,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 1002,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 1002,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Behjou Sepehr",
@@ -47304,7 +47384,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 862,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 862,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Thomas Hwang",
@@ -52711,7 +52799,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 726,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 726,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Reza Rastegar",
@@ -53011,7 +53107,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 686,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 686,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Trilbus Regentin",
@@ -57015,7 +57119,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 601,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 601,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Creig Murtha",
@@ -59267,7 +59379,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 569,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 569,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Damola Muritala",
@@ -60279,7 +60399,15 @@
           "wins": 1,
           "losses": 0
         }
-      }
+      },
+      "eqRating": 523,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 523,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Farshad Tavakoi",
@@ -61670,7 +61798,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 533,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 533,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Joshua Abrego",
@@ -64154,7 +64290,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 392,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 392,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Trevor Soria",
@@ -64626,7 +64770,15 @@
           "wins": 0,
           "losses": 1
         }
-      }
+      },
+      "eqRating": 383,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 383,
+          "variant": "equalizer"
+        }
+      ]
     },
     {
       "name": "Shaan Hillyer",
@@ -66834,6 +66986,24 @@
           "losses": 1
         }
       }
+    },
+    {
+      "name": "Nathan Stagmier",
+      "currentRating": null,
+      "peakRating": null,
+      "sessionsPlayed": 0,
+      "totalWins": 0,
+      "totalLosses": 0,
+      "ratingHistory": [],
+      "headToHead": {},
+      "eqRating": 376,
+      "eqRatingHistory": [
+        {
+          "date": "2026-11-07",
+          "rating": 376,
+          "variant": "equalizer"
+        }
+      ]
     }
   ]
 }

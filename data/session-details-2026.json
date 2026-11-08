@@ -1,5 +1,2396 @@
 [
   {
+    "date": "2026-11-07",
+    "sessionId": "session-2026-11-07-equalizer",
+    "source": "app",
+    "variant": "equalizer",
+    "revision": 54,
+    "finalizedAt": "11/7/2026",
+    "equalizer": {
+      "format": "groups",
+      "play": "singles",
+      "bestOf": 3,
+      "ruleVersion": "cttc-equalizer-v1",
+      "sides": [
+        {
+          "names": [
+            "Enver Sedolli"
+          ],
+          "rating": 854,
+          "place": {
+            "place": 6,
+            "to": 10
+          }
+        },
+        {
+          "names": [
+            "Ngai-Chi Chung"
+          ],
+          "rating": 1758,
+          "place": {
+            "place": 16,
+            "to": 20
+          }
+        },
+        {
+          "names": [
+            "Ilya Liberman"
+          ],
+          "rating": 1367,
+          "place": {
+            "place": 6,
+            "to": 10
+          }
+        },
+        {
+          "names": [
+            "Nathan Stagmier"
+          ],
+          "rating": 400,
+          "place": {
+            "place": 16,
+            "to": 20
+          }
+        },
+        {
+          "names": [
+            "Jafar Fatemi"
+          ],
+          "rating": 1598,
+          "place": {
+            "place": 6,
+            "to": 10
+          }
+        },
+        {
+          "names": [
+            "Reyan Mukherjee"
+          ],
+          "rating": 383,
+          "place": {
+            "place": 16,
+            "to": 20
+          }
+        },
+        {
+          "names": [
+            "Kyint Ng"
+          ],
+          "rating": 1747,
+          "place": {
+            "place": 11,
+            "to": 15
+          }
+        },
+        {
+          "names": [
+            "Iman Mukherjee"
+          ],
+          "rating": 1002,
+          "place": {
+            "place": 11,
+            "to": 15
+          }
+        },
+        {
+          "names": [
+            "Keelan Shellooe"
+          ],
+          "rating": 400,
+          "place": {
+            "place": 6,
+            "to": 10
+          }
+        },
+        {
+          "names": [
+            "Damon Duncan"
+          ],
+          "rating": 710,
+          "place": {
+            "place": 2,
+            "to": 2
+          }
+        },
+        {
+          "names": [
+            "Brandon Van Buskirk"
+          ],
+          "rating": 1273,
+          "place": {
+            "place": 3,
+            "to": 4
+          }
+        },
+        {
+          "names": [
+            "J. B. Birch"
+          ],
+          "rating": 1397,
+          "place": {
+            "place": 11,
+            "to": 15
+          }
+        },
+        {
+          "names": [
+            "Dhiren Desai"
+          ],
+          "rating": 531,
+          "place": {
+            "place": 11,
+            "to": 15
+          }
+        },
+        {
+          "names": [
+            "Constantine Dinkov"
+          ],
+          "rating": 1137,
+          "place": {
+            "place": 3,
+            "to": 4
+          }
+        },
+        {
+          "names": [
+            "James Tsay"
+          ],
+          "rating": 686,
+          "place": {
+            "place": 5,
+            "to": 5
+          }
+        },
+        {
+          "names": [
+            "Simon He"
+          ],
+          "rating": 625,
+          "place": {
+            "place": 16,
+            "to": 20
+          }
+        },
+        {
+          "names": [
+            "Dj Boyd"
+          ],
+          "rating": 561,
+          "place": {
+            "place": 6,
+            "to": 10
+          }
+        },
+        {
+          "names": [
+            "Bryan O"
+          ],
+          "rating": 1119,
+          "place": {
+            "place": 11,
+            "to": 15
+          }
+        },
+        {
+          "names": [
+            "Robbie Duncan"
+          ],
+          "rating": 493,
+          "place": {
+            "place": 1,
+            "to": 1
+          }
+        },
+        {
+          "names": [
+            "Steve Cossmon"
+          ],
+          "rating": 1004,
+          "place": {
+            "place": 16,
+            "to": 20
+          }
+        }
+      ],
+      "sitOut": [],
+      "champion": [
+        "Robbie Duncan"
+      ],
+      "matches": [
+        {
+          "id": "G1-1",
+          "stage": "G",
+          "sides": [
+            [
+              "Simon He"
+            ],
+            [
+              "Ilya Liberman"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G1-2",
+          "stage": "G",
+          "sides": [
+            [
+              "Constantine Dinkov"
+            ],
+            [
+              "Kyint Ng"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            0
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G1-3",
+          "stage": "G",
+          "sides": [
+            [
+              "Simon He"
+            ],
+            [
+              "Kyint Ng"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G1-4",
+          "stage": "G",
+          "sides": [
+            [
+              "Constantine Dinkov"
+            ],
+            [
+              "Ilya Liberman"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            1
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 5
+          }
+        },
+        {
+          "id": "G1-5",
+          "stage": "G",
+          "sides": [
+            [
+              "Simon He"
+            ],
+            [
+              "Constantine Dinkov"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G1-6",
+          "stage": "G",
+          "sides": [
+            [
+              "Kyint Ng"
+            ],
+            [
+              "Ilya Liberman"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            0,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G2-1",
+          "stage": "G",
+          "sides": [
+            [
+              "Iman Mukherjee"
+            ],
+            [
+              "Keelan Shellooe"
+            ]
+          ],
+          "winner": 1,
+          "games": null,
+          "wonBy": false,
+          "forfeit": true,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G2-2",
+          "stage": "G",
+          "sides": [
+            [
+              "James Tsay"
+            ],
+            [
+              "Reyan Mukherjee"
+            ]
+          ],
+          "winner": 0,
+          "games": null,
+          "wonBy": false,
+          "forfeit": true,
+          "headStart": {
+            "side": 1,
+            "points": 7
+          }
+        },
+        {
+          "id": "G2-3",
+          "stage": "G",
+          "sides": [
+            [
+              "Iman Mukherjee"
+            ],
+            [
+              "Reyan Mukherjee"
+            ]
+          ],
+          "winner": 0,
+          "games": null,
+          "wonBy": false,
+          "forfeit": true,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G2-4",
+          "stage": "G",
+          "sides": [
+            [
+              "James Tsay"
+            ],
+            [
+              "Keelan Shellooe"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            1
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 7
+          }
+        },
+        {
+          "id": "G2-5",
+          "stage": "G",
+          "sides": [
+            [
+              "Iman Mukherjee"
+            ],
+            [
+              "James Tsay"
+            ]
+          ],
+          "winner": 1,
+          "games": null,
+          "wonBy": false,
+          "forfeit": true,
+          "headStart": {
+            "side": 1,
+            "points": 7
+          }
+        },
+        {
+          "id": "G2-6",
+          "stage": "G",
+          "sides": [
+            [
+              "Reyan Mukherjee"
+            ],
+            [
+              "Keelan Shellooe"
+            ]
+          ],
+          "winner": 1,
+          "games": null,
+          "wonBy": false,
+          "forfeit": true,
+          "headStart": null
+        },
+        {
+          "id": "G3-1",
+          "stage": "G",
+          "sides": [
+            [
+              "Nathan Stagmier"
+            ],
+            [
+              "Jafar Fatemi"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            0,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G3-2",
+          "stage": "G",
+          "sides": [
+            [
+              "Brandon Van Buskirk"
+            ],
+            [
+              "J. B. Birch"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            0
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 3
+          }
+        },
+        {
+          "id": "G3-3",
+          "stage": "G",
+          "sides": [
+            [
+              "Nathan Stagmier"
+            ],
+            [
+              "J. B. Birch"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            0,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G3-4",
+          "stage": "G",
+          "sides": [
+            [
+              "Brandon Van Buskirk"
+            ],
+            [
+              "Jafar Fatemi"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            0
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G3-5",
+          "stage": "G",
+          "sides": [
+            [
+              "Nathan Stagmier"
+            ],
+            [
+              "Brandon Van Buskirk"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            0,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G3-6",
+          "stage": "G",
+          "sides": [
+            [
+              "J. B. Birch"
+            ],
+            [
+              "Jafar Fatemi"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 5
+          }
+        },
+        {
+          "id": "G4-1",
+          "stage": "G",
+          "sides": [
+            [
+              "Bryan O"
+            ],
+            [
+              "Damon Duncan"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            0,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G4-2",
+          "stage": "G",
+          "sides": [
+            [
+              "Ngai-Chi Chung"
+            ],
+            [
+              "Dj Boyd"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G4-3",
+          "stage": "G",
+          "sides": [
+            [
+              "Bryan O"
+            ],
+            [
+              "Dj Boyd"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            0,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G4-4",
+          "stage": "G",
+          "sides": [
+            [
+              "Ngai-Chi Chung"
+            ],
+            [
+              "Damon Duncan"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            1
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G4-5",
+          "stage": "G",
+          "sides": [
+            [
+              "Bryan O"
+            ],
+            [
+              "Ngai-Chi Chung"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            0
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G4-6",
+          "stage": "G",
+          "sides": [
+            [
+              "Dj Boyd"
+            ],
+            [
+              "Damon Duncan"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 3
+          }
+        },
+        {
+          "id": "G5-1",
+          "stage": "G",
+          "sides": [
+            [
+              "Robbie Duncan"
+            ],
+            [
+              "Dhiren Desai"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            0
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": null
+        },
+        {
+          "id": "G5-2",
+          "stage": "G",
+          "sides": [
+            [
+              "Enver Sedolli"
+            ],
+            [
+              "Dhiren Desai"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            0
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G5-3",
+          "stage": "G",
+          "sides": [
+            [
+              "Enver Sedolli"
+            ],
+            [
+              "Robbie Duncan"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "G5-4",
+          "stage": "G",
+          "sides": [
+            [
+              "Enver Sedolli"
+            ],
+            [
+              "Steve Cossmon"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            1
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 3
+          }
+        },
+        {
+          "id": "G5-5",
+          "stage": "G",
+          "sides": [
+            [
+              "Robbie Duncan"
+            ],
+            [
+              "Steve Cossmon"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            0
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "G5-6",
+          "stage": "G",
+          "sides": [
+            [
+              "Dhiren Desai"
+            ],
+            [
+              "Steve Cossmon"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            1
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "W1-2",
+          "stage": "W",
+          "sides": [
+            [
+              "James Tsay"
+            ],
+            [
+              "Damon Duncan"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            0,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": null
+        },
+        {
+          "id": "W2-1",
+          "stage": "W",
+          "sides": [
+            [
+              "Brandon Van Buskirk"
+            ],
+            [
+              "Damon Duncan"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 8
+          }
+        },
+        {
+          "id": "W2-2",
+          "stage": "W",
+          "sides": [
+            [
+              "Robbie Duncan"
+            ],
+            [
+              "Constantine Dinkov"
+            ]
+          ],
+          "winner": 0,
+          "games": [
+            2,
+            1
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 0,
+            "points": 8
+          }
+        },
+        {
+          "id": "W3-1",
+          "stage": "W",
+          "sides": [
+            [
+              "Damon Duncan"
+            ],
+            [
+              "Robbie Duncan"
+            ]
+          ],
+          "winner": 1,
+          "games": [
+            1,
+            2
+          ],
+          "wonBy": false,
+          "forfeit": false,
+          "headStart": {
+            "side": 1,
+            "points": 5
+          }
+        }
+      ]
+    },
+    "groups": [
+      {
+        "name": "Equalizer",
+        "players": [
+          {
+            "name": "Robbie Duncan",
+            "wins": 5,
+            "losses": 0,
+            "gamesWon": 10,
+            "gamesLost": 3,
+            "ratingBefore": 493,
+            "ratingAfter": 533,
+            "ratingAdj": 40,
+            "place": {
+              "place": 1,
+              "to": 1
+            },
+            "matches": [
+              {
+                "opponent": "Dhiren Desai",
+                "opponents": [
+                  "Dhiren Desai"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G"
+              },
+              {
+                "opponent": "Enver Sedolli",
+                "opponents": [
+                  "Enver Sedolli"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Steve Cossmon",
+                "opponents": [
+                  "Steve Cossmon"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Constantine Dinkov",
+                "opponents": [
+                  "Constantine Dinkov"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Damon Duncan",
+                "opponents": [
+                  "Damon Duncan"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W",
+                "headStart": {
+                  "mine": true,
+                  "points": 5
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Damon Duncan",
+            "wins": 4,
+            "losses": 2,
+            "gamesWon": 10,
+            "gamesLost": 6,
+            "ratingBefore": 710,
+            "ratingAfter": 726,
+            "ratingAdj": 16,
+            "place": {
+              "place": 2,
+              "to": 2
+            },
+            "matches": [
+              {
+                "opponent": "Bryan O",
+                "opponents": [
+                  "Bryan O"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "opponents": [
+                  "Ngai-Chi Chung"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Dj Boyd",
+                "opponents": [
+                  "Dj Boyd"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 3
+                }
+              },
+              {
+                "opponent": "James Tsay",
+                "opponents": [
+                  "James Tsay"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W"
+              },
+              {
+                "opponent": "Brandon Van Buskirk",
+                "opponents": [
+                  "Brandon Van Buskirk"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Robbie Duncan",
+                "opponents": [
+                  "Robbie Duncan"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W",
+                "headStart": {
+                  "mine": false,
+                  "points": 5
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Brandon Van Buskirk",
+            "wins": 3,
+            "losses": 1,
+            "gamesWon": 7,
+            "gamesLost": 2,
+            "ratingBefore": 1273,
+            "ratingAfter": 1289,
+            "ratingAdj": 16,
+            "place": {
+              "place": 3,
+              "to": 4
+            },
+            "matches": [
+              {
+                "opponent": "J. B. Birch",
+                "opponents": [
+                  "J. B. Birch"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 3
+                }
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "opponents": [
+                  "Jafar Fatemi"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Nathan Stagmier",
+                "opponents": [
+                  "Nathan Stagmier"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Damon Duncan",
+                "opponents": [
+                  "Damon Duncan"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Constantine Dinkov",
+            "wins": 3,
+            "losses": 1,
+            "gamesWon": 7,
+            "gamesLost": 4,
+            "ratingBefore": 1137,
+            "ratingAfter": 1153,
+            "ratingAdj": 16,
+            "place": {
+              "place": 3,
+              "to": 4
+            },
+            "matches": [
+              {
+                "opponent": "Kyint Ng",
+                "opponents": [
+                  "Kyint Ng"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Ilya Liberman",
+                "opponents": [
+                  "Ilya Liberman"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 5
+                }
+              },
+              {
+                "opponent": "Simon He",
+                "opponents": [
+                  "Simon He"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Robbie Duncan",
+                "opponents": [
+                  "Robbie Duncan"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "James Tsay",
+            "wins": 3,
+            "losses": 1,
+            "gamesWon": 2,
+            "gamesLost": 3,
+            "ratingBefore": 686,
+            "ratingAfter": 686,
+            "ratingAdj": 0,
+            "place": {
+              "place": 5,
+              "to": 5
+            },
+            "matches": [
+              {
+                "opponent": "Reyan Mukherjee",
+                "opponents": [
+                  "Reyan Mukherjee"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 7
+                }
+              },
+              {
+                "opponent": "Keelan Shellooe",
+                "opponents": [
+                  "Keelan Shellooe"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 7
+                }
+              },
+              {
+                "opponent": "Iman Mukherjee",
+                "opponents": [
+                  "Iman Mukherjee"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 7
+                }
+              },
+              {
+                "opponent": "Damon Duncan",
+                "opponents": [
+                  "Damon Duncan"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "W"
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Jafar Fatemi",
+            "wins": 2,
+            "losses": 1,
+            "gamesWon": 4,
+            "gamesLost": 3,
+            "ratingBefore": 1598,
+            "ratingAfter": 1606,
+            "ratingAdj": 8,
+            "place": {
+              "place": 6,
+              "to": 10
+            },
+            "matches": [
+              {
+                "opponent": "Nathan Stagmier",
+                "opponents": [
+                  "Nathan Stagmier"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Brandon Van Buskirk",
+                "opponents": [
+                  "Brandon Van Buskirk"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "J. B. Birch",
+                "opponents": [
+                  "J. B. Birch"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 5
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Ilya Liberman",
+            "wins": 2,
+            "losses": 1,
+            "gamesWon": 5,
+            "gamesLost": 3,
+            "ratingBefore": 1367,
+            "ratingAfter": 1375,
+            "ratingAdj": 8,
+            "place": {
+              "place": 6,
+              "to": 10
+            },
+            "matches": [
+              {
+                "opponent": "Simon He",
+                "opponents": [
+                  "Simon He"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Constantine Dinkov",
+                "opponents": [
+                  "Constantine Dinkov"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 5
+                }
+              },
+              {
+                "opponent": "Kyint Ng",
+                "opponents": [
+                  "Kyint Ng"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Enver Sedolli",
+            "wins": 2,
+            "losses": 1,
+            "gamesWon": 5,
+            "gamesLost": 3,
+            "ratingBefore": 854,
+            "ratingAfter": 862,
+            "ratingAdj": 8,
+            "place": {
+              "place": 6,
+              "to": 10
+            },
+            "matches": [
+              {
+                "opponent": "Dhiren Desai",
+                "opponents": [
+                  "Dhiren Desai"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Robbie Duncan",
+                "opponents": [
+                  "Robbie Duncan"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Steve Cossmon",
+                "opponents": [
+                  "Steve Cossmon"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 3
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Dj Boyd",
+            "wins": 2,
+            "losses": 1,
+            "gamesWon": 5,
+            "gamesLost": 3,
+            "ratingBefore": 561,
+            "ratingAfter": 569,
+            "ratingAdj": 8,
+            "place": {
+              "place": 6,
+              "to": 10
+            },
+            "matches": [
+              {
+                "opponent": "Ngai-Chi Chung",
+                "opponents": [
+                  "Ngai-Chi Chung"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Bryan O",
+                "opponents": [
+                  "Bryan O"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Damon Duncan",
+                "opponents": [
+                  "Damon Duncan"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 3
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Keelan Shellooe",
+            "wins": 2,
+            "losses": 1,
+            "gamesWon": 1,
+            "gamesLost": 2,
+            "ratingBefore": 400,
+            "ratingAfter": 392,
+            "ratingAdj": -8,
+            "place": {
+              "place": 6,
+              "to": 10
+            },
+            "matches": [
+              {
+                "opponent": "Iman Mukherjee",
+                "opponents": [
+                  "Iman Mukherjee"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "James Tsay",
+                "opponents": [
+                  "James Tsay"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 7
+                }
+              },
+              {
+                "opponent": "Reyan Mukherjee",
+                "opponents": [
+                  "Reyan Mukherjee"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G"
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Kyint Ng",
+            "wins": 1,
+            "losses": 2,
+            "gamesWon": 2,
+            "gamesLost": 5,
+            "ratingBefore": 1747,
+            "ratingAfter": 1739,
+            "ratingAdj": -8,
+            "place": {
+              "place": 11,
+              "to": 15
+            },
+            "matches": [
+              {
+                "opponent": "Constantine Dinkov",
+                "opponents": [
+                  "Constantine Dinkov"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Simon He",
+                "opponents": [
+                  "Simon He"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Ilya Liberman",
+                "opponents": [
+                  "Ilya Liberman"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "J. B. Birch",
+            "wins": 1,
+            "losses": 2,
+            "gamesWon": 3,
+            "gamesLost": 4,
+            "ratingBefore": 1397,
+            "ratingAfter": 1389,
+            "ratingAdj": -8,
+            "place": {
+              "place": 11,
+              "to": 15
+            },
+            "matches": [
+              {
+                "opponent": "Brandon Van Buskirk",
+                "opponents": [
+                  "Brandon Van Buskirk"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 3
+                }
+              },
+              {
+                "opponent": "Nathan Stagmier",
+                "opponents": [
+                  "Nathan Stagmier"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "opponents": [
+                  "Jafar Fatemi"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 5
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Bryan O",
+            "wins": 1,
+            "losses": 2,
+            "gamesWon": 2,
+            "gamesLost": 4,
+            "ratingBefore": 1119,
+            "ratingAfter": 1111,
+            "ratingAdj": -8,
+            "place": {
+              "place": 11,
+              "to": 15
+            },
+            "matches": [
+              {
+                "opponent": "Damon Duncan",
+                "opponents": [
+                  "Damon Duncan"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Dj Boyd",
+                "opponents": [
+                  "Dj Boyd"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "opponents": [
+                  "Ngai-Chi Chung"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 0,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Iman Mukherjee",
+            "wins": 1,
+            "losses": 2,
+            "gamesWon": 0,
+            "gamesLost": 0,
+            "ratingBefore": 1002,
+            "ratingAfter": 1002,
+            "ratingAdj": 0,
+            "place": {
+              "place": 11,
+              "to": 15
+            },
+            "matches": [
+              {
+                "opponent": "Keelan Shellooe",
+                "opponents": [
+                  "Keelan Shellooe"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Reyan Mukherjee",
+                "opponents": [
+                  "Reyan Mukherjee"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "James Tsay",
+                "opponents": [
+                  "James Tsay"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 7
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Dhiren Desai",
+            "wins": 1,
+            "losses": 2,
+            "gamesWon": 2,
+            "gamesLost": 5,
+            "ratingBefore": 531,
+            "ratingAfter": 523,
+            "ratingAdj": -8,
+            "place": {
+              "place": 11,
+              "to": 15
+            },
+            "matches": [
+              {
+                "opponent": "Robbie Duncan",
+                "opponents": [
+                  "Robbie Duncan"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G"
+              },
+              {
+                "opponent": "Enver Sedolli",
+                "opponents": [
+                  "Enver Sedolli"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Steve Cossmon",
+                "opponents": [
+                  "Steve Cossmon"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Ngai-Chi Chung",
+            "wins": 1,
+            "losses": 2,
+            "gamesWon": 3,
+            "gamesLost": 5,
+            "ratingBefore": 1758,
+            "ratingAfter": 1750,
+            "ratingAdj": -8,
+            "place": {
+              "place": 16,
+              "to": 20
+            },
+            "matches": [
+              {
+                "opponent": "Dj Boyd",
+                "opponents": [
+                  "Dj Boyd"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Damon Duncan",
+                "opponents": [
+                  "Damon Duncan"
+                ],
+                "gamesWon": 2,
+                "gamesLost": 1,
+                "adj": 8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Bryan O",
+                "opponents": [
+                  "Bryan O"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Steve Cossmon",
+            "wins": 0,
+            "losses": 3,
+            "gamesWon": 2,
+            "gamesLost": 6,
+            "ratingBefore": 1004,
+            "ratingAfter": 980,
+            "ratingAdj": -24,
+            "place": {
+              "place": 16,
+              "to": 20
+            },
+            "matches": [
+              {
+                "opponent": "Enver Sedolli",
+                "opponents": [
+                  "Enver Sedolli"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 3
+                }
+              },
+              {
+                "opponent": "Robbie Duncan",
+                "opponents": [
+                  "Robbie Duncan"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Dhiren Desai",
+                "opponents": [
+                  "Dhiren Desai"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": false,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Simon He",
+            "wins": 0,
+            "losses": 3,
+            "gamesWon": 3,
+            "gamesLost": 6,
+            "ratingBefore": 625,
+            "ratingAfter": 601,
+            "ratingAdj": -24,
+            "place": {
+              "place": 16,
+              "to": 20
+            },
+            "matches": [
+              {
+                "opponent": "Ilya Liberman",
+                "opponents": [
+                  "Ilya Liberman"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Kyint Ng",
+                "opponents": [
+                  "Kyint Ng"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Constantine Dinkov",
+                "opponents": [
+                  "Constantine Dinkov"
+                ],
+                "gamesWon": 1,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Nathan Stagmier",
+            "wins": 0,
+            "losses": 3,
+            "gamesWon": 0,
+            "gamesLost": 6,
+            "ratingBefore": 400,
+            "ratingAfter": 376,
+            "ratingAdj": -24,
+            "place": {
+              "place": 16,
+              "to": 20
+            },
+            "matches": [
+              {
+                "opponent": "Jafar Fatemi",
+                "opponents": [
+                  "Jafar Fatemi"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "J. B. Birch",
+                "opponents": [
+                  "J. B. Birch"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Brandon Van Buskirk",
+                "opponents": [
+                  "Brandon Van Buskirk"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 2,
+                "adj": -8,
+                "forfeit": false,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Reyan Mukherjee",
+            "wins": 0,
+            "losses": 3,
+            "gamesWon": 0,
+            "gamesLost": 0,
+            "ratingBefore": 383,
+            "ratingAfter": 383,
+            "ratingAdj": 0,
+            "place": {
+              "place": 16,
+              "to": 20
+            },
+            "matches": [
+              {
+                "opponent": "James Tsay",
+                "opponents": [
+                  "James Tsay"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 7
+                }
+              },
+              {
+                "opponent": "Iman Mukherjee",
+                "opponents": [
+                  "Iman Mukherjee"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G",
+                "headStart": {
+                  "mine": true,
+                  "points": 8
+                }
+              },
+              {
+                "opponent": "Keelan Shellooe",
+                "opponents": [
+                  "Keelan Shellooe"
+                ],
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "equalizer": true,
+                "stage": "G"
+              }
+            ],
+            "matchesUnavailable": false
+          }
+        ]
+      }
+    ]
+  },
+  {
     "date": "2026-11-04",
     "sessionId": "session-2026-11-04",
     "source": "app",

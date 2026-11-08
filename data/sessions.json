@@ -1,5 +1,11 @@
 [
   {
+    "date": "2026-11-07",
+    "sessionId": "session-2026-11-07-equalizer",
+    "source": "app",
+    "variant": "equalizer"
+  },
+  {
     "date": "2026-11-04",
     "sessionId": "session-2026-11-04",
     "source": "app"
