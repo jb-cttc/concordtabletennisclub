@@ -384,7 +384,10 @@ main {
 
 .volunteer-bar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   margin-top: 16px;
 }
 

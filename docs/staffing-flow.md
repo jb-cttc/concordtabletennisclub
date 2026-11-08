@@ -157,9 +157,9 @@ Or, from a computer:
    (which also runs the reply check), and logs how many active
    players it can read. It is safe to run again; from the web page it does
    nothing.
-4. Fill the **Training** tab (or let the seed import do it, section 6): one
-   row per trained player, `player_id`, `name`, then `yes`/`no` in `keys`,
-   `open` and `front_desk`.
+4. Set who is trained on the desk's **Volunteer Admin** page, *Training &
+   access* (section 12). The seed import also brought in the old open/close
+   list's training (section 6).
 5. Put emails on file: run **`importMemberEmails`** (section 7) and
    **`importSeedSheet`** (section 6), then type any missing ones into the
    **Emails** tab yourself (`player_id`, `name`, `email`, optional `phone`,
@@ -192,7 +192,7 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | `Batches` | app | One row per submission: the one email that asks YES or NO about all its picks. `emailed` / `texted` = the status last sent. |
 | `Emails` | owner, imports, app | The one approved email (and mobile) on file per player, plus requests waiting for the club (`status` `pending`) and old rows (`replaced`, `declined`). |
 | `People` | app | Everyone who signed up, by email; the mobile on file and text opt-in (`texts`). |
-| `Training` | owner and the seed import | Who may take Desk organizer (`keys` and `open` = yes), Money collector (`front_desk` = yes) and Lock-up (`keys` = yes). Table setup and putting tables away need no training. |
+| `Training` | Volunteer Admin and the seed import | Who may take Desk organizer (`keys` and `open` = yes), Money collector (`front_desk` = yes) and Lock-up (`keys` = yes). Table setup and putting tables away need no training. |
 | `Closures` | owner | `date` (`2026-11-13` or `11/13/2026`) and a short public `note`. |
 | `SeedLinks`, `SeedReport` | owner / import | The seed import's fix-up loop (section 6). |
 | `MemberEmailReport` | import | What `importMemberEmails` added, kept and could not match (full names; private). |
@@ -379,8 +379,7 @@ when Send is tapped on the preview (or `importSeedSheet` is run), and never
 again: the script property `SEED_IMPORTED_AT` records when, and afterwards the
 preview, Send, test copy and Prepare SeedLinks all say so instead (re-sending
 to people still waiting keeps working, since it uses only this app's data).
-From then on the club maintains only this app's private Sheet: training in
-`Training`, emails in `Emails`, and volunteers sign up on the calendar
+From then on training is managed on Volunteer Admin (section 12), and volunteers sign up on the calendar
 themselves (Repeat weekly helps); there is no standing weekly schedule.
 **The first wave is held 72 hours** (`SEED_HOLD_MS`), not the usual 24 hours
 capped an hour before the earliest night, so the club can remind people in
@@ -407,7 +406,7 @@ Run **`importSeedSheet`** from the editor (after `setup`). It:
    row first; then the exact full name (case and spacing don't matter) or a
    desk `Aliases` row; then a first name that only one active player has.
    Ambiguous or unmatched names are skipped, never guessed.
-2. Writes the training list to `Training`: it adds people it can link and fills blank cells, but never changes a value already in the tab, so the **Training tab is where the club manages training** (an edit there survives every later import).
+2. Writes the training list to `Training`: it adds people it can link and fills blank cells, but never changes a value already there, so a change made on Volunteer Admin survives every later import.
 3. Finds each linked person's email: their `SeedLinks` email, else the latest
    desk `ZeffyPayments` row under their display name or an alias, else the
    coaching app's `Coaches` / `Students` (if `COACHING_DB_ID` is set; these may
@@ -488,9 +487,10 @@ to `hybrid` to switch it on (no code change, no redeploy needed):
 - The page offers "I'm not listed"; the person types their name.
 - They may take Table setup and Closing straight away.
 - Desk organizer and Money collector still need training. The first time they
-  try, the app adds a `Training` row with **their email in `player_id`** and
-  emails the club. Type `yes` in the right columns and they can sign up from
-  then on with that email.
+  try, the app adds an untrained `Training` row with **their email in
+  `player_id`** and emails the club. Volunteer Admin trains people on the
+  desk's player list; to train someone who is not on it, add them to the desk
+  there first (with a rating), then give them the training.
 
 All of this lives in `canTake_`; tests cover both modes.
 
@@ -505,7 +505,7 @@ All of this lives in `canTake_`; tests cover both modes.
 | A My nights link says no upcoming nights | Their nights are past or released, or the email on file changed since (the link is made from the address; newer emails carry the new link). |
 | They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The reply check has no timer of its own: the desk's mail reader wakes it when a text or an email reply comes in (within about 5 minutes by day), and the hourly `sweep` (Triggers page) runs it too. If the desk log shows `app_wake_failed`, replies wait for the sweep. |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |
-| Desk, Money or Lock-up is greyed out for someone | Their `Training` row: `keys` and `open` must both say yes for Desk, `front_desk` for Money, `keys` for Lock-up. Table setup and putting tables away are never greyed out. |
+| Desk, Money or Lock-up is greyed out for someone | Volunteer Admin, *Training & access*: Desk needs both Key access and Opening, Money needs Front Desk, Lock-up needs Key access. Table setup and putting tables away are never greyed out. |
 | Someone says the confirmation went to an old address | Their `Emails` row: type the new address as a new `approved` row (`source` owner); the old one becomes `replaced`. |
 | A new email request is stuck | `Emails` row `pending`: answer the *Approve an email* message from `ADMIN_EMAIL`, or set `status` to `approved` / `declined`. After 7 days it is declined. |
 | A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date) or add it to `Closures`. Changes show within an hour. |
@@ -575,3 +575,70 @@ matching count them at $0 (see
 **Ending or extending it.** Change the dates in `PERK_NIGHTS` (`Code.js`),
 `SPECIAL_NIGHTS` (`apps-script/NightFees.js`) and the `data-until` attributes
 on `index.html` and `firstvisit.html` together, then release both apps.
+
+## 12. Volunteer Admin (the club's page)
+
+The **🔒 Volunteer Admin** button on the home page (beside Volunteer signups,
+in the Organize button's red) opens `volunteer-admin.html`, which frames the
+desk's own `/exec?view=volunteers`. Like the desk, only the club's Google
+account can open it. The page is `apps-script/VolunteerAdminPage.html`; the
+desk side is `apps-script/VolunteerAdmin.js`; every rule and email is this
+app's (`admin_`, `adminBoard_`, `adminApply_` in `Code.js`). The two apps talk
+through this app's web address with the desk's **admin key** (column B of the
+hidden `AppWake` tab in the desk Sheet, which the desk makes itself on first
+use; the wake key in column A cannot change anything). No owner step is needed.
+
+**Schedule.** Every upcoming night in the calendar, each with its opening and
+closing positions and a small card per person: **full name**, ✓ confirmed or
+⌛ waiting for their YES, ★ playing free (or a dashed ★ while a free spot waits
+for the YES), F for the finalizer. A special night says how many free spots are
+left. Month filters, *Find a person* (highlights their cards) and *Nights with
+sign-ups only* narrow it down.
+
+- **Move:** drag a card to another spot, or tap it and tap an outlined spot.
+  Spots it may not go show why (full, needs training, already opening that
+  night, closed). A move keeps the shift's status: a confirmed shift stays
+  confirmed, one waiting for a YES still waits for it. Moved to another night,
+  it joins the end of that night's free-spot line and gets that night's
+  reminder.
+- **Remove:** the × on a card. The shift is `cancelled` with `cancelled_by` =
+  `club`. A sign-up still waiting for a YES with nothing left in it is closed
+  quietly, so its person never gets a "cancelled as you asked" email.
+
+**Training & access.** The three lists, Key access (Lock-up; with Opening,
+Desk organizer), Opening, and Front Desk (Money collector). *Remove* takes the
+training away (upcoming shifts that needed it stay as they are); *Add someone*
+searches the desk's own player list. Someone not on it is added there first:
+**Add a new player to the desk** needs their full name and a **starting
+rating**, and the desk adds them exactly as its own Add a player does, so the
+desk knows them before they ever volunteer. Nobody is emailed about training.
+
+**The bucket.** Nothing changes until it is submitted. Every move, removal,
+training change and new player waits under **Changes to submit**, each with
+*undo*, and is kept on that device if the page is closed. **Review emails**
+asks this app to check everything against the Sheet as it is now and shows the
+email each person will get; **Submit** is offered only after that. On Submit
+the desk adds any new players, then this app checks again and makes every
+change, or none: a shift someone else changed meanwhile, a full spot or missing
+training stops the whole bucket, and the page marks which change and why. An
+optional message goes into every email.
+
+**The emails.** One per person whose shifts changed, *The club changed your
+CTTC volunteer shift(s)*: what changed (the old shift struck through, the new
+one in bold, or "you are off this shift"), the club's message, whether a shift
+still needs their YES, a free spot gained (★, and `free_night` written) or
+lost, then their upcoming shifts and calendar, and their My nights link.
+Anyone who moves up into a free spot because of the change gets the usual
+*Good news* email from the sweep that follows. Before anything is changed the
+app checks there are enough emails left today for everyone affected, plus the
+usual reserve, and refuses the bucket if not.
+
+**The record.** Each change is a row in the private `AdminChanges` tab (when,
+one `change_id` per submission, what, the person, before and after, and
+`emailed`), shown as *Recent changes* on the page; the desk's AuditLog has
+`volunteer_admin_submitted` with the counts, and this app's Log
+`step:club-change`.
+
+**Preview without Google:** `npm run preview:desk`, then
+`http://localhost:3100/?view=volunteers` (made-up volunteers; Submit there
+changes nothing).

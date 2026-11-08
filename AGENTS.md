@@ -23,9 +23,10 @@ for one-off fixes and "just this once" too.
   desk log or a tab shows it. Build it on a branch like any other change.
 - **Reading is fine** (`npm run sheet:read`, read-only checks) for diagnosis.
 - Docs written before this rule still describe Sheet edits (for example the
-  staffing app's Training, Emails and Closures tabs in
-  `docs/staffing-flow.md`). Treat each as a form still to be built, not as
-  instructions; replace the step with the form when it lands.
+  staffing app's Emails and Closures tabs in `docs/staffing-flow.md`). Treat
+  each as a form still to be built, not as instructions; replace the step with
+  the form when it lands. Volunteer training is done on the desk's **Volunteer
+  Admin** page (`docs/staffing-flow.md`, section 12).
 
 ## What this session can access
 
