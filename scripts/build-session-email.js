@@ -15,7 +15,8 @@ const path = require('path');
 const { sortByGroupResult, describeWinner } = require('../standings');
 
 const ROOT = path.join(__dirname, '..');
-const DATA_DIR = path.join(ROOT, 'data');
+// CTTC_DATA_DIR: another data folder (the checks' simulated publications).
+const DATA_DIR = process.env.CTTC_DATA_DIR || path.join(ROOT, 'data');
 const SITE_URL = 'https://concordtabletennisclub.com';
 const UNSUBSCRIBE_URL = SITE_URL + '/unsubscribe.html';
 

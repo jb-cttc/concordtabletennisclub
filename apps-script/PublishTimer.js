@@ -191,7 +191,8 @@ function workflowRunOutcome_(sinceMs) {
 function advancePublish_(pending) {
   if (pending.state === 'dispatched') {
     try {
-      if (sessionOnSite_(pending.sessionDate)) {
+      // By the session's id: an Equalizer is listed as session-YYYY-MM-DD-equalizer, apart from that date's round robin.
+      if (sessionOnSite_(pending.sessionDate, pending.sessionId)) {
         pending.state = 'email_pending';
         pending.emailDueAt = Date.now() + EMAIL_HOLD_MS;
         savePending_(pending);

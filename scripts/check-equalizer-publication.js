@@ -115,8 +115,61 @@ function tables() {
     // No private ids or contact details in what is published.
     const published = await fs.readFile(path.join(dir, 'session-details-2026.json'), 'utf8');
     assert.doesNotMatch(published, /player-sim-|@/);
+
+    // The Equalizer's results email, from what was published.
+    const { buildEqualizerEmail, latestEqualizerDate } = require('./build-equalizer-email');
+    assert.equal(latestEqualizerDate(dir), DATE);
+    const email = buildEqualizerEmail(DATE, { dataDir: dir, unsubscribeUrl: 'https://example.test/unsub' });
+    const eqSession = JSON.parse(published).find(s => s.variant === 'equalizer');
+    const champion = eqSession.equalizer.champion.join(' & ');
+    assert.match(email.subject, /^CTTC Equalizer Results - Saturday, November 7, 2026$/);
+    assert.ok(email.text.includes(champion + ' wins the Equalizer'), 'the champion leads');
+    assert.ok(email.html.includes('Final Standings') && email.html.includes('Group Winners'));
+    assert.equal(email.summary.groups.length, eqSession.equalizer.matches.filter(m => m.stage === 'G').map(m => m.id.split('-')[0]).filter((g, i, all) => all.indexOf(g) === i).length, 'one winner per group');
+    const players = eqSession.groups[0].players;
+    const top = players.slice().sort((a, b) => b.ratingAdj - a.ratingAdj)[0];
+    assert.equal(email.summary.movers.gainers[0].ratingAdj, top.ratingAdj, 'movers are by EQ rating change');
+    assert.ok(email.summary.explain && /round robin rating does not change/.test(email.text), 'the first Equalizer explains the EQ rating');
+    assert.equal(email.summary.totals.players, players.length);
+    assert.equal(email.summary.totals.matches, eqSession.equalizer.matches.length);
+    assert.ok(email.html.includes('https://example.test/unsub'));
+    assert.doesNotMatch(email.html + email.text, /player-sim-|@/, 'no private ids or addresses');
+    // CTTC_EMAIL_PREVIEW=<file>: also write this simulated email there, to look at.
+    if (process.env.CTTC_EMAIL_PREVIEW) await fs.writeFile(process.env.CTTC_EMAIL_PREVIEW, '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Equalizer Email Preview</title><body style="margin:0;padding:24px 16px;background:#f4f1ec"><div style="background:#fff;max-width:560px;margin:0 auto;padding:24px;border:1px solid #ddd8d0"><p style="font:12px Arial,sans-serif;color:#7a5200;margin:0 0 12px">Subject: ' + email.subject + ' · made-up players from the desk simulator</p>' + email.html + '</div></body>');
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
+  }
+  {
+    // The sender, on the simulated publication: a normal run sends the newest round robin and the newest Equalizer,
+    // each once, and marks each; a second run sends nothing.
+    const { execFileSync } = require('child_process');
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'cttc-equalizer-send-'));
+    try {
+      const data = path.join(dir, 'data');
+      const cache = path.join(dir, 'cache');
+      await fs.mkdir(cache);
+      await fs.mkdir(data);
+      await publish(tables(), data, '2026-11-01');
+      const stub = path.join(dir, 'nodemailer-stub.js');
+      await fs.writeFile(stub, "const Module=require('module');const orig=Module._resolveFilename;Module._resolveFilename=function(r,...a){return r==='nodemailer'?__filename:orig.call(this,r,...a)};module.exports={createTransport:()=>({sendMail:async m=>{require('fs').appendFileSync(process.env.SENT_LOG,m.to+' '+m.subject+'\\n');return{}},close(){}})};");
+      const log = path.join(dir, 'sent.log');
+      const env = Object.assign({}, process.env, { GMAIL_USER: 'club@example.test', GMAIL_APP_PASSWORD: 'x', EMAIL_SUBSCRIBERS: 'a@example.test', SENT_LOG: log, GOOGLE_SHEETS_SUBSCRIBERS_ID: '', CTTC_TEST_SEND: '', CTTC_LIVE_START_DATE: '', UNSUBSCRIBE_TOKEN_SECRET: '', CTTC_DATA_DIR: data, CTTC_CACHE_DIR: cache });
+      const run = () => execFileSync(process.execPath, ['-r', stub, path.join(__dirname, 'send-session-email.js')], { env, encoding: 'utf8' });
+      // The round robin was emailed already; the Equalizer never was.
+      await fs.writeFile(path.join(cache, 'last-emailed-session.json'), JSON.stringify({ date: DATE }));
+      const first = run();
+      assert.match(first, /Session 2026-11-07 was already emailed; skipping/);
+      assert.match(first, /Sent "CTTC Equalizer Results - Saturday, November 7, 2026" to 1 subscriber/);
+      const sent = (await fs.readFile(log, 'utf8')).trim().split('\n');
+      assert.deepEqual(sent.map(line => line.split(' ')[0]).sort(), ['a@example.test', 'club@example.test'], 'the subscriber, and a copy for the club');
+      assert.ok(sent.every(line => / CTTC Equalizer Results/.test(line)), 'the round robin is not sent again');
+      assert.equal(JSON.parse(await fs.readFile(path.join(cache, 'last-emailed-equalizer.json'), 'utf8')).date, DATE);
+      const second = run();
+      assert.match(second, /Equalizer 2026-11-07 was already emailed; skipping/, 'and never twice');
+      assert.equal((await fs.readFile(log, 'utf8')).trim().split('\n').length, 2);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   }
   console.log('Equalizer publication checks passed');
 })().catch(error => { console.error(error); process.exit(1); });
