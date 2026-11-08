@@ -1094,7 +1094,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   wake();
   render();
 
-  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers, setFollow: setFollow, applySettings: applySettings };
+  // Refresh projector on the main desk: draw everything again; say: a message that stays up until the next refresh.
+  function refreshNow(say) {
+    lastKey = '';
+    if (say) { notice.textContent = say; notice.hidden = false; } else if (notice.dataset.refresh) notice.hidden = true;
+    notice.dataset.refresh = say ? '1' : '';
+    rebuild();
+  }
+  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers, setFollow: setFollow, applySettings: applySettings, refreshNow: refreshNow };
 })();
 </script>
 <script>
@@ -1141,7 +1148,9 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     d.info = function (id) {
       var p = d.player(id) || { name: id, currentRating: 0 };
       var s = pay(id) || {};
-      return { id: id, name: p.name, rating: Number(p.currentRating) || 0, paid: !!s.paid, first: !!s.first };
+      // On an Equalizer night, the EQ rating (a copy of the round robin rating before a player's first Equalizer).
+      var shown = d.event === 'equalizer' && p.eqRating != null ? p.eqRating : p.currentRating;
+      return { id: id, name: p.name, rating: Number(shown) || 0, paid: !!s.paid, first: !!s.first };
     };
     d.key = d.date + ':' + (d.event === 'equalizer' ? 'eq' : 'rr');
     d.printed = readPrints()[d.key] || null;
@@ -1328,7 +1337,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var body = '<div class="info"><p class="big">' + (groups ? 'RR → Finals' : 'Double Elimination') + '</p>' +
       '<p>' + (groups ? 'Random groups of 4. Each group winner goes on to a single-elimination Finals.' : 'Lose once and you drop to the Survivor Trail. Lose twice and you’re out.') + '</p>' +
       '<p class="rule"><span class="hs">+1</span><span>a head start in every game for each 40 rating points between you, up to 8</span></p>' +
-      '<p class="rule"><span class="hs pts">±8</span><span>rating points on every match: win and gain 8, lose and give 8</span></p>' +
+      '<p class="rule"><span class="hs pts">±8</span><span>Equalizer rating points on every match: win and gain 8, lose and give 8</span></p>' +
       '<p>The draw is set when the sheets print. Check your name is on the list.</p></div>';
     var html = panel('info', head, body);
     return { key: 'info', big: html, small: html };
@@ -1872,6 +1881,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     followTick: function () { return window.cttcDesk && window.cttcDesk.followTick ? window.cttcDesk.followTick() : { on: false }; },
     followChanged: function (on, message) { if (alive() && win.cttcBoardPage.setFollow) win.cttcBoardPage.setFollow(on, message); },
     // The main desk's Projector screen choice reaching a following board: false while no board window is up.
-    followScreen: function (choice) { return alive() && win.cttcBoardPage.applySettings ? win.cttcBoardPage.applySettings(choice) : false; } };
+    followScreen: function (choice) { return alive() && win.cttcBoardPage.applySettings ? win.cttcBoardPage.applySettings(choice) : false; },
+    // Refresh projector reaching a following board: a full redraw from the desk's state, with a message if any.
+    followRefresh: function (say) {
+      if (!alive()) return false;
+      facts = null;
+      if (win.cttcBoardPage.refreshNow) win.cttcBoardPage.refreshNow(say || '');
+      send();
+      return true;
+    } };
 })();
 </script>

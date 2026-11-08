@@ -1,11 +1,16 @@
+// The desk's directory (called with no rows) also carries each player's Equalizer rating, null before their first
+// finalized Equalizer; callers that pass their own rows (payments, cash flow) do not need it.
 function listPlayers(playerRows) {
+  var eq = playerRows ? {} : equalizerRatings_();
   return (playerRows || rows_('Players'))
   .filter(function (player) { return asBoolean_(player.active); })
   .map(function (player) {
+    var id = String(player.player_id);
     return {
-      playerId: String(player.player_id),
+      playerId: id,
       name: String(player.display_name),
-      currentRating: Number(player.current_rating)
+      currentRating: Number(player.current_rating),
+      eqRating: eq[id] !== undefined ? eq[id] : null
     };
   })
   .sort(function (left, right) { return left.name.localeCompare(right.name); });
@@ -424,6 +429,8 @@ function finalizeLocked_(sessionId, expectedRevision) {
 // Ledger rows from an earlier finalize of this session that did not finish. Each player is either still at
 // rating_before or already at rating_after; the next run starts again from rating_before. Anything else means a rating
 // moved since, and an automatic repair could double-count, so it stops. Shared by round robins and the Equalizer.
+// players: rows with current_rating holding the rating this session moves (the round robin rating, or for an Equalizer
+// its EQ rating; ratingStore_).
 function finalizeLeftovers_(sessionId, players) {
   var leftovers = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
   var restored = {};
@@ -442,7 +449,8 @@ function finalizeLeftovers_(sessionId, players) {
 
 // Rating writes, each with the value to restore on a rollback. A player left out of the session after an interrupted
 // run goes back to their rating before it. adjustments: { playerId: points } for every player in the session.
-function finalizeRatingWrites_(ledger, restored, adjustments, players) {
+function finalizeRatingWrites_(ledger, restored, adjustments, players, store) {
+  store = store || RR_RATINGS_;
   var ratingWrites = ledger.map(function (row) { return { playerId: row.player_id, to: row.rating_after }; });
   Object.keys(restored).forEach(function (playerId) {
     if (adjustments[playerId] === undefined) ratingWrites.push({ playerId: playerId, to: restored[playerId] });
@@ -450,6 +458,7 @@ function finalizeRatingWrites_(ledger, restored, adjustments, players) {
   return ratingWrites.filter(function (write) {
     var player = players[write.playerId];
     write.row = player.__row;
+    write.store = store;
     write.from = player.current_rating;
     write.fromUpdatedAt = player.updated_at;
     return Number(write.from) !== write.to;
@@ -476,7 +485,7 @@ function commitFinalize_(session, sessionId, sessionDate, ledger, ratingWrites, 
     step = 'player ratings';
     ratingWrites.forEach(function (write) {
       attempted.ratings.push(write);
-      updateRow_('Players', write.row, { current_rating: write.to, updated_at: now });
+      writeRating_(write.store || RR_RATINGS_, write.row, write.to, now);
     });
     flushSheets_();
     step = 'session status';
@@ -510,7 +519,7 @@ function rollBackFinalize_(error, step, attempted, session, sessionId, leftovers
   if (!problems.length) {
     undo('player ratings', function () {
       attempted.ratings.slice().reverse().forEach(function (write) {
-        updateRow_('Players', write.row, { current_rating: write.from, updated_at: write.fromUpdatedAt });
+        writeRating_(write.store || RR_RATINGS_, write.row, write.from, write.fromUpdatedAt);
       });
     });
     undo('starting ratings', function () {
@@ -636,7 +645,9 @@ function reopenLocked_(sessionId, expectedRevision) {
   if (sessionOnSite_(sessionDate, sessionId)) throw new Error('The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.');
 
   var ledger = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
-  var players = indexBy_(rows_('Players'), 'player_id');
+  // An Equalizer's ledger moved EQ ratings, so reopening one puts back EQ ratings and never a round robin rating.
+  var store = isEqualizerSessionId_(sessionId) ? EQ_RATINGS_ : RR_RATINGS_;
+  var players = ratingRows_(store);
   ledger.forEach(function (row) {
     var player = players[String(row.player_id)];
     if (!player) throw new Error('Player no longer exists: ' + row.player_id);
@@ -654,7 +665,7 @@ function reopenLocked_(sessionId, expectedRevision) {
       var player = players[String(row.player_id)];
       if (Number(player.current_rating) === Number(row.rating_before)) return;
       restores.push({ row: player.__row, from: player.current_rating, fromUpdatedAt: player.updated_at });
-      updateRow_('Players', player.__row, { current_rating: Number(row.rating_before), updated_at: now });
+      writeRating_(store, player.__row, Number(row.rating_before), now);
     });
     flushSheets_();
     step = 'session status';
@@ -665,7 +676,7 @@ function reopenLocked_(sessionId, expectedRevision) {
     var undone = false;
     if (sessionMayBeFinalized_(sessionId)) {
       try {
-        restores.forEach(function (restore) { updateRow_('Players', restore.row, { current_rating: restore.from, updated_at: restore.fromUpdatedAt }); });
+        restores.forEach(function (restore) { writeRating_(store, restore.row, restore.from, restore.fromUpdatedAt); });
         flushSheets_();
         undone = true;
       } catch (undoError) { /* clicking the lock again finishes the reopen from where it stopped */ }
@@ -766,6 +777,40 @@ function rows_(sheetName) {
 
 function findRow_(sheetName, key, value) {
   return rows_(sheetName).find(function (row) { return String(row[key]) === String(value); }) || null;
+}
+
+// Where a session's ratings live: the round robin rating in Players, the Equalizer rating in EqualizerRatings.
+var RR_RATINGS_ = { table: 'Players', column: 'current_rating' };
+var EQ_RATINGS_ = { table: 'EqualizerRatings', column: 'eq_rating' };
+function writeRating_(store, rowNumber, rating, at) {
+  var changes = { updated_at: at };
+  changes[store.column] = rating;
+  updateRow_(store.table, rowNumber, changes);
+}
+// Players by id, each with current_rating holding the rating in that store (and display_name from Players), for the
+// finalize, repair and reopen code shared by round robins and Equalizers.
+function ratingRows_(store) {
+  if (store !== EQ_RATINGS_) return indexBy_(rows_('Players'), 'player_id');
+  var players = indexBy_(rows_('Players'), 'player_id');
+  var out = {};
+  if (!SpreadsheetApp.getActive().getSheetByName('EqualizerRatings')) return out;
+  rows_('EqualizerRatings').forEach(function (row) {
+    var id = String(row.player_id);
+    out[id] = { __row: row.__row, player_id: id, display_name: players[id] ? players[id].display_name : id, current_rating: row.eq_rating, updated_at: row.updated_at };
+  });
+  return out;
+}
+// { playerId: EQ rating } for players who have one; empty before the first finalized Equalizer.
+function equalizerRatings_() {
+  var out = {};
+  try {
+    if (!SpreadsheetApp.getActive().getSheetByName('EqualizerRatings')) return out;
+    rows_('EqualizerRatings').forEach(function (row) {
+      var rating = Number(row.eq_rating);
+      if (String(row.player_id) && row.eq_rating !== '' && Number.isFinite(rating)) out[String(row.player_id)] = rating;
+    });
+  } catch (error) { /* the directory still loads; Equalizers fall back to the round robin rating */ }
+  return out;
 }
 
 function indexBy_(rows, key) {

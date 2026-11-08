@@ -55,6 +55,15 @@ function cleanScreen_(choice) {
   if (typeof choice.rating === 'boolean') clean.rating = choice.rating;
   return clean;
 }
+// Refresh projector on the main desk: a following desk reads the whole night again and redraws its board, and says so
+// when it runs older desk code than the main desk (build: the main desk's deskBuild_). One cache write per click.
+function deskRefreshKey_(sessionDate) { return 'desk-stamp:' + sessionDate + ':refresh'; }
+function requestFollowRefresh(sessionDate, build) {
+  validateSessionDate_(sessionDate);
+  var mark = { at: Date.now(), build: /^[0-9a-f]{1,32}$/.test(String(build || '')) ? String(build) : '' };
+  CacheService.getScriptCache().put(deskRefreshKey_(sessionDate), JSON.stringify(mark), 21600);
+  return mark;
+}
 function setFollowScreen(sessionDate, choice) {
   validateSessionDate_(sessionDate);
   var clean = cleanScreen_(choice);
@@ -86,7 +95,7 @@ function getDeskStamps(sessionDate) {
   validateSessionDate_(sessionDate);
   var keys = DESK_STAMP_AREAS_.map(function (area) { return deskStampKey_(sessionDate, area); });
   var found;
-  try { found = CacheService.getScriptCache().getAll(keys.concat(deskEventKey_(sessionDate), deskScreenKey_(sessionDate))) || {}; } catch (error) { return null; }
+  try { found = CacheService.getScriptCache().getAll(keys.concat(deskEventKey_(sessionDate), deskScreenKey_(sessionDate), deskRefreshKey_(sessionDate))) || {}; } catch (error) { return null; }
   var out = {};
   DESK_STAMP_AREAS_.forEach(function (area, i) { out[area] = found[keys[i]] || ''; });
   var event = found[deskEventKey_(sessionDate)];
@@ -94,5 +103,8 @@ function getDeskStamps(sessionDate) {
   var screen = null;
   try { screen = JSON.parse(found[deskScreenKey_(sessionDate)] || 'null'); } catch (error) { screen = null; }
   if (screen) { var at = Number(screen.at) || 0; screen = cleanScreen_(screen); if (Object.keys(screen).length) { screen.at = at; out.screen = screen; } }
+  var refresh = null;
+  try { refresh = JSON.parse(found[deskRefreshKey_(sessionDate)] || 'null'); } catch (error) { refresh = null; }
+  if (refresh && Number(refresh.at)) out.refresh = { at: Number(refresh.at), build: /^[0-9a-f]{1,32}$/.test(String(refresh.build || '')) ? String(refresh.build) : '' };
   return out;
 }

@@ -1,8 +1,18 @@
 # The Equalizer at the desk
 
 The Equalizer is a second way to run a rated event on the same desk, Sheet and
-roster as the round robin: a head start in every game based on club ratings,
-and 8 rating points on every match. The plan, the decisions behind it and the
+roster as the round robin: a head start in every game based on each player's
+**EQ rating**, and 8 EQ rating points on every match.
+
+**Two ratings.** Every player has a round robin rating (RR) and an Equalizer
+rating (EQ). The EQ rating starts as a copy of the RR rating the first time an
+Equalizer the player played is finalized, and from then on moves only with
+Equalizers; round robins move only the RR rating, and an Equalizer never
+changes an RR rating. The draw and head starts use the EQ rating (the RR
+rating for someone with none yet). The directory shows both (`RR 1500 · EQ
+1480`, with *(new)* until a player's first Equalizer); a player card shows the
+rating of the event they are in, with the other underneath, and the Player
+board shows EQ ratings on an Equalizer night. The plan, the decisions behind it and the
 research are in [GitHub issue #104](https://github.com/jb-cttc/concordtabletennisclub/issues/104).
 This page is how to run one and how to fix things.
 
@@ -73,9 +83,13 @@ round robin night **?** opens the usual desk tour.
    start (the red **+N** and "starts every game at N–0"). Groups show live
    standings with the club's tie-break notes; the Finals start once every
    group is decided, with byes for the best group winners. **Collapse
-   organizer** folds the player list away during play.
-7. **Finalize Equalizer** once it is finished. Every player's rating moves by
-   8 a match on top of their rating at that moment. The lock reopens it, as
+   organizer** folds the player list away during play, and clicking a
+   group's or Finals round's header folds that section, as in round robin
+   scoring.
+7. **Finalize Equalizer** once it is finished. Every player's EQ rating moves
+   by 8 a match on top of their EQ rating at that moment (a copy of their RR
+   rating for a first Equalizer); RR ratings do not change. Reopening puts the
+   EQ ratings back. The lock reopens it, as
    for round robins.
 
 **Player board** (the TV window, see [round-robin operations](round-robin-operations.md#player-board-the-gym-tv))
@@ -104,7 +118,8 @@ newest first.
 | `SessionPlayers` | The Equalizer's roster, with each player's rating at the draw. |
 | `Brackets` | One row per Equalizer: rule version, format, play, best of, the odd-player choice, and the saved draw (`draw_json`). |
 | `BracketMatches` | One row per result: the two sides, the head start used, games, Winner (`won_by`), forfeit. |
-| `RatingLedger` | One row per player when finalized, rule `cttc-equalizer-v1`. |
+| `RatingLedger` | One row per player when finalized, rule `cttc-equalizer-v1`: the EQ rating before and after. |
+| `EqualizerRatings` | Each player's EQ rating (`player_id`, `eq_rating`). Made by the first finalized Equalizer; a player without a row has no EQ rating yet. Edit only through the desk: finalize or reopen. |
 
 `Brackets` and `BracketMatches` are made by the first Equalizer save. Only
 the draw and the results are stored; teams, groups, the bracket, head starts
@@ -128,8 +143,10 @@ by hand: fix things at the desk.
 
 - The site's Equalizer pages (Rated Games, `/equalizer`, profile records,
   Hall of Fame) and an Equalizer results email. Until then the site and
-  email show round robins only, and Equalizer ratings appear in each
-  player's rating history (labelled Equalizer on their profile).
+  email show round robins only. A player's profile shows their EQ rating
+  beside the RR rating, and their Equalizers in Recent Sessions (labelled
+  Equalizer, the change from their previous Equalizer); the leaderboard and
+  rating chart are RR only.
 - The head-start memory reset (no automatic reset either), withdraw in one
   step, best-of changes after the draw, and Voice automatic answers that name
   the Equalizer.

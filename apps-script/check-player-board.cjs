@@ -729,12 +729,61 @@ const cases = {
     assert.equal(groupsNow()[1].sides.length, 5);
     assert.equal(groupsNow()[1].matches.length, 10);
     assert.equal(world.server.run('getEqualizerState', world.date).setup.draw.late.length, 2);
+    // A section's header folds it away, as in round robin scoring, and it stays folded through a redraw.
+    const head = main.$('#equalizer [data-eq-fold="g1"]');
+    main.click(head);
+    assert.ok(head.closest('.match-group').classList.contains('collapsed'));
+    assert.equal(head.getAttribute('aria-expanded'), 'false');
+    main.window.cttcDesk.setStatus('redraw');
+    main.addPlayer(world.players[21].player_id);
+    await run(world, 500);
+    assert.ok(main.$('#equalizer [data-eq-fold="g1"]').closest('.match-group').classList.contains('collapsed'), 'still folded after a redraw');
+    main.click(main.$('#equalizer [data-eq-late-cancel]'));
+    main.click(main.$('#equalizer [data-eq-fold="g1"]'));
+    assert.ok(!main.$('#equalizer [data-eq-fold="g1"]').closest('.match-group').classList.contains('collapsed'), 'and opens again');
     // One group's sheet prints on its own and leaves the print mark alone.
     main.click(main.$('#equalizer [data-eq-print-group="5"]'));
     assert.equal(main.window.document.querySelectorAll('.eq-group-sheet').length, 1);
     assert.ok(main.$('.eq-group-sheet').textContent.includes(nameOf(world, late)));
     [main].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
     board.close();
+  },
+
+  // Refresh projector on the main desk: a following laptop reads the whole night again and redraws its board; one
+  // running older desk code than the main desk says to reload there.
+  async followRefresh() {
+    const world = sim.createWorld({ seed: 79 });
+    const main = await deskWith(world, 12);
+    const follower = async build => {
+      const projector = world.device().open({ build });
+      await run(world, 15000);
+      const board = boardWindow(world, projector);
+      projector.click(projector.$('#player-board'));
+      await run(world, 1000);
+      boardClick(board, '#choose-follow');
+      await run(world, 15000);
+      return { projector, board };
+    };
+    const same = await follower();
+    const old = await follower('0ld0c0de'.replace(/[^0-9a-f]/g, 'f'));
+    // A refresh sent before a laptop started following is not acted on.
+    const since = world.clock.now();
+    main.click(main.$('#screen-control'));
+    main.click(main.$('#screen-refresh'));
+    await run(world, 15000);
+    assert.match(main.status(), /Refresh sent/);
+    const reads = tab => world.traffic.filter(log => log.tab === tab && log.sentAt >= since && log.name === 'getAppState').length;
+    assert.ok(reads(same.projector) >= 1, 'the follower read the whole night again');
+    assert.ok(same.board.$('#board-notice').hidden, 'same code: no warning');
+    assert.match(old.board.$('#board-notice').textContent, /older version of the desk/, 'older code: the board says to reload');
+    assert.match(old.projector.$('#follow-text').textContent, /older version of the desk/);
+    // Nothing more until the next refresh.
+    const later = world.clock.now();
+    await run(world, 30000);
+    assert.equal(world.traffic.filter(log => log.tab === same.projector && log.sentAt >= later && log.name === 'getAppState').length, 0);
+    [main, same.projector, old.projector].forEach(tab => assert.ok(!tab.errors.length, tab.errors.join('\n')));
+    same.board.close();
+    old.board.close();
   },
 
   async equalizerToFinals() {

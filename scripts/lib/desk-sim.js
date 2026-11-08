@@ -428,11 +428,12 @@ function storageFor(device, tab) {
   }
 }
 
-function pageHtml(date) {
+function pageHtml(date, build) {
   const read = name => fs.readFileSync(path.join(DESK, name + '.html'), 'utf8');
   return read('Index')
     .replace(/<\?!= include\('(\w+)'\) \?>/g, (match, name) => read(name))
     .replace(/<\?= deskMode \?>/g, 'dev')
+    .replace(/<\?= deskBuild \?>/g, build || 'a1b2c3')
     .replace(/<\?= initialDate \?>/g, date || '');
 }
 
@@ -440,7 +441,7 @@ function openTab(world, device, options) {
   const clock = world.clock;
   const tab = { world, device, closed: false, errors: [], statuses: [], confirms: [], alerts: [] };
   tab.confirmAnswer = options.confirm || (() => true);
-  const dom = new JSDOM(pageHtml(options.date || world.date), {
+  const dom = new JSDOM(pageHtml(options.date || world.date, options.build), {
     url: 'https://n-sim-script.googleusercontent.com/userCodeAppPanel',
     runScripts: 'dangerously',
     pretendToBeVisual: true,

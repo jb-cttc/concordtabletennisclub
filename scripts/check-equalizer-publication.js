@@ -73,17 +73,20 @@ function tables() {
   assert.equal(equalizer.equalizer.matches.length, Object.keys(results).length);
   assert.ok(equalizer.equalizer.matches.every(m => m.headStart && m.headStart.points === 2), 'head starts are published as played');
   assert.equal(equalizer.groups[0].players[0].place.place, 1, 'players in finishing order');
-  // Ratings chain: a player in both starts the Equalizer from the round robin's result.
+  // Two ratings: a player's first Equalizer starts their EQ rating from a copy of their round robin rating (here the
+  // round robin finalized earlier that day), and the Equalizer moves only the EQ rating.
   const both = world.players.find(p => p.player_id === ids[2]).display_name;
   const rrResult = publication.details[0].groups[0].players.find(p => p.name === both);
   const eqResult = equalizer.groups[0].players.find(p => p.name === both);
-  assert.equal(eqResult.ratingBefore, rrResult.ratingAfter, 'the Equalizer starts where the round robin ended');
+  assert.equal(eqResult.ratingBefore, rrResult.ratingAfter, 'a first Equalizer starts from a copy of the RR rating');
   assert.equal(eqResult.ratingAdj, 8 * (eqResult.wins - eqResult.losses));
 
   const players = buildPlayers(publication.details);
   const record = players.find(p => p.name === both);
-  assert.equal(record.currentRating, eqResult.ratingAfter, 'the rating includes the Equalizer');
-  assert.deepEqual(record.ratingHistory.map(h => h.variant || 'rr'), ['rr', 'equalizer']);
+  assert.equal(record.currentRating, rrResult.ratingAfter, 'the RR rating leaves the Equalizer out');
+  assert.equal(record.eqRating, eqResult.ratingAfter, 'the EQ rating is the Equalizer\'s');
+  assert.deepEqual(record.ratingHistory.map(h => h.variant || 'rr'), ['rr'], 'the RR history (leaderboard, chart) is round robins only');
+  assert.deepEqual(record.eqRatingHistory.map(h => [h.date, h.rating]), [[DATE, eqResult.ratingAfter]]);
   assert.equal(record.sessionsPlayed, 1, 'Equalizer wins, losses and sessions stay out of round robin records');
   assert.equal(record.totalWins + record.totalLosses, 3);
 

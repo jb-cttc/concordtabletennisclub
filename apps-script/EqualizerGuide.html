@@ -216,7 +216,7 @@
         '<li class="eqg-card" data-g="draw"><span class="eqg-board"><span>?</span><span>?</span></span><strong>The draw</strong>Everyone signed in goes into a random draw, for singles or random doubles partners. No seeds: you could meet anyone.</li>' +
         '<li class="eqg-card" data-g="head"><span class="eqg-board"><span>5</span><span>0</span></span><strong>Your head start</strong>Every full 40 rating points between you is 1 point at the start of every game, up to 8.</li>' +
         '<li class="eqg-card" data-g="ways"><span class="eqg-board"><span>2</span><span>×</span></span><strong>Two ways to play</strong><em>RR → Finals:</em> win your group of 4 to reach the Finals. <em>Double Elimination:</em> lose once and play on along the Survivor Trail.</li>' +
-        '<li class="eqg-card" data-g="points"><span class="eqg-board"><span>±</span><span>8</span></span><strong>8 points on the line</strong>Every match is worth 8 rating points, whoever you play: win and gain 8, lose and give 8. In doubles, both partners.</li>' +
+        '<li class="eqg-card" data-g="points"><span class="eqg-board"><span>±</span><span>8</span></span><strong>8 points on the line</strong>Every match is worth 8 points of your Equalizer rating, whoever you play: win and gain 8, lose and give 8. In doubles, both partners. Your EQ rating starts as a copy of your round robin rating and only Equalizers move it; an Equalizer never changes your round robin rating.</li>' +
         '</ol>';
     },
     headstart: function () {
@@ -483,7 +483,7 @@
   teaser.setAttribute('aria-labelledby', 'eqg-teaser-title');
   teaser.innerHTML = '<button type="button" class="eqg-x" data-teaser-close aria-label="Close" title="Close">&times;</button>' +
     '<h2 id="eqg-teaser-title"><span class="eqg-tag">New</span>The Equalizer</h2>' +
-    '<p>Same players, a new way to play: the lower-rated player starts every game with a head start (1 point per 40 rating points, up to 8), and every match is worth 8 rating points.</p>' +
+    '<p>Same players, a new way to play: the lower-rated player starts every game with a head start (1 point per 40 rating points, up to 8), and every match is worth 8 points of a separate Equalizer rating (your round robin rating never changes).</p>' +
     '<p>Choose RR → Finals or Double Elimination, singles or doubles, and best of 3 or 5 in the toolbar.</p>' +
     '<footer><label><input type="checkbox" data-teaser-off> Don’t show this again</label><button type="button" class="secondary" data-teaser-close>Got it</button><button type="button" class="primary" data-teaser-guide>How it works</button></footer>';
   document.body.appendChild(teaser);

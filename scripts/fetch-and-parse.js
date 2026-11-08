@@ -404,8 +404,8 @@ function buildPlayers(sessions) {
   sessions.slice().sort(function (a, b) {
     return a.date.localeCompare(b.date) || (a.variant === 'equalizer' ? 1 : 0) - (b.variant === 'equalizer' ? 1 : 0);
   }).forEach(function (session) {
-    // An Equalizer moves ratings like any session, but its wins, losses and head-to-head are kept apart from round
-    // robin records (GitHub issue #104), so here it only adds to the rating history.
+    // An Equalizer moves only the player's separate EQ rating (eqRating, eqRatingHistory), never their round robin
+    // rating, and its wins, losses and head-to-head are kept apart from round robin records (GitHub issue #104).
     const equalizer = session.variant === 'equalizer';
     session.groups.forEach(function (group) {
       group.players.forEach(function (playerResult) {
@@ -416,10 +416,13 @@ function buildPlayers(sessions) {
           player.totalLosses += playerResult.losses;
         }
 
-        if (Number.isFinite(playerResult.ratingAfter)) {
+        if (equalizer && Number.isFinite(playerResult.ratingAfter)) {
+          player.eqRating = playerResult.ratingAfter;
+          (player.eqRatingHistory = player.eqRatingHistory || []).push({ date: session.date, rating: playerResult.ratingAfter, variant: 'equalizer' });
+        } else if (Number.isFinite(playerResult.ratingAfter)) {
           player.currentRating = playerResult.ratingAfter;
           player.peakRating = Math.max(player.peakRating || playerResult.ratingAfter, playerResult.ratingAfter);
-          player.ratingHistory.push(equalizer ? { date: session.date, rating: playerResult.ratingAfter, variant: 'equalizer' } : { date: session.date, rating: playerResult.ratingAfter });
+          player.ratingHistory.push({ date: session.date, rating: playerResult.ratingAfter });
         }
 
         if (equalizer) return;
