@@ -1094,7 +1094,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   wake();
   render();
 
-  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers, setFollow: setFollow, applySettings: applySettings };
+  // Refresh projector on the main desk: draw everything again; say: a message that stays up until the next refresh.
+  function refreshNow(say) {
+    lastKey = '';
+    if (say) { notice.textContent = say; notice.hidden = false; } else if (notice.dataset.refresh) notice.hidden = true;
+    notice.dataset.refresh = say ? '1' : '';
+    rebuild();
+  }
+  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers, setFollow: setFollow, applySettings: applySettings, refreshNow: refreshNow };
 })();
 </script>
 <script>
@@ -1874,6 +1881,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     followTick: function () { return window.cttcDesk && window.cttcDesk.followTick ? window.cttcDesk.followTick() : { on: false }; },
     followChanged: function (on, message) { if (alive() && win.cttcBoardPage.setFollow) win.cttcBoardPage.setFollow(on, message); },
     // The main desk's Projector screen choice reaching a following board: false while no board window is up.
-    followScreen: function (choice) { return alive() && win.cttcBoardPage.applySettings ? win.cttcBoardPage.applySettings(choice) : false; } };
+    followScreen: function (choice) { return alive() && win.cttcBoardPage.applySettings ? win.cttcBoardPage.applySettings(choice) : false; },
+    // Refresh projector reaching a following board: a full redraw from the desk's state, with a message if any.
+    followRefresh: function (say) {
+      if (!alive()) return false;
+      facts = null;
+      if (win.cttcBoardPage.refreshNow) win.cttcBoardPage.refreshNow(say || '');
+      send();
+      return true;
+    } };
 })();
 </script>

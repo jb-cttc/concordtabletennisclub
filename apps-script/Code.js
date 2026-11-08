@@ -155,6 +155,7 @@ function deskPage_(event) {
   var requestedDate = event && event.parameter && event.parameter.date;
   template.initialDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') ? requestedDate : '';
   template.deskMode = deskMode_();
+  template.deskBuild = deskBuild_(template);
   return template.evaluate()
   .setTitle(template.deskMode === 'dev' ? 'DEV - CTTC Desk' : template.deskMode === 'live' ? 'LIVE - CTTC Desk' : 'CTTC Round Robin Manager')
   .addMetaTag('viewport', 'width=device-width, initial-scale=1')
@@ -166,6 +167,18 @@ function deskMode_() {
   var deployedUrl = '';
   try { deployedUrl = String(ScriptApp.getService().getUrl() || ''); } catch (error) { deployedUrl = ''; }
   return /\/dev$/.test(deployedUrl) ? 'dev' : /\/exec$/.test(deployedUrl) ? 'live' : 'unknown';
+}
+
+// A short fingerprint of the desk page's code (Index and every file it includes): a laptop in follow mode compares
+// its own with the main desk's when Refresh projector is clicked, to tell when it is running older code.
+function deskBuild_(template) {
+  try {
+    var raw = template.getRawContent();
+    var names = [];
+    raw.replace(/include\('(\w+)'\)/g, function (match, name) { if (names.indexOf(name) < 0) names.push(name); return match; });
+    var text = raw + names.map(function (name) { return HtmlService.createHtmlOutputFromFile(name).getContent(); }).join('');
+    return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text, Utilities.Charset.UTF_8).slice(0, 6).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');
+  } catch (error) { return ''; }
 }
 
 function include(name) {

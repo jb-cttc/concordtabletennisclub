@@ -83,7 +83,9 @@ round robin night **?** opens the usual desk tour.
    start (the red **+N** and "starts every game at N–0"). Groups show live
    standings with the club's tie-break notes; the Finals start once every
    group is decided, with byes for the best group winners. **Collapse
-   organizer** folds the player list away during play.
+   organizer** folds the player list away during play, and clicking a
+   group's or Finals round's header folds that section, as in round robin
+   scoring.
 7. **Finalize Equalizer** once it is finished. Every player's EQ rating moves
    by 8 a match on top of their EQ rating at that moment (a copy of their RR
    rating for a first Equalizer); RR ratings do not change. Reopening puts the

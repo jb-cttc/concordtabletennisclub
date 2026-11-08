@@ -380,9 +380,22 @@ window.CTTCEqualizerDesk = function (desk) {
     var matches = view.matches.filter(function (m) { return m.bracket === 'G' && m.group === table.number; });
     var late = ev.groups[table.number - 1].late || [];
     var lateNote = late.length ? '<p class="eq-section-note">Late add' + (late.length > 1 ? 's' : '') + ': ' + late.map(function (id) { return esc(player(id).name); }).join(', ') + ' (after the draw; nobody else moved). <button type="button" class="small" data-eq-print-group="' + table.number + '">Print sheet</button></p>' : '';
-    return '<section class="match-group"><h3><span class="group-title">Group ' + table.number + '</span><span class="count">' + table.played + ' / ' + table.total + ' complete</span></h3>' + lateNote +
+    return foldHead('g' + table.number, 'Group ' + table.number, table.played + ' / ' + table.total + ' complete') + lateNote +
       '<table class="standings"><thead><tr><th>' + (ev.play === 'doubles' ? 'Team' : 'Player') + '</th><th>W-L</th><th>Games</th><th>Rating</th></tr></thead><tbody>' + rows + '</tbody></table>' + note +
-      matches.map(function (m) { return matchRow(ev, view, m); }).join('') + '</section>';
+      matches.map(function (m) { return matchRow(ev, view, m); }).join('') + '</div></div></section>';
+  }
+  // A section's header folds it away, like round robin scoring (the same classes and look: Index.html). Which ones are
+  // folded is kept while the page is open.
+  var folded = {};
+  function foldHead(key, title, count) {
+    var shut = !!folded[key];
+    return '<section class="match-group' + (shut ? ' collapsed' : '') + '"><h3 role="button" tabindex="0" data-eq-fold="' + esc(key) + '" data-toggle-group="0" aria-expanded="' + !shut + '"><span class="group-title"><span class="chev" aria-hidden="true">\u25BE</span>' + esc(title) + '</span><span class="count">' + esc(count) + '</span></h3><div class="fold"><div class="fold-inner">';
+  }
+  function toggleFold(head) {
+    var key = head.getAttribute('data-eq-fold');
+    folded[key] = !folded[key];
+    head.closest('.match-group').classList.toggle('collapsed', folded[key]);
+    head.setAttribute('aria-expanded', String(!folded[key]));
   }
   function bracketSections(ev, view, bracket, title, note) {
     var rounds = {};
@@ -392,7 +405,7 @@ window.CTTCEqualizerDesk = function (desk) {
     return keys.map(function (round, index) {
       var list = rounds[round];
       var done = list.filter(function (m) { return m.status === 'done'; }).length;
-      return '<section class="match-group"><h3><span class="group-title">' + esc(roundName(ev, list[0])) + '</span><span class="count">' + done + ' / ' + list.length + ' complete</span></h3>' + (index === 0 && note ? '<p class="eq-section-note">' + esc(note) + '</p>' : '') + list.map(function (m) { return matchRow(ev, view, m); }).join('') + '</section>';
+      return foldHead(bracket + round, roundName(ev, list[0]), done + ' / ' + list.length + ' complete') + (index === 0 && note ? '<p class="eq-section-note">' + esc(note) + '</p>' : '') + list.map(function (m) { return matchRow(ev, view, m); }).join('') + '</div></div></section>';
     }).join('');
   }
   function oddNotice(ev) {
@@ -551,6 +564,8 @@ window.CTTCEqualizerDesk = function (desk) {
 
   // ---- Clicks inside the workspace and the options ----
   root.addEventListener('click', function (e) {
+    var head = e.target.closest('[data-eq-fold]');
+    if (head) { toggleFold(head); return; }
     var late = e.target.closest('button[data-eq-late]');
     if (late && !late.disabled) { joinLate(Number(late.getAttribute('data-eq-late'))); return; }
     if (e.target.closest('button[data-eq-late-cancel]')) { eq.arriving = ''; desk.changed(); desk.setStatus('Not added.'); return; }
@@ -560,6 +575,9 @@ window.CTTCEqualizerDesk = function (desk) {
     if (ball) { tapBall(ball.getAttribute('data-eq-score'), Number(ball.getAttribute('data-side')), Number(ball.getAttribute('data-games'))); return; }
     var badge = e.target.closest('button[data-eq-winner]');
     if (badge) tapWinner(badge.getAttribute('data-eq-winner'), Number(badge.getAttribute('data-side')));
+  });
+  root.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-eq-fold]')) { e.preventDefault(); toggleFold(e.target); }
   });
   root.addEventListener('change', function (e) {
     if (e.target.matches('[data-eq-forfeit]')) setForfeit(e.target.getAttribute('data-eq-forfeit'), e.target.value);

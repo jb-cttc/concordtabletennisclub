@@ -55,7 +55,9 @@ even when the switch moves no players. **Projector screen** on the main desk
 (`setFollowScreen`) is one cache write per choice, returned with the same stamps,
 so it adds no calls on the following desk. The desk's directory (`listPlayers` with no rows) also reads the
 small `EqualizerRatings` tab for EQ ratings: one extra Sheet read per directory
-load, no new timers or mail. The following desk asks for the
+load, no new timers or mail. **Refresh projector** is one cache write per click
+(`requestFollowRefresh`), returned with the same stamps; the follower then reads
+the night once, as when follow mode starts. The following desk asks for the
 stamps (`getDeskStamps`, a cache read: no Sheet, Gmail or settings reads) every
 10 seconds, once a minute after 20 quiet minutes, and reads only the part that
 moved: the night's session and marks (`getFollowState`, which skips the player

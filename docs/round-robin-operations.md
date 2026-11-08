@@ -202,6 +202,11 @@ payments.
     Only what is picked there is sent; a choice stays until the next one, on the desk
     or in that laptop's own settings strip, and a board that starts following later
     takes it too.
+  - **Refresh projector** (in the same panel) makes the following laptop read the
+    whole night again and redraw its board within about 10 seconds. If that laptop
+    runs an older version of the desk than the main desk (opened before a release),
+    its board says so: reload the desk page there and click **Player board**. A
+    laptop left open across a release shows the night with the old code until then.
   - It checks only while follow mode is on: every 10 seconds, once a minute after 20
     quiet minutes. It ends when the night is finalized or after 6 hours; that end
     keeps the answer, so the board follows again the next time it opens. After a

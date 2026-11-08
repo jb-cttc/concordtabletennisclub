@@ -428,7 +428,7 @@ const stub = '<script>(function(){function build(ok,bad){return new Proxy({},{ge
 function cashPage() {
   return stub + fs.readFileSync(path.join(DESK, 'Cash.html'), 'utf8')
     .replace('var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : null;', 'var ancestors = null; // preview only: skip the framing guard')
-    .replace('<?= deskMode ?>', 'dev')
+    .replace('<?= deskMode ?>', 'dev').replace(/<\?= deskBuild \?>/g, '0')
     .replace('<?= deskUrl ?>', '/');
 }
 
@@ -437,7 +437,7 @@ function page(date) {
   return stub + read('Index')
     .replace(/<\?!= include\('(\w+)'\) \?>/g, function (_, name) { return read(name); })
     .replace('var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : null;', 'var ancestors = null; // preview only: skip the framing guard')
-    .replace('<?= deskMode ?>', 'dev')
+    .replace('<?= deskMode ?>', 'dev').replace(/<\?= deskBuild \?>/g, '0')
     .replace('<?= initialDate ?>', date);
 }
 

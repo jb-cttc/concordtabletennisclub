@@ -17,7 +17,7 @@ function pageHtml(date) {
   const read = name => fs.readFileSync(path.join(DESK, name + '.html'), 'utf8');
   return read('Index')
     .replace(/<\?!= include\('(\w+)'\) \?>/g, (match, name) => read(name))
-    .replace(/<\?= deskMode \?>/g, 'dev')
+    .replace(/<\?= deskMode \?>/g, 'dev').replace(/<\?= deskBuild \?>/g, '0')
     .replace(/<\?= initialDate \?>/g, date);
 }
 
