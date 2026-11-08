@@ -79,6 +79,12 @@ var LOCATION = 'Walnut Creek Christian Academy, 2336 Buena Vista Ave, Walnut Cre
 var CLOSURES_URL = SITE_URL + '/data/closures.json';
 var CLOSURES_CACHE_SECONDS = 3600;
 var SITE_NOTES = { partial: 'Reduced play area, 10 tables max', holiday: 'Open on holiday' };
+// The Friday and Saturday special: on these nights everyone plays for fee, and the first 2 people to sign up to open and
+// the first 2 to sign up to close play free (freeSpots_). Dates are inclusive. The desk (apps-script/NightFees.js,
+// SPECIAL_NIGHTS) and the home page (index.html) carry the same dates; the desk charges the free volunteers nothing.
+var PERK_NIGHTS = [{ from: '2026-11-13', to: '2026-12-31', weekdays: [5, 6], fee: 5 }];
+var FREE_SPOTS = 2;
+var PART_WORDS = { open: 'open', close: 'close' };
 
 // Every slot a night has, as the club's open/close list names them. 'open' positions are the opening crew: one person may
 // hold only one of them per night, except the pairs in alsoWith (the desk organizer may also help set up).
@@ -141,7 +147,10 @@ var TABS = {
     'cancelled_by', 'notified',
     // The same person's own earlier pick(s) that night this pick replaces once they say YES to it (space separated
     // signup_ids; see "When a newer sign-up replaces an older pick").
-    'replaces'],
+    'replaces',
+    // On a special night (PERK_NIGHTS): when the person was emailed that this pick earns them a free night (freeSpots_). It
+    // also keeps their place: someone told they play free is never moved down.
+    'free_night'],
   // One row per submission: the one email (and text) that asks YES or NO about all its picks. emailed and texted hold the
   // status last sent, written only after the send worked, so the sweep retries a failed one. late is 'yes' when a late YES
   // confirmed only the picks still free.
@@ -178,6 +187,9 @@ var TABS = {
   SeedReport: ['at', 'kind', 'name', 'count', 'candidates'],
   // Typed by the owner: one date per row (2026-11-13 or 11/13/2026) and a short public note. Those nights show as closed.
   Closures: ['date', 'note'],
+  // One row per change made on the desk's Volunteer Admin page (adminApply_): change_id groups one submission; kind remove,
+  // move or training; before and after in words; emailed 'yes' once the person was told ('-' for training).
+  AdminChanges: ['at', 'change_id', 'kind', 'ref', 'player_id', 'name', 'before', 'after', 'emailed'],
   // One row per message sent, reply read, step or failure. to is a code, never an address or number.
   Log: ['at', 'channel', 'kind', 'ref', 'to', 'detail']
 };
@@ -195,6 +207,8 @@ function doPost(e) {
     var name = String(request && request.fn || '');
     // The desk's mail reader, when texts or an email reply came in (wake_).
     if (name === 'wake') result = wake_(request);
+    // The desk's Volunteer Admin page (admin_), with the desk's admin key.
+    else if (name === 'admin') result = admin_(request);
     else result = Object.prototype.hasOwnProperty.call(calls, name) ? calls[name].apply(null, Array.isArray(request.args) ? request.args.slice(0, 3) : []) : fail_('Unknown request.');
   } catch (error) {
     logError_('answer a request from the club site', error);
@@ -983,6 +997,102 @@ function missing_(entries, now) {
   return list;
 }
 
+// THE FREE-NIGHT RULE, kept word for word the same in staffing-app/Code.js and apps-script/Volunteers.js (a test compares
+// them). entries: one night's Signups rows, any status. Returns the people holding a free spot, openers first, as
+// [{key, part, confirmed, entries}]: in each part of the night (opening, closing) the first 2 people by sign-up time among
+// everyone holding a slot (confirmed, or waiting for their YES before its deadline). Someone already free as an opener is
+// skipped among the closers, so that spot passes to the next closer: up to 4 different people. Only sign-ups linked to a
+// desk player count (in hybrid mode, someone "not listed" can volunteer but holds no free spot). People already told they
+// play free (free_night set) keep their place ahead of the rest, so nobody is told and then loses it. A spot held by someone
+// still waiting to confirm is theirs, but free only once they confirm: if they never do, or drop, the next person moves up.
+function freeSpots_(entries, now) {
+  var parts = { desk: 'open', 'desk-backup': 'open', money: 'open', 'money-backup': 'open', tables: 'open', lockup: 'close', close: 'close' };
+  var people = { open: {}, close: {} };
+  entries.forEach(function (entry) {
+    var status = String(entry.status || '').trim();
+    if (status === 'pending' && Number(entry.expires_at) <= now) return;
+    if (status !== 'pending' && status !== 'confirmed') return;
+    var part = parts[String(entry.position || '').trim()];
+    if (!part) return;
+    // Players on the desk's list only: the desk charges by player, so someone it cannot match could never be shown free.
+    var playerId = String(entry.player_id || '').trim();
+    if (!playerId) return;
+    var key = 'p:' + playerId;
+    var person = people[part][key] || (people[part][key] = { key: key, part: part, confirmed: false, told: false, at: 8.64e15, id: '', entries: [] });
+    var at = Date.parse(entry.created_at) || 8.64e15;
+    var id = String(entry.signup_id || '');
+    if (at < person.at || (at === person.at && id < person.id)) { person.at = at; person.id = id; }
+    if (status === 'confirmed') person.confirmed = true;
+    if (String(entry.free_night || '').trim()) person.told = true;
+    person.entries.push(entry);
+  });
+  var chosen = {};
+  var spots = [];
+  ['open', 'close'].forEach(function (part) {
+    Object.keys(people[part]).map(function (key) { return people[part][key]; }).filter(function (person) { return !chosen[person.key]; }).sort(function (a, b) {
+      return (Number(b.told) - Number(a.told)) || (a.at - b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    }).slice(0, 2).forEach(function (person) {
+      chosen[person.key] = true;
+      spots.push({ key: person.key, part: person.part, confirmed: person.confirmed, entries: person.entries });
+    });
+  });
+  return spots;
+}
+
+// The special covering date, or null.
+function perkNight_(date) {
+  date = String(date || '');
+  if (!validDate_(date)) return null;
+  var weekday = weekday_(date);
+  return PERK_NIGHTS.filter(function (perk) { return date >= perk.from && date <= perk.to && perk.weekdays.indexOf(weekday) >= 0; })[0] || null;
+}
+
+// The free spot entry's person holds in its part of its night ({part, confirmed}), or null. signups: every row.
+function freeSpotOf_(entry, signups, now) {
+  if (!perkNight_(entry.date)) return null;
+  var spec = position_(entry.position);
+  if (!spec) return null;
+  var key = personKey_(entry);
+  return freeSpots_(signups.filter(function (other) { return other.date === entry.date; }), now).filter(function (spot) {
+    return spot.key === key && spot.part === spec.part;
+  })[0] || null;
+}
+
+// "one of the first 2 to open on Fri Nov 20"
+function freeWhy_(part) { return 'one of the first ' + FREE_SPOTS + ' to ' + PART_WORDS[part]; }
+
+// Call while holding the lock. Everyone who now holds a free spot, has confirmed, and was never told (a spot that passed to
+// them when someone ahead dropped or never confirmed): one email per person and night, then free_night on their picks in
+// that part, so it goes out once and they keep their place. Only nights from today on.
+function awardFree_(signups, emails, now) {
+  var today = pacificNow_().date;
+  var nights = {};
+  signups.forEach(function (entry) { if (entry.date >= today && perkNight_(entry.date)) (nights[entry.date] = nights[entry.date] || []).push(entry); });
+  Object.keys(nights).sort().forEach(function (date) {
+    freeSpots_(nights[date], now).forEach(function (spot) {
+      if (!spot.confirmed || spot.entries.some(function (entry) { return entry.free_night; })) return;
+      var mine = spot.entries.filter(function (entry) { return signupStatus_(entry, now) === 'confirmed'; });
+      if (!mine.length || !mailAvailable_()) return;
+      var to = contactOf_(mine[0], emails);
+      var perk = perkNight_(date);
+      try {
+        sendMail_(to, 'Good news: you play free at CTTC on ' + shortDay_(date), ['Hello ' + (firstName_(mine[0].name) || 'there') + ',',
+          { callout: '\ud83c\udf81 **You play free on ' + dayLabel_(date) + '.** A free spot opened up, and you are now ' + freeWhy_(spot.part) + ' that night.', tone: 'free' },
+          shiftRows_(mine),
+          'Nothing to do: the desk sees it. Everyone else pays $' + perk.fee + ' that night.',
+          'Can\'t make it after all? Untick it on your nights page so the free spot passes to the next volunteer: ' + mineLink_(to)], ['free-night', mine[0].signup_id]);
+      } catch (error) {
+        logError_('tell a volunteer they play free', error, mine[0].signup_id);
+        return;
+      }
+      spot.entries.forEach(function (entry) {
+        entry.free_night = nowIso_();
+        save_('Signups', entry);
+      });
+    });
+  });
+}
+
 // ---------- Public: the calendar ----------
 
 // The three-month calendar: each night's status and its slots, first names only. Confirmed slots carry the sign-up's id so
@@ -1006,20 +1116,36 @@ function board_(signups, closures, now) {
       here.forEach(function (entry) {
         if (!slots[entry.position]) return;
         var pending = signupStatus_(entry, now) === 'pending';
-        var slot = { name: labels[entry.signup_id], pending: pending, finalize: entry.finalize === 'yes' };
+        var slot = { name: labels[entry.signup_id], pending: pending, finalize: entry.finalize === 'yes', signupId: entry.signup_id };
         if (!pending) slot.id = entry.signup_id;
         slots[entry.position].push(slot);
       });
     }
     var status = night.closed ? 'closed' : night.past ? 'past' : statusOf_(here, now);
+    // A special night: who holds each free spot (first names, as the slots show them) and how many are left in each part.
+    var perk = !night.closed && !night.past ? perkNight_(date) : null;
+    var free = null;
+    if (perk) {
+      free = { fee: perk.fee, spots: FREE_SPOTS, open: { left: FREE_SPOTS, people: [] }, close: { left: FREE_SPOTS, people: [] } };
+      freeSpots_(here, now).forEach(function (spot) {
+        free[spot.part].left -= 1;
+        free[spot.part].people.push({ name: labels[spot.entries[0].signup_id], pending: !spot.confirmed });
+        spot.entries.forEach(function (entry) {
+          (slots[entry.position] || []).forEach(function (slot) { if (slot.signupId === entry.signup_id) slot.free = true; });
+        });
+      });
+    }
+    POSITIONS.forEach(function (spec) { slots[spec.id].forEach(function (slot) { delete slot.signupId; }); });
     return {
       date: date, day: dayLabel_(date), short: shortDay_(date), time: time12_(night.start) + ' to ' + time12_(night.end), start: night.start, end: night.end,
       status: status, bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date),
-      missing: night.closed || night.past ? [] : missing_(here, now), wanted: status === 'covered' ? wanted_(here, now) : [], slots: slots
+      missing: night.closed || night.past ? [] : missing_(here, now), wanted: status === 'covered' ? wanted_(here, now) : [], slots: slots, free: free
     };
   });
   return {
     ok: true, mode: mode_(), maxPicks: MAX_PICKS, textNumber: TEXT_NUMBER, today: horizon.today,
+    // The special while any of its nights is still ahead: the page explains it once at the top.
+    perk: PERK_NIGHTS.filter(function (perk) { return perk.to >= horizon.today; }).map(function (perk) { return { from: perk.from, to: perk.to, fee: perk.fee, spots: FREE_SPOTS }; })[0] || null,
     months: horizon.months.map(function (month) { return { year: month.year, month: month.month, title: MONTHS[month.month - 1] + ' ' + month.year }; }),
     positions: POSITIONS.map(function (spec) {
       return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, full: spec.full || spec.min, max: spec.max, brief: spec.brief, does: spec.does, trained: spec.training.length > 0,
@@ -2667,7 +2793,8 @@ function mineView_(owner, signups, emails, now) {
   }).forEach(function (entry) {
     var night = nights[nights.length - 1];
     if (!night || night.date !== entry.date) nights.push(night = { date: entry.date, label: dayLabel_(entry.date), short: shortDay_(entry.date), shifts: [] });
-    night.shifts.push({ id: entry.signup_id, label: shiftLabel_(entry), status: entry.status });
+    var spot = freeSpotOf_(entry, signups, now);
+    night.shifts.push({ id: entry.signup_id, label: shiftLabel_(entry), status: entry.status, free: spot ? (spot.confirmed ? 'yes' : 'held') : '' });
     if (entry.status === 'pending' && (!until || Number(entry.expires_at) < until)) until = Number(entry.expires_at);
     name = name || firstName_(entry.name);
   });
@@ -3766,6 +3893,7 @@ function sweep_() {
       textBatch_(batch, signups, people, now);
     });
     cancelClosed_(signups, rows_('Emails'));
+    awardFree_(signups, rows_('Emails'), now);
     remind_(signups, rows_('Emails'), now);
     pruneBundles_(now);
     trimLog_();
@@ -3803,6 +3931,13 @@ function deliverBatch_(batch, signups, now) {
   }
   batch.emailed = batch.status;
   save_('Batches', batch);
+  // The confirmation said these play free: they keep their place, and awardFree_ does not tell them again.
+  (message.freeIds || []).forEach(function (signupId) {
+    signups.filter(function (entry) { return entry.signup_id === signupId; }).forEach(function (entry) {
+      entry.free_night = nowIso_();
+      save_('Signups', entry);
+    });
+  });
 }
 
 // Call while holding the lock. A pending submission is also texted to someone who gets our texts: their latest question is
@@ -3914,6 +4049,38 @@ function replyLink_(subject, answer) {
   return 'mailto:' + Session.getEffectiveUser().getEmail() + '?subject=' + encodeURIComponent('Re: ' + subject) + '&body=' + encodeURIComponent(answer);
 }
 
+// What an email says about the special for these picks (one night each at most once): a gold callout for each night the
+// person plays free, and a plain line for the special nights where the free spots are taken. confirmed: the picks are
+// confirmed (else they are waiting for the YES). Returns {lines, freeIds}: freeIds are the picks the email says play free.
+function freeLines_(entries, signups, now, confirmed) {
+  var lines = [];
+  var freeIds = [];
+  var nights = {};
+  entries.forEach(function (entry) { if (perkNight_(entry.date)) (nights[entry.date] = nights[entry.date] || []).push(entry); });
+  var dates = Object.keys(nights).sort();
+  if (!dates.length) return { lines: lines, freeIds: freeIds };
+  var winning = [];
+  var taken = [];
+  dates.forEach(function (date) {
+    var spot = null;
+    nights[date].some(function (entry) { spot = freeSpotOf_(entry, signups, now); return !!spot; });
+    if (spot) {
+      winning.push(shortDay_(date) + ' (' + freeWhy_(spot.part) + ')');
+      if (confirmed) spot.entries.forEach(function (entry) { freeIds.push(entry.signup_id); });
+    } else taken.push(shortDay_(date));
+  });
+  var fee = perkNight_(dates[0]).fee;
+  if (winning.length) {
+    lines.push({ callout: '\ud83c\udf81 **' + (confirmed ? 'You play free' : 'You hold a free spot') + ': ' + winning.join(', ') + '.** ' +
+      (confirmed ? 'Nothing to do: the desk sees it.' : 'It is yours once you reply YES. If you don\'t confirm in time, it passes to the next volunteer.'), tone: 'free' });
+  }
+  if (taken.length) {
+    lines.push('Friday and Saturday special: on ' + taken.join(', ') + ' everyone pays $' + fee + '. The free spots (the first ' + FREE_SPOTS + ' to open and the first ' + FREE_SPOTS +
+      ' to close) are already held. If one opens up, the next volunteer in sign-up order plays free and we email them.');
+  }
+  return { lines: lines, freeIds: freeIds };
+}
+
 function batchMail_(batch, mine, now, bundle, signups) {
   signups = signups || mine;
   var hello = 'Hello ' + (firstName_(batch.name) || 'there') + ',';
@@ -3955,9 +4122,11 @@ function batchMail_(batch, mine, now, bundle, signups) {
         'Each button opens a reply with YES or NO already filled in: just press send.',
       many > 1 ? 'Or reply to this email with **YES**, **NO**, or **YES except** and the dates you can\'t do, like **YES except ' + exampleDates_(held) + '**.' :
         'Or reply to this email with **YES** or **NO**.'];
+    var perkLines = freeLines_(held, signups, now, false).lines;
     return { subject: subject, lines: [hello,
       batch.source === 'seed' ? 'You\'re on the club\'s open/close list, which has moved to the new volunteer calendar. Please confirm your nights so they show as yours.' : null,
       approved ? 'The club approved your email address: from now on we use it for your sign-ups.' : null].concat(answers, [
+    ].concat(perkLines, [
       changes.length ? { heading: 'Changes to your earlier sign-up' } : null, changes.length ? { rows: changes } : null,
       changes.length ? 'Your YES makes ' + (changes.length === 1 ? 'this change' : 'these changes') + '. Until then your earlier ' + (changes.length === 1 ? 'pick stays' : 'picks stay') + ' as ' +
         (changes.length === 1 ? 'it is' : 'they are') + ', and both are held.' : null,
@@ -3968,7 +4137,7 @@ function batchMail_(batch, mine, now, bundle, signups) {
       { bullets: ['Until you reply, these nights are held for you and show on the calendar as "waiting to confirm".',
         'No reply by ' + deadline + '? They are released so someone else can take them.',
         'Can\'t make a night later on? Untick it on your nights page: ' + mineLink_(batch.email),
-        'Didn\'t sign up? Ignore this email: nothing is confirmed without your YES.'] }]) };
+        'Didn\'t sign up? Ignore this email: nothing is confirmed without your YES.'] }])) };
   }
   if (batch.status === 'confirmed') {
     var confirmed = mine.filter(function (entry) { return entry.status === 'confirmed' || entry.status === 'dropped'; });
@@ -3977,10 +4146,12 @@ function batchMail_(batch, mine, now, bundle, signups) {
     var onNewer = mine.filter(function (entry) { return signupStatus_(entry, now) === 'pending' && replacedBy_(entry, signups, now); });
     // Answered with exceptions, or after a NO, or put right by the club: the email says plainly what is on the schedule now.
     var updated = ['yes except', 'yes again', 'club fix', 'my nights'].indexOf(batch.answer) >= 0;
-    return { subject: updated ? 'Understood: your CTTC volunteer nights are updated' : 'You are on the CTTC staff schedule', lines: [hello,
+    var perkNote = freeLines_(confirmed.filter(function (entry) { return entry.status === 'confirmed'; }), signups, now, true);
+    return { freeIds: perkNote.freeIds, subject: updated ? 'Understood: your CTTC volunteer nights are updated' : 'You are on the CTTC staff schedule', lines: [hello,
       updated ? { callout: 'Understood - we have updated the system with the following confirmed nights:', tone: 'good' } :
         { callout: 'Thank you! **' + confirmed.length + ' night' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
-      updated ? shiftRows_(confirmed) : null, updated ? 'That is ' + confirmed.length + ' night' + (confirmed.length === 1 ? '' : 's') + '. We email you a reminder the day before each one.' : null,
+      updated ? shiftRows_(confirmed) : null, updated ? 'That is ' + confirmed.length + ' night' + (confirmed.length === 1 ? '' : 's') + '. We email you a reminder the day before each one.' : null
+    ].concat(perkNote.lines, [
       { calendar: confirmed, closed: closedAround_(confirmed) }, updated ? null : { schedule: confirmed },
       missed.length ? { heading: 'Not confirmed: these were no longer free' } : null, missed.length ? shiftRows_(missed) : null,
       left.length ? { heading: 'Left out, as you asked' } : null, left.length ? shiftRows_(left) : null,
@@ -3989,7 +4160,7 @@ function batchMail_(batch, mine, now, bundle, signups) {
       onNewer.length ? shiftRows_(onNewer) : null,
       { heading: 'Where' }, LOCATION,
       { heading: 'Can\'t make a night after all?' },
-      'Untick it on your nights page and tap Save. The rest stay as they are, and the club is told: ' + mineLink_(batch.email)] };
+      'Untick it on your nights page and tap Save. The rest stay as they are, and the club is told: ' + mineLink_(batch.email)]) };
   }
   if (batch.status === 'released') {
     // Tagged, so a change of mind replied to this email ("yes except Oct 19") is read too (changeOfMind_).
@@ -4000,6 +4171,16 @@ function batchMail_(batch, mine, now, bundle, signups) {
   return { subject: 'Your CTTC staff sign-up expired ' + refTag_(batchCode_(batch)), lines: [hello,
     'We did not get your YES by ' + deadline + ', so these picks were released and others can take them:', shiftRows_(mine),
     'Still want to help? Reply to this email within 3 days with **YES**, or **YES except** and the dates you can\'t do, and we confirm whatever is still free. Or pick again at ' + PAGE_URL] };
+}
+
+// The reminder's line about the special: free tomorrow, or what everyone pays. null on an ordinary night.
+function freeReminder_(entries, signups, now) {
+  var perk = perkNight_(entries[0].date);
+  if (!perk) return null;
+  var spot = null;
+  entries.some(function (entry) { spot = freeSpotOf_(entry, signups, now); return !!spot && spot.confirmed; });
+  return spot && spot.confirmed ? { callout: '\ud83c\udf81 **You play free tomorrow:** you are ' + freeWhy_(spot.part) + '. Nothing to do: the desk sees it.', tone: 'free' } :
+    'Friday and Saturday special: everyone pays $' + perk.fee + ' tomorrow.';
 }
 
 // Call while holding the lock. One email per person per night, the day before (from REMIND_FROM, Pacific), listing their
@@ -4021,6 +4202,7 @@ function remind_(signups, emails, now) {
     try {
       sendMail_(key.split(' ')[0], 'Reminder: your CTTC shift tomorrow, ' + shortDay_(tomorrow), ['Hello ' + firstName_(entries[0].name) + ',',
         { callout: 'Thanks for helping run the club **tomorrow, ' + dayLabel_(tomorrow) + '**.', tone: 'good' }, shiftRows_(entries),
+        freeReminder_(entries, signups, now),
         { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]] },
         'Can\'t make it? Please untick it on your nights page so someone can step in: ' + mineLink_(key.split(' ')[0])], ['reminder', entries[0].batch_id]);
     } catch (error) {
@@ -4032,6 +4214,325 @@ function remind_(signups, emails, now) {
       save_('Signups', entry);
     });
   });
+}
+
+// ---------- The club's Volunteer Admin ----------
+// The desk's Volunteer Admin page (apps-script/VolunteerAdmin.js, ?view=volunteers, which only the club account can open)
+// reads and changes this app's schedule and training through doPost (fn 'admin'), with the desk's admin key: the hidden
+// AppWake tab of the desk Sheet, column B, which only the desk writes. Every rule and every email stays here.
+//   board: every upcoming night with full names, the training lists, the last changes, the emails left today.
+//   apply: a bucket of changes (remove a shift, move one, give or take training), checked all together against the
+//   Sheet as it is now. Any problem and nothing is changed. With preview, nothing is changed either: the answer is the
+//   emails each person would get. Otherwise every change is saved, recorded in AdminChanges, and each person whose
+//   shifts changed gets one email saying what changed.
+var ADMIN_MAX_CHANGES = 60;
+var ADMIN_NOTE_MAX = 500;
+var ADMIN_RECENT = 25;
+var ADMIN_SKILLS = ['keys', 'open', 'front_desk'];
+
+function adminKeyMatches_(key) {
+  if (!key || key.length < 32) return false;
+  var cache = CacheService.getScriptCache();
+  if (cache.get('admin-key') === key) return true;
+  var tab = book_('DESK_SHEET_ID').getSheetByName('AppWake');
+  var stored = tab && tab.getLastRow() >= 2 ? String(tab.getRange(2, 2, 1, 1).getValues()[0][0] || '') : '';
+  if (stored.length < 32 || stored !== key) return false;
+  cache.put('admin-key', stored, 21600);
+  return true;
+}
+
+function admin_(request) {
+  if (!adminKeyMatches_(String(request.key || ''))) return fail_('Unknown request.');
+  if (request.action === 'board') return adminBoard_();
+  if (request.action === 'apply') return adminApply_(request.changes, request.note, !!request.preview, request.newPlayers);
+  return fail_('Unknown request.');
+}
+
+// One sign-up as the admin page shows it: full name, the desk player, status, and whether it holds a free spot.
+function adminSlot_(entry, now, free) {
+  return { id: entry.signup_id, playerId: entry.player_id, name: entry.name, status: signupStatus_(entry, now), finalize: entry.finalize === 'yes',
+    free: free ? (free.confirmed ? 'yes' : 'held') : '', signedUp: entry.created_at };
+}
+
+function adminBoard_() {
+  var now = Date.now();
+  var horizon = horizon_();
+  var closures = closures_();
+  var site = siteClosures_();
+  var signups = rows_('Signups');
+  var holding = signups.filter(function (entry) { return holds_(entry, now) && entry.date >= horizon.today && entry.date <= horizon.last; });
+  var nights = nightsIn_(horizon).filter(function (date) { return date >= horizon.today; }).map(function (date) {
+    var night = nightOf_(date, horizon, closures);
+    var here = holding.filter(function (entry) { return entry.date === date; }).sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
+    var perk = night.closed ? null : perkNight_(date);
+    var freeBy = {};
+    var left = { open: FREE_SPOTS, close: FREE_SPOTS };
+    if (perk) {
+      freeSpots_(here, now).forEach(function (spot) {
+        left[spot.part] -= 1;
+        spot.entries.forEach(function (entry) { if (position_(entry.position).part === spot.part) freeBy[entry.signup_id] = spot; });
+      });
+    }
+    var slots = {};
+    POSITIONS.forEach(function (spec) {
+      slots[spec.id] = here.filter(function (entry) { return entry.position === spec.id; }).map(function (entry) { return adminSlot_(entry, now, freeBy[entry.signup_id]); });
+    });
+    return { date: date, day: dayLabel_(date), short: shortDay_(date), time: time12_(night.start) + ' to ' + time12_(night.end), start: night.start, end: night.end,
+      closed: night.closed, note: night.closed ? night.note : siteNote_(site, date), status: night.closed ? 'closed' : statusOf_(here, now),
+      open: !night.closed && wallMinutes_(date, night.end) > nowMinutes_(), free: perk ? { fee: perk.fee, open: left.open, close: left.close } : null, slots: slots };
+  });
+  var training = rows_('Training').map(function (row) {
+    return { playerId: String(row.player_id), name: row.name, keys: trained_(row.keys), open: trained_(row.open), front_desk: trained_(row.front_desk) };
+  }).filter(function (row) { return row.keys || row.open || row.front_desk; });
+  var recent = rows_('AdminChanges').slice(-ADMIN_RECENT).reverse().map(function (row) {
+    return { at: row.at, kind: row.kind, name: row.name, before: row.before, after: row.after, emailed: row.emailed };
+  });
+  return {
+    ok: true, today: horizon.today, mode: mode_(), quota: MailApp.getRemainingDailyQuota(), minQuota: MIN_QUOTA, maxChanges: ADMIN_MAX_CHANGES, noteMax: ADMIN_NOTE_MAX,
+    months: horizon.months.map(function (month) { return { year: month.year, month: month.month, title: MONTHS[month.month - 1] + ' ' + month.year }; }),
+    positions: POSITIONS.map(function (spec) {
+      return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, full: spec.full || spec.min, max: spec.max, training: spec.training, alsoWith: spec.alsoWith || [] };
+    }),
+    skills: ADMIN_SKILLS.map(function (skill) { return { id: skill, label: SKILLS[skill] }; }),
+    nights: nights, training: training, recent: recent
+  };
+}
+
+// "Fri, Nov 13: Desk organizer (opening, 7:00 PM)"
+function adminShift_(entry) { return shortDay_(entry.date) + ': ' + shiftLabel_(entry); }
+
+// Checks and applies a bucket of changes (see above). changes: [{ kind: 'remove', id, was: {date, position} } |
+// { kind: 'move', id, was, to: {date, position} } | { kind: 'training', playerId, skill, value }]. newPlayers: players the
+// desk is adding with this bucket ([{playerId, name}]), known to the desk though not yet in this app's cached player list.
+function adminApply_(changes, note, preview, newPlayers) {
+  if (!Array.isArray(changes) || !changes.length) return fail_('Nothing to submit.');
+  if (changes.length > ADMIN_MAX_CHANGES) return fail_('Too many changes at once: submit at most ' + ADMIN_MAX_CHANGES + '.');
+  note = String(note || '').replace(/\r/g, '').trim();
+  if (note.length > ADMIN_NOTE_MAX) return fail_('The message is too long: at most ' + ADMIN_NOTE_MAX + ' characters.');
+  var known = {};
+  directory_().forEach(function (player) { known[player.playerId] = player.name; });
+  (Array.isArray(newPlayers) ? newPlayers : []).forEach(function (player) {
+    if (player && /^[A-Za-z0-9_-]{1,80}$/.test(String(player.playerId || '')) && String(player.name || '').trim()) known[String(player.playerId)] = cleanName_(player.name);
+  });
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  var result;
+  try {
+    result = adminRun_(changes, note, preview, known);
+  } finally {
+    lock.releaseLock();
+  }
+  if (!result.ok || preview) return result;
+  // Someone ahead moved or removed: whoever moves up into a free spot is told, as after any drop.
+  try {
+    sweep_();
+  } catch (error) {
+    logError_('finish the sweep after a club change', error, result.changeId);
+  }
+  return result;
+}
+
+// Call while holding the lock.
+function adminRun_(changes, note, preview, known) {
+  var now = Date.now();
+  var horizon = horizon_();
+  var closures = closures_();
+  var signups = rows_('Signups');
+  var emails = rows_('Emails');
+  var trainingRows = rows_('Training');
+  // Every change is made on copies first, so a problem anywhere leaves the Sheet as it was.
+  var copies = signups.map(function (entry) { return Object.assign({}, entry); });
+  var byId = {};
+  copies.forEach(function (entry) { byId[entry.signup_id] = entry; });
+  var training = {};
+  trainingRows.forEach(function (row) {
+    var id = String(row.player_id).trim();
+    if (id && !training[id]) training[id] = { row: row, keys: trained_(row.keys), open: trained_(row.open), front_desk: trained_(row.front_desk) };
+  });
+  var trainingOf = function (playerId) {
+    var held = training[playerId];
+    var out = {};
+    ADMIN_SKILLS.forEach(function (skill) { out[skill] = !!held && held[skill]; });
+    return out;
+  };
+  var problems = [];
+  var done = [];
+  var problem = function (index, reason) { problems.push({ index: index, reason: reason }); };
+  // Training first, so a move in the same bucket can use it.
+  changes.forEach(function (change, index) {
+    if (!change || change.kind !== 'training') return;
+    var playerId = String(change.playerId || '');
+    if (ADMIN_SKILLS.indexOf(change.skill) < 0 || typeof change.value !== 'boolean') return problem(index, 'That training change is not valid.');
+    if (!known[playerId]) return problem(index, 'That player is not on the desk\'s active player list.');
+    var held = training[playerId] || (training[playerId] = { row: null, keys: false, open: false, front_desk: false });
+    if (held[change.skill] === change.value) return problem(index, known[playerId] + ' ' + (change.value ? 'already has' : 'does not have') + ' ' + SKILLS[change.skill] + ' training.');
+    held[change.skill] = change.value;
+    held.changed = true;
+    done.push({ index: index, kind: 'training', playerId: playerId, name: known[playerId], before: change.value ? 'no' : 'yes', after: change.value ? 'yes' : 'no',
+      what: SKILLS[change.skill] });
+  });
+  changes.forEach(function (change, index) {
+    if (!change || change.kind === 'training') return;
+    if (change.kind !== 'remove' && change.kind !== 'move') return problem(index, 'Unknown change.');
+    var entry = byId[String(change.id || '')];
+    var was = change.was || {};
+    if (!entry || !holds_(entry, now) || entry.date !== was.date || entry.position !== was.position) {
+      return problem(index, 'This shift changed since the page loaded (someone dropped, confirmed or was moved). Reload and try again.');
+    }
+    if (entry.date < horizon.today) return problem(index, 'That night is past.');
+    var before = { date: entry.date, position: entry.position };
+    if (change.kind === 'remove') {
+      entry.status = 'cancelled';
+      entry.cancelled_by = 'club';
+      entry.updated_at = nowIso_();
+      done.push({ index: index, kind: 'remove', entry: entry, before: before });
+      return;
+    }
+    var to = change.to || {};
+    var spec = position_(String(to.position || ''));
+    var night = nightOf_(String(to.date || ''), horizon, closures);
+    if (!spec || !night) return problem(index, 'That is not a club night and position on the calendar.');
+    if (night.closed) return problem(index, 'The club is closed that night.');
+    if (night.date < horizon.today || wallMinutes_(night.date, night.end) <= nowMinutes_()) return problem(index, 'That night is over.');
+    if (night.date === entry.date && spec.id === entry.position) return problem(index, entry.name + ' is already there.');
+    var person = { playerId: entry.player_id, key: personKey_(entry), training: entry.player_id ? trainingOf(entry.player_id) : trainingFor_(trainingRows, { email: entry.email }) };
+    var rule = canTake_(person, spec.id);
+    if (rule) return problem(index, entry.name + ': ' + rule.replace(/ Please ask the club, or pick Table setup or Closing\.$/, ''));
+    var others = copies.filter(function (other) { return other !== entry && other.date === night.date && holds_(other, now); });
+    if (others.filter(function (other) { return other.position === spec.id; }).length >= spec.max) return problem(index, spec.label + ' is full on ' + shortDay_(night.date) + '.');
+    var clash = others.filter(function (other) { return personKey_(other) === person.key && clash_(spec, position_(other.position)); })[0];
+    if (clash) return problem(index, entry.name + ' already has ' + position_(clash.position).label + ' on ' + shortDay_(night.date) + ' (one ' + (spec.part === 'open' ? 'opening' : 'closing') + ' position per night).');
+    var sameNight = night.date === entry.date;
+    var samePart = sameNight && position_(entry.position).part === spec.part;
+    entry.date = night.date;
+    entry.position = spec.id;
+    if (!samePart) {
+      // A new night, or the other half of it: a new place in its free-spot line, and a new reminder.
+      entry.free_night = '';
+      entry.finalize = '';
+    }
+    if (!sameNight) {
+      entry.created_at = nowIso_();
+      entry.reminded = '';
+    }
+    entry.drop_at = '';
+    entry.updated_at = nowIso_();
+    done.push({ index: index, kind: 'move', entry: entry, before: before });
+  });
+  if (problems.length) return { ok: false, problems: problems, message: problems.length === 1 ? 'One change cannot be made, so nothing was changed.' : problems.length + ' changes cannot be made, so nothing was changed.' };
+
+  // One email per person whose shifts changed.
+  var people = {};
+  done.forEach(function (item) {
+    if (!item.entry) return;
+    var contact = contactOf_(item.entry, emails);
+    (people[contact] = people[contact] || { contact: contact, name: item.entry.name, items: [] }).items.push(item);
+  });
+  var contacts = Object.keys(people);
+  if (!preview && contacts.length && MailApp.getRemainingDailyQuota() - contacts.length < MIN_QUOTA) {
+    return fail_('Not enough emails left today to tell the ' + contacts.length + ' people affected (' + MailApp.getRemainingDailyQuota() + ' left). Nothing was changed. Try again tomorrow, or submit fewer changes.');
+  }
+  var messages = contacts.map(function (contact) { return adminMail_(people[contact], copies, signups, note, now); });
+  if (preview) {
+    return { ok: true, preview: true, changes: done.length, emails: messages.map(function (message, index) {
+      return { name: people[contacts[index]].name, to: maskEmail_(contacts[index]), subject: message.subject, text: message.lines.filter(Boolean).map(blockText_).filter(Boolean).join('\n\n') };
+    }) };
+  }
+
+  // Save: the moved and removed sign-ups, then the training, then what each change was.
+  var changeId = id_();
+  done.forEach(function (item) { if (item.entry) save_('Signups', item.entry); });
+  Object.keys(training).forEach(function (playerId) {
+    var held = training[playerId];
+    if (!held.changed) return;
+    var row = held.row || { player_id: playerId, name: known[playerId] };
+    ADMIN_SKILLS.forEach(function (skill) { row[skill] = held[skill] ? 'yes' : 'no'; });
+    row.updated_at = nowIso_();
+    save_('Training', row);
+  });
+  // A sign-up whose every pick was taken off while it still waited for a YES has nothing left to ask: it is closed quietly
+  // (the person's email about the change says what happened).
+  var batchIds = {};
+  done.forEach(function (item) { if (item.entry) batchIds[item.entry.batch_id] = true; });
+  rows_('Batches').forEach(function (batch) {
+    if (!batchIds[batch.batch_id] || batchStatus_(batch, now) !== 'pending') return;
+    var waiting = copies.some(function (entry) { return entry.batch_id === batch.batch_id && signupStatus_(entry, now) === 'pending'; });
+    if (waiting) return;
+    batch.status = 'released';
+    batch.emailed = 'released';
+    batch.answer = 'club';
+    batch.answered_at = nowIso_();
+    batch.updated_at = nowIso_();
+    save_('Batches', batch);
+  });
+  var records = done.map(function (item) {
+    var record = { at: nowIso_(), change_id: changeId, kind: item.kind, emailed: '' };
+    if (item.kind === 'training') return Object.assign(record, { ref: item.playerId, player_id: item.playerId, name: item.name, before: item.what + ': ' + item.before, after: item.what + ': ' + item.after, emailed: '-' });
+    return Object.assign(record, { ref: item.entry.signup_id, player_id: item.entry.player_id, name: item.entry.name,
+      before: adminShift_(Object.assign({}, item.entry, item.before, { finalize: '' })), after: item.kind === 'remove' ? 'removed' : adminShift_(item.entry) });
+  });
+  records.forEach(function (record) { save_('AdminChanges', record); });
+  var emailed = 0;
+  messages.forEach(function (message, index) {
+    var person = people[contacts[index]];
+    try {
+      sendMail_(person.contact, message.subject, message.lines, ['club-change', changeId]);
+    } catch (error) {
+      logError_('tell a volunteer about a club change', error, changeId);
+      return;
+    }
+    emailed += 1;
+    (message.freeIds || []).forEach(function (signupId) {
+      var entry = byId[signupId];
+      if (!entry || entry.free_night) return;
+      entry.free_night = nowIso_();
+      save_('Signups', entry);
+    });
+    person.items.forEach(function (item) {
+      var record = records[done.indexOf(item)];
+      record.emailed = 'yes';
+      save_('AdminChanges', record);
+    });
+  });
+  logRow_('step', 'step:club-change', changeId, '-', done.length + ' changes, ' + emailed + ' of ' + contacts.length + ' people emailed');
+  return { ok: true, changeId: changeId, changes: done.length, emailed: emailed, people: contacts.length };
+}
+
+// The email to one person about the club's changes to their shifts. after: every sign-up as it will be; before: as it was.
+function adminMail_(person, after, before, note, now) {
+  var removed = person.items.filter(function (item) { return item.kind === 'remove'; });
+  var moved = person.items.filter(function (item) { return item.kind === 'move'; });
+  var rows = moved.map(function (item) {
+    return ['Moved', '~~' + adminShift_(Object.assign({}, item.entry, item.before, { finalize: '' })) + '~~ to ++' + adminShift_(item.entry) + '++'];
+  }).concat(removed.map(function (item) { return ['Removed', adminShift_(Object.assign({}, item.entry, item.before)) + ': you are off this shift']; }));
+  var waiting = moved.filter(function (item) { return signupStatus_(item.entry, now) === 'pending'; });
+  // Free nights: where the change gave them one, and where it took one away.
+  var key = personKey_(person.items[0].entry);
+  var lost = [];
+  person.items.forEach(function (item) {
+    if (!perkNight_(item.before.date)) return;
+    var had = freeSpots_(before.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key && spot.confirmed; });
+    var has = freeSpots_(after.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key; });
+    if (had && !has && lost.indexOf(item.before.date) < 0) lost.push(item.before.date);
+  });
+  var confirmedMoves = moved.filter(function (item) { return signupStatus_(item.entry, now) === 'confirmed'; }).map(function (item) { return item.entry; });
+  var free = freeLines_(confirmedMoves, after, now, true);
+  var upcoming = after.filter(function (entry) {
+    return personKey_(entry) === key && entry.date >= pacificNow_().date && holds_(entry, now);
+  }).sort(function (a, b) { return (a.date + POSITIONS.indexOf(position_(a.position))).localeCompare(b.date + POSITIONS.indexOf(position_(b.position))); });
+  var count = rows.length;
+  return { freeIds: free.freeIds, subject: 'The club changed your CTTC volunteer ' + (count === 1 ? 'shift' : 'shifts'), lines: ['Hello ' + (firstName_(person.name) || 'there') + ',',
+    { callout: 'The club made ' + (count === 1 ? 'a change' : count + ' changes') + ' to your volunteer schedule. **Here is what changed:**', tone: 'action' },
+    { rows: rows },
+    note ? { heading: 'Message from the club' } : null, note || null,
+    waiting.length ? 'Still waiting for your YES: ' + waiting.map(function (item) { return shortDay_(item.entry.date); }).join(', ') +
+      '. Reply YES to the confirmation email we sent before, or confirm on your nights page.' : null
+  ].concat(free.lines, [
+    lost.length ? 'You no longer hold a free spot on ' + lost.map(shortDay_).join(', ') + '.' : null,
+    { heading: 'Your upcoming shifts now' },
+    upcoming.length ? shiftRows_(upcoming) : 'You have no upcoming shifts. Thank you for helping!',
+    upcoming.length ? { calendar: upcoming, closed: closedAround_(upcoming) } : null,
+    'Questions, or can\'t make it? Reply to this email to reach the club, or untick a night on your nights page: ' + mineLink_(person.contact)]) };
 }
 
 // ---------- Email ----------
@@ -4166,7 +4667,8 @@ function blockHtml_(block) {
   if (typeof block === 'string') return '<p style="margin:0 0 12px;">' + mailHtml_(block) + '</p>';
   if (block.heading) return '<h3 style="margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #ddd;font-size:16px;color:#1f6b3a;">' + esc_(block.heading) + '</h3>';
   if (block.callout) {
-    var tone = block.tone === 'good' ? 'background:#e3f1e7;border-left:5px solid #1f6b3a;' : 'background:#fff4d6;border-left:5px solid #c98a00;';
+    var tone = block.tone === 'good' ? 'background:#e3f1e7;border-left:5px solid #1f6b3a;' : block.tone === 'free' ? 'background:#fff3c4;border-left:5px solid #b88a00;' :
+      'background:#fff4d6;border-left:5px solid #c98a00;';
     return '<div style="' + tone + 'padding:10px 14px;margin:0 0 14px;border-radius:4px;font-size:16px;">' + mailHtml_(block.callout) + '</div>';
   }
   if (block.rows) {

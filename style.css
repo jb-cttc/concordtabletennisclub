@@ -384,7 +384,10 @@ main {
 
 .volunteer-bar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   margin-top: 16px;
 }
 
@@ -626,6 +629,42 @@ td {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* The standing where-and-when box: blue, so it reads as reference, not news. Its tag is its heading. */
+.announcement.logistics {
+  border-color: #2f5f8f;
+  background: #eef4fa;
+}
+
+.announcement.logistics a {
+  color: #1f4f7f;
+}
+
+.announcement.logistics a:hover {
+  color: #143a5f;
+}
+
+.announcement.logistics .announcement-tag {
+  background: #2f5f8f;
+}
+
+h2.announcement-tag {
+  margin: 0 0 14px;
+  padding: 2px 8px;
+  border: 0;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+/* The Friday and Saturday special uses the plain .announcement green; its line under Fees matches. */
+.fee-special {
+  padding: 8px 12px;
+  border-left: 4px solid #2f6b3a;
+  background: #f0f7f1;
 }
 
 .two-col {

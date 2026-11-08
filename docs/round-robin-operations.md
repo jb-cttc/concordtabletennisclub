@@ -313,6 +313,24 @@ from `apps-script/NightFees.js`, which the desk, the cash flow page and Clover
 matching share. A player's status on an earlier night is the one they had
 then, from the membership changes in the `AuditLog`: a visitor who joins
 tonight is still a visitor on the nights before.
+
+**Friday and Saturday special (November 13 to December 31, 2026).** On those
+nights everyone pays **$5**: members, visitors, juniors and first visits alike,
+so the payment menu has no First visit choice and the hover text says "$5
+tonight". The **first 2 volunteers to sign up to open and the first 2 to sign
+up to close** play **free**: a gold **★** sits by their name on the roster, their
+payment button is gold and reads **★ FREE**, and *Tonight's volunteers* tags
+them **★ PLAYS FREE** (or **★ FREE if confirmed**
+while their sign-up still waits for their YES), with a note saying how many
+play free tonight. Nothing needs typing: the desk reads who they are from the
+volunteer app's `Signups` tab (`Volunteers.js`, `freeSpots_`, the same rule
+the volunteer app uses to tell them; see
+[the staffing guide](staffing-flow.md#11-the-friday-and-saturday-special)). The
+cash flow page counts them at $0 and marks them "volunteer, plays free". If
+someone shown FREE pays anyway, record it as usual. The dates are
+`SPECIAL_NIGHTS` in `NightFees.js`, `PERK_NIGHTS` in `staffing-app/Code.js`
+and `data-until` on the home and First Visit pages; to end or extend the
+special, change all of them together.
 Payment, Open Play and membership changes are kept on the device first and sync
 to the Sheet in the background, so they keep working when the connection
 drops. **Zeffy** is an optional monthly

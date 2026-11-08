@@ -46,3 +46,4 @@ if [ -n "$clasp_ok" ]; then
   echo "- Clover card payments, through the desk: npm run desk:google -- --view clover"
 fi
 echo "- GitHub (this repository): the session's GitHub tools, and git push to branches"
+echo "Rule (AGENTS.md, Never edit the Sheets by hand): never advise or document a direct Sheet edit. If no app control exists for a data change, propose a governed form (who may use it, checks, Review and Confirm, a change record)."

@@ -30,6 +30,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins
 | `docs/round-robin-operations.md` | How the desk and site fit together, rating rules, and the go-live checklist. |
 | `docs/equalizer-operations.md`, `equalizer.js` and friends | The Equalizer: the desk's second event (head starts by rating, RR → Finals or Double Elimination, singles or doubles), how to run it and fix things. Plan: [issue #104](https://github.com/jb-cttc/concordtabletennisclub/issues/104). |
 | `coaching-app/`, `docs/coaching-flow.md` | Public coaching booking app (its own Apps Script project), and the guide to which step a booking is at and where it can get stuck. |
+| `apps-script/VolunteerAdmin.js`, `VolunteerAdminPage.html`, `volunteer-admin.html` | Volunteer Admin: the club's page for the volunteer schedule (every name, move and remove people, one email per person on Submit) and training, inside the owner-only desk (`?view=volunteers`); see [staffing flow, section 12](docs/staffing-flow.md#12-volunteer-admin-the-clubs-page). |
 | `staffing-app/`, `docs/staffing-flow.md` | Public volunteer sign-ups to open and close the club (its own Apps Script project, shown on the home page in place of the closures calendar), and the guide to setting it up, importing the existing open/close list, and where a sign-up can get stuck. |
 | `tonight.html`, `turnout.js`, `tonight-launch.js`, `turnout-app/`, `docs/turnout-flow.md` | The Tonight page: who to expect at the next round robin by rating, drawn as a gym floor; the forecast it shares with the public turnout app (its own Apps Script project), which counts desk sign-ins and today's Voice texts without ever returning names; and the guide to setting it up. |
 | `text.html`, `assets/text.webmanifest`, `assets/icons/text-*.png`, `scripts/make-text-icons.py`, `navtoggle.js` | Text CTTC: a second Home Screen icon beside CTTC's. The header's Add to Home Screen button asks which icon; this one opens Messages with "I'll join CTTC's RR today" filled in (or shows one big button, if the phone wants a tap). Its icon is drawn by `python3 scripts/make-text-icons.py [A|B|C]`. |
@@ -328,7 +329,7 @@ commands, is in [AGENTS.md](AGENTS.md#what-this-session-can-access).
 **Daily cash flow:** `cash.html` (served at `/cash`, linked from the Membership page) frames the same released desk
 `/exec` address with `?view=cash`, so like the desk it opens only for the club's Google account. It totals each club day
 from the round robin roster, Open Play, `SessionPayments`, Zeffy passes and member status (Junior $5, Member $10,
-Visitor $15, $10 on a first visit, Zeffy $0; `apps-script/NightFees.js`) and keeps the money collector's count in the private `CashCounts` tab. It goes live with the
+Visitor $15, $10 on a first visit, Zeffy $0; $5 for everyone and $0 for a free volunteer on the Friday and Saturday special nights; `apps-script/NightFees.js`) and keeps the money collector's count in the private `CashCounts` tab. It goes live with the
 next desk release; until then the button opens a page `/exec` does not know.
 
 **Volunteer signups:** `staffing-app/` is a separate Apps Script project, like `coaching-app/`. To set it up, follow

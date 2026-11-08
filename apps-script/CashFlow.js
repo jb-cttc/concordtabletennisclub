@@ -174,6 +174,8 @@ function getCashFlow(fromDate, toDate) {
   var sessionRows = rows_('SessionPlayers');
   var openRows = cashRows_('OpenPlay');
   var firstVisitsOn = firstVisitFinder_(playerRows, sessionRows, openRows);
+  // Volunteers who played free on a special night (Volunteers.js): the volunteer app's Sheet is read only if one is in view.
+  var freeOn = function (date) { return specialNight_(date) ? (freeOn.finder || (freeOn.finder = freeVolunteerFinder_()))(date) : {}; };
 
   var days = {};
   // The first night each player appears anywhere in the desk's records, for "new faces".
@@ -219,7 +221,8 @@ function getCashFlow(fromDate, toDate) {
     var add = function (playerId, kind) {
       var status = statuses[playerId] || 'visitor';
       var method = covered[playerId] ? 'zeffy' : source.paid[playerId] || '';
-      var owed = method === 'zeffy' ? 0 : nightFee_(status, firstVisits[playerId]);
+      var free = !!freeOn(date)[playerId];
+      var owed = method === 'zeffy' ? 0 : nightFee_(status, firstVisits[playerId], date, free);
       list.push({
         playerId: playerId,
         name: names[playerId] || 'Unknown player',
@@ -230,6 +233,8 @@ function getCashFlow(fromDate, toDate) {
         owed: owed,
         collected: CASH_METHODS.indexOf(method) >= 0 ? owed : 0
       });
+      // Played free for opening or closing on a special night (Volunteers.js).
+      if (free) list[list.length - 1].volunteer = true;
     };
     Object.keys(source.rr).forEach(function (playerId) { add(playerId, 'rr'); });
     Object.keys(source.open).forEach(function (playerId) { if (!source.rr[playerId]) add(playerId, 'open'); });
@@ -272,10 +277,12 @@ function getCashFlow(fromDate, toDate) {
   // Player ids stay on the server; the page shows names.
   current.forEach(function (day) {
     day.playerList = day.playerList.map(function (player) {
-      return { name: player.name, status: player.status, firstVisit: player.firstVisit, kind: player.kind, method: player.method, owed: player.owed, collected: player.collected };
+      var view = { name: player.name, status: player.status, firstVisit: player.firstVisit, kind: player.kind, method: player.method, owed: player.owed, collected: player.collected };
+      if (player.volunteer) view.volunteer = true;
+      return view;
     });
   });
-  return { from: fromDate, to: toDate, today: today, fees: NIGHT_FEES, targets: targets, days: current, totals: totals, groups: groups, insights: insights };
+  return { from: fromDate, to: toDate, today: today, fees: NIGHT_FEES, specials: SPECIAL_NIGHTS, targets: targets, days: current, totals: totals, groups: groups, insights: insights };
 }
 
 function cashIso_(time) {

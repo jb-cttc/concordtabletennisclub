@@ -50,6 +50,7 @@
   <h2>What it costs</h2>
 
   <p>Your first visit is <strong>$10</strong>. Regular drop-in is $15. Under 18 is always $5. Cash, credit card, Zelle, and Venmo all accepted.</p>
+  <p data-until="2027-01-01"><strong>Fridays and Saturdays through December 31:</strong> everyone plays for $5, first visit included.</p>
 
   <p>If you end up coming regularly, a <a href="membership.html">membership</a> brings the nightly rate down to $10 and costs $60 per year.</p>
 
@@ -97,6 +98,13 @@
 </footer>
 
 <script src="navtoggle.js"></script>
+<script>
+  // The Friday and Saturday $5 note hides itself from its data-until date.
+  document.querySelectorAll('[data-until]').forEach(function (el) {
+    var until = el.getAttribute('data-until').split('-');
+    if (new Date() >= new Date(+until[0], until[1] - 1, +until[2])) el.remove();
+  });
+</script>
 
 </body>
 </html>

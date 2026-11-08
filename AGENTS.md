@@ -6,6 +6,28 @@ reviewed, tested, and recorded. The public website is served from this
 repository (custom domain `concordtabletennisclub.com`); a GitHub merge does
 not deploy the Google desk.
 
+## Never edit the Sheets by hand (binding on every developer and agent)
+
+The club's Google Sheets (the round-robin desk Sheet, the staffing, coaching
+and turnout apps' private Sheets) are databases. **Never tell anyone, the owner
+included, to type into, fix, add or delete rows or cells in one, and never
+write such a step into docs, PRs, issues, emails or app messages.** This holds
+for one-off fixes and "just this once" too.
+
+- **When data needs changing and an app has a control for it**, point to that
+  control.
+- **When no control exists, that is a missing feature, not a reason to edit the
+  Sheet.** Say so plainly and propose a form designed for it: who may use it
+  (normally the club account only), what it checks, a **Review and Confirm**
+  step, and a record of each change (who, when, before and after) where the
+  desk log or a tab shows it. Build it on a branch like any other change.
+- **Reading is fine** (`npm run sheet:read`, read-only checks) for diagnosis.
+- Docs written before this rule still describe Sheet edits (for example the
+  staffing app's Emails and Closures tabs in `docs/staffing-flow.md`). Treat
+  each as a form still to be built, not as instructions; replace the step with
+  the form when it lands. Volunteer training is done on the desk's **Volunteer
+  Admin** page (`docs/staffing-flow.md`, section 12).
+
 ## What this session can access
 
 Cloud sessions are set up with the access below, and the session-start hook
@@ -94,8 +116,9 @@ broke another player's alias; a new setting needed the owner's hands).
   the owner in Google. Prefer a design that needs none; otherwise state it in
   the PR before building.
 - **Fixable on the desk, never by editing the Sheet.** Data people need to
-  correct (aliases, name links, passes, card links) gets a desk control with
-  Review and Confirm. Sheet edits on a phone show a stale, partial tab.
+  correct (aliases, name links, passes, card links, volunteer training) gets a
+  desk control with Review and Confirm. See *Never edit the Sheets by hand*
+  above: no answer, doc or message may tell someone to edit a Sheet instead.
 - **Test the path a fresh page takes.** Check state loaded when a page opens,
   not only state changed during the test's own visit.
 - **Verify every release against `main`.** After pushing an app, clone it back

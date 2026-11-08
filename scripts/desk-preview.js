@@ -1,6 +1,7 @@
 // Run: npm run preview:desk   then open http://localhost:3100/?date=2026-09-28
 // (PREVIEW_CLOVER_DRY_RUN=1 shows the Clover list as it is before CLOVER_ENABLED is on.)
 // The daily cash flow page: http://localhost:3100/?view=cash (synthetic players and payments, see cashPreview below).
+// Volunteer Admin: http://localhost:3100/?view=volunteers (made-up volunteers, see volunteerPreview below).
 // Dev only. Serves the real desk page (apps-script/Index.html and its includes) with a small in-memory
 // stand-in for the Google Sheet back end, so the screen can be seen and clicked without Google.
 // Nothing here talks to Google or to the club Sheet. The back end is deliberately simple (it does not
@@ -28,6 +29,11 @@ function playerFor(name, rating) {
 JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'players.json'), 'utf8')).players.forEach(function (player) {
   if (Number.isFinite(player.currentRating)) playerFor(player.name, player.currentRating);
 });
+
+// The Friday and Saturday special, read from the real apps-script/NightFees.js so the preview follows its dates.
+const nightFees = {};
+require('vm').runInNewContext(fs.readFileSync(path.join(DESK, 'NightFees.js'), 'utf8'), nightFees);
+function specialNight(date) { return nightFees.specialNight_(date); }
 
 const sessions = {};
 function seedSession(date) {
@@ -252,10 +258,18 @@ const rpc = {
         messages: [{ text: "I'll join CTTC's RR tonight", receivedAt: Date.now() - (index + 1) * 600000 }] };
     });
   },
-  listVolunteers: function () {
-    return { connected: true, volunteers: players.slice(20, 24).map(function (player, index) {
-      return { playerId: player.playerId, name: player.name, roles: [index % 2 ? 'Close' : 'Open'], waiting: false };
+  // On a Friday or Saturday of the special (apps-script/NightFees.js), two of them hold free spots and one is still waiting.
+  listVolunteers: function (date) {
+    const special = specialNight(date);
+    const sample = special ? [['Desk organizer', false, 'open'], ['Tables and barriers', true, 'open'], ['Lock-up', false, 'close'], ['Put away', false, '']] :
+      [['Open', false], ['Close', false], ['Open', false], ['Close', false]];
+    const answer = { connected: true, volunteers: players.slice(20, 24).map(function (player, index) {
+      const volunteer = { playerId: player.playerId, name: player.name, roles: [sample[index][0]], waiting: sample[index][1] };
+      if (special) volunteer.free = sample[index][2];
+      return volunteer;
     }) };
+    if (special) answer.special = { fee: special.fee };
+    return answer;
   },
   sendVoiceConfirmation: function () { return { sent: true, reason: '' }; },
   getOpenPlayParticipants: function (date) { return openPlay[date] || []; },
@@ -272,7 +286,15 @@ const rpc = {
     return attending;
   },
   setMemberStatus: function (playerId, status) { memberStatuses[playerId] = status; return rpc.getMemberStatuses(); },
-  getPrivatePaymentOverview: function (date) { return { methods: payments[date] || {}, coveredIds: [], passes: [], firstVisitIds: firstVisitsOn(date) }; },
+  getPrivatePaymentOverview: function (date) {
+    const overview = { methods: payments[date] || {}, coveredIds: [], passes: [], firstVisitIds: firstVisitsOn(date) };
+    const special = specialNight(date);
+    if (special) {
+      overview.special = { fee: special.fee };
+      overview.freeVolunteers = { [players[20].playerId]: 'open', [players[22].playerId]: 'close' };
+    }
+    return overview;
+  },
   setFirstVisit: function (date, playerId, firstVisit) {
     firstVisits[date] = firstVisitsOn(date).filter(function (id) { return id !== playerId; }).concat(firstVisit ? [playerId] : []);
     return firstVisits[date];
@@ -418,6 +440,66 @@ rpc.saveCashCount = cashPreview.saveCashCount;
 rpc.saveCashTarget = cashPreview.saveCashTarget;
 rpc.getCashTargets = cashPreview.getCashTargets;
 
+// Volunteer Admin stand-in for ?view=volunteers: made-up volunteers on the real volunteer app's positions (staffing-app/Code.js)
+// for the next weeks, so the page can be seen, dragged and submitted here. The rules and the emails are the volunteer app's
+// (adminApply_), covered by staffing-app/check-staffing.cjs; this keeps only what was submitted.
+const volunteerPreview = (function () {
+  const staffing = {};
+  require('vm').runInNewContext(fs.readFileSync(path.join(ROOT, 'staffing-app', 'Code.js'), 'utf8'), staffing);
+  const names = ['Ann Sample', 'Ben Sample', 'Cy Sample', 'Di Sample', 'Ed Sample', 'Flo Sample', 'Gil Sample', 'Hap Sample', 'Ike Sample', 'Jud Sample', 'Kip Sample', 'Lu Sample'];
+  const id = name => 'vol-' + name.split(' ')[0].toLowerCase();
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const today = process.env.PREVIEW_TODAY || '2026-11-09';
+  const nights = [];
+  let n = 0;
+  for (let t = Date.parse(today + 'T12:00:00Z'); nights.length < 16; t += 86400000) {
+    const d = new Date(t);
+    const wd = d.getUTCDay();
+    if (![1, 3, 5, 6].includes(wd)) continue;
+    const date = d.toISOString().slice(0, 10);
+    const slots = { desk: [], money: [], tables: [], lockup: [], close: [] };
+    const add = (position, name, status) => slots[position].push({ id: 's' + (++n), playerId: id(name), name, status: status || 'confirmed', finalize: false, free: '', signedUp: '' });
+    const k = nights.length;
+    add('desk', names[k % 4]);
+    if (k % 3) add('money', names[4 + k % 2]);
+    add('tables', names[6 + k % 3], k % 4 === 1 ? 'pending' : 'confirmed');
+    if (k % 2) add('tables', names[9 + k % 2]);
+    if (k % 5 !== 2) add('lockup', names[(k + 1) % 4]);
+    add('close', names[(k + 7) % 12]);
+    const special = nightFees.specialNight_(date);
+    if (special) { slots.desk[0].free = 'yes'; slots.lockup[0] && (slots.lockup[0].free = 'yes'); slots.tables[0].free = slots.tables[0].status === 'pending' ? 'held' : 'yes'; }
+    const sat = wd === 6;
+    nights.push({ date, day: DAYS[wd] + ', ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(), short: DAYS[wd].slice(0, 3) + ', ' + MONTHS[d.getUTCMonth()].slice(0, 3) + ' ' + d.getUTCDate(),
+      time: sat ? '3:00 PM to 6:00 PM' : '7:00 PM to 10:00 PM', start: sat ? '15:00' : '19:00', end: sat ? '18:00' : '22:00', closed: date === '2026-11-26', note: date === '2026-11-26' ? 'Thanksgiving' : '',
+      status: k % 3 === 0 ? 'needs' : k % 3 === 1 ? 'covered' : 'full', open: true, free: special ? { fee: special.fee, open: 0, close: 1 } : null, slots });
+  }
+  const board = {
+    ok: true, today, mode: 'directory', quota: 92, minQuota: 10, maxChanges: 60, noteMax: 500,
+    months: [{ year: 2026, month: 11, title: 'November 2026' }, { year: 2026, month: 12, title: 'December 2026' }, { year: 2027, month: 1, title: 'January 2027' }],
+    positions: staffing.POSITIONS.map(spec => ({ id: spec.id, label: spec.label, part: spec.part, min: spec.min, full: spec.full || spec.min, max: spec.max, training: spec.training, alsoWith: spec.alsoWith || [] })),
+    skills: ['keys', 'open', 'front_desk'].map(skill => ({ id: skill, label: staffing.SKILLS[skill] })),
+    nights,
+    training: names.slice(0, 6).map((name, index) => ({ playerId: id(name), name, keys: index < 4, open: index < 4, front_desk: index >= 2 })),
+    recent: [{ at: today + 'T18:05:00.000Z', kind: 'move', name: 'Ben Sample', before: 'Mon, Nov 9: Lock-up (closing, 10:00 PM)', after: 'Wed, Nov 11: Lock-up (closing, 10:00 PM)', emailed: 'yes' }],
+    players: names.map((name, index) => ({ playerId: id(name), name, rating: 1800 - index * 70 })).concat([{ playerId: 'vol-mo', name: 'Mo Sample', rating: 950 }])
+  };
+  return {
+    getVolunteerAdmin: () => JSON.parse(JSON.stringify(board)),
+    previewVolunteerAdmin: bucket => ({ ok: true, preview: true, changes: bucket.changes.length, emails: bucket.changes.filter(change => change.kind !== 'training').map(change => {
+      const slot = [].concat.apply([], nights.map(night => [].concat.apply([], Object.values(night.slots)))).find(entry => entry.id === change.id);
+      return { name: slot.name, to: slot.name[0].toLowerCase() + '\u2022\u2022\u2022@example.com', subject: 'The club changed your CTTC volunteer shift',
+        text: 'Hello ' + slot.name.split(' ')[0] + ',\n\nThe club made a change to your volunteer schedule. Here is what changed:\n\n' +
+          (change.kind === 'remove' ? 'Removed: ' + change.was.date + ' ' + change.was.position + ': you are off this shift' : 'Moved: ' + change.was.date + ' ' + change.was.position + ' (replaced) to ' + change.to.date + ' ' + change.to.position) +
+          '\n\n(Preview only: the real text comes from the volunteer app.)' };
+    }) }),
+    submitVolunteerAdmin: bucket => ({ ok: true, changes: bucket.changes.length, emailed: 0, people: 0, added: [] })
+  };
+})();
+rpc.getVolunteerAdmin = volunteerPreview.getVolunteerAdmin;
+rpc.previewVolunteerAdmin = volunteerPreview.previewVolunteerAdmin;
+rpc.submitVolunteerAdmin = volunteerPreview.submitVolunteerAdmin;
+
 const stub = '<script>(function(){function build(ok,bad){return new Proxy({},{get:function(_,name){' +
   'if(name==="withSuccessHandler")return function(f){return build(f,bad)};' +
   'if(name==="withFailureHandler")return function(f){return build(ok,f)};' +
@@ -464,5 +546,6 @@ http.createServer(function (request, response) {
   }
   const date = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : '';
   response.setHeader('content-type', 'text/html; charset=utf-8');
-  response.end(url.searchParams.get('view') === 'cash' ? cashPage() : page(date));
+  const view = url.searchParams.get('view');
+  response.end(view === 'cash' ? cashPage() : view === 'volunteers' ? stub + fs.readFileSync(path.join(DESK, 'VolunteerAdminPage.html'), 'utf8') : page(date));
 }).listen(PORT, function () { console.log('Desk preview (in-memory, not Google): http://localhost:' + PORT + '/?date=2026-09-28 and the cash flow page at http://localhost:' + PORT + '/?view=cash'); });

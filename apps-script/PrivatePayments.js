@@ -104,8 +104,16 @@ function getPrivatePaymentOverview(sessionDate, options) {
   players.forEach(function (player) {
     byPlayer[player.playerId] = covered[player.playerId] ? 'zeffy' : paid[player.playerId] || '';
   });
-  // Players on their first visit tonight pay the $10 first-visit fee (NightFees.js).
-  return { methods: byPlayer, coveredIds: coveredIds, passes: passes, unreadable: unreadable, firstVisitIds: firstVisitIdsOn_(sessionDate, playerRows) };
+  // Players on their first visit tonight pay the $10 first-visit fee (NightFees.js). On a special night everyone pays the
+  // special's fee and the volunteers in its free spots (Volunteers.js) pay nothing: freeVolunteers is { playerId: 'open' |
+  // 'close' }, confirmed volunteers only.
+  var overview = { methods: byPlayer, coveredIds: coveredIds, passes: passes, unreadable: unreadable, firstVisitIds: firstVisitIdsOn_(sessionDate, playerRows) };
+  var special = specialNight_(sessionDate);
+  if (special) {
+    overview.special = { fee: special.fee };
+    overview.freeVolunteers = freeVolunteerFinder_()(sessionDate);
+  }
+  return overview;
 }
 
 function setSessionPayment(sessionDate, playerId, method) {

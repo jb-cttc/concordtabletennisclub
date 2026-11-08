@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CTTC Volunteer Admin</title>
+<style>
+  /* The desk's look: green bar with a gold rule, white panels, Georgia headings and Arial for the small print. */
+  :root { --ink: #17211b; --muted: #657069; --line: #d8ddd9; --green: #176b45; --green2: #0f5235; --gold: #c99934; --red: #a43831; --blue: #1f4f8f; --star: #b88a00; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: linear-gradient(135deg, #eef2ed, #f8f7f1 48%, #edf2f3); color: var(--ink); font-family: Georgia, "Times New Roman", serif; }
+  button, input, select, textarea { font: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+  .top { background: #123f2b; color: #fff; border-bottom: 5px solid var(--gold); }
+  .top-inner { max-width: 1480px; margin: auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .brand { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .brand small { display: block; margin-top: 2px; color: #dce9e1; font: 12px Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  .lock { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 4px; background: #8b1a1a; font-size: 17px; }
+  .bucket-open { border: 0; border-radius: 4px; background: var(--gold); color: #1f1600; padding: 9px 14px; font: 700 14px Arial, sans-serif; }
+  .bucket-open.empty { background: #2d5a43; color: #dce9e1; }
+  .shell { max-width: 1480px; margin: auto; padding: 18px 24px 120px; }
+  .statusbar { min-height: 40px; padding: 10px 14px; background: #e7eee9; border-left: 4px solid var(--green); font: 14px Arial, sans-serif; margin-bottom: 14px; }
+  .statusbar.error { background: #f6e8e6; border-color: var(--red); color: #6f241f; }
+  .statusbar.ok { background: #e3f1e7; border-color: var(--green); color: #14432a; font-weight: 700; }
+  .tabs { display: flex; gap: 6px; margin: 0 0 14px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 8px 14px; font: 700 14px Arial, sans-serif; color: var(--ink); }
+  .tabs button[aria-selected="true"] { background: var(--green); border-color: var(--green); color: #fff; }
+  .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; font: 13px Arial, sans-serif; }
+  .tools input[type=search] { border: 1px solid #aeb7b1; border-radius: 4px; padding: 7px 10px; min-width: 200px; }
+  .chip-filter { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 5px 11px; font: 13px Arial, sans-serif; }
+  .chip-filter[aria-pressed="true"] { background: #123f2b; color: #fff; border-color: #123f2b; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font: 12px Arial, sans-serif; color: var(--muted); margin: 0 0 12px; }
+  /* Nights: one panel each, opening and closing side by side. */
+  .nights { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+  .night { background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--green); border-radius: 6px; overflow: hidden; }
+  .night.needs { border-top-color: #c25e00; }
+  .night.covered { border-top-color: var(--gold); }
+  .night.closed { border-top-color: var(--red); opacity: .75; }
+  .night.special { box-shadow: inset 0 0 0 1px #e9d48a; }
+  .night-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 9px 12px; background: #f7f9f7; border-bottom: 1px solid var(--line); }
+  .night-head h3 { margin: 0; font-size: 16px; }
+  .night-head span { font: 12px Arial, sans-serif; color: var(--muted); }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 9px; font: 700 11px Arial, sans-serif; }
+  .badge.needs { background: #fff0dc; color: #8a3d00; }
+  .badge.covered { background: #fdf0b8; color: #5c4300; }
+  .badge.full { background: #e3f1e7; color: #14563d; }
+  .badge.closed { background: #f6e8e6; color: #6f241f; }
+  .special-line { padding: 5px 12px; background: #fff8dc; border-bottom: 1px solid #efe1a8; font: 12px Arial, sans-serif; color: #4a3600; }
+  .halves { display: grid; grid-template-columns: 1fr 1fr; }
+  .half { padding: 6px 10px 10px; min-width: 0; }
+  .half + .half { border-left: 1px solid #edf0ed; }
+  .half h4 { margin: 2px 0 4px; font: 700 11px Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--green); }
+  .pos { margin: 6px 0 0; }
+  .pos-name { display: flex; justify-content: space-between; font: 12px Arial, sans-serif; color: var(--muted); }
+  .pos-name b { color: var(--ink); font-weight: 700; }
+  .cards { display: flex; flex-direction: column; gap: 4px; margin-top: 3px; }
+  /* A person: smaller than the desk's player cards, but the same idea. */
+  .card { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 6px 4px 8px; background: #fff; border: 1px solid #c9d2cc; border-left: 4px solid var(--green); border-radius: 4px;
+    font: 13px Arial, sans-serif; cursor: grab; user-select: none; }
+  .card.waiting { border-left-color: var(--gold); background: #fffbea; }
+  .card .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+  .card .meta { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .card .star { display: inline-block; padding: 0 5px; border-radius: 8px; background: #fff3c4; border: 1px solid var(--star); color: #8a6400; font: 700 11px Arial, sans-serif; }
+  .card .star.held { background: #fff; border-style: dashed; }
+  .card .x { border: 0; background: none; color: var(--red); font-size: 16px; line-height: 1; padding: 2px 4px; }
+  .card.moved { border-color: var(--blue); border-left-color: var(--blue); background: #eef4ff; }
+  .card.removed { opacity: .6; background: #fbeeee; border-left-color: var(--red); cursor: default; }
+  .card.removed .who { text-decoration: line-through; }
+  .card.ghost { opacity: .45; border-style: dashed; cursor: default; }
+  .card.ghost .who { text-decoration: line-through; font-weight: 400; }
+  .card.selected { outline: 3px solid var(--blue); outline-offset: 1px; }
+  .card.match { box-shadow: 0 0 0 3px #f2c94c; }
+  .card .undo { border: 0; background: none; color: var(--blue); text-decoration: underline; font-size: 12px; padding: 0 2px; }
+  .slot { min-height: 28px; display: flex; align-items: center; justify-content: center; border: 1px dashed #aab5ae; border-radius: 4px; color: #8a958e; font: 12px Arial, sans-serif; background: rgba(255,255,255,.6); }
+  .slot.target { border: 2px dashed var(--blue); color: var(--blue); background: #eef4ff; cursor: pointer; }
+  .slot.blocked { opacity: .45; }
+  .slot.over { background: #dbe8ff; }
+  /* Training and access. */
+  .skills { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .skill { background: #fff; border: 1px solid var(--line); border-top: 4px solid #8b1a1a; border-radius: 6px; padding: 12px 14px; }
+  .skill h3 { margin: 0 0 2px; font-size: 17px; }
+  .skill p { margin: 0 0 8px; font: 12px Arial, sans-serif; color: var(--muted); }
+  .people { list-style: none; margin: 0 0 10px; padding: 0; font: 14px Arial, sans-serif; }
+  .people li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid #edf0ed; }
+  .people li.added { color: var(--blue); font-weight: 700; }
+  .people li.taken span { text-decoration: line-through; color: var(--red); }
+  .people .x { border: 1px solid #c9d2cc; background: #fff; border-radius: 4px; color: var(--red); padding: 2px 8px; font: 12px Arial, sans-serif; }
+  .people .undo { border: 0; background: none; color: var(--blue); text-decoration: underline; font: 12px Arial, sans-serif; }
+  .add-row { display: flex; gap: 6px; }
+  .add-row input { flex: 1; min-width: 0; border: 1px solid #aeb7b1; border-radius: 4px; padding: 7px 9px; font: 14px Arial, sans-serif; }
+  .finds { list-style: none; margin: 4px 0 0; padding: 0; font: 13px Arial, sans-serif; }
+  .finds button { width: 100%; text-align: left; border: 1px solid #dfe5e1; background: #fff; border-radius: 4px; margin-top: 3px; padding: 6px 8px; }
+  .finds button:hover { border-color: var(--green); }
+  .new-player { margin-top: 8px; padding: 8px; background: #f7f9f7; border: 1px solid var(--line); border-radius: 4px; font: 13px Arial, sans-serif; }
+  .new-player label { display: block; margin: 4px 0 2px; font-weight: 700; }
+  .new-player input { width: 100%; border: 1px solid #aeb7b1; border-radius: 4px; padding: 6px 8px; }
+  .primary { border: 0; background: var(--green); color: #fff; border-radius: 4px; padding: 9px 14px; font: 700 14px Arial, sans-serif; }
+  .primary:disabled { opacity: .5; cursor: default; }
+  .secondary { border: 1px solid var(--green); background: #fff; color: var(--green); border-radius: 4px; padding: 8px 12px; font: 700 13px Arial, sans-serif; }
+  .link { border: 0; background: none; color: var(--blue); text-decoration: underline; padding: 0; font: 13px Arial, sans-serif; }
+  /* Moving someone by tapping: the bar along the bottom. */
+  .move-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: #0f2e20; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    font: 14px Arial, sans-serif; box-shadow: 0 -4px 14px rgba(0,0,0,.2); }
+  .move-bar b { color: #f2d27c; }
+  .move-bar button { border: 1px solid #f2d27c; background: transparent; color: #fff; border-radius: 4px; padding: 6px 10px; }
+  /* The bucket: what will change, the emails, Submit. */
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100%); background: #fff; z-index: 30; box-shadow: -8px 0 24px rgba(0,0,0,.18); display: flex; flex-direction: column; }
+  .drawer-head { padding: 14px 16px; background: #123f2b; color: #fff; border-bottom: 4px solid var(--gold); display: flex; justify-content: space-between; align-items: center; }
+  .drawer-head h2 { margin: 0; font-size: 19px; }
+  .drawer-head button { border: 0; background: transparent; color: #fff; font-size: 22px; }
+  .drawer-body { flex: 1; overflow: auto; padding: 12px 16px; font: 14px Arial, sans-serif; }
+  .changes { list-style: none; margin: 0 0 12px; padding: 0; }
+  .changes li { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #edf0ed; }
+  .changes .kind { flex: none; min-width: 74px; padding: 1px 6px; border-radius: 3px; font: 700 11px Arial, sans-serif; color: #fff; text-align: center; }
+  .kind.move { background: var(--blue); }
+  .kind.remove { background: var(--red); }
+  .kind.training { background: #6b4b00; }
+  .kind.player { background: var(--green); }
+  .changes del { color: #8a3b2b; }
+  .changes ins { color: var(--green); text-decoration: none; font-weight: 700; }
+  .changes .text { flex: 1; }
+  .drawer textarea { width: 100%; min-height: 70px; border: 1px solid #aeb7b1; border-radius: 4px; padding: 8px; }
+  .problem { color: #8b1a1a; font-weight: 700; margin: 4px 0 0; }
+  .email { border: 1px solid var(--line); border-radius: 4px; margin: 8px 0; }
+  .email summary { padding: 8px 10px; cursor: pointer; background: #f7f9f7; }
+  .email pre { margin: 0; padding: 10px; white-space: pre-wrap; font: 13px/1.45 Arial, sans-serif; }
+  .drawer-foot { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+  .recent { margin-top: 22px; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; font: 13px Arial, sans-serif; }
+  .recent h2 { font-size: 17px; margin: 0 0 8px; }
+  .recent li { margin: 3px 0; }
+  .muted { color: var(--muted); }
+  .card-star { color: #8a6400; font-weight: 700; }
+  @media (max-width: 760px) {
+    .top-inner, .shell { padding-left: 12px; padding-right: 12px; }
+    .nights { grid-template-columns: 1fr; }
+  }
+  /* A phone: opening above closing, so full names fit. */
+  @media (max-width: 520px) {
+    .halves { grid-template-columns: 1fr; }
+    .half + .half { border-left: 0; border-top: 1px solid #edf0ed; }
+  }
+</style>
+</head>
+<body>
+<header class="top"><div class="top-inner">
+  <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span><div>Volunteer Admin<small>Club account only</small></div></div>
+  <button id="bucketOpen" class="bucket-open empty" type="button">Changes to submit (0)</button>
+</div></header>
+<main class="shell">
+  <div id="status" class="statusbar" role="status">Loading the volunteer sign-ups&hellip;</div>
+  <div class="tabs" role="tablist">
+    <button id="tabSchedule" type="button" role="tab" aria-selected="true" aria-controls="schedule">Schedule</button>
+    <button id="tabTraining" type="button" role="tab" aria-selected="false" aria-controls="training">Training &amp; access</button>
+  </div>
+  <section id="schedule" role="tabpanel" aria-labelledby="tabSchedule">
+    <div class="tools">
+      <span id="months"></span>
+      <input id="find" type="search" placeholder="Find a person" aria-label="Find a person on the schedule">
+      <label><input id="peopleOnly" type="checkbox"> Nights with sign-ups only</label>
+    </div>
+    <p class="legend">
+      <span>Drag a person to another spot, or tap them, then tap where they go.</span>
+      <span><b>&#10003;</b> confirmed</span><span><b>&#8987;</b> waiting for their YES</span>
+      <span><span class="card-star">&#9733;</span> plays free (special night)</span>
+    </p>
+    <div id="nights" class="nights"></div>
+  </section>
+  <section id="training" role="tabpanel" aria-labelledby="tabTraining" hidden>
+    <p class="legend"><span>Who may take the restricted spots. Changes wait in the bucket until you submit them; nobody is emailed about training.</span></p>
+    <div id="skills" class="skills"></div>
+  </section>
+  <section id="recent" class="recent" hidden></section>
+</main>
+<div id="moveBar" class="move-bar" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-labelledby="drawerTitle">
+  <div class="drawer-head"><h2 id="drawerTitle">Changes to submit</h2><button id="drawerClose" type="button" aria-label="Close">&times;</button></div>
+  <div id="drawerBody" class="drawer-body"></div>
+  <div class="drawer-foot">
+    <button id="review" class="secondary" type="button">Review emails</button>
+    <button id="submit" class="primary" type="button" disabled>Submit</button>
+    <button id="clear" class="link" type="button">Discard all</button>
+  </div>
+</aside>
+<script>
+(function () {
+  var STORE = 'cttc-volunteer-admin-bucket-v1';
+  var board = null;
+  var bucket = { newPlayers: [], changes: [] };
+  var note = '';
+  var reviewed = null;      // the preview answer for the bucket as it was when reviewed
+  var lastProblems = [];
+  var month = 'all';
+  var selected = '';        // a sign-up id being moved by tapping
+  var busy = false;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function el(tag, attributes, children) {
+    var node = document.createElement(tag);
+    Object.keys(attributes || {}).forEach(function (key) {
+      if (key === 'text') node.textContent = attributes[key];
+      else if (key === 'class') node.className = attributes[key];
+      else if (attributes[key] !== null && attributes[key] !== undefined && attributes[key] !== false) node.setAttribute(key, attributes[key]);
+    });
+    (children || []).forEach(function (child) { if (child) node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child); });
+    return node;
+  }
+  function say(text, kind) { var box = $('status'); box.textContent = text; box.className = 'statusbar' + (kind ? ' ' + kind : ''); }
+  function save() { try { localStorage.setItem(STORE, JSON.stringify({ bucket: bucket, note: note })); } catch (error) {} }
+  function restore() {
+    try {
+      var stored = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (stored && stored.bucket && Array.isArray(stored.bucket.changes)) { bucket = stored.bucket; note = stored.note || ''; }
+    } catch (error) {}
+  }
+  function call(name, args, done, failed) {
+    busy = true;
+    google.script.run.withSuccessHandler(function (result) { busy = false; done(result); })
+      .withFailureHandler(function (error) { busy = false; (failed || function (e) { say(e.message || String(e), 'error'); })(error); })[name].apply(null, args);
+  }
+
+  // ----- The board as the bucket would leave it -----
+  function spec(id) { return board.positions.filter(function (position) { return position.id === id; })[0]; }
+  function nightOf(date) { return board.nights.filter(function (night) { return night.date === date; })[0]; }
+  // Every sign-up on the board: { slot, date, position } where it is now (from the Sheet).
+  function signups() {
+    var list = [];
+    board.nights.forEach(function (night) {
+      Object.keys(night.slots).forEach(function (position) { night.slots[position].forEach(function (slot) { list.push({ slot: slot, date: night.date, position: position }); }); });
+    });
+    return list;
+  }
+  function changeFor(id) { return bucket.changes.filter(function (change) { return change.id === id; })[0]; }
+  // Where each sign-up ends up: { id: { date, position, removed, moved } }.
+  function placed() {
+    var out = {};
+    signups().forEach(function (item) {
+      var change = changeFor(item.slot.id);
+      out[item.slot.id] = { item: item, date: change && change.kind === 'move' ? change.to.date : item.date, position: change && change.kind === 'move' ? change.to.position : item.position,
+        removed: !!change && change.kind === 'remove', moved: !!change && change.kind === 'move' };
+    });
+    return out;
+  }
+  function nameOf(playerId) {
+    var fresh = bucket.newPlayers.filter(function (player) { return player.tempId === playerId; })[0];
+    if (fresh) return fresh.name;
+    var player = board.players.filter(function (entry) { return entry.playerId === playerId; })[0];
+    var trained = board.training.filter(function (entry) { return entry.playerId === playerId; })[0];
+    return player ? player.name : trained ? trained.name : playerId;
+  }
+  // Training as the bucket would leave it: { playerId: { keys, open, front_desk } }.
+  function training() {
+    var out = {};
+    board.training.forEach(function (row) { out[row.playerId] = { keys: row.keys, open: row.open, front_desk: row.front_desk }; });
+    bucket.changes.forEach(function (change) {
+      if (change.kind !== 'training') return;
+      (out[change.playerId] = out[change.playerId] || { keys: false, open: false, front_desk: false })[change.skill] = change.value;
+    });
+    return out;
+  }
+  // Why id cannot go to (date, position), or ''. The volunteer app checks again on Submit.
+  function blocked(id, date, position) {
+    var where = placed();
+    var me = where[id];
+    var night = nightOf(date);
+    var target = spec(position);
+    if (!night || night.closed) return 'Closed that night';
+    if (!night.open) return 'That night is over';
+    if (me.date === date && me.position === position) return 'Already here';
+    var others = Object.keys(where).map(function (key) { return where[key]; }).filter(function (other) { return other !== me && !other.removed && other.date === date; });
+    if (others.filter(function (other) { return other.position === position; }).length >= target.max) return 'Full';
+    var skills = training()[me.item.slot.playerId] || {};
+    var missing = target.training.filter(function (skill) { return !skills[skill]; });
+    if (missing.length) return 'Needs ' + missing.map(function (skill) { return board.skills.filter(function (s) { return s.id === skill; })[0].label; }).join(' and ') + ' training';
+    var clash = others.filter(function (other) {
+      var held = spec(other.position);
+      return other.item.slot.playerId === me.item.slot.playerId && held.part === target.part && target.alsoWith.indexOf(held.id) < 0;
+    })[0];
+    if (clash) return 'Already ' + (target.part === 'open' ? 'opening' : 'closing') + ' that night';
+    return '';
+  }
+
+  // ----- The bucket -----
+  function changed() { reviewed = null; lastProblems = []; save(); render(); }
+  function move(id, date, position) {
+    var reason = blocked(id, date, position);
+    if (reason) { say(reason + ': ' + labelOf(id) + ' was not moved.', 'error'); return; }
+    var where = placed()[id];
+    var original = where.item;
+    bucket.changes = bucket.changes.filter(function (change) { return change.id !== id; });
+    if (!(original.date === date && original.position === position)) {
+      bucket.changes.push({ kind: 'move', id: id, was: { date: original.date, position: original.position }, to: { date: date, position: position } });
+    }
+    selected = '';
+    say(original.slot.name + ' moved to ' + spec(position).label + ', ' + nightOf(date).short + '. It waits in the bucket until you submit.', 'ok');
+    changed();
+  }
+  function remove(id) {
+    var original = placed()[id].item;
+    bucket.changes = bucket.changes.filter(function (change) { return change.id !== id; });
+    bucket.changes.push({ kind: 'remove', id: id, was: { date: original.date, position: original.position } });
+    selected = '';
+    changed();
+  }
+  function undo(id) { bucket.changes = bucket.changes.filter(function (change) { return change.id !== id; }); changed(); }
+  function setTraining(playerId, skill, value) {
+    var row = board.training.filter(function (entry) { return entry.playerId === playerId; })[0];
+    var now = !!row && row[skill];
+    bucket.changes = bucket.changes.filter(function (change) { return !(change.kind === 'training' && change.playerId === playerId && change.skill === skill); });
+    if (now !== value) bucket.changes.push({ kind: 'training', playerId: playerId, skill: skill, value: value });
+    // A new player with no training left in the bucket is not added either.
+    bucket.newPlayers = bucket.newPlayers.filter(function (player) { return bucket.changes.some(function (change) { return change.playerId === player.tempId; }); });
+    changed();
+  }
+  function labelOf(id) {
+    var item = placed()[id].item;
+    return item.slot.name + ' (' + spec(item.position).label + ', ' + nightOf(item.date).short + ')';
+  }
+  function count() { return bucket.changes.length + bucket.newPlayers.length; }
+
+  // ----- Drawing -----
+  function render() {
+    if (!board) return;
+    $('bucketOpen').textContent = 'Changes to submit (' + count() + ')';
+    $('bucketOpen').className = 'bucket-open' + (count() ? '' : ' empty');
+    drawMonths();
+    drawNights();
+    drawSkills();
+    drawMoveBar();
+    drawDrawer();
+    drawRecent();
+  }
+  function drawMonths() {
+    var box = $('months');
+    box.replaceChildren();
+    [{ key: 'all', title: 'All upcoming' }].concat(board.months.map(function (m) { return { key: m.year + '-' + ('0' + m.month).slice(-2), title: m.title.split(' ')[0] }; })).forEach(function (m) {
+      var button = el('button', { type: 'button', 'class': 'chip-filter', 'aria-pressed': String(month === m.key), text: m.title });
+      button.addEventListener('click', function () { month = m.key; render(); });
+      box.appendChild(button);
+    });
+  }
+  function drawNights() {
+    var where = placed();
+    var find = $('find').value.trim().toLowerCase();
+    var box = $('nights');
+    box.replaceChildren();
+    board.nights.filter(function (night) { return month === 'all' || night.date.slice(0, 7) === month; }).forEach(function (night) {
+      var here = Object.keys(where).map(function (id) { return where[id]; }).filter(function (item) { return item.date === night.date || item.item.date === night.date; });
+      if ($('peopleOnly').checked && !here.length) return;
+      var panel = el('article', { 'class': 'night ' + night.status + (night.free ? ' special' : ''), 'aria-label': night.day });
+      panel.appendChild(el('div', { 'class': 'night-head' }, [el('h3', { text: night.short }), el('span', {}, [night.time + ' ', el('span', { 'class': 'badge ' + night.status,
+        text: { needs: 'Needs people', covered: 'Minimum crew', full: 'Fully staffed', closed: 'Closed' }[night.status] || night.status })])]));
+      if (night.closed) { panel.appendChild(el('div', { 'class': 'special-line', text: 'Closed' + (night.note ? ': ' + night.note : '') })); box.appendChild(panel); return; }
+      if (night.free) {
+        panel.appendChild(el('div', { 'class': 'special-line', text: '★ Special: $' + night.free.fee + ' night · free spots left: ' + night.free.open + ' opening, ' + night.free.close + ' closing' +
+          (bucket.changes.length ? ' (before your changes)' : '') }));
+      } else if (night.note) panel.appendChild(el('div', { 'class': 'special-line', text: night.note }));
+      var halves = el('div', { 'class': 'halves' });
+      ['open', 'close'].forEach(function (part) {
+        var half = el('div', { 'class': 'half' }, [el('h4', { text: (part === 'open' ? 'Opening, ' : 'Closing, ') + time12(part === 'open' ? night.start : night.end) })]);
+        board.positions.filter(function (position) { return position.part === part; }).forEach(function (position) {
+          var people = here.filter(function (item) { return (item.date === night.date && item.position === position.id) || (item.moved && item.item.date === night.date && item.item.position === position.id); });
+          var staying = people.filter(function (item) { return item.date === night.date && item.position === position.id && !item.removed; }).length;
+          var cards = el('div', { 'class': 'cards' });
+          people.forEach(function (item) { cards.appendChild(card(item, night, position, find)); });
+          if (staying < position.max && night.open) cards.appendChild(slot(night, position, staying));
+          half.appendChild(el('div', { 'class': 'pos' }, [el('div', { 'class': 'pos-name' }, [el('b', { text: position.label.replace(' (Front Desk)', '') }), el('span', { text: staying + '/' + position.max })]), cards]));
+        });
+        halves.appendChild(half);
+      });
+      panel.appendChild(halves);
+      box.appendChild(panel);
+    });
+    if (!box.children.length) box.appendChild(el('p', { 'class': 'muted', text: 'No nights to show.' }));
+  }
+  function card(item, night, position, find) {
+    var slot = item.item.slot;
+    var ghost = item.moved && !(item.date === night.date && item.position === position.id);
+    var classes = 'card' + (slot.status === 'pending' ? ' waiting' : '') + (ghost ? ' ghost' : item.moved ? ' moved' : '') + (item.removed ? ' removed' : '') +
+      (selected === slot.id ? ' selected' : '') + (find && slot.name.toLowerCase().indexOf(find) >= 0 ? ' match' : '');
+    var node = el('div', { 'class': classes, draggable: ghost || item.removed ? null : 'true', 'data-id': slot.id, tabindex: ghost || item.removed ? null : '0',
+      'aria-label': slot.name + ', ' + position.label + ', ' + (slot.status === 'pending' ? 'waiting to confirm' : 'confirmed') + (slot.free === 'yes' ? ', plays free' : '') +
+        (ghost ? ', moving away' : item.moved ? ', moved here' : '') + (item.removed ? ', to be removed' : '') }, [
+      el('span', { 'class': 'who', text: slot.name }),
+      slot.free && !ghost ? el('span', { 'class': 'star' + (slot.free === 'held' ? ' held' : ''), title: slot.free === 'yes' ? 'Plays free' : 'Holds a free spot once confirmed', text: '★' }) : null,
+      slot.finalize ? el('span', { 'class': 'meta', title: 'Also finalizing the desk', text: 'F' }) : null,
+      el('span', { 'class': 'meta', text: slot.status === 'pending' ? '⌛' : '✓' })]);
+    if (ghost) {
+      node.appendChild(el('span', { 'class': 'meta', text: '→ ' + (item.date === night.date ? spec(item.position).label.replace(' (Front Desk)', '') : nightOf(item.date).short) }));
+      return node;
+    }
+    if (item.moved || item.removed) {
+      var back = el('button', { type: 'button', 'class': 'undo', text: 'undo', 'aria-label': 'Undo the change to ' + slot.name });
+      back.addEventListener('click', function (event) { event.stopPropagation(); undo(slot.id); });
+      node.appendChild(back);
+      if (item.removed) return node;
+    }
+    var x = el('button', { type: 'button', 'class': 'x', title: 'Remove from this shift', 'aria-label': 'Remove ' + slot.name + ' from ' + position.label + ', ' + night.short, text: '×' });
+    x.addEventListener('click', function (event) { event.stopPropagation(); remove(slot.id); });
+    node.appendChild(x);
+    node.addEventListener('click', function () { selected = selected === slot.id ? '' : slot.id; render(); });
+    node.addEventListener('keydown', function (event) { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selected = selected === slot.id ? '' : slot.id; render(); } });
+    node.addEventListener('dragstart', function (event) { selected = slot.id; event.dataTransfer.setData('text/plain', slot.id); event.dataTransfer.effectAllowed = 'move'; markTargets(); });
+    node.addEventListener('dragend', function () { if (selected === slot.id) { selected = ''; render(); } });
+    return node;
+  }
+  function slot(night, position, staying) {
+    var node = el('div', { 'class': 'slot', 'data-date': night.date, 'data-position': position.id, text: staying < position.min ? 'needed' : 'open spot' });
+    node.addEventListener('dragover', function (event) { if (!blocked(selected, night.date, position.id)) { event.preventDefault(); node.classList.add('over'); } });
+    node.addEventListener('dragleave', function () { node.classList.remove('over'); });
+    node.addEventListener('drop', function (event) { event.preventDefault(); move(event.dataTransfer.getData('text/plain'), night.date, position.id); });
+    node.addEventListener('click', function () { if (selected) move(selected, night.date, position.id); });
+    return node;
+  }
+  // While someone is picked up, every spot they may go is outlined; the rest say why not.
+  function markTargets() {
+    document.querySelectorAll('.slot').forEach(function (node) {
+      var reason = selected ? blocked(selected, node.getAttribute('data-date'), node.getAttribute('data-position')) : 'x';
+      node.classList.toggle('target', !!selected && !reason);
+      node.classList.toggle('blocked', !!selected && !!reason);
+      node.title = selected && reason ? reason : '';
+      if (selected) node.textContent = reason ? reason : 'move here';
+    });
+  }
+  function drawMoveBar() {
+    var bar = $('moveBar');
+    bar.hidden = !selected;
+    bar.replaceChildren();
+    if (!selected) return;
+    markTargets();
+    var cancel = el('button', { type: 'button', text: 'Cancel' });
+    cancel.addEventListener('click', function () { selected = ''; render(); });
+    var drop = el('button', { type: 'button', text: 'Remove instead' });
+    drop.addEventListener('click', function () { remove(selected); });
+    bar.append(el('span', {}, ['Moving ', el('b', { text: labelOf(selected) }), '. Tap an outlined spot.']), drop, cancel);
+  }
+
+  function drawSkills() {
+    var box = $('skills');
+    box.replaceChildren();
+    var now = training();
+    var info = {
+      keys: ['Key access', 'Allows Lock-up. With Opening as well: Desk organizer.'],
+      open: ['Opening', 'With Key access as well: Desk organizer (opens up and runs the desk).'],
+      front_desk: ['Front Desk', 'Allows Money collector (Front Desk).']
+    };
+    board.skills.forEach(function (skill) {
+      var list = el('ul', { 'class': 'people' });
+      var ids = Object.keys(now).filter(function (playerId) { return now[playerId][skill.id]; });
+      var dropped = board.training.filter(function (row) { return row[skill.id] && !now[row.playerId][skill.id]; }).map(function (row) { return row.playerId; });
+      ids.concat(dropped).sort(function (a, b) { return nameOf(a).localeCompare(nameOf(b)); }).forEach(function (playerId) {
+        var was = board.training.some(function (row) { return row.playerId === playerId && row[skill.id]; });
+        var has = now[playerId][skill.id];
+        var item = el('li', { 'class': !was && has ? 'added' : was && !has ? 'taken' : '' }, [el('span', { text: nameOf(playerId) + (!was && has ? ' (adding)' : was && !has ? ' (removing)' : '') })]);
+        var action = was !== has ? el('button', { type: 'button', 'class': 'undo', text: 'undo' }) : el('button', { type: 'button', 'class': 'x', text: 'Remove', 'aria-label': 'Remove ' + skill.label + ' training from ' + nameOf(playerId) });
+        // Remove takes the training away; undo puts back what the Sheet has.
+        action.addEventListener('click', function () { setTraining(playerId, skill.id, was !== has ? was : !was); });
+        item.appendChild(action);
+        list.appendChild(item);
+      });
+      if (!list.children.length) list.appendChild(el('li', { 'class': 'muted', text: 'Nobody yet.' }));
+      var input = el('input', { type: 'search', placeholder: 'Add someone: type a name', 'aria-label': 'Add ' + skill.label + ' training: search the desk\'s players' });
+      var finds = el('ul', { 'class': 'finds' });
+      var form = el('div', { 'class': 'new-player', hidden: 'hidden' });
+      input.addEventListener('input', function () {
+        finds.replaceChildren();
+        var query = input.value.trim().toLowerCase();
+        if (query.length < 2) return;
+        var matches = board.players.filter(function (player) {
+          return player.name.toLowerCase().indexOf(query) >= 0 && !(now[player.playerId] && now[player.playerId][skill.id]);
+        }).slice(0, 8);
+        matches.forEach(function (player) {
+          var pick = el('button', { type: 'button', text: player.name + ' · ' + player.rating });
+          pick.addEventListener('click', function () { setTraining(player.playerId, skill.id, true); });
+          finds.appendChild(el('li', {}, [pick]));
+        });
+        var add = el('button', { type: 'button', text: matches.length ? 'Not listed? Add a new player to the desk…' : 'No player called that. Add a new player to the desk…' });
+        add.addEventListener('click', function () { form.hidden = false; form.querySelector('input').value = input.value.trim(); form.querySelector('input').focus(); });
+        finds.appendChild(el('li', {}, [add]));
+      });
+      var nameBox = el('input', { type: 'text', maxlength: '80', autocomplete: 'off' });
+      var ratingBox = el('input', { type: 'number', min: '0', max: '4000', step: '1', inputmode: 'numeric', placeholder: 'Required, for example 1200' });
+      var why = el('p', { 'class': 'problem', role: 'alert' });
+      var addNew = el('button', { type: 'button', 'class': 'secondary', text: 'Add to the desk and to ' + skill.label });
+      addNew.addEventListener('click', function () {
+        var name = nameBox.value.replace(/\s+/g, ' ').trim();
+        var rating = Number(ratingBox.value);
+        why.textContent = !name ? 'Type their full name.' : ratingBox.value === '' || !Number.isInteger(rating) || rating < 0 || rating > 4000 ? 'The desk needs a starting rating: a whole number from 0 to 4000.' :
+          board.players.concat(bucket.newPlayers).some(function (player) { return player.name.toLowerCase() === name.toLowerCase(); }) ? name + ' is already on the desk: search for them instead.' : '';
+        if (why.textContent) return;
+        var tempId = 'new-' + (Date.now() % 1000000);
+        bucket.newPlayers.push({ tempId: tempId, name: name, rating: rating });
+        setTraining(tempId, skill.id, true);
+      });
+      form.append(el('b', { text: 'New player on the desk' }), el('label', { text: 'Full name' }), nameBox, el('label', { text: 'Starting rating (the desk needs one)' }), ratingBox, why,
+        el('p', { 'class': 'muted', text: 'They are added to the desk\'s player list when you submit, exactly as from the desk, so the desk knows them from the start.' }), addNew);
+      box.appendChild(el('div', { 'class': 'skill' }, [el('h3', { text: info[skill.id][0] }), el('p', { text: info[skill.id][1] }), list, el('div', { 'class': 'add-row' }, [input]), finds, form]));
+    });
+  }
+
+  function changeText(change) {
+    var line = el('span', { 'class': 'text' });
+    if (change.kind === 'training') {
+      line.append(nameOf(change.playerId) + ': ', change.value ? el('ins', { text: 'give ' }) : el('del', { text: 'take away ' }),
+        board.skills.filter(function (skill) { return skill.id === change.skill; })[0].label + ' training');
+      return line;
+    }
+    var item = placed()[change.id].item;
+    var from = nightOf(item.date).short + ', ' + spec(item.position).label;
+    line.append(el('b', { text: item.slot.name + ': ' }), el('del', { text: from }));
+    if (change.kind === 'move') line.append(' → ', el('ins', { text: nightOf(change.to.date).short + ', ' + spec(change.to.position).label }));
+    if (item.slot.status === 'pending') line.append(el('span', { 'class': 'muted', text: ' (still waiting for their YES)' }));
+    return line;
+  }
+  function drawDrawer() {
+    var body = $('drawerBody');
+    body.replaceChildren();
+    var list = el('ul', { 'class': 'changes' });
+    bucket.newPlayers.forEach(function (player) {
+      list.appendChild(el('li', {}, [el('span', { 'class': 'kind player', text: 'NEW PLAYER' }), el('span', { 'class': 'text', text: player.name + ', rating ' + player.rating + ' (added to the desk)' })]));
+    });
+    bucket.changes.forEach(function (change, index) {
+      var row = el('li', {}, [el('span', { 'class': 'kind ' + change.kind, text: change.kind === 'training' ? 'TRAINING' : change.kind.toUpperCase() }), changeText(change)]);
+      var x = el('button', { type: 'button', 'class': 'undo link', text: 'undo' });
+      x.addEventListener('click', function () {
+        if (change.kind === 'training') setTraining(change.playerId, change.skill, !change.value);
+        else undo(change.id);
+      });
+      row.appendChild(x);
+      lastProblems.filter(function (problem) { return problem.index === index; }).forEach(function (problem) { row.appendChild(el('p', { 'class': 'problem', text: problem.reason })); });
+      list.appendChild(row);
+    });
+    if (!count()) body.appendChild(el('p', { 'class': 'muted', text: 'Nothing yet. Remove or move people on the Schedule, or change who is trained under Training & access.' }));
+    body.appendChild(list);
+    var schedule = bucket.changes.some(function (change) { return change.kind !== 'training'; });
+    if (schedule) {
+      var area = el('textarea', { maxlength: String(board.noteMax), placeholder: 'Optional: a message to include in every email (for example, why the change)' });
+      area.value = note;
+      area.addEventListener('input', function () { note = area.value; reviewed = null; save(); $('submit').disabled = true; });
+      body.append(el('label', { text: 'Message to the volunteers (optional)' }), area);
+    }
+    if (reviewed && reviewed.emails) {
+      body.appendChild(el('h3', { text: reviewed.emails.length ? 'The emails (' + reviewed.emails.length + ')' : 'Nobody is emailed (training only)' }));
+      reviewed.emails.forEach(function (email) {
+        body.appendChild(el('details', { 'class': 'email' }, [el('summary', { text: email.name + ' (' + email.to + '): ' + email.subject }), el('pre', { text: email.text })]));
+      });
+      body.appendChild(el('p', { 'class': 'muted', text: board.quota + ' emails left today.' }));
+    }
+    $('review').disabled = !count() || busy;
+    $('submit').disabled = !reviewed || busy;
+    $('submit').textContent = reviewed ? 'Submit ' + count() + ' change' + (count() === 1 ? '' : 's') + (reviewed.emails && reviewed.emails.length ? ' and send ' + reviewed.emails.length + ' email' + (reviewed.emails.length === 1 ? '' : 's') : '') : 'Submit (review first)';
+  }
+  function drawRecent() {
+    var box = $('recent');
+    box.hidden = !board.recent.length;
+    box.replaceChildren(el('h2', { text: 'Recent changes' }), el('ul', {}, board.recent.map(function (row) {
+      return el('li', { text: String(row.at).slice(0, 16).replace('T', ' ') + ' UTC · ' + row.name + ': ' + row.before + ' → ' + row.after + (row.emailed === 'yes' ? ' (emailed)' : '') });
+    })));
+  }
+  function time12(time) { var hour = Number(time.slice(0, 2)); return ((hour + 11) % 12 + 1) + ':' + time.slice(3, 5) + ' ' + (hour < 12 ? 'AM' : 'PM'); }
+
+  // ----- Talking to Google -----
+  function load(message) {
+    call('getVolunteerAdmin', [], function (result) {
+      board = result;
+      // A bucket from an earlier visit keeps only what still applies to the board as it is now.
+      var ids = {};
+      signups().forEach(function (item) { ids[item.slot.id] = item; });
+      bucket.changes = bucket.changes.filter(function (change) {
+        if (change.kind === 'training') return true;
+        var item = ids[change.id];
+        return !!item && item.date === change.was.date && item.position === change.was.position;
+      });
+      say(message || ('Loaded ' + board.nights.length + ' nights. Changes wait in the bucket until you review the emails and submit.'), message ? 'ok' : '');
+      render();
+    });
+  }
+  function payload() { return { newPlayers: bucket.newPlayers, changes: bucket.changes.map(function (change) { return { kind: change.kind, id: change.id, was: change.was, to: change.to, playerId: change.playerId, skill: change.skill, value: change.value }; }) }; }
+  function answered(result) {
+    lastProblems = (result.problems || []).filter(function (problem) { return problem.index !== undefined; });
+    say(result.message + ' ' + (result.problems || []).map(function (problem) { return problem.reason; }).join(' '), 'error');
+    render();
+  }
+  $('review').addEventListener('click', function () {
+    say('Checking the changes with the volunteer app…');
+    call('previewVolunteerAdmin', [payload(), note], function (result) {
+      if (!result.ok) return answered(result);
+      reviewed = result;
+      lastProblems = [];
+      say('Checked: every change can be made. Read the emails, then Submit.', 'ok');
+      render();
+    });
+    drawDrawer();
+  });
+  $('submit').addEventListener('click', function () {
+    if (!reviewed) return;
+    say('Saving the changes and sending the emails…');
+    call('submitVolunteerAdmin', [payload(), note], function (result) {
+      // New players the desk already added stay added: the bucket uses them from now on.
+      (result.added || []).forEach(function (player) {
+        if (!player.playerId || player.playerId === player.tempId) return;
+        bucket.changes.forEach(function (change) { if (change.playerId === player.tempId) change.playerId = player.playerId; });
+        bucket.newPlayers = bucket.newPlayers.filter(function (fresh) { return fresh.tempId !== player.tempId; });
+      });
+      if (!result.ok) { reviewed = null; save(); return answered(result); }
+      bucket = { newPlayers: [], changes: [] };
+      note = '';
+      reviewed = null;
+      save();
+      $('drawer').hidden = true;
+      load('Done: ' + result.changes + ' change' + (result.changes === 1 ? '' : 's') + ' saved' + (result.people ? ', ' + result.emailed + ' of ' + result.people + ' people emailed' : '') +
+        ((result.added || []).length ? ', ' + result.added.map(function (player) { return player.name; }).join(', ') + ' added to the desk' : '') + '.');
+    }, function (error) { say((error.message || String(error)) + ' Nothing may have been saved: reload before trying again.', 'error'); });
+    drawDrawer();
+  });
+  $('clear').addEventListener('click', function () { if (count() && !confirm('Discard all ' + count() + ' changes?')) return; bucket = { newPlayers: [], changes: [] }; note = ''; changed(); });
+  $('bucketOpen').addEventListener('click', function () { $('drawer').hidden = false; drawDrawer(); });
+  $('drawerClose').addEventListener('click', function () { $('drawer').hidden = true; });
+  $('find').addEventListener('input', render);
+  $('peopleOnly').addEventListener('change', render);
+  [['tabSchedule', 'schedule'], ['tabTraining', 'training']].forEach(function (tab) {
+    $(tab[0]).addEventListener('click', function () {
+      ['tabSchedule', 'tabTraining'].forEach(function (id) { $(id).setAttribute('aria-selected', String(id === tab[0])); });
+      $('schedule').hidden = tab[1] !== 'schedule';
+      $('training').hidden = tab[1] !== 'training';
+    });
+  });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && selected) { selected = ''; render(); } });
+  window.addEventListener('beforeunload', function (event) { if (count()) { event.preventDefault(); event.returnValue = ''; } });
+  restore();
+  load();
+})();
+</script>
+</body>
+</html>
