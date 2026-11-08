@@ -8,13 +8,14 @@ const calls = [];
 let answers = [];
 let wake = [['key'], ['w'.repeat(64)]];
 const cache = {};
+let flushed = 0;
 const added = [];
 const audits = [];
 let players = [{ player_id: 'p-ann', display_name: 'Ann Example', active: true }];
 const context = {
   JSON, Object, Array, Number, String, Error,
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; } }) },
-  SpreadsheetApp: { getActive: () => ({ getSheetByName: name => (name === 'AppWake' ? {
+  SpreadsheetApp: { flush: () => { flushed += 1; }, getActive: () => ({ getSheetByName: name => (name === 'AppWake' ? {
     getLastRow: () => wake.length,
     getRange: (row, column, rows, columns) => ({
       getValues: () => [[(wake[row - 1] || [])[column - 1] || '']],
@@ -49,6 +50,7 @@ answers = [{ ok: true, nights: [], training: [], recent: [] }];
 const board = plain(context.getVolunteerAdmin());
 assert.deepEqual(wake.map(row => row[1]), ['admin_key', '1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd']);
 assert.equal(calls[0].body.key, wake[1][1]);
+assert.equal(flushed, 1, 'the new key is saved before the volunteer app is asked for it');
 assert.notEqual(calls[0].body.key, wake[1][0], 'its own key, not the wake key');
 assert.deepEqual(calls[0].body, { fn: 'admin', key: wake[1][1], action: 'board' });
 assert.match(calls[0].url, /^https:\/\/script\.google\.com\/macros\/s\/AKfycbx_[A-Za-z0-9_-]+\/exec$/, 'the volunteer app\'s released address');
