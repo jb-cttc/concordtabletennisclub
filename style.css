@@ -2750,3 +2750,54 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 .text-cttc-links a {
   color: #1f5a2e;
 }
+
+/* The Equalizer on the Round Robins page: pilot banner, group tables, and the Finals bracket. */
+.eq-results {
+  margin: 8px 0 28px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--border);
+  border-top: 3px solid #c99934;
+  background: #fff;
+}
+.eq-results h2 { margin-top: 0; }
+.eq-date { color: var(--muted); font-weight: normal; font-size: 0.85em; }
+.eq-pilot {
+  background: #fbf6e6;
+  border-left: 3px solid #c99934;
+  padding: 10px 14px;
+  margin: 0 0 16px;
+  font-size: 0.92rem;
+}
+.eq-pilot p { margin: 0 0 6px; }
+.eq-pilot ul { margin: 0; padding-left: 20px; }
+.eq-pilot li { margin: 3px 0; }
+.eq-winner-line { font-size: 1.05rem; margin: 0 0 4px; }
+.eq-subhead { margin: 18px 0 4px; }
+.group-note { font-size: 0.8rem; color: var(--muted); margin: 4px 0 0; }
+.eq-bracket-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
+.eq-bracket { display: flex; gap: 14px; align-items: stretch; }
+.eq-round { display: flex; flex-direction: column; flex: 1 1 0; min-width: 0; max-width: 220px; }
+.eq-round h4 { margin: 0 0 8px; font-size: 0.85rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.eq-matches { display: flex; flex-direction: column; justify-content: space-around; flex: 1; gap: 12px; }
+.eq-match { border: 1px solid var(--border); border-radius: 4px; background: #fff; font-size: 0.88rem; }
+.eq-match.final { border-color: #c99934; box-shadow: 0 0 0 1px #c99934; }
+.eq-match.bye { border-style: dashed; color: var(--muted); }
+.eq-slot { display: flex; align-items: center; gap: 6px; padding: 5px 8px; }
+.eq-slot + .eq-slot { border-top: 1px solid var(--border); }
+.eq-slot.won { font-weight: 700; background: #f3f8f3; }
+.eq-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eq-score { min-width: 1.2em; text-align: right; }
+.eq-check { color: #2a6a2a; }
+.eq-hs { margin: 0; padding: 3px 8px 5px; font-size: 0.74rem; color: var(--muted); border-top: 1px dotted var(--border); }
+.eq-champion-col .eq-matches, .eq-champion-col { justify-content: center; }
+.eq-champion { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: auto 0; padding: 14px 10px; border: 2px solid #c99934; border-radius: 6px; background: #fbf6e6; font-weight: 700; text-align: center; }
+.eq-champion-trophy { font-size: 2rem; line-height: 1; }
+/* A phone: the rounds one under another, each match full width. */
+@media (max-width: 640px) {
+  .eq-results { padding: 12px; }
+  .eq-bracket { flex-direction: column; gap: 16px; }
+  .eq-round { max-width: none; }
+  .eq-matches { gap: 8px; }
+  .eq-champion { flex-direction: row; justify-content: center; gap: 10px; }
+  .eq-champion-trophy { font-size: 1.5rem; }
+}

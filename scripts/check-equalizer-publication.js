@@ -133,6 +133,7 @@ function tables() {
     assert.equal(email.summary.totals.players, players.length);
     assert.equal(email.summary.totals.matches, eqSession.equalizer.matches.length);
     assert.ok(email.html.includes('https://example.test/unsub'));
+    assert.ok(email.html.includes('/roundrobins.html#eq-' + DATE) && email.text.includes('/roundrobins.html#eq-' + DATE), 'the link goes to the Equalizer on the Round Robins page');
     assert.doesNotMatch(email.html + email.text, /player-sim-|@/, 'no private ids or addresses');
     // CTTC_EMAIL_PREVIEW=<file>: also write this simulated email there, to look at.
     if (process.env.CTTC_EMAIL_PREVIEW) await fs.writeFile(process.env.CTTC_EMAIL_PREVIEW, '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Equalizer Email Preview</title><body style="margin:0;padding:24px 16px;background:#f4f1ec"><div style="background:#fff;max-width:560px;margin:0 auto;padding:24px;border:1px solid #ddd8d0"><p style="font:12px Arial,sans-serif;color:#7a5200;margin:0 0 12px">Subject: ' + email.subject + ' · made-up players from the desk simulator</p>' + email.html + '</div></body>');
