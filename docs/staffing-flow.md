@@ -534,6 +534,12 @@ desk's `Volunteers.js`, and a test checks it):
 - **One free night per person.** Someone among the first 2 openers who also
   closes is skipped among the closers, so that closing spot passes to the next
   closer: up to 4 different people a night.
+- Only sign-ups linked to a desk player count. The live app runs in directory
+  mode, where every sign-up is a name from the desk's player list; in hybrid
+  mode someone "not listed" can still volunteer but holds no free spot, since
+  the desk could never mark them. A volunteer checked in under a second desk
+  record linked to theirs as the same person (`NameLinks`, `same_person`) is
+  free under both.
 - Once someone has been **told** they play free (`Signups.free_night`), they
   keep their place ahead of everyone else, so nobody is told and then loses it
   (unless they drop).
@@ -560,8 +566,9 @@ you play free at CTTC on Sat, Nov 28*, and writes `free_night`. The day-before
 reminder says *You play free tomorrow*, or that everyone pays $5.
 
 **At the desk.** The desk reads the same `Signups` rows: a confirmed free
-volunteer's payment button is gold and reads **FREE ✓**, *Tonight's
-volunteers* tags them **PLAYS FREE**, and the cash flow page and Clover
+volunteer has a gold **★** by their name on every roster row, their payment
+button is gold and reads **★ FREE**, *Tonight's volunteers* tags them
+**★ PLAYS FREE** (or **★ FREE if confirmed**), and the cash flow page and Clover
 matching count them at $0 (see
 [Session fees](round-robin-operations.md#session-fees-and-zeffy)).
 

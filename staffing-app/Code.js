@@ -996,7 +996,8 @@ function missing_(entries, now) {
 // them). entries: one night's Signups rows, any status. Returns the people holding a free spot, openers first, as
 // [{key, part, confirmed, entries}]: in each part of the night (opening, closing) the first 2 people by sign-up time among
 // everyone holding a slot (confirmed, or waiting for their YES before its deadline). Someone already free as an opener is
-// skipped among the closers, so that spot passes to the next closer: up to 4 different people. People already told they
+// skipped among the closers, so that spot passes to the next closer: up to 4 different people. Only sign-ups linked to a
+// desk player count (in hybrid mode, someone "not listed" can volunteer but holds no free spot). People already told they
 // play free (free_night set) keep their place ahead of the rest, so nobody is told and then loses it. A spot held by someone
 // still waiting to confirm is theirs, but free only once they confirm: if they never do, or drop, the next person moves up.
 function freeSpots_(entries, now) {
@@ -1008,7 +1009,10 @@ function freeSpots_(entries, now) {
     if (status !== 'pending' && status !== 'confirmed') return;
     var part = parts[String(entry.position || '').trim()];
     if (!part) return;
-    var key = String(entry.player_id || '').trim() ? 'p:' + String(entry.player_id).trim() : 'e:' + String(entry.email || '').trim().toLowerCase();
+    // Players on the desk's list only: the desk charges by player, so someone it cannot match could never be shown free.
+    var playerId = String(entry.player_id || '').trim();
+    if (!playerId) return;
+    var key = 'p:' + playerId;
     var person = people[part][key] || (people[part][key] = { key: key, part: part, confirmed: false, told: false, at: 8.64e15, id: '', entries: [] });
     var at = Date.parse(entry.created_at) || 8.64e15;
     var id = String(entry.signup_id || '');

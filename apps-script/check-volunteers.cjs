@@ -117,15 +117,23 @@ signups = [told,
 const special = list(SPECIAL);
 assert.deepEqual(special.special, { fee: 5 });
 assert.deepEqual(special.volunteers.map(v => [v.name, v.free, v.waiting]), [
-  ['Late Opener', '', false], ['Mia Example', 'open', true], ['Raymond Example', 'open', false], ['Ron Example', 'close', false], ['Last Closer', '', false], ['Walk In Helper', 'close', false]
-], 'Ray and Mia hold the opening spots (Mia once she confirms); the walk-in and Ron the closing ones');
+  ['Late Opener', '', false], ['Mia Example', 'open', true], ['Raymond Example', 'open', false], ['Ron Example', 'close', false], ['Last Closer', 'close', false], ['Walk In Helper', '', false]
+], 'Ray and Mia hold the opening spots (Mia once she confirms); Ron and the last closer the closing ones: a name not on the desk\'s list holds none');
 const freeOn = date => JSON.parse(JSON.stringify(context.freeVolunteerFinder_()(date)));
-assert.deepEqual(freeOn(SPECIAL), { 'p-ray': 'open', 'p-ron': 'close' }, 'only confirmed directory players are charged nothing');
+assert.deepEqual(freeOn(SPECIAL), { 'p-ray': 'open', 'p-ron': 'close', 'p-last': 'close' }, 'only confirmed directory players are charged nothing');
+// The same person under a second desk record (NameLinks, same_person) is free under both.
+context.listPlayers = () => [];
+context.nameLinkRows_ = () => [];
+context.confirmedNameLinks_ = () => ({ resolved: [{ left: { playerId: 'p-ron' }, right: { playerId: 'p-ron-2' } }] });
+context.linkedPartnerIds_ = (playerId, links) => links.filter(link => link.left.playerId === playerId || link.right.playerId === playerId)
+  .map(link => (link.left.playerId === playerId ? link.right.playerId : link.left.playerId));
+assert.deepEqual(freeOn(SPECIAL), { 'p-ray': 'open', 'p-ron': 'close', 'p-ron-2': 'close', 'p-last': 'close' });
+delete context.confirmedNameLinks_;
 // Someone told they play free keeps the spot ahead of an earlier sign-up time.
 signups.push(free(10, SPECIAL, 'tables', 'p-early', 'Early Bird', 'confirmed', at(-10)));
-assert.deepEqual(freeOn(SPECIAL), { 'p-early': 'open', 'p-ray': 'open', 'p-ron': 'close' }, 'an earlier sign-up moves ahead of anyone not yet told (Mia here)');
+assert.deepEqual(freeOn(SPECIAL), { 'p-early': 'open', 'p-ray': 'open', 'p-ron': 'close', 'p-last': 'close' }, 'an earlier sign-up moves ahead of anyone not yet told (Mia here)');
 signups[5] = free(5, SPECIAL, 'desk', 'p-late', 'Late Opener', 'confirmed', at(4), { told: '2026-11-02T00:00:00.000Z' });
-assert.deepEqual(freeOn(SPECIAL), { 'p-late': 'open', 'p-early': 'open', 'p-ray': 'close' },
+assert.deepEqual(freeOn(SPECIAL), { 'p-late': 'open', 'p-early': 'open', 'p-ray': 'close', 'p-ron': 'close' },
   'someone already told keeps the spot ahead of earlier sign-ups; Ray, no longer free as an opener, takes the first closing spot');
 assert.deepEqual(freeOn('2026-11-18'), {}, 'nobody is free on an ordinary night');
 assert.equal(list('2026-11-18').special, undefined);

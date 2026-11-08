@@ -29,6 +29,11 @@ JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'players.json'), 'utf8')).pla
   if (Number.isFinite(player.currentRating)) playerFor(player.name, player.currentRating);
 });
 
+// The Friday and Saturday special, read from the real apps-script/NightFees.js so the preview follows its dates.
+const nightFees = {};
+require('vm').runInNewContext(fs.readFileSync(path.join(DESK, 'NightFees.js'), 'utf8'), nightFees);
+function specialNight(date) { return nightFees.specialNight_(date); }
+
 const sessions = {};
 function seedSession(date) {
   const details = [].concat.apply([], fs.readdirSync(path.join(ROOT, 'data')).filter(function (name) { return /^session-details-\d{4}\.json$/.test(name); }).map(function (name) {
@@ -252,10 +257,18 @@ const rpc = {
         messages: [{ text: "I'll join CTTC's RR tonight", receivedAt: Date.now() - (index + 1) * 600000 }] };
     });
   },
-  listVolunteers: function () {
-    return { connected: true, volunteers: players.slice(20, 24).map(function (player, index) {
-      return { playerId: player.playerId, name: player.name, roles: [index % 2 ? 'Close' : 'Open'], waiting: false };
+  // On a Friday or Saturday of the special (apps-script/NightFees.js), two of them hold free spots and one is still waiting.
+  listVolunteers: function (date) {
+    const special = specialNight(date);
+    const sample = special ? [['Desk organizer', false, 'open'], ['Tables and barriers', true, 'open'], ['Lock-up', false, 'close'], ['Put away', false, '']] :
+      [['Open', false], ['Close', false], ['Open', false], ['Close', false]];
+    const answer = { connected: true, volunteers: players.slice(20, 24).map(function (player, index) {
+      const volunteer = { playerId: player.playerId, name: player.name, roles: [sample[index][0]], waiting: sample[index][1] };
+      if (special) volunteer.free = sample[index][2];
+      return volunteer;
     }) };
+    if (special) answer.special = { fee: special.fee };
+    return answer;
   },
   sendVoiceConfirmation: function () { return { sent: true, reason: '' }; },
   getOpenPlayParticipants: function (date) { return openPlay[date] || []; },
@@ -272,7 +285,15 @@ const rpc = {
     return attending;
   },
   setMemberStatus: function (playerId, status) { memberStatuses[playerId] = status; return rpc.getMemberStatuses(); },
-  getPrivatePaymentOverview: function (date) { return { methods: payments[date] || {}, coveredIds: [], passes: [], firstVisitIds: firstVisitsOn(date) }; },
+  getPrivatePaymentOverview: function (date) {
+    const overview = { methods: payments[date] || {}, coveredIds: [], passes: [], firstVisitIds: firstVisitsOn(date) };
+    const special = specialNight(date);
+    if (special) {
+      overview.special = { fee: special.fee };
+      overview.freeVolunteers = { [players[20].playerId]: 'open', [players[22].playerId]: 'close' };
+    }
+    return overview;
+  },
   setFirstVisit: function (date, playerId, firstVisit) {
     firstVisits[date] = firstVisitsOn(date).filter(function (id) { return id !== playerId; }).concat(firstVisit ? [playerId] : []);
     return firstVisits[date];

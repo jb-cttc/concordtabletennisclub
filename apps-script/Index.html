@@ -2826,6 +2826,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .payment-control.unsynced .payment-trigger{border-style:dashed}
 /* A volunteer playing free on a special night (Volunteers.js): gold, so nobody asks them to pay. */
 .payment-control.free:not(.paid) .payment-trigger{background:#fff3c4;border:2px solid #b88a00;color:#5c4300;font-weight:700}
+.identity .free-star,.group-list .identity > span.free-star:not(.member-badge){display:inline-block;vertical-align:middle;margin-left:5px;padding:0 5px;border-radius:8px;background:#fff3c4;border:1px solid #b88a00;color:#8a6400;font:700 12px Arial,sans-serif;line-height:16px;cursor:help}
+.identity .free-star[hidden]{display:none}
 #sync-note{position:fixed;left:12px;bottom:12px;max-width:min(420px,calc(100vw - 24px));padding:8px 12px;border-left:4px solid var(--gold);background:#fff3d9;box-shadow:0 4px 12px #17211b2b;font:13px Arial,sans-serif;z-index:1500}#sync-note[hidden]{display:none}
 @media print{#sync-note{display:none}}
 .payment-options .unpaid{border-top:1px solid #dce3df;color:#8a3b2b}
@@ -3012,7 +3014,21 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var free = freeVolunteers[playerId];
       control.classList.toggle('free', !!free);
       var trigger = control.querySelector('.payment-trigger');
-      var label = method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : free ? 'FREE \u2713' : 'Payment';
+      var label = method ? method[0].toUpperCase() + method.slice(1) + ' \u2713' : free ? '\u2605 FREE' : 'Payment';
+      // The same gold star the volunteer app puts on nights with free spots, next to the name on every roster row.
+      var identity = control.parentNode.querySelector('.identity');
+      var star = identity && identity.querySelector('.free-star');
+      if (free && identity && !star) {
+        star = document.createElement('span');
+        star.className = 'free-star';
+        star.textContent = '\u2605';
+        identity.querySelector('strong').after(star);
+      }
+      if (star) {
+        star.hidden = !free;
+        star.title = free ? 'Plays free tonight: one of the first 2 volunteers to ' + free + '.' : '';
+        star.setAttribute('aria-label', star.title);
+      }
       if (trigger.textContent !== label) trigger.textContent = label;
       var junior = window.cttcStatusOf && window.cttcStatusOf(playerId) === 'junior';
       var intro = !!firstVisits[playerId] && !junior;
@@ -4486,7 +4502,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         // Free once confirmed; a spot still waiting for its YES is marked so.
         var tag = document.createElement('span');
         tag.className = 'free-tag' + (volunteer.waiting ? ' waiting' : '');
-        tag.textContent = volunteer.waiting ? 'FREE if confirmed' : 'PLAYS FREE';
+        tag.textContent = volunteer.waiting ? '\u2605 FREE if confirmed' : '\u2605 PLAYS FREE';
         tag.title = (volunteer.waiting ? 'Holds a free spot, but has not confirmed yet. ' : '') + 'One of the first 2 volunteers to ' + (volunteer.free === 'open' ? 'open' : 'close') + ' tonight: nothing to collect.';
         name.appendChild(tag);
       }
@@ -4520,7 +4536,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     var freeCount = volunteers.filter(function (volunteer) { return volunteer.free && !volunteer.waiting; }).length;
     specialNote.hidden = !special;
     specialNote.textContent = special ? 'Friday and Saturday special: everyone pays $' + special.fee + ' tonight. The first 2 volunteers to open and the first 2 to close play free' +
-      (freeCount ? ' (' + freeCount + ' tonight, marked PLAYS FREE; their payment button says FREE).' : '; nobody has earned it tonight yet.') : '';
+      (freeCount ? ' (' + freeCount + ' tonight, marked \u2605 here, by their name and on their payment button).' : '; nobody has earned it tonight yet.') : '';
     message.textContent = !connected ? 'Not connected to the volunteer sign-ups yet (desk script property CTTC_STAFFING_DB_ID).' :
       volunteers.length ? 'Signed up to open or close on this date. Add the ones who are playing.' : 'No volunteers signed up for this date.';
   }
