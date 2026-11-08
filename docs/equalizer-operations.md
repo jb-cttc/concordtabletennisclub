@@ -92,6 +92,16 @@ round robin night **?** opens the usual desk tour.
    EQ ratings back. The lock reopens it, as
    for round robins.
 
+   **Results email.** Like a round robin, the Equalizer publishes 2 minutes
+   after finalizing, and its results email goes to the subscriber list 2
+   minutes after the site lists it (`scripts/build-equalizer-email.js`): the
+   champion and the Final, the places, the group winners, the upset of the
+   night (the widest rating gap won with a head start), the biggest EQ rating
+   movers, and the totals. The first three Equalizer emails also explain the
+   EQ rating. It is sent once (marker `.cache/last-emailed-equalizer.json`,
+   apart from the round robin's), and the workflow's scheduled runs send it if
+   the desk's did not. Preview: `node scripts/build-equalizer-email.js [date]`.
+
 **Player board** (the TV window, see [round-robin operations](round-robin-operations.md#player-board-the-gym-tv))
 shows the field until the sheets print, then the groups with head starts, the
 Road to the Finals, the Finals bracket once every group is decided, or the
@@ -142,8 +152,7 @@ by hand: fix things at the desk.
 ## Not built yet
 
 - The site's Equalizer pages (Rated Games, `/equalizer`, profile records,
-  Hall of Fame) and an Equalizer results email. Until then the site and
-  email show round robins only. A player's profile shows their EQ rating
+  Hall of Fame). Until then the site shows round robins only. A player's profile shows their EQ rating
   beside the RR rating, and their Equalizers in Recent Sessions (labelled
   Equalizer, the change from their previous Equalizer); the leaderboard and
   rating chart are RR only.

@@ -170,10 +170,15 @@ jobs:
       - name: Commit sent marker
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.send_email == 'true')
         run: |
-          if [ -f .cache/last-emailed-session.json ] && [ -n "$(git status --porcelain .cache/last-emailed-session.json)" ]; then
+          # The round robin's marker and the Equalizer's (scripts/send-session-email.js), whichever changed.
+          MARKERS=""
+          for f in .cache/last-emailed-session.json .cache/last-emailed-equalizer.json; do
+            if [ -f "$f" ] && [ -n "$(git status --porcelain "$f")" ]; then MARKERS="$MARKERS $f"; fi
+          done
+          if [ -n "$MARKERS" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add .cache/last-emailed-session.json
+            git add $MARKERS
             git commit -m "Record emailed session"
             git push
           fi
