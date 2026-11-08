@@ -1,10 +1,10 @@
-// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
+// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
 // Opens the real Google-hosted desk (/dev by default, /exec with --exec) in headless Chromium, signed in with the
 // club's clasp sign-in (~/.clasprc.json), so an agent can see what it pushed. It looks, it does not touch: the script
 // never clicks, types or saves. It only loads the page, optionally switches the date picker (which only reads), waits
 // for the page to settle, prints a short summary and saves screenshots: desk.png is the browser window (Google keeps the
 // desk in a frame the window's height, so raise --height to see further down), and --selector saves one part of the
-// page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover) instead, and waits
+// page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover, ?view=volunteers) instead, and waits
 // for it to finish loading.
 //
 // Both URLs run against the real club Sheet, Gmail and member data. Screenshots therefore show real names: keep them
@@ -64,7 +64,7 @@ async function deployment(token, live) {
   const out = path.resolve(option('out', path.join(os.tmpdir(), 'cttc-desk-view')));
   if (out.startsWith(ROOT + path.sep)) throw new Error('Screenshots show real member data: choose an --out directory outside the repository.');
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('--date must be YYYY-MM-DD');
-  if (view && !/^(cash|clover)$/.test(view)) throw new Error('--view must be cash or clover');
+  if (view && !/^(cash|clover|volunteers)$/.test(view)) throw new Error('--view must be cash, clover or volunteers');
   if (view && date) throw new Error('--date is for the desk; leave it out with --view');
   fs.mkdirSync(out, { recursive: true, mode: 0o700 });
 

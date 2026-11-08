@@ -37,9 +37,9 @@ sign-in, another API) does not mean the thing is unreachable. When the
 environment gains a new kind of access, add it here and to
 `.claude/hooks/session-start.sh`, not as a separate note.
 
-- **The real Google desk** (`/dev`, `/exec`, and the `?view=cash` and
-  `?view=clover` pages):
-  `npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover] [--selector CSS] [--width 390] --out <scratchpad dir>`,
+- **The real Google desk** (`/dev`, `/exec`, and the `?view=cash`,
+  `?view=clover` and `?view=volunteers` pages):
+  `npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers] [--selector CSS] [--width 390] --out <scratchpad dir>`,
   then Read the screenshots it prints (`scripts/desk-google-view.js`). It only
   looks, never clicks or saves; keep any extra checks read-only too. Uses the
   clasp sign-in `~/.clasprc.json`, written at session start from

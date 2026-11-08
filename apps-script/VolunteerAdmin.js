@@ -32,6 +32,9 @@ function volunteerAdminKey_() {
   if (key.length < 32) {
     key = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
     sheet.getRange(1, 2, 2, 1).setNumberFormat('@').setValues([['admin_key'], [key]]);
+    // Saved before the volunteer app is asked: it reads the key from this Sheet, and Google holds writes until the end of
+    // the run otherwise (the first Volunteer Admin visit was refused).
+    SpreadsheetApp.flush();
   }
   cache.put('admin-key', key, 21600);
   return key;
