@@ -137,6 +137,11 @@ const cases = {
     tab.finalize();
     await run(world, 60000);
     assert.equal(googleEq(world).session.status, 'finalized', 'the same scores in another order finalize');
+    // The 2-minute hold before publishing shows, as after a round robin, with Publish now for the Equalizer.
+    const bar = tab.$('#publish-bar');
+    assert.ok(!bar.hidden, 'the publish bar shows after an Equalizer finalize');
+    assert.match(bar.textContent, /Publishing to the club site in|Publishing started|Published/);
+    assert.equal(JSON.parse(JSON.stringify(world.server.run('getPublishState'))).sessionId, EQ, 'for the Equalizer');
     assert.equal(world.server.rows('RatingLedger').filter(r => r.session_id === EQ).length, 8);
     assert.equal(tab.$('#finalize').textContent, '🔒 Finalized');
     // Finalizing moved only EQ ratings; the directory shows the new ones, the RR ratings as they were.

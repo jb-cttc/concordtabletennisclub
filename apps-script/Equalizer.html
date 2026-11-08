@@ -519,6 +519,7 @@ window.CTTCEqualizerDesk = function (desk) {
       load(eq.date, state);
       desk.changed();
       if (desk.refreshRatings) desk.refreshRatings();
+      if (desk.publishChanged) desk.publishChanged();
       desk.setStatus('Equalizer finalized. EQ ratings are updated (round robin ratings are not changed), and it publishes to the club site shortly.');
     } catch (error) {
       stop();
@@ -536,6 +537,7 @@ window.CTTCEqualizerDesk = function (desk) {
       load(eq.date, state);
       desk.changed();
       if (desk.refreshRatings) desk.refreshRatings();
+      if (desk.publishChanged) desk.publishChanged();
       desk.setStatus('Equalizer reopened and EQ ratings restored. Correct the results, then finalize again.');
     } catch (error) {
       stop();
