@@ -118,9 +118,25 @@ const cases = {
     const card = [...tab.window.document.querySelectorAll('#groups .eq-roster li')].find(li => li.textContent.includes(someone.display_name));
     assert.match(card.querySelector('.identity span').textContent, new RegExp('^EQ ' + rrBefore));
     assert.equal(card.querySelector('.other-rating').textContent, 'RR ' + rrBefore);
+    // Google lists the results in another order (a changed result moves to the end of its list): the same scores, so
+    // finalizing goes ahead. A different score on Google is named.
+    const resultRows = () => world.server.rows('BracketMatches').filter(r => r.session_id === EQ).map(({ __row, ...row }) => row);
+    world.server.context.replaceSessionRows_('BracketMatches', EQ, resultRows().reverse());
+    const changed = resultRows().find(r => r.stage === 'G' && !r.forfeited_by);
+    const original = resultRows();
+    world.server.context.replaceSessionRows_('BracketMatches', EQ, original.map(r => r.match_id === changed.match_id ? Object.assign({}, r, { side_one_games: r.side_two_games, side_two_games: r.side_one_games }) : r));
+    tab.finalize();
+    await run(world, 30000);
+    assert.match(tab.status(), new RegExp('different result for ' + changed.match_id + ' than this page'), 'a real difference is named');
+    assert.notEqual(googleEq(world).session.status, 'finalized');
+    world.server.context.replaceSessionRows_('BracketMatches', EQ, original);
+    tab.close();
+    tab = device.open();
+    await run(world, 15000);
+    world.server.context.replaceSessionRows_('BracketMatches', EQ, resultRows().reverse());
     tab.finalize();
     await run(world, 60000);
-    assert.equal(googleEq(world).session.status, 'finalized');
+    assert.equal(googleEq(world).session.status, 'finalized', 'the same scores in another order finalize');
     assert.equal(world.server.rows('RatingLedger').filter(r => r.session_id === EQ).length, 8);
     assert.equal(tab.$('#finalize').textContent, '🔒 Finalized');
     // Finalizing moved only EQ ratings; the directory shows the new ones, the RR ratings as they were.

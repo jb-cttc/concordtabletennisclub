@@ -484,6 +484,16 @@ window.CTTCEqualizerDesk = function (desk) {
     var ev = event();
     return !!ev && !!eq.session && !finalized() && E.resolve(ev, eq.results).finished;
   }
+  // The matches whose results differ between two copies: by the score itself, not the order Google lists them in (a
+  // changed result moves to the end of Google's list) or how a forfeit or head start is written down.
+  function differentResults(a, b) {
+    var plain = function (r) {
+      if (!r || !r.winnerId) return '';
+      return [r.winnerId, r.forfeitedBy ? 'F:' + r.forfeitedBy : (r.games || []).map(Number).join('-'), r.wonBy || ''].join('|');
+    };
+    var ids = Object.keys(a).concat(Object.keys(b)).filter(function (id, i, all) { return all.indexOf(id) === i; });
+    return ids.filter(function (id) { return plain(a[id]) !== plain(b[id]); }).sort();
+  }
   async function finalize() {
     var ev = event();
     if (!ev || !E.resolve(ev, eq.results).finished) { desk.setStatus('The Equalizer is not finished yet.', 'error'); return; }
@@ -496,11 +506,12 @@ window.CTTCEqualizerDesk = function (desk) {
     var stop = desk.busyStatus('Finalizing the Equalizer...');
     try {
       var fresh = await desk.call('getEqualizerState', eq.date);
-      if (JSON.stringify(fresh.results) !== JSON.stringify(eq.results)) {
+      var differ = differentResults(fresh.results || {}, eq.results);
+      if (differ.length) {
         stop();
         load(eq.date, fresh);
         desk.changed();
-        desk.setStatus('Google Sheets has different results from this page (another device?). The page now shows Google’s; check them and finalize again.', 'error');
+        desk.setStatus('Google Sheets has a different result for ' + differ.slice(0, 3).join(', ') + (differ.length > 3 ? ' and ' + (differ.length - 3) + ' more' : '') + ' than this page (another device?). The page now shows Google’s; check ' + (differ.length === 1 ? 'it' : 'them') + ' and finalize again.', 'error');
         return;
       }
       var state = await desk.call('finalizeEqualizer', eq.date, fresh.session.revision);
