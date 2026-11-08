@@ -17,7 +17,7 @@ or coach for it (it is safe to share: it says nothing about the person), then
 open the web app's `/exec` address with `?log=3F09A1`. It needs no sign-in and
 shows that booking's lesson time, current `status`, who it is waiting on and
 the deadline (`booking`), and every line about it in order (`lines`): each
-step (`step:unverified`, `step:pending`, …), each email or text sent, each
+step (`step:pending`, `step:confirmed`, …), each email or text sent, each
 YES or NO read and whether it was applied, and any failure. `runs` shows
 whether the check and the sweep are running. Section 2 explains each
 line. If that answers the question, stop here; otherwise use the private
@@ -35,22 +35,37 @@ Sheet:
 
 | `status` | Meaning | Who must act | What they were sent | Deadline | Public board shows |
 | --- | --- | --- | --- | --- | --- |
-| `unverified` | Student submitted the form; nothing has gone to the coach. | **Student**: reply YES. | Email *Confirm your coaching request [CTTC ref …]*. Also a text if the student texted STUDENT earlier (`Students.texts = yes`). | 2 hours after submitting (`VERIFY_MS`), or sooner for a lesson that is close. | "Waiting for Student … to confirm" |
-| `pending` | Student said YES (`verified_at` set). The coach has been asked. | **Coach**: reply YES or NO. | Coach: email *Lesson request from {student} [CTTC ref …]*, plus a text if the coach has a mobile on the list. Student: email *Coaching request sent to Coach … (not confirmed yet)*. | The earlier of 48 hours after the YES, or 12 hours before the lesson (`HOLD_HOURS`, `RELEASE_BEFORE_HOURS`). | "Waiting for Coach … to accept" |
+| `pending` | Student pressed **Confirm submission** on the page; the coach has been asked (`verified_at` is that moment). | **Coach**: reply YES or NO. | Coach: email *Lesson request from {student} [CTTC ref …]* with the student's name, email and mobile (if given), plus a text if the coach has a mobile on the list. Student: email *Coaching request sent to Coach … (not confirmed yet)*. | The earlier of 48 hours after the request, or 12 hours before the lesson (`HOLD_HOURS`, `RELEASE_BEFORE_HOURS`). When that leaves the coach under 2 hours (`MIN_ANSWER_MS`, a lesson booked at short notice), until the lesson starts. | "Waiting for Coach … to accept" |
+| `unverified` | Only a request made before November 2026, when the student had to reply YES first. Nothing new is ever saved this way. | **Student**: reply YES. | Email *Confirm your coaching request [CTTC ref …]*. | 2 hours after submitting. | "Waiting for Student … to confirm" |
 | `confirmed` | Coach said YES. Done. | Nobody | Both: *Lesson confirmed: {date} {start}*, with each other's contact details. Texts too if opted in. | n/a | "booked" |
 | `declined` | Coach said NO. | Nobody (student may pick another time) | Student: *Coaching request not accepted*. | n/a | time is open again |
-| `expired` with empty `verified_at` | Student never replied YES. | Nobody | Student: *Coaching request expired: we did not get your YES*, with the steps to book again. Coach was never told. | n/a | time is open again |
+| `expired` with empty `verified_at` | (Before November 2026 only.) Student never replied YES. | Nobody | Student: *Coaching request expired: we did not get your YES*, with how to book now. Coach was never told. | n/a | time is open again |
 | `expired` with `verified_at` set | Coach never answered. | **Club** should follow up with the coach | Student and coach both, with the club cc'd (`ADMIN_EMAIL`): *…expired: the coach did not answer* / *Lesson request expired: no answer*. | n/a | time is open again |
-| `cancelled`, `cancelled_by = student` | Student replied NO to the confirm email, or confirmed a cancel. | Nobody | Student: *Coaching lesson cancelled*. Coach: *Lesson cancelled by {student}*, only if the coach had been asked (`verified_at` set). | n/a | time is open again |
+| `cancelled`, `cancelled_by = student` | Student confirmed a cancel (or, before November 2026, replied NO to the confirm email). | Nobody | Student: *Coaching lesson cancelled*. Coach: *Lesson cancelled by {student}*, only if the coach had been asked (`verified_at` set). | n/a | time is open again |
 | `cancelled`, `cancelled_by = move` | Student moved to another time; look for the new row (status `pending`). | See the new row | Coach of the old time: *Lesson cancelled by {student}* ("moved"). | n/a | old time open; new time "requested" |
 | `cancelled`, `cancelled_by = coach` | Set by hand by the club after a coach asked to cancel (coaches reply to their confirmation email; the app does not do this itself). | Nobody | Student: *Lesson cancelled by your coach*. | n/a | time is open again |
 
 `proposed` appears in the code's status checks but is never set; ignore it.
 
 The booking board, schedule list, coach page and public Sheet say who owes
-the next reply: **"Waiting for Student … to confirm"** (`unverified`) or
-**"Waiting for Coach … to accept"** (`pending`). Before this was added (the
-`/exec` release of 2026-10-10 and earlier) both showed only "requested".
+the next reply: **"Waiting for Coach … to accept"** (`pending`), or, for a
+request from before November 2026, **"Waiting for Student … to confirm"**
+(`unverified`). Before this was added (the `/exec` release of 2026-10-10 and
+earlier) both showed only "requested".
+
+**How a request is made (from November 2026).** The student picks a time
+that has not started yet (Pacific time), fills in the form and presses **Send
+request**. The page then shows a confirm box: the lesson, the coach, and every
+detail the coach will get (student, parent if under 18, email, mobile), with
+*Clicking Confirm submission sends a message to Coach … to confirm the lesson
+and gives Coach … your contact information* and the address we will email.
+**Confirm submission** sends it; **Go back** (or Esc) sends nothing. The
+request is saved as `pending` and the coach is asked at once. There is no
+emailed or texted YES from the student for a new request, and no student
+reminder. The emailed YES is still how a student confirms a **cancel or move**.
+Before November 2026 a new request waited up to 2 hours for the student's
+emailed YES (`unverified`); a request still waiting when the change was
+released finishes the old way (its YES still counts; it is not reminded).
 
 ## 2. Did each message actually go out?
 
@@ -65,18 +80,18 @@ succeeded, so a mismatch means the message has not gone out yet:
 | `coach_texted` | `pending` once the coach was **asked** by text; afterwards the last status texted | `status = pending`, `coach_texted` empty → the coach has not been texted (no mobile, never texted COACH, or another question is open, see §4) |
 | `student_texted` | the last status texted to the student | only for students with `Students.texts = yes` |
 
-**Reminders.** A request still waiting gets at most one reminder per step,
-sent by the sweep (hourly or after any change), so it can come a little later
-than the times below and is skipped in the last 2 minutes before a deadline: the student 1 hour after asking (*Reminder: Confirm your coaching
-request [CTTC ref …]*, plus a text if they get texts), and the coach 2 hours
-after the student's YES (*Reminder: Lesson request from {student} [CTTC ref
-…]*, plus the text question again if it is the coach's open one). At that
-point the student is also emailed *Your coaching request is waiting on Coach
-…*. Reminders keep the original reference code, so a reply to either email
-counts. The `reminded` column (its header is added by the next sweep; no need to run
-`setup()` again) holds the step (`unverified` or `pending`)
-already reminded. No reminder is sent within 10 minutes of the deadline, and
-the coach never hears about a request before the student's YES.
+**Reminders.** A request still waiting on the coach gets one reminder, sent
+by the sweep (hourly or after any change), so it can come a little later than
+due and is skipped in the last 2 minutes before the deadline: the coach 2
+hours after the request, or halfway to the deadline when that is sooner (a
+lesson booked at short notice): *Reminder: Lesson request from {student}
+[CTTC ref …]*, plus the text question again if it is the coach's open one.
+At that point the student is also emailed *Your coaching request is waiting
+on Coach …*, saying nothing more is needed from them. The reminder keeps the
+original reference code, so a reply to either email counts. The `reminded`
+column holds the step already reminded (`pending`). Students are never
+reminded: no new request waits for them (a cancel or move they asked for is
+not reminded either).
 
 Unsent messages are retried by every sweep (hourly, and after every booking
 or answer), but only while `updated_at` is under 3 days old
@@ -132,13 +147,10 @@ sweep), so a `checkTexts` time more than about an hour old means the hourly
 
 ```mermaid
 stateDiagram-v2
-    [*] --> unverified: student submits (time held)
-    unverified --> pending: student replies YES
-    unverified --> cancelled: student replies NO
-    unverified --> expired: 2 h, no reply
+    [*] --> pending: student presses Confirm submission (time held)
     pending --> confirmed: coach replies YES
     pending --> declined: coach replies NO
-    pending --> expired: 48 h, or 12 h before lesson
+    pending --> expired: 48 h, or 12 h before lesson (short notice: lesson start)
     confirmed --> cancelled: cancel or move, or club cancels
     pending --> cancelled: cancel or move
     confirmed --> [*]
@@ -146,6 +158,10 @@ stateDiagram-v2
     expired --> [*]
     cancelled --> [*]
 ```
+
+(A request from before November 2026 started as `unverified` and became
+`pending` on the student's YES, `cancelled` on NO, or `expired` after 2
+hours.)
 
 A change (cancel or move) does **not** change `status` until the student
 confirms. While it waits, the row has `change = cancel` or
@@ -161,8 +177,9 @@ the student's YES.
 
 ### Everything waiting, in one email
 
-A student can have several things waiting for their YES at one address: a new
-request, and a cancel or move of another lesson, each asked by its own email.
+A student can have several things waiting for their YES at one address: cancels
+or moves of different lessons (and, before November 2026, a new request), each
+asked by its own email.
 People answer the newest email and expect that to be the answer. On 3 November
 2026 a student asked to cancel two Friday lessons, then booked a Saturday one
 and replied YES to that email; the two cancellations kept waiting. So **every
@@ -215,11 +232,20 @@ summary: N waiting for a YES, M confirmed yesterday*:
   to confirm, with the student, coach, lesson time, booking code and how long it
   has waited. **Waiting on coaches:** each request to accept and each list of
   times to publish. *Nothing is waiting for an emailed YES* when there is none.
-- **Yesterday** (the Pacific day): YES answers applied, by kind (new requests,
-  lessons accepted, cancels and moves, coaching times), NO answers applied, and
-  replies to an email listing several things, counted from the Log tab. The Log
-  keeps the latest 500 lines; if it does not reach back to the start of
-  yesterday, the email says the counts may be low.
+- **Yesterday** (the Pacific day), counted from the Log tab: YES answers
+  applied (lessons accepted by coaches, cancels and moves, coaching times, and
+  any request from before November 2026 a student confirmed); **new requests**
+  sent to the coach from the page (`step:pending` lines with *booked on the
+  page*; these are not YES answers, so they are not in the *confirmed*
+  total); **no answer**, requests that expired without the coach's answer
+  (`step:expired` lines with *coach did not answer*); NO answers applied; and
+  replies to an email listing several things. The Log keeps the latest 500
+  lines; if it does not reach back to the start of yesterday, the email says
+  the counts may be low.
+
+  Before November 2026 every new request also counted as a YES (the student's),
+  so *confirmed yesterday* in the subject reads lower from then on for the
+  same number of lessons; compare *New requests* and *Lessons* instead.
 
 - **Volunteers**, from the volunteer app's hidden `StaffingDigest` tab in the
   desk Sheet ([staffing flow](staffing-flow.md), *The owner's daily summary*):
@@ -233,11 +259,19 @@ the day) and logged as `daily-summary`.
 
 ### When a newer ask replaces an older one
 
-A student who asks again about the same lesson (a cancel, then a move), or
-asks for an overlapping time for the **same student** (same email and name,
-another coach), means the newer ask. It replaces the older one, never anyone
-else's, but only once they say YES to it; until then nothing changes and both
-are held. The newer email shows the change the way the desk shows a player
+A request for a time that overlaps a lesson or request the **same student**
+already holds (same email and name, another coach or table) is refused on the
+page: *Student … already has a lesson at that time: … To change it, tap that
+time on the schedule and choose Move it to another time.* Since a new request
+no longer waits for a YES, letting it replace the older one would cancel a
+lesson nobody confirmed cancelling. Another student booked from the same
+address (a brother or sister) can still take the other table.
+
+A student who asks again about the same lesson (a cancel, then a move) means
+the newer ask. It replaces the older one, never anyone else's, but only once
+they say YES to it; until then nothing changes and both are held. (Before
+November 2026 an overlapping new request could also replace a lesson, on the
+same terms; one still waiting when that changed finishes that way.) The newer email shows the change the way the desk shows a player
 edit: *This replaces your earlier request: ~~Cancel it~~ → **Move it to …***
 (in a list, the item is marked CHANGE). The older question stops counting: a
 reply to it gets *you have since replaced that request … nothing changed* and
@@ -358,9 +392,11 @@ it has not changed for more than an hour, the check is not running.
 Each is logged as `reply:coach-slots:yes` or `:no` with `not applied, now late,
 offered again`, `late, taken` or `late, no`.
 
-Students can only request times that are confirmed, **at least 24 hours away**
-(`LEAD_HOURS`) and **at most 28 days ahead** (`HORIZON_DAYS`), on Fridays 7 to
-10 PM or Saturdays 3 to 6 PM Pacific.
+Students can only request times that are confirmed, **have not started yet**
+(Pacific time; until November 2026 they had to be at least 24 hours away) and
+are **at most 28 days ahead** (`HORIZON_DAYS`), on Fridays 7 to 10 PM or
+Saturdays 3 to 6 PM Pacific. Emails ask students to cancel or move at least 24
+hours ahead when they can (`CANCEL_NOTICE_HOURS`); that is not enforced.
 
 ## 6. How the website shows the app
 
@@ -395,7 +431,10 @@ screen, so a refused request looked like nothing happened.
 
 | Message on the page | What happened |
 | --- | --- |
-| "Almost done: we emailed you… Reply YES… within 2 hours" | Saved as `unverified`. Waiting for the student. |
+| A box *Send this request to Coach …?* with **Confirm submission** and **Go back** | Nothing is sent yet. Only Confirm submission sends it. |
+| "Request sent to Coach … It is not booked until Coach … accepts. We emailed a copy to …" | Saved as `pending`. Waiting for the coach. |
+| "Almost done: we emailed you… Reply YES… within 2 hours" | Only from an app released before November 2026 (the site's page can be a release ahead of the app): saved as `unverified`, waiting for the student. |
+| "Student … already has a lesson (or a request) at that time…" | The same student (email and name) already holds an overlapping time. Use Move on that time instead. |
 | "That time is no longer available. Please pick another." | Someone holds that time, **including the same student's own earlier request**. Look for an existing row before assuming a bug. |
 | "Please enter the parent or guardian's name…" / "Please check the parent or guardian name…" | "The student is under 18" is ticked and the guardian name is blank, or has numbers or symbols. Names may use letters, spaces and `- ' . , & / ( )`. |
 | "You already have 2 requests waiting for an answer." | The student has 2 `unverified`/`pending` rows (`MAX_OPEN_REQUESTS_PER_STUDENT`). |
@@ -408,24 +447,25 @@ screen, so a refused request looked like nothing happened.
 | Symptom | Likely cause | Check | Fix |
 | --- | --- | --- | --- |
 | Page said "Something went wrong", retries say the time is taken, but a "requested" row exists for the student | Before `fix(coaching): never report a saved lesson request as a failure`, an error *after* saving (email, text, public Sheet rebuild) was shown as a failure. | Row is `unverified`; `student_emailed` may be empty. Executions show a failed `requestSlot`. | Fixed in code. For the stuck case, the next sweep sends the confirm email if it has not gone out. The student replies YES before `expires_at`. |
-| Student says they replied YES but row is still `unverified` | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or have them submit again after it expires. |
+| Student says they replied YES to a cancel or move but nothing changed (or, before November 2026, a request is still `unverified`) | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or ask again from the page. |
+| Student never got any email about their request | The address was mistyped (the confirm box shows it, but it can still be wrong), or it went to spam. | `student_email` on the row; `student_emailed = pending` means it went out. | The coach has the address the student typed in their request email; correct it by cancelling and booking again. |
 | Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | `coach_emailed = pending`? `coach_texted = pending`? `Coaches.ask_ref` = this `request_id`? | Remind the coach to reply `YES` to the email or text. |
 | Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | `Coaches.registered_at` empty; `phone` column. | Have them text `COACH` to the club number. |
 | No emails at all for a while | Daily mail quota low (sending pauses at 10 left), or Gmail/MailApp errors. | Executions log; `student_emailed`/`coach_emailed` lagging behind `status`. | Wait for the quota reset; the sweep retries for 3 days. |
-| Time shows "closed" | It is under 24 hours away, so it no longer takes requests. Expected. | `date`/`start`. | None in the app. |
+| A time is missing from the board | It has started (Pacific time), so it no longer takes requests. Expected. ("Closed (less than a day ahead)" is only shown by an app released before November 2026.) | `date`/`start`. | None in the app. |
 | Public Sheet out of date | It is rebuilt only after changes and hourly; a failed rebuild is logged, never fatal. | Executions log for "Could not update the public schedule". | Run `sweep` from the editor. |
 
 ## 9. Timing reference
 
 | Constant | Value | Effect |
 | --- | --- | --- |
-| `VERIFY_MS` | 2 hours | time for the student's YES |
 | `HOLD_HOURS` | 48 hours | max time for the coach's YES |
 | `RELEASE_BEFORE_HOURS` | 12 hours | a waiting request expires this long before the lesson |
-| `LEAD_HOURS` | 24 hours | no new requests closer than this |
+| `MIN_ANSWER_MS` | 2 hours | when 12 hours before the lesson would leave the coach less than this, the request waits until the lesson starts |
+| `CANCEL_NOTICE_HOURS` | 24 hours | the notice emails ask for before a cancel or move (not enforced) |
 | `HORIZON_DAYS` | 28 days | how far ahead times can be offered or requested |
-| `ASK_TTL_MS` | 24 hours | a coach's submitted list of times lapses |
+| `ASK_TTL_MS` | 48 hours | a coach's submitted list of times lapses |
 | `CHANGE_WAIT_MS` | 10 minutes | gap between cancel/move requests for one lesson |
-| `REMIND_STUDENT_MS`, `REMIND_COACH_MS` | 1 hour, 2 hours | when the one reminder for each waiting step goes out |
+| `REMIND_COACH_MS` | 2 hours | when the one reminder to the coach goes out (halfway to the deadline, if sooner) |
 | `RETRY_MAIL_DAYS` | 3 days | unsent messages are retried this long |
 | Timers | `sweep` hourly, which also runs the check; the desk's mail reader wakes the check when a text or email reply comes in | replies are picked up within about 5 minutes by day (a minute during round robin sign-up, 30 at night), at most an hour if a wake is missed |

@@ -142,10 +142,6 @@ function answerEmail(message, word) {
   cache = {};
   call('checkTexts');
 }
-function answerLatest(to, pattern, word) {
-  const message = outbox.find(entry => entry.to === to && pattern.test(entry.subject));
-  if (message) answerEmail(message, word);
-}
 function demoCoach(name, email, plan, phone) {
   grids.Coaches.push([name, email, phone, '', '', '', '', '', '', '', '']);
   call('coachList');
@@ -167,10 +163,9 @@ demoCoach('Mia Demo', 'mia.demo@example.com', { 5: [['19:00', 60], ['20:00', 30]
 demoCoach('Kai Demo', 'kai.demo@example.com', { 5: [['19:00', 60]] }, '925-555-0144');
 const first = call('openSlots').slots[0];
 const second = call('openSlots').slots.find(slot => slot.coach !== first.coach);
+// Requests go straight to the coach (the page asks the student to confirm before sending).
 call('requestSlot', { key: first.key, name: 'Sample Student', email: 'sample.student@example.com', phone: '(925) 555-0177', note: 'Beginner, right handed' });
-answerLatest('sample.student@example.com', /^Confirm your coaching request/, 'YES');
 call('requestSlot', { key: second.key, name: 'Another Student', email: 'another.student@example.com' });
-answerLatest('another.student@example.com', /^Confirm your coaching request/, 'YES');
 // The second coach answers YES, so the board shows both a "Requested" and a "Booked" row.
 {
   // The page shows a coach by first name ("Coach Mia"); column A of the Coaches tab is the full name.

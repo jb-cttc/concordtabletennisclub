@@ -89,6 +89,15 @@
   input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #8b1a1a; box-shadow: 0 0 0 2px #f3c7c7; }
   .trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
   [hidden] { display: none !important; }
+  /* The last check before a lesson request is sent: what goes to the coach, and where we will email the student. */
+  dialog { box-sizing: border-box; width: calc(100% - 32px); max-width: 460px; padding: 18px 18px 16px; border: 0; border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35); color: #1c1c1c; }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+  dialog h2 { margin-top: 0; }
+  dialog p { color: #1c1c1c; }
+  .sendlist { margin: 0 0 12px; padding: 0; list-style: none; border: 1px solid #ddd8cc; border-radius: 6px; }
+  .sendlist li { padding: 6px 10px; border-top: 1px solid #eee; font-size: 0.95rem; overflow-wrap: anywhere; }
+  .sendlist li:first-child { border-top: 0; }
+  .sendlist b { display: inline-block; min-width: 86px; color: #555; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -216,7 +225,7 @@
   // ----- Students: pick a time and ask -----
   function bookingView() {
     clear(); show('');
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: you confirm by replying YES to the email (or text) we send, and the lesson is booked once the coach accepts. To cancel or move a lesson, tap your time. Coaches and students appear by first name only (Coach Dominic, Student Sam). Your coach sees your full name when you request a lesson; emails and mobile numbers are shared between you and your coach only once the lesson is confirmed.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table: any time that has not started yet can be requested. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: your request goes straight to the coach, and the lesson is booked once the coach accepts. We email you either way. To cancel or move a lesson, tap your time and reply YES to the email we send. Coaches and students appear by first name only (Coach Dominic, Student Sam). Your coach gets your name, email and mobile number (if given) with your request; you get your coach\'s once the lesson is confirmed.' }));
     var list = el('div', { id: 'slots' }, [el('p', { text: 'Loading open times...' })]);
     app.appendChild(list);
     load('openSlots', [], function (result) {
@@ -503,20 +512,69 @@
       [el('label', { 'class': 'check' }, [minor, el('span', { text: 'The student is under 18 (use the parent or guardian\'s email)' })]), guardianBox],
       field('Anything the coach should know (optional)', el('textarea', { id: 'note', maxlength: '300' })),
       [el('label', { 'class': 'check' }, [keep, el('span', { text: 'Remember my details on this device' })])],
-      [el('p', { 'class': 'legend', text: 'Privacy: until the coach accepts, the coach sees only your name and note. Once the lesson is confirmed, you and the coach each get the other\'s name, email and mobile number (if given). Nothing is shared with anyone else.' })],
+      [el('p', { 'class': 'legend', text: 'Privacy: your request gives the coach your name, email, mobile number (if given) and note, so they can confirm the lesson with you. Once the coach accepts, you get the coach\'s name, email and mobile number. Nothing is shared with anyone else.' })],
       [el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'website', tabindex: '-1', autocomplete: 'off' }))),
         el('div', { 'class': 'actions' }, [submit])]
     ));
     var fields = { name: '#name', email: '#email', phone: '#phone', guardian: '#guardian' };
     form.addEventListener('input', clearInvalid);
+    // The last check before sending: there is no emailed YES any more, so this is where the student sees what goes to the coach
+    // and the address we will write to (a mistyped one would never hear back).
+    var sendNow = el('button', { type: 'button', text: 'Confirm submission' });
+    var goBack = el('button', { type: 'button', 'class': 'plain', text: 'Go back' });
+    var dialog = el('dialog', { id: 'confirmRequest', 'aria-labelledby': 'confirmTitle', 'aria-describedby': 'confirmWhat' }, [
+      el('h2', { id: 'confirmTitle' }), el('p', { id: 'confirmWhat' }), el('ul', { id: 'confirmSend', 'class': 'sendlist' }), el('p', { id: 'confirmNext' }),
+      el('div', { 'class': 'actions' }, [sendNow, goBack])]);
+    document.body.appendChild(dialog);
+    var sending = false;
+    function closeDialog() {
+      if (dialog.open) dialog.close();
+      if (!sending) submit.focus({ preventScroll: true });
+    }
+    goBack.addEventListener('click', closeDialog);
+    // Esc closes it the same way.
+    dialog.addEventListener('cancel', function () { sending = false; });
+    function looksLikeEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       var slot = getChosen();
       if (!slot) { report(form, 'Please pick a time first.', 'error'); return; }
-      if (minor.checked && !form.querySelector('#guardian').value.trim()) {
+      var name = form.querySelector('#name').value.trim();
+      var email = form.querySelector('#email').value.trim();
+      var phone = form.querySelector('#phone').value.trim();
+      var guardian = form.querySelector('#guardian').value.trim();
+      // The server checks everything again; these catch the usual slips before the confirm step.
+      if (!name) { report(form, 'Please enter the student\'s name.', 'error', 'name', fields); return; }
+      if (!looksLikeEmail(email)) { report(form, 'Please enter a valid email address.', 'error', 'email', fields); return; }
+      if (minor.checked && !guardian) {
         report(form, 'Please enter the parent or guardian\'s name, or untick "The student is under 18".', 'error', 'guardian', fields);
         return;
       }
+      resetStatus(form);
+      dialog.querySelector('#confirmTitle').textContent = 'Send this request to ' + slot.coach + '?';
+      dialog.querySelector('#confirmWhat').textContent = 'A ' + slot.minutes + ' minute lesson on ' + slot.day + ', ' + slot.time + ', at Table ' + slot.table + '. Clicking Confirm submission sends a message to ' + slot.coach + ' to confirm the lesson and gives ' + slot.coach + ' your contact information:';
+      var list = dialog.querySelector('#confirmSend');
+      while (list.firstChild) list.removeChild(list.firstChild);
+      [['Student', name], ['Parent', minor.checked ? guardian : ''], ['Email', email], ['Mobile', phone || 'not given']].forEach(function (row) {
+        if (row[1]) list.appendChild(el('li', {}, [el('b', { text: row[0] }), document.createTextNode(row[1])]));
+      });
+      dialog.querySelector('#confirmNext').textContent = 'It is not booked until ' + slot.coach + ' accepts. We email you at ' + email + ' as soon as the coach answers, so please check that address is right.';
+      sending = false;
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+        sendNow.focus();
+      } else if (window.confirm(dialog.querySelector('#confirmTitle').textContent + '\n\n' + dialog.querySelector('#confirmWhat').textContent + '\n' +
+          list.textContent + '\n\n' + dialog.querySelector('#confirmNext').textContent)) {
+        send(slot);
+      }
+    });
+    sendNow.addEventListener('click', function () {
+      var slot = getChosen();
+      sending = true;
+      closeDialog();
+      if (slot) send(slot);
+    });
+    function send(slot) {
       report(form, 'Sending...');
       guarded(submit, 'requestSlot', [{
         key: slot.key, start: slot.start, length: getLength(), name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value, minor: minor.checked,
@@ -528,12 +586,12 @@
         clear();
         show(result.message, 'ok');
         window.scrollTo(0, 0);
-        app.appendChild(el('p', { 'class': 'card', text: 'You will show on the site as "' + result.label + '", so you can find your time and its status on the schedule.' }));
+        app.appendChild(el('p', { 'class': 'card', text: 'You will show on the site as "' + result.label + '", so you can find your time and its status on the schedule. Nothing more is needed from you now. No email from us within a few minutes? Check your spam or junk folder.' }));
         app.appendChild(el('p', { 'class': 'card', text: result.texts ?
           'To subscribe to text notifications about any updates such as session cancellations, send a text with the word STUDENT to ' + result.textNumber + ' from the mobile number you gave.' :
           'Want text notifications about updates such as session cancellations? Add your mobile number next time you request a lesson, then text the word STUDENT to ' + result.textNumber + '.' }));
       });
-    });
+    }
     // Fills in a returning student's details; the browser's own autofill also works on these fields.
     var me = saved('cttc-student');
     if (me) {
@@ -554,7 +612,7 @@
     app.appendChild(el('h2', { text: 'Which CTTC registered coach are you?' }));
     var list = el('div', { 'class': 'actions' }, [el('p', { text: 'Loading...' })]);
     app.appendChild(list);
-    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number. Privacy: students see you only by first name (such as Coach Dominic) until you accept a lesson. You see a student\'s name when they request; once you accept, you and that student each get the other\'s name, email and mobile number (if the club has them).' }));
+    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number. Privacy: students see you only by first name (such as Coach Dominic) until you accept a lesson. Each lesson request comes with the student\'s name, email and mobile number (if given), so you can reach them before you answer; once you accept, the student gets your name, email and mobile number (if the club has them).' }));
     var last = saved('cttc-coach');
     load('coachList', [], function (result) {
       preload('openSlots', []);
