@@ -631,27 +631,33 @@ td {
   text-transform: uppercase;
 }
 
-/* The standing where-and-when box: neutral, so it reads as reference, not news. */
+/* The standing where-and-when box: blue, so it reads as reference, not news. Its tag is its heading. */
 .announcement.logistics {
-  border-color: #b9b2a6;
-  background: #f3f1ec;
-}
-
-.announcement.logistics h2 {
-  color: var(--text);
-  border-bottom-color: #d8d2c7;
+  border-color: #2f5f8f;
+  background: #eef4fa;
 }
 
 .announcement.logistics a {
-  color: #3d3a35;
+  color: #1f4f7f;
 }
 
 .announcement.logistics a:hover {
-  color: var(--text);
+  color: #143a5f;
 }
 
 .announcement.logistics .announcement-tag {
-  background: #5f5a52;
+  background: #2f5f8f;
+}
+
+h2.announcement-tag {
+  margin: 0 0 14px;
+  padding: 2px 8px;
+  border: 0;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.6;
 }
 
 /* The Friday and Saturday special uses the plain .announcement green; its line under Fees matches. */
