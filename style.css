@@ -2761,6 +2761,15 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 }
 .eq-results h2 { margin-top: 0; }
 .eq-date { color: var(--muted); font-weight: normal; font-size: 0.85em; }
+.eq-not-official {
+  border: 2px solid var(--red);
+  background: #fdf3f3;
+  padding: 10px 14px;
+  margin: 0 0 14px;
+  font-size: 0.92rem;
+}
+.eq-not-official strong:first-child { color: var(--red); }
+.eq-rating-note { color: var(--muted); font-size: 0.9em; }
 .eq-pilot {
   background: #fbf6e6;
   border-left: 3px solid #c99934;

@@ -213,7 +213,7 @@
       chevron.className = "session-chevron";
       chevron.textContent = "▶";
       dateCell.appendChild(chevron);
-      dateCell.appendChild(document.createTextNode(formatLongDate(entry.date) + (entry.variant === "equalizer" ? " · Equalizer" : "")));
+      dateCell.appendChild(document.createTextNode(formatLongDate(entry.date) + (entry.variant === "equalizer" ? " · Equalizer (experimental EQ rating, not official)" : "")));
       row.appendChild(dateCell);
 
       var ratingCell = document.createElement("td");
@@ -414,7 +414,7 @@
     if (rankStr) metaParts.push("Rank: <strong>" + rankStr + "</strong>");
     if (topPct !== null) metaParts.push("<span class=\"profile-percentile\">Top " + topPct + "%</span>");
     metaParts.push(
-      "Rating: <strong>" + player.currentRating + "</strong>" + (player.eqRating != null ? " (Equalizer " + player.eqRating + ")" : ""),
+      "Rating: <strong>" + player.currentRating + "</strong>" + (player.eqRating != null ? " <span class=\"eq-rating-note\" title=\"An experimental copy kept separately for the Equalizer game variant; not an official rating\">(Experimental EQ rating " + player.eqRating + ", not official)</span>" : ""),
       "Peak: " + player.peakRating,
       "Sessions: " + player.sessionsPlayed,
       "Record: " + player.totalWins + "-" + player.totalLosses

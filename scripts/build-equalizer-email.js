@@ -162,6 +162,9 @@ function totalsText(t, format) {
     ' · ' + t.matches + ' matches' + (t.forfeits ? ' (' + t.forfeits + ' forfeit' + (t.forfeits === 1 ? '' : 's') + ')' : '') +
     ' · best of ' + t.bestOf + ', ' + t.play;
 }
+// In every Equalizer email, at the top and beside the rating changes: the numbers are not official round robin ratings.
+const NOT_OFFICIAL_TITLE = 'These are NOT official ratings.';
+const NOT_OFFICIAL = 'Every rating and rating change in this email is an Equalizer (EQ) rating: an experimental copy kept separately for this game variant only. Your official round robin rating is not affected by the Equalizer and is not shown here.';
 const EXPLAINER = 'New: your Equalizer rating. The Equalizer has its own rating. Everyone’s started as a copy of their round robin rating at their first Equalizer, and from then on only Equalizers move it. Your round robin rating does not change in an Equalizer. Each match is worth 8 EQ points; forfeits move none.';
 
 function buildHtml(s, footer, unsubscribeUrl) {
@@ -183,12 +186,14 @@ function buildHtml(s, footer, unsubscribeUrl) {
   return '' +
     '<div style="font-family:Georgia,\'Times New Roman\',serif;max-width:560px;margin:0 auto;color:#1a1a1a;">' +
     '<h1 style="color:#8B1A1A;font-size:1.3rem;margin:0 0 4px;">Concord Table Tennis Club</h1>' +
-    '<p style="color:#666;margin:0 0 20px;font-size:0.95rem;">' + escapeHtml(formatDate(s.date)) + ' · The Equalizer</p>' +
+    '<p style="color:#666;margin:0 0 16px;font-size:0.95rem;">' + escapeHtml(formatDate(s.date)) + ' · The Equalizer</p>' +
+    '<p style="font-size:0.9rem;border:2px solid #8B1A1A;background:#fdf3f3;color:#1a1a1a;padding:10px 12px;margin:0 0 20px;"><strong style="color:#8B1A1A;">' + escapeHtml(NOT_OFFICIAL_TITLE) + '</strong> ' + escapeHtml(NOT_OFFICIAL) + '</p>' +
     winnerLine +
     (standings ? '<h2 style="' + H2 + '">Final Standings</h2><table style="' + TABLE + 'margin-bottom:20px;">' + standings + '</table>' : '') +
     (groups ? '<h2 style="' + H2 + '">Group Winners</h2><table style="' + TABLE + 'margin-bottom:20px;">' + groups + '</table>' : '') +
-    (s.upset ? '<h2 style="' + H2 + '">Upset of the Night</h2><p style="font-size:0.9rem;color:#333;margin:0 0 20px;">' + escapeHtml(s.upset.winner) + ' (' + s.upset.winnerRating + ') beat ' + escapeHtml(s.upset.loser) + ' (' + s.upset.loserRating + ') ' + s.upset.games + ', starting every game at ' + s.upset.points + '–0.</p>' : '') +
-    '<h2 style="' + H2 + '">Biggest EQ Rating Movers</h2>' +
+    (s.upset ? '<h2 style="' + H2 + '">Upset of the Night</h2><p style="font-size:0.9rem;color:#333;margin:0 0 20px;">' + escapeHtml(s.upset.winner) + ' (EQ ' + s.upset.winnerRating + ') beat ' + escapeHtml(s.upset.loser) + ' (EQ ' + s.upset.loserRating + ') ' + s.upset.games + ', starting every game at ' + s.upset.points + '–0.</p>' : '') +
+    '<h2 style="' + H2 + '">Biggest Equalizer Rating Changes (experimental)</h2>' +
+    '<p style="font-size:0.8rem;color:#8B1A1A;margin:0 0 6px;font-weight:bold;">Experimental EQ rating only, not the official round robin rating.</p>' +
     '<table style="' + TABLE + 'margin-bottom:8px;">' + moverRows(s.movers.gainers, '⬆️', '#2a6a2a') + '</table>' +
     '<table style="' + TABLE + 'margin-bottom:' + (s.explain ? '12' : '20') + 'px;">' + moverRows(s.movers.losers, '⬇️', '#8B1A1A') + '</table>' +
     (s.explain ? '<p style="font-size:0.82rem;color:#555;margin:0 0 20px;background:#f7f9f7;padding:8px 10px;"><strong>New: your Equalizer rating.</strong> ' + escapeHtml(EXPLAINER.replace(/^New: your Equalizer rating\. /, '')) + '</p>' : '') +
@@ -200,7 +205,7 @@ function buildHtml(s, footer, unsubscribeUrl) {
 }
 
 function buildText(s, footer, unsubscribeUrl) {
-  const lines = ['Concord Table Tennis Club - ' + formatDate(s.date) + ' - The Equalizer', ''];
+  const lines = ['Concord Table Tennis Club - ' + formatDate(s.date) + ' - The Equalizer', '', NOT_OFFICIAL_TITLE.toUpperCase() + ' ' + NOT_OFFICIAL, ''];
   if (s.champion) lines.push(s.champion + ' wins the Equalizer' + (s.final ? (s.final.forfeit ? ' (the Final was a forfeit)' : ', beating ' + s.final.runnerUp + ' ' + s.final.games + ' in the Final') : '') + '.', '');
   if (s.standings.length) {
     lines.push('FINAL STANDINGS');
@@ -215,8 +220,8 @@ function buildText(s, footer, unsubscribeUrl) {
     });
     lines.push('');
   }
-  if (s.upset) lines.push('UPSET OF THE NIGHT', '  ' + s.upset.winner + ' (' + s.upset.winnerRating + ') beat ' + s.upset.loser + ' (' + s.upset.loserRating + ') ' + s.upset.games + ', starting every game at ' + s.upset.points + '-0.', '');
-  lines.push('BIGGEST EQ RATING MOVERS');
+  if (s.upset) lines.push('UPSET OF THE NIGHT', '  ' + s.upset.winner + ' (EQ ' + s.upset.winnerRating + ') beat ' + s.upset.loser + ' (EQ ' + s.upset.loserRating + ') ' + s.upset.games + ', starting every game at ' + s.upset.points + '-0.', '');
+  lines.push('BIGGEST EQUALIZER RATING CHANGES (EXPERIMENTAL)', '  Experimental EQ rating only, not the official round robin rating.');
   s.movers.gainers.forEach(function (p) { lines.push('  Up   ' + p.name + ' ' + signed(p.ratingAdj)); });
   s.movers.losers.forEach(function (p) { lines.push('  Down ' + p.name + ' ' + signed(p.ratingAdj)); });
   lines.push('');

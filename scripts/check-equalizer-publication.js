@@ -133,6 +133,13 @@ function tables() {
     assert.equal(email.summary.totals.players, players.length);
     assert.equal(email.summary.totals.matches, eqSession.equalizer.matches.length);
     assert.ok(email.html.includes('https://example.test/unsub'));
+    // Every Equalizer email says, first thing and beside the changes, that these are not official ratings.
+    [email.html, email.text].forEach(body => {
+      assert.match(body, /These are NOT official ratings/i);
+      assert.match(body, /experimental copy kept separately for this game variant/);
+      assert.match(body, /not the official round robin rating/);
+      assert.ok(body.search(/NOT official ratings/i) < body.indexOf(champion), 'the notice comes before the results');
+    });
     assert.ok(email.html.includes('/roundrobins.html#eq-' + DATE) && email.text.includes('/roundrobins.html#eq-' + DATE), 'the link goes to the Equalizer on the Round Robins page');
     assert.doesNotMatch(email.html + email.text, /player-sim-|@/, 'no private ids or addresses');
     // CTTC_EMAIL_PREVIEW=<file>: also write this simulated email there, to look at.

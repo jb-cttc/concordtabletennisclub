@@ -9,7 +9,7 @@
   <meta property="og:title" content="Round Robin Archive - Concord Table Tennis Club">
   <meta property="og:description" content="Browse results from 240+ round robin sessions at Concord Table Tennis Club, going back to January 2024.">
   <meta property="og:url" content="https://latkecrszy.github.io/concordtabletennisclub/roundrobins.html">
-  <link rel="stylesheet" href="style.css?v=20261108">
+  <link rel="stylesheet" href="style.css?v=20261108b">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="assets/site.webmanifest">
@@ -833,7 +833,7 @@
       "Groups of 4 play a round robin. Each group winner goes on to a single-elimination Finals; the best group winners get a bye.",
       "Head starts: the lower-rated player starts every game ahead, 1 point for every 40 rating points between the two, up to 8.",
       "Every match is best of 3 and worth 8 points of a separate Equalizer rating; forfeits move none.",
-      "Your round robin rating never changes in an Equalizer. Everyone’s Equalizer rating started as a copy of their round robin rating."
+      "Equalizer ratings are an experimental copy kept separately for this game variant. They started as a copy of each player’s round robin rating, and your official round robin rating never changes in an Equalizer."
     ].forEach(function (text) { list.appendChild(el("li", null, text)); });
     box.append(lead, list);
     return box;
@@ -868,7 +868,7 @@
       section.appendChild(el("h3", null, "Group " + number));
       var table = el("table", "session-group-table");
       var head = el("tr");
-      ["Name", "Matches", "Games", "EQ start"].forEach(function (label) { head.appendChild(el("th", null, label)); });
+      ["Name", "Matches", "Games", "EQ rating*"].forEach(function (label) { head.appendChild(el("th", null, label)); });
       var thead = el("thead");
       thead.appendChild(head);
       var tbody = el("tbody");
@@ -969,6 +969,10 @@
     var heading = el("h2", null, "The Equalizer");
     heading.appendChild(el("span", "eq-date", " · " + longDate(session.date)));
     root.appendChild(heading);
+    // Every Equalizer: the ratings shown are not official round robin ratings.
+    var official = el("p", "eq-not-official");
+    official.innerHTML = "<strong>These are NOT official ratings.</strong> Every rating on this Equalizer is an <strong>experimental Equalizer (EQ) rating</strong>, a copy kept separately for this game variant only. Players’ official round robin ratings are not affected by the Equalizer and are not shown here.";
+    root.appendChild(official);
     if (PILOTS[session.date]) root.appendChild(banner());
     var champion = sideName(eq.champion || []);
     var final = eq.matches.filter(function (m) { return m.stage !== "G"; }).pop();
@@ -985,6 +989,7 @@
     root.appendChild(el("p", "session-source", players + " players · " + (eq.format === "groups" ? "round robin groups, then a Finals" : "double elimination") + " · best of " + eq.bestOf + ", " + eq.play));
     if (eq.format === "groups") {
       root.appendChild(el("h3", "eq-subhead", "Groups"));
+      root.appendChild(el("p", "group-note", "* EQ rating: each player’s experimental Equalizer rating at the start of the night, not their official round robin rating."));
       root.appendChild(groups(eq));
     }
     var drawn = bracket(eq);
