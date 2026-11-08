@@ -631,29 +631,34 @@ td {
   text-transform: uppercase;
 }
 
-/* The Friday and Saturday special: the club's red, so it reads as an offer, not as the standing where-and-when box. */
-.announcement.special {
-  border-color: var(--red);
-  background: #fbf1ee;
+/* The standing where-and-when box: neutral, so it reads as reference, not news. */
+.announcement.logistics {
+  border-color: #b9b2a6;
+  background: #f3f1ec;
 }
 
-.announcement.special h2 {
-  color: var(--red);
-  border-bottom-color: #e6c3bd;
+.announcement.logistics h2 {
+  color: var(--text);
+  border-bottom-color: #d8d2c7;
 }
 
-.announcement.special a {
-  color: var(--red);
+.announcement.logistics a {
+  color: #3d3a35;
 }
 
-.announcement.special .announcement-tag {
-  background: var(--red);
+.announcement.logistics a:hover {
+  color: var(--text);
 }
 
+.announcement.logistics .announcement-tag {
+  background: #5f5a52;
+}
+
+/* The Friday and Saturday special uses the plain .announcement green; its line under Fees matches. */
 .fee-special {
   padding: 8px 12px;
-  border-left: 4px solid var(--red);
-  background: #fbf1ee;
+  border-left: 4px solid #2f6b3a;
+  background: #f0f7f1;
 }
 
 .two-col {
