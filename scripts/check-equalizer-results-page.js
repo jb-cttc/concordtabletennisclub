@@ -51,6 +51,14 @@ async function page(sessions, details) {
   assert.match(banner.textContent, /collecting feedback/);
   assert.equal(banner.querySelectorAll('li').length, 4);
   assert.match(banner.textContent, /round robin rating never changes/);
+  // Every rating shown is said, at the top, to be the experimental EQ rating and not the official one.
+  const official = shown.$('#eq-2026-11-07 .eq-not-official');
+  assert.ok(official, 'the not-official notice');
+  assert.match(official.textContent, /NOT official ratings/);
+  assert.match(official.textContent, /experimental Equalizer \(EQ\) rating/);
+  assert.ok(root.firstElementChild.nextElementSibling === official, 'right under the heading, before anything else');
+  assert.deepEqual(shown.$$('#eq-2026-11-07 .latest-results-group thead th').slice(0, 4).map(th => th.textContent), ['Name', 'Matches', 'Games', 'EQ rating*']);
+  assert.match(text, /\* EQ rating: each player’s experimental Equalizer rating at the start of the night, not their official round robin rating/);
   // The champion.
   const champion = session.equalizer.champion.join(' & ');
   assert.ok(text.includes(champion + ' wins the Equalizer'), 'the champion leads');
@@ -79,5 +87,6 @@ async function page(sessions, details) {
   const next = await page([{ date: later.date, sessionId: later.sessionId, source: 'app', variant: 'equalizer' }].concat(sessions), [later, session]);
   assert.ok(next.$('#eq-2026-11-14'), 'the newest Equalizer');
   assert.equal(next.$('.eq-pilot'), null, 'no pilot banner after the pilot');
+  assert.ok(next.$('.eq-not-official'), 'the not-official notice on every Equalizer, pilot or not');
   console.log('Equalizer results page checks passed');
 })().catch(error => { console.error(error); process.exit(1); });
