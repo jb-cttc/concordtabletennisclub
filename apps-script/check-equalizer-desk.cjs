@@ -16,6 +16,12 @@ const plain = value => (value === undefined ? value : JSON.parse(JSON.stringify(
 const run = (name, ...args) => plain(server.run(name, ...args));
 const ids = world.players.map(p => p.player_id);
 const ratingOf = id => Number(server.rows('Players').find(p => p.player_id === id).current_rating);
+// The EQ rating: its own tab, made by the first finalized Equalizer; undefined before a player's first.
+const eqRatingOf = id => {
+  if (!server.context.SpreadsheetApp.getActive().getSheetByName('EqualizerRatings')) return undefined;
+  const row = server.rows('EqualizerRatings').find(p => p.player_id === id);
+  return row ? Number(row.eq_rating) : undefined;
+};
 const refuses = (pattern, fn) => assert.throws(fn, pattern);
 function seededRandom(seed) {
   let value = seed;
@@ -109,18 +115,36 @@ const outcome = E.playerResults(event, E.resolve(event, results));
 const ledger = server.rows('RatingLedger').filter(r => r.session_id === EQ);
 assert.equal(ledger.length, 8);
 assert.ok(ledger.every(r => r.rule_version === 'cttc-equalizer-v1'));
+// The first Equalizer: each EQ rating starts as a copy of the round robin rating, and only the EQ rating moves.
 roster.forEach(id => {
-  assert.equal(ratingOf(id), Math.max(0, before[id] + outcome[id].raw), 'each player gains or gives 8 a match, on top of their rating now');
+  assert.equal(ratingOf(id), before[id], 'an Equalizer never changes a round robin rating');
+  assert.equal(eqRatingOf(id), Math.max(0, before[id] + outcome[id].raw), 'each player gains or gives 8 EQ points a match, from a copy of their RR rating');
+  const row = ledger.find(r => r.player_id === id);
+  assert.equal(Number(row.rating_before), before[id]);
+  assert.equal(Number(row.rating_after), eqRatingOf(id), 'the ledger records the EQ rating');
 });
-assert.equal(roster.reduce((sum, id) => sum + ratingOf(id) - before[id], 0), 0, 'as much up as down');
+assert.equal(roster.reduce((sum, id) => sum + eqRatingOf(id) - before[id], 0), 0, 'as much up as down');
+assert.equal(eqRatingOf(ids[20]), undefined, 'a player who has not played an Equalizer has no EQ rating yet');
+const directory = run('listPlayers');
+assert.equal(directory.find(p => p.playerId === roster[0]).eqRating, eqRatingOf(roster[0]), 'the directory carries the EQ rating');
+assert.equal(directory.find(p => p.playerId === ids[20]).eqRating, null);
 refuses(/finalized/, () => run('saveEqualizerResult', DATE, first.id, null, results[first.id]));
 
 // ---- Reopen puts the ratings back ----
 state = run('reopenEqualizer', DATE, revision());
 assert.equal(state.session.status, 'active');
 roster.forEach(id => assert.equal(ratingOf(id), before[id]));
+roster.forEach(id => assert.equal(eqRatingOf(id), before[id], 'reopen puts the EQ ratings back'));
 assert.equal(server.rows('RatingLedger').filter(r => r.session_id === EQ).length, 0);
 run('finalizeEqualizer', DATE, revision());
+const eqAfterFirst = {};
+roster.forEach(id => { eqAfterFirst[id] = eqRatingOf(id); });
+// A round robin rating moving later (a round robin, the club site) leaves the EQ rating alone, and the next Equalizer
+// starts from the EQ rating.
+const moved = server.rows('Players').find(p => p.player_id === roster[0]);
+server.context.updateRow_('Players', moved.__row, { current_rating: before[roster[0]] + 100 });
+assert.equal(eqRatingOf(roster[0]), eqAfterFirst[roster[0]]);
+assert.equal(run('listPlayers').find(p => p.playerId === roster[0]).eqRating, eqAfterFirst[roster[0]]);
 
 // ---- The memory: a later Equalizer sees this one's matches ----
 const LATER = '2026-11-14';
@@ -162,8 +186,16 @@ for (;;) {
 }
 const teamBefore = {};
 nine.forEach(id => { teamBefore[id] = ratingOf(id); });
+const teamEqBefore = {};
+nine.forEach(id => { teamEqBefore[id] = eqRatingOf(id); });
 run('finalizeEqualizer', TEAMS, Number(server.rows('Sessions').find(r => r.session_id === 'session-' + TEAMS + '-equalizer').revision));
-assert.equal(server.rows('RatingLedger').filter(r => r.session_id === 'session-' + TEAMS + '-equalizer').length, 9, 'all nine players, the team of three included');
+const teamLedger = server.rows('RatingLedger').filter(r => r.session_id === 'session-' + TEAMS + '-equalizer');
+assert.equal(teamLedger.length, 9, 'all nine players, the team of three included');
+nine.forEach(id => {
+  assert.equal(ratingOf(id), teamBefore[id], 'round robin ratings stay put');
+  const start = teamEqBefore[id] !== undefined ? teamEqBefore[id] : teamBefore[id];
+  assert.equal(Number(teamLedger.find(r => r.player_id === id).rating_before), start, 'a second Equalizer starts from the EQ rating; a first from the RR rating');
+});
 
 // ---- Every step is in the desk log, by its usual names ----
 const logged = server.audit.map(entry => entry.action);

@@ -52,7 +52,8 @@ function ratingSyncStatus() {
 }
 
 function latestFinalizedSessionDate_() {
-  return rows_('Sessions').filter(function (session) { return String(session.status) === 'finalized'; })
+  // Round robins only: an Equalizer moves EQ ratings, which the site's ratings never replace.
+  return rows_('Sessions').filter(function (session) { return String(session.status) === 'finalized' && !isEqualizerSessionId_(session.session_id); })
     .map(function (session) { return displayDate_(session.session_date); }).sort().pop() || '';
 }
 

@@ -47,6 +47,9 @@ window.CTTCEqualizerDesk = function (desk) {
   }
   var esc = desk.esc;
   function player(id) { return desk.player(id) || { name: id, currentRating: 0 }; }
+  // The Equalizer draws and gives head starts by EQ rating: before a player's first finalized Equalizer, a copy of
+  // their round robin rating.
+  function rating(id) { var p = player(id); return Number(p.eqRating != null ? p.eqRating : p.currentRating) || 0; }
   function event() { return eq.draw ? E.fromSnapshot(eq.draw) : null; }
   function finalized() { return !!eq.session && eq.session.status === 'finalized'; }
   function hasResults() { return Object.keys(eq.results).length > 0; }
@@ -84,7 +87,7 @@ window.CTTCEqualizerDesk = function (desk) {
     if (hasResults() || finalized()) return;
     if (newSeed) eq.seed = freshSeed();
     var setup = eq.setup;
-    var players = eq.roster.map(function (id) { return { id: id, rating: Number(player(id).currentRating) || 0 }; });
+    var players = eq.roster.map(function (id) { return { id: id, rating: rating(id) }; });
     var odd = setup.play === 'doubles' && players.length % 2 === 1;
     if (!odd) { setup.oddPlayer = ''; setup.sitOutId = ''; }
     if (setup.sitOutId && eq.roster.indexOf(setup.sitOutId) < 0) setup.sitOutId = '';
@@ -145,7 +148,7 @@ window.CTTCEqualizerDesk = function (desk) {
     if (!id || !lateMode() || eq.roster.indexOf(id) >= 0) { eq.arriving = ''; desk.changed(); return false; }
     var next;
     try {
-      next = E.addLate(eq.draw, { id: id, rating: Number(player(id).currentRating) || 0 }, number, Date.now());
+      next = E.addLate(eq.draw, { id: id, rating: rating(id) }, number, Date.now());
       var problem = E.lateAddProblem(eq.draw, next, eq.results);
       if (problem) throw new Error(problem);
     } catch (error) {
@@ -409,7 +412,7 @@ window.CTTCEqualizerDesk = function (desk) {
       var full = table.complete || size >= 6;
       return '<button type="button" class="small" data-eq-late="' + table.number + '"' + (full ? ' disabled title="' + (table.complete ? 'This group has finished' : 'This group is full') + '"' : '') + '>Group ' + table.number + ' · ' + size + ' players</button>';
     }).join('');
-    return '<div class="eq-notice eq-late" role="group" aria-label="Late arrival"><span><strong>' + esc(p.name) + '</strong> (' + esc(String(p.currentRating || 0)) + ') arrived after the draw was set. Add them to:</span>' + buttons +
+    return '<div class="eq-notice eq-late" role="group" aria-label="Late arrival"><span><strong>' + esc(p.name) + '</strong> (EQ ' + esc(String(rating(eq.arriving))) + ') arrived after the draw was set. Add them to:</span>' + buttons +
       '<button type="button" class="small" data-eq-late-cancel>Cancel</button><span class="hint">Nobody else moves and the results stay; ' + (hasResults() ? 'the Equalizer has started, so it cannot be drawn again.' : 'to draw everyone again instead, use Draw again after adding them to any group.') + '</span></div>';
   }
   function minutes(ev) {
@@ -476,7 +479,7 @@ window.CTTCEqualizerDesk = function (desk) {
       desk.setStatus('Still saving the last results to Google Sheets. Try again in a moment.', 'error');
       return;
     }
-    if (!desk.confirm('Finalize this Equalizer and update every player’s rating?\n\nEach player (both partners in doubles) gains or gives 8 points a match. Until it is published you can click the lock to reopen and correct it.')) return;
+    if (!desk.confirm('Finalize this Equalizer and update every player’s rating?\n\nEach player (both partners in doubles) gains or gives 8 EQ rating points a match; round robin ratings do not change. Until it is published you can click the lock to reopen and correct it.')) return;
     var stop = desk.busyStatus('Finalizing the Equalizer...');
     try {
       var fresh = await desk.call('getEqualizerState', eq.date);
@@ -491,7 +494,8 @@ window.CTTCEqualizerDesk = function (desk) {
       stop();
       load(eq.date, state);
       desk.changed();
-      desk.setStatus('Equalizer finalized. Ratings are updated, and it publishes to the club site shortly.');
+      if (desk.refreshRatings) desk.refreshRatings();
+      desk.setStatus('Equalizer finalized. EQ ratings are updated (round robin ratings are not changed), and it publishes to the club site shortly.');
     } catch (error) {
       stop();
       desk.setStatus('Not finalized: ' + desk.sentence(error.message), 'error');
@@ -507,7 +511,8 @@ window.CTTCEqualizerDesk = function (desk) {
       stop();
       load(eq.date, state);
       desk.changed();
-      desk.setStatus('Equalizer reopened and ratings restored. Correct the results, then finalize again.');
+      if (desk.refreshRatings) desk.refreshRatings();
+      desk.setStatus('Equalizer reopened and EQ ratings restored. Correct the results, then finalize again.');
     } catch (error) {
       stop();
       desk.setStatus('Not reopened: ' + desk.sentence(error.message), 'error');

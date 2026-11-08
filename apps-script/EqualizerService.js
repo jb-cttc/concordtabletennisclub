@@ -150,6 +150,7 @@ function equalizerResultsFor_(sessionId) {
 
 function writeEqualizerRoster_(sessionId, roster, draw) {
   var players = indexBy_(rows_('Players'), 'player_id');
+  var eq = equalizerRatings_();
   var groupOf = {};
   if (draw && draw.format === 'groups') {
     draw.groups.forEach(function (sides, index) {
@@ -159,7 +160,7 @@ function writeEqualizerRoster_(sessionId, roster, draw) {
   replaceSessionRows_('SessionPlayers', sessionId, roster.map(function (playerId) {
     var player = players[playerId];
     if (!player || !asBoolean_(player.active)) throw new Error('Unknown or inactive player: ' + playerId);
-    var rating = draw && draw.ratings[playerId] !== undefined ? Number(draw.ratings[playerId]) : Number(player.current_rating);
+    var rating = draw && draw.ratings[playerId] !== undefined ? Number(draw.ratings[playerId]) : eq[playerId] !== undefined ? eq[playerId] : Number(player.current_rating);
     return { session_id: sessionId, player_id: playerId, group_number: groupOf[playerId] || 1, starting_rating: rating, promotion_from_group: '' };
   }));
 }
@@ -357,10 +358,8 @@ function finalizeEqualizerLocked_(sessionDate, sessionId, expectedRevision) {
     throw new Error('This Equalizer is already finalized. Reload the page to see it; the lock button reopens it if a correction is needed.');
   }
   if (Number(session.revision) !== Number(expectedRevision)) throw new Error(CHANGED_ELSEWHERE_MESSAGE);
-  var syncedThrough = ratingsSyncedThrough_();
-  if (syncedThrough && sessionDate <= syncedThrough) {
-    throw new Error('The club site already has results through ' + syncedThrough + ', so finalizing ' + sessionDate + ' here would count those matches twice.');
-  }
+  // No check against the club site's round robin ratings: an Equalizer moves only EQ ratings, which the site never
+  // sends back.
   var rr = findRow_('Sessions', 'session_id', 'session-' + sessionDate);
   if (rr && String(rr.status) !== 'finalized' && rows_('SessionPlayers').some(function (row) { return String(row.session_id) === String(rr.session_id); })) {
     throw new Error('The round robin for ' + sessionDate + ' is still open. Finalize it first: events on one day are finalized in the order they started.');
@@ -382,9 +381,10 @@ function finalizeEqualizerLocked_(sessionDate, sessionId, expectedRevision) {
     if (problem) throw new Error('Match ' + m.id + ': ' + problem);
   });
 
-  var players = indexBy_(rows_('Players'), 'player_id');
-  var earlier = finalizeLeftovers_(sessionId, players);
+  // EQ ratings only: a player's first finalized Equalizer starts from a copy of their round robin rating now.
   var outcome = E.playerResults(event, view);
+  var players = seedEqualizerRatings_(Object.keys(outcome));
+  var earlier = finalizeLeftovers_(sessionId, players);
   var adjustments = {};
   var now = new Date();
   var ledger = Object.keys(outcome).map(function (playerId) {
@@ -404,8 +404,32 @@ function finalizeEqualizerLocked_(sessionDate, sessionId, expectedRevision) {
       created_at: now
     };
   });
-  commitFinalize_(session, sessionId, sessionDate, ledger, finalizeRatingWrites_(ledger, earlier.restored, adjustments, players), [], earlier.leftovers, now);
+  commitFinalize_(session, sessionId, sessionDate, ledger, finalizeRatingWrites_(ledger, earlier.restored, adjustments, players, EQ_RATINGS_), [], earlier.leftovers, now);
   return equalizerState_(sessionDate);
+}
+
+// Makes the EqualizerRatings tab if needed and gives each player without an EQ rating a copy of their round robin
+// rating, in one write. Returns every player's EQ rating row (ratingRows_). A copy that a failed finalize leaves behind
+// is the same rating the player would start from anyway.
+function seedEqualizerRatings_(playerIds) {
+  var book = SpreadsheetApp.getActive();
+  if (!book.getSheetByName('EqualizerRatings')) {
+    var sheet = book.insertSheet('EqualizerRatings');
+    ensureHeader_(sheet, TABLES.EqualizerRatings);
+    formatTable_(sheet, TABLES.EqualizerRatings.length);
+  }
+  var rows = ratingRows_(EQ_RATINGS_);
+  var players = indexBy_(rows_('Players'), 'player_id');
+  var now = new Date();
+  var fresh = playerIds.filter(function (id) { return !rows[id]; }).map(function (id) {
+    if (!players[id]) throw new Error('Player no longer exists: ' + id);
+    return { player_id: id, eq_rating: Number(players[id].current_rating) || 0, updated_at: now };
+  });
+  if (!fresh.length) return rows;
+  appendObjects_('EqualizerRatings', fresh);
+  flushSheets_();
+  appendAudit_('equalizer_ratings_started', 'database', 'EqualizerRatings', { players: fresh.length });
+  return ratingRows_(EQ_RATINGS_);
 }
 
 function reopenEqualizer(sessionDate, expectedRevision) {

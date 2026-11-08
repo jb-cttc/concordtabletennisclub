@@ -373,6 +373,14 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     sentence: sentence,
     reportDeskProblem: reportDeskProblem,
     confirm: function (text) { return confirm(text); },
+    // After an Equalizer finalize or reopen: the directory's EQ ratings from Google.
+    refreshRatings: function () {
+      call('listPlayers').then(function (list) {
+        (list || []).forEach(function (p) { if (byId[p.playerId]) byId[p.playerId].eqRating = p.eqRating; });
+        render();
+        renderDirectory();
+      }).catch(function () { /* the next load shows them */ });
+    },
     printedAt: function () { return window.cttcPlayerBoard && window.cttcPlayerBoard.eqPrintedAt ? window.cttcPlayerBoard.eqPrintedAt() : 0; },
     changed: function () { if (state.event === 'equalizer') state.roster = eqDesk.roster(); render(); }
   });
@@ -1222,12 +1230,18 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var name = otherNameMatch(p, query);
     return name ? '<span class="aka">Also goes by ' + esc(name) + '</span>' : '';
   }
+  // Every player has two ratings: the round robin's (RR) and the Equalizer's (EQ), which starts as a copy of the RR
+  // rating at their first finalized Equalizer and then moves only with Equalizers.
+  function eqRatingOf(p) { return p.eqRating != null ? p.eqRating : p.currentRating; }
+  function bothRatings(p) {
+    return 'RR ' + p.currentRating + ' \u00b7 EQ ' + eqRatingOf(p) + (p.eqRating == null ? ' <span class="new-eq" title="No Equalizer finalized yet: starts at the RR rating">(new)</span>' : '');
+  }
   function renderDirectory() {
     var query = searchText(search.value.trim());
     var matches = function (p) { return !query || searchText(p.name).indexOf(query) >= 0 || !!otherNameMatch(p, query); };
     var html = state.players.filter(matches).slice(0, 50).map(function (p) {
       var added = state.roster.indexOf(p.playerId) >= 0;
-      return '<li><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span>' + aka(p, query) + '</div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
+      return '<li><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>' + bothRatings(p) + '</span>' + aka(p, query) + '</div><button class="small" data-add="' + esc(p.playerId) + '" ' + (added ? 'disabled' : '') + '>' + (added ? 'Added' : 'Add') + '</button></li>';
     });
     var archivedMatches = query.length >= 2 ? state.archived.filter(matches) : [];
     if (archivedMatches.length && !state.showArchived) {
@@ -1235,7 +1249,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     }
     if (state.showArchived && archivedMatches.length) {
       html = html.concat(archivedMatches.slice(0, 25).map(function (p) {
-        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>Rating ' + p.currentRating + '</span>' + aka(p, query) + '<span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
+        return '<li class="archived" data-archived="' + esc(p.playerId) + '"><div class="identity"><strong>' + esc(p.name) + editButton(p) + '</strong><span>' + bothRatings(p) + '</span>' + aka(p, query) + '<span class="archived-badge">Archived</span></div><button class="small make-active" data-activate="' + esc(p.playerId) + '">Make Active</button></li>';
       }));
     }
     results.innerHTML = html.join('');
@@ -1270,11 +1284,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     renderPrintLabels();
     if (state.event === 'equalizer') {
       var fixed = eqDesk.hasResults() || eqDesk.locked();
-      var ids = state.roster.slice().sort(function (a, b) { return player(b).currentRating - player(a).currentRating; });
+      var ids = state.roster.slice().sort(function (a, b) { return eqRatingOf(player(b)) - eqRatingOf(player(a)); });
       groups.innerHTML = !ids.length ? '' : '<article class="group eq-roster"><div class="group-head"><strong>Equalizer players</strong><span class="count">' + ids.length + ' players</span></div><ul class="group-list">' + ids.map(function (id) {
         var p = player(id);
         var where = eqDesk.where(id);
-        return '<li><div class="identity"><strong>' + esc(p.name) + '</strong><span>Rating ' + p.currentRating + (where ? ' \u00b7 ' + esc(where) : '') + '</span></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from the Equalizer" aria-label="Remove ' + esc(p.name) + ' from the Equalizer"' + (fixed ? ' disabled' : '') + '>\u00d7</button></li>';
+        return '<li><div class="identity"><strong>' + esc(p.name) + '</strong><span>EQ ' + eqRatingOf(p) + (where ? ' \u00b7 ' + esc(where) : '') + '</span><span class="other-rating">RR ' + p.currentRating + '</span></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from the Equalizer" aria-label="Remove ' + esc(p.name) + ' from the Equalizer"' + (fixed ? ' disabled' : '') + '>\u00d7</button></li>';
       }).join('') + '</ul></article>';
       return;
     }
@@ -1289,7 +1303,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       return '<article class="group' + (O.outOfRange(size, groupSize()) ? ' needs-balance' : '') + '"><div class="group-head"><strong>Group ' + group.groupNumber + '</strong><span class="count">' + size + ' players</span></div><ul class="group-list">' + group.playerIds.map(function (id) {
         var p = player(id);
         var promo = state.promotions[id];
-        return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + (late && late.indexOf(id) < 0 ? ' <span class="late-badge" title="Signed in after the sheets printed">Late add</span>' : '') + '</strong><span>Rating ' + p.currentRating + '</span>' +
+        return '<li' + (promo ? ' class="promoted"' : '') + '><div class="identity"><strong>' + esc(p.name) + (late && late.indexOf(id) < 0 ? ' <span class="late-badge" title="Signed in after the sheets printed">Late add</span>' : '') + '</strong><span>RR ' + p.currentRating + '</span><span class="other-rating">EQ ' + eqRatingOf(p) + '</span>' +
           (promo ? '<span class="promotion-badge">\u2191 ' + (promo.wonGroup ? 'Won ' + esc(promo.wonGroup) + ' on ' + shortDate(promo.date) : 'Promoted from Group ' + promo.fromGroup) + '</span>' : '') +
           '</div><div class="move"><button class="icon" data-move="' + esc(id) + '" data-dir="-1" ' + (index === 0 ? 'disabled' : '') + ' title="Move up a group">\u2191</button><button class="icon" data-move="' + esc(id) + '" data-dir="1" ' + (index === state.groups.length - 1 ? 'disabled' : '') + ' title="Move down a group">\u2193</button></div><button class="icon rr-remove" data-drop="' + esc(id) + '" title="Remove from RR draft" aria-label="Remove ' + esc(p.name) + ' from RR draft">\u00d7</button></li>';
       }).join('') + '</ul></article>';
@@ -2655,6 +2669,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
 <style>
 .promotion-context{margin:-6px 0 10px}
 .results .identity .aka{display:block;font-size:12px;color:var(--muted);font-style:italic}
+.identity .other-rating{display:block;font-size:11.5px;color:var(--muted)}
+.identity .new-eq{color:var(--muted);font-size:11.5px}
 .group-summary{font:13px Arial,sans-serif;margin:0 0 12px;color:var(--muted)}
 .group-summary.warn,.group.needs-balance .count{color:#8a5a00;font-weight:700}
 .group.needs-balance{border-top-color:var(--gold)}

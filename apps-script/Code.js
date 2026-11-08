@@ -16,6 +16,9 @@ var TABLES = {
   // The Equalizer (EqualizerService.js): one row per event (the organizer's choices and the saved draw), and one row
   // per match result. Made by the first Equalizer save; the event's roster is in SessionPlayers like a round robin's.
   Brackets: ['session_id', 'rule_version', 'format', 'play', 'best_of', 'odd_player', 'sit_out_id', 'draw_json', 'drawn_at', 'updated_at'],
+  // Each player's Equalizer rating (EqualizerService.js): a copy of their round robin rating the first time an Equalizer
+  // they played is finalized, then moved only by Equalizers. Made by that first finalize; no row means no EQ rating yet.
+  EqualizerRatings: ['player_id', 'eq_rating', 'updated_at'],
   BracketMatches: ['match_id', 'session_id', 'stage', 'side_one_id', 'side_two_id', 'head_start_side_id', 'head_start_points', 'best_of', 'side_one_games', 'side_two_games', 'won_by', 'forfeited_by', 'table_number', 'called_at', 'finished_at', 'updated_at']
 };
 

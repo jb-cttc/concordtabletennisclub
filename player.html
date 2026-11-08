@@ -200,7 +200,10 @@
 
       var tbody = document.createElement("tbody");
       entries.forEach(function (entry, i) {
-        var prevEntry = entries[i + 1];
+        // The change is from the player's previous session of the same kind: the round robin and Equalizer ratings
+        // are separate.
+        var at = all.indexOf(entry);
+        var prevEntry = all.slice(at + 1).find(function (e) { return (e.variant === "equalizer") === (entry.variant === "equalizer"); });
       var delta = prevEntry ? entry.rating - prevEntry.rating : null;
       var row = document.createElement("tr");
       row.className = "profile-session-row";
@@ -411,7 +414,7 @@
     if (rankStr) metaParts.push("Rank: <strong>" + rankStr + "</strong>");
     if (topPct !== null) metaParts.push("<span class=\"profile-percentile\">Top " + topPct + "%</span>");
     metaParts.push(
-      "Rating: <strong>" + player.currentRating + "</strong>",
+      "Rating: <strong>" + player.currentRating + "</strong>" + (player.eqRating != null ? " (Equalizer " + player.eqRating + ")" : ""),
       "Peak: " + player.peakRating,
       "Sessions: " + player.sessionsPlayed,
       "Record: " + player.totalWins + "-" + player.totalLosses
@@ -440,8 +443,12 @@
     var recentHeading = document.createElement("h2");
     recentHeading.textContent = "Recent Sessions";
     recentSection.appendChild(recentHeading);
-    if (player.ratingHistory && player.ratingHistory.length) {
-      recentSection.appendChild(makeRecentTable(player.ratingHistory, player.name));
+    // Round robins and Equalizers together, oldest first (on a shared date the round robin first).
+    var sessionsPlayed = (player.ratingHistory || []).concat(player.eqRatingHistory || []).sort(function (a, b) {
+      return a.date.localeCompare(b.date) || (a.variant === "equalizer" ? 1 : 0) - (b.variant === "equalizer" ? 1 : 0);
+    });
+    if (sessionsPlayed.length) {
+      recentSection.appendChild(makeRecentTable(sessionsPlayed, player.name));
     } else {
       var noSessions = document.createElement("p");
       noSessions.style.color = "var(--muted)";

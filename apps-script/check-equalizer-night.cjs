@@ -106,11 +106,30 @@ const cases = {
     await scoreAll(world, tab);
     assert.match(workspace(tab), /wins the Equalizer/);
     assert.ok(!tab.$('#finalize').disabled, 'Finalize is ready once it is finished');
+    // Before the first Equalizer: both ratings in the directory, the EQ one a copy marked (new); the Equalizer's
+    // cards lead with the EQ rating and show the RR rating under it.
+    const someone = world.players[0];
+    const rrBefore = Number(someone.current_rating);
+    const find = name => { const box = tab.window.document.getElementById('search'); box.value = name; box.dispatchEvent(new tab.window.Event('input', { bubbles: true })); };
+    const rrRatings = Object.fromEntries(world.server.rows('Players').map(p => [p.player_id, Number(p.current_rating)]));
+    find(someone.display_name);
+    await run(world, 500);
+    assert.match(tab.$('#results').textContent, new RegExp('RR ' + rrBefore + ' · EQ ' + rrBefore + ' \\(new\\)'));
+    const card = [...tab.window.document.querySelectorAll('#groups .eq-roster li')].find(li => li.textContent.includes(someone.display_name));
+    assert.match(card.querySelector('.identity span').textContent, new RegExp('^EQ ' + rrBefore));
+    assert.equal(card.querySelector('.other-rating').textContent, 'RR ' + rrBefore);
     tab.finalize();
     await run(world, 60000);
     assert.equal(googleEq(world).session.status, 'finalized');
     assert.equal(world.server.rows('RatingLedger').filter(r => r.session_id === EQ).length, 8);
     assert.equal(tab.$('#finalize').textContent, '🔒 Finalized');
+    // Finalizing moved only EQ ratings; the directory shows the new ones, the RR ratings as they were.
+    world.server.rows('Players').forEach(p => assert.equal(Number(p.current_rating), rrRatings[p.player_id], 'no RR rating changes'));
+    const eqNow = Number(world.server.rows('EqualizerRatings').find(r => r.player_id === someone.player_id).eq_rating);
+    assert.notEqual(eqNow, rrBefore, 'a 3-match afternoon moves the EQ rating');
+    find(someone.display_name);
+    await run(world, 500);
+    assert.match(tab.$('#results').textContent, new RegExp('RR ' + rrBefore + ' · EQ ' + eqNow + '(?! \\(new\\))'));
     assert.ok(tab.$('#equalizer .ball').disabled, 'a finalized Equalizer cannot be changed');
     assert.deepEqual(tab.errors, []);
   },
