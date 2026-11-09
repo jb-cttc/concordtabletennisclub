@@ -86,6 +86,9 @@ function mailJob_(event) {
     // Hourly: who the coaching page shows, for the coaching app (CoachList.js).
     var coaches = publishCoachList_();
     if (coaches) result.coaches = coaches;
+    // Hourly: who holds a Zeffy pass on the special nights ahead, for the volunteer app's free spots (Volunteers.js).
+    var passes = publishFreeNightPasses_();
+    if (passes) result.passes = passes;
     return result;
   });
 }

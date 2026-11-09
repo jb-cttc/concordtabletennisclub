@@ -178,7 +178,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.equal(pageRow(paying).querySelector('.payment-options .first-visit').hidden, true, 'no first-visit fee on a special night');
   assert.equal(page.window.cttcPayments.status(opener).paid, true, 'the player board counts a free volunteer as settled');
   const section = page.window.document.querySelector('.volunteer-signups');
-  assert.match(section.querySelector('.special-note').textContent, /everyone pays \$5 tonight\. The first 2 volunteers to open and the first 2 to close play free \(2 tonight, marked ★ here, by their name and on their payment button\)/);
+  assert.match(section.querySelector('.special-note').textContent, /everyone pays \$5 tonight\. The first 2 volunteers to open and the first 2 to close play free, passing over Zeffy pass holders \(2 tonight, marked ★ here, by their name and on their payment button\)/);
   const tags = [...section.querySelectorAll('li')].map(item => [item.querySelector('strong').firstChild.textContent, (item.querySelector('.free-tag') || {}).textContent || '']);
   assert.deepEqual(tags.sort(), [[nameOf(closer), '★ PLAYS FREE'], [nameOf(opener), '★ PLAYS FREE'], [nameOf(paying), ''], [nameOf(waiting), '★ FREE if confirmed']].sort());
   assert.deepEqual(page.errors, []);

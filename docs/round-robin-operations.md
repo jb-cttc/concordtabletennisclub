@@ -318,7 +318,8 @@ tonight is still a visitor on the nights before.
 nights everyone pays **$5**: members, visitors, juniors and first visits alike,
 so the payment menu has no First visit choice and the hover text says "$5
 tonight". The **first 2 volunteers to sign up to open and the first 2 to sign
-up to close** play **free**: a gold **★** sits by their name on the roster, their
+up to close** play **free**, passing over Zeffy pass holders (their pass already
+covers them, so the spot goes to the next volunteer who pays): a gold **★** sits by their name on the roster, their
 payment button is gold and reads **★ FREE**, and *Tonight's volunteers* tags
 them **★ PLAYS FREE** (or **★ FREE if confirmed**
 while their sign-up still waits for their YES), with a note saying how many

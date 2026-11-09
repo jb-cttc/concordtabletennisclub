@@ -1002,10 +1002,12 @@ function missing_(entries, now) {
 // [{key, part, confirmed, entries}]: in each part of the night (opening, closing) the first 2 people by sign-up time among
 // everyone holding a slot (confirmed, or waiting for their YES before its deadline). Someone already free as an opener is
 // skipped among the closers, so that spot passes to the next closer: up to 4 different people. Only sign-ups linked to a
-// desk player count (in hybrid mode, someone "not listed" can volunteer but holds no free spot). People already told they
+// desk player count (in hybrid mode, someone "not listed" can volunteer but holds no free spot), and a player whose Zeffy
+// monthly play pass covers that night is passed over (passes: { playerId: true }, from the desk), so pass holders never block
+// someone who pays. People already told they
 // play free (free_night set) keep their place ahead of the rest, so nobody is told and then loses it. A spot held by someone
 // still waiting to confirm is theirs, but free only once they confirm: if they never do, or drop, the next person moves up.
-function freeSpots_(entries, now) {
+function freeSpots_(entries, now, passes) {
   var parts = { desk: 'open', 'desk-backup': 'open', money: 'open', 'money-backup': 'open', tables: 'open', lockup: 'close', close: 'close' };
   var people = { open: {}, close: {} };
   entries.forEach(function (entry) {
@@ -1016,7 +1018,7 @@ function freeSpots_(entries, now) {
     if (!part) return;
     // Players on the desk's list only: the desk charges by player, so someone it cannot match could never be shown free.
     var playerId = String(entry.player_id || '').trim();
-    if (!playerId) return;
+    if (!playerId || (passes && passes[playerId])) return;
     var key = 'p:' + playerId;
     var person = people[part][key] || (people[part][key] = { key: key, part: part, confirmed: false, told: false, at: 8.64e15, id: '', entries: [] });
     var at = Date.parse(entry.created_at) || 8.64e15;
@@ -1039,6 +1041,39 @@ function freeSpots_(entries, now) {
   return spots;
 }
 
+// Who holds a Zeffy play pass on each special night ahead: { date: { playerId: true } }, from the desk's hidden
+// FreeNightPasses tab (date, player_id), which the desk rewrites when it changes (apps-script/Volunteers.js). Kept for 10
+// minutes; read once per run. No tab yet (or the desk Sheet cannot be read): nobody is passed over.
+var passHolders_ = null;
+function zeffyPasses_() {
+  if (passHolders_) return passHolders_;
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('free-passes');
+  if (cached) {
+    try { return (passHolders_ = JSON.parse(cached)); } catch (error) { passHolders_ = null; }
+  }
+  var out = {};
+  try {
+    var tab = book_('DESK_SHEET_ID').getSheetByName('FreeNightPasses');
+    var values = tab && tab.getLastRow() >= 2 ? tab.getRange(2, 1, tab.getLastRow() - 1, 2).getValues() : [];
+    values.forEach(function (line) {
+      var date = sheetDate_(line[0]);
+      var playerId = String(line[1] || '').trim();
+      if (date && playerId) (out[date] = out[date] || {})[playerId] = true;
+    });
+  } catch (error) {
+    logError_('read the desk\'s Zeffy pass list', error);
+    return (passHolders_ = {});
+  }
+  try { cache.put('free-passes', JSON.stringify(out), 600); } catch (error) { /* only a cache */ }
+  return (passHolders_ = out);
+}
+
+// freeSpots_ for one night's entries, passing over that night's Zeffy pass holders.
+function nightFree_(entries, now) {
+  return freeSpots_(entries, now, entries.length ? zeffyPasses_()[entries[0].date] || {} : {});
+}
+
 // The special covering date, or null.
 function perkNight_(date) {
   date = String(date || '');
@@ -1053,7 +1088,7 @@ function freeSpotOf_(entry, signups, now) {
   var spec = position_(entry.position);
   if (!spec) return null;
   var key = personKey_(entry);
-  return freeSpots_(signups.filter(function (other) { return other.date === entry.date; }), now).filter(function (spot) {
+  return nightFree_(signups.filter(function (other) { return other.date === entry.date; }), now).filter(function (spot) {
     return spot.key === key && spot.part === spec.part;
   })[0] || null;
 }
@@ -1069,7 +1104,7 @@ function awardFree_(signups, emails, now) {
   var nights = {};
   signups.forEach(function (entry) { if (entry.date >= today && perkNight_(entry.date)) (nights[entry.date] = nights[entry.date] || []).push(entry); });
   Object.keys(nights).sort().forEach(function (date) {
-    freeSpots_(nights[date], now).forEach(function (spot) {
+    nightFree_(nights[date], now).forEach(function (spot) {
       if (!spot.confirmed || spot.entries.some(function (entry) { return entry.free_night; })) return;
       var mine = spot.entries.filter(function (entry) { return signupStatus_(entry, now) === 'confirmed'; });
       if (!mine.length || !mailAvailable_()) return;
@@ -1127,7 +1162,7 @@ function board_(signups, closures, now) {
     var free = null;
     if (perk) {
       free = { fee: perk.fee, spots: FREE_SPOTS, open: { left: FREE_SPOTS, people: [] }, close: { left: FREE_SPOTS, people: [] } };
-      freeSpots_(here, now).forEach(function (spot) {
+      nightFree_(here, now).forEach(function (spot) {
         free[spot.part].left -= 1;
         free[spot.part].people.push({ name: labels[spot.entries[0].signup_id], pending: !spot.confirmed });
         spot.entries.forEach(function (entry) {
@@ -4056,7 +4091,10 @@ function freeLines_(entries, signups, now, confirmed) {
   var lines = [];
   var freeIds = [];
   var nights = {};
-  entries.forEach(function (entry) { if (perkNight_(entry.date)) (nights[entry.date] = nights[entry.date] || []).push(entry); });
+  // A Zeffy pass already covers its holder's night, so the special says nothing to them about it.
+  entries.forEach(function (entry) {
+    if (perkNight_(entry.date) && !(zeffyPasses_()[entry.date] || {})[entry.player_id]) (nights[entry.date] = nights[entry.date] || []).push(entry);
+  });
   var dates = Object.keys(nights).sort();
   if (!dates.length) return { lines: lines, freeIds: freeIds };
   var winning = [];
@@ -4076,7 +4114,7 @@ function freeLines_(entries, signups, now, confirmed) {
   }
   if (taken.length) {
     lines.push('Friday and Saturday special: on ' + taken.join(', ') + ' everyone pays $' + fee + '. The free spots (the first ' + FREE_SPOTS + ' to open and the first ' + FREE_SPOTS +
-      ' to close) are already held. If one opens up, the next volunteer in sign-up order plays free and we email them.');
+      ' to close, passing over Zeffy play pass holders) are already held. If one opens up, the next volunteer in sign-up order plays free and we email them.');
   }
   return { lines: lines, freeIds: freeIds };
 }
@@ -4176,7 +4214,7 @@ function batchMail_(batch, mine, now, bundle, signups) {
 // The reminder's line about the special: free tomorrow, or what everyone pays. null on an ordinary night.
 function freeReminder_(entries, signups, now) {
   var perk = perkNight_(entries[0].date);
-  if (!perk) return null;
+  if (!perk || (zeffyPasses_()[entries[0].date] || {})[entries[0].player_id]) return null;
   var spot = null;
   entries.some(function (entry) { spot = freeSpotOf_(entry, signups, now); return !!spot && spot.confirmed; });
   return spot && spot.confirmed ? { callout: '\ud83c\udf81 **You play free tomorrow:** you are ' + freeWhy_(spot.part) + '. Nothing to do: the desk sees it.', tone: 'free' } :
@@ -4251,7 +4289,9 @@ function admin_(request) {
 // One sign-up as the admin page shows it: full name, the desk player, status, and whether it holds a free spot.
 function adminSlot_(entry, now, free) {
   return { id: entry.signup_id, playerId: entry.player_id, name: entry.name, status: signupStatus_(entry, now), finalize: entry.finalize === 'yes',
-    free: free ? (free.confirmed ? 'yes' : 'held') : '', signedUp: entry.created_at };
+    free: free ? (free.confirmed ? 'yes' : 'held') : '', signedUp: entry.created_at,
+    // A Zeffy play pass covers them on this special night, so the free spots pass them over.
+    pass: !!perkNight_(entry.date) && !!(zeffyPasses_()[entry.date] || {})[entry.player_id] };
 }
 
 function adminBoard_() {
@@ -4268,7 +4308,7 @@ function adminBoard_() {
     var freeBy = {};
     var left = { open: FREE_SPOTS, close: FREE_SPOTS };
     if (perk) {
-      freeSpots_(here, now).forEach(function (spot) {
+      nightFree_(here, now).forEach(function (spot) {
         left[spot.part] -= 1;
         spot.entries.forEach(function (entry) { if (position_(entry.position).part === spot.part) freeBy[entry.signup_id] = spot; });
       });
@@ -4511,8 +4551,8 @@ function adminMail_(person, after, before, note, now) {
   var lost = [];
   person.items.forEach(function (item) {
     if (!perkNight_(item.before.date)) return;
-    var had = freeSpots_(before.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key && spot.confirmed; });
-    var has = freeSpots_(after.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key; });
+    var had = nightFree_(before.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key && spot.confirmed; });
+    var has = nightFree_(after.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key; });
     if (had && !has && lost.indexOf(item.before.date) < 0) lost.push(item.before.date);
   });
   var confirmedMoves = moved.filter(function (item) { return signupStatus_(item.entry, now) === 'confirmed'; }).map(function (item) { return item.entry; });

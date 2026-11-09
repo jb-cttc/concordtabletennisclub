@@ -135,6 +135,17 @@ assert.deepEqual(freeOn(SPECIAL), { 'p-early': 'open', 'p-ray': 'open', 'p-ron':
 signups[5] = free(5, SPECIAL, 'desk', 'p-late', 'Late Opener', 'confirmed', at(4), { told: '2026-11-02T00:00:00.000Z' });
 assert.deepEqual(freeOn(SPECIAL), { 'p-late': 'open', 'p-early': 'open', 'p-ray': 'close', 'p-ron': 'close' },
   'someone already told keeps the spot ahead of earlier sign-ups; Ray, no longer free as an opener, takes the first closing spot');
+// A Zeffy pass holder is passed over: the next volunteer who pays takes the spot, on the desk and in the volunteer app.
+const passFree = JSON.parse(JSON.stringify(context.freeVolunteerFinder_(null, date => (date === SPECIAL ? { 'p-late': true, 'p-ron': true } : {}))(SPECIAL)));
+assert.deepEqual(passFree, { 'p-early': 'open', 'p-ray': 'open', 'p-last': 'close' }, 'pass holders never block someone who pays');
+context.rows_ = () => [];
+context.nameLinkRows_ = () => [];
+context.cashZeffyCoverage_ = () => date => (date === SPECIAL ? { 'p-late': true } : {});
+assert.deepEqual(list(SPECIAL).volunteers.filter(v => v.free).map(v => [v.name, v.free]).sort(), [['Early Bird', 'open'], ['Last Closer', 'close'], ['Ray Example', 'open'], ['Ron Example', 'close']].sort(),
+  'Tonight\'s volunteers uses the payment screen\'s pass coverage');
+delete context.cashZeffyCoverage_;
+delete context.rows_;
+delete context.nameLinkRows_;
 assert.deepEqual(freeOn('2026-11-18'), {}, 'nobody is free on an ordinary night');
 assert.equal(list('2026-11-18').special, undefined);
 property = null;

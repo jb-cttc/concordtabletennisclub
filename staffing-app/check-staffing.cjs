@@ -127,6 +127,7 @@ makeBook('desk-sheet-id').insertSheet('Players');
 // The desk's one mail reader records every forwarded text in its VoiceTexts tab (apps-script/MailReader.js): the app reads
 // texts there, never by searching Gmail. Here the tab simply holds the inbox; readerStopped is a desk that stopped collecting.
 let readerStopped = false;
+let passGrid = null;
 let runtimeGrid = null;
 let textReads = 0;
 {
@@ -141,6 +142,8 @@ let textReads = 0;
     MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
     // The desk's key for waking the app (apps-script/MailReader.js wakeKey_), in a hidden tab of its Sheet.
     AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? 'f'.repeat(64) : row === 2 && column === 2 ? 'a'.repeat(64) : 'key']] }) },
+    // Who holds a Zeffy play pass on each special night (the desk's apps-script/FreeNightPasses.js); absent until the desk makes it.
+    FreeNightPasses: passGrid && { getLastRow: () => passGrid.length, getRange: (row, column, rows, columns) => ({ getValues: () => passGrid.slice(row - 1, row - 1 + rows).map(line => line.slice(column - 1, column - 1 + columns)) }) },
     // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
     JobRuntime: runtimeGrid && {
       getDataRange: () => ({ getValues: () => runtimeGrid.map(line => line.slice()) }),
@@ -1689,7 +1692,7 @@ seedCheck();
   assert.match(last('Ivy Wong', /^Please confirm/).body, /🎁 You hold a free spot: Sat, Nov 28 \(one of the first 2 to open\)\. It is yours once you reply YES\. If you don't confirm in time, it passes to the next volunteer\./);
   clock += 60000;
   assert.equal(signUp('Eve Stone', [[SAT, 'tables']]).ok, true);
-  assert.match(last('Eve Stone', /^Please confirm/).body, /Friday and Saturday special: on Sat, Nov 28 everyone pays \$5\. The free spots \(the first 2 to open and the first 2 to close\) are already held\. If one opens up, the next volunteer in sign-up order plays free and we email them\./);
+  assert.match(last('Eve Stone', /^Please confirm/).body, /Friday and Saturday special: on Sat, Nov 28 everyone pays \$5\. The free spots \(the first 2 to open and the first 2 to close, passing over Zeffy play pass holders\) are already held\. If one opens up, the next volunteer in sign-up order plays free and we email them\./);
   assert.doesNotMatch(last('Eve Stone', /^Please confirm/).body, /🎁/);
   // Closers: Ada is already free, so the two closing spots go to Fay and Gus; Hal is third.
   signAndConfirm('Fay Moss', [[SAT, 'close']]);
@@ -1746,6 +1749,31 @@ seedCheck();
   clock = was;
   assert.match(mailTo(emailOf('Eve Stone'), remindedFrom)[0].body, /🎁 You play free tomorrow: you are one of the first 2 to open\. Nothing to do: the desk sees it\./);
   assert.match(mailTo(emailOf('Hal Reed'), remindedFrom)[0].body, /Friday and Saturday special: everyone pays \$5 tomorrow\./);
+
+  // A Zeffy pass holder is passed over: the next volunteer who pays takes the free spot (the desk's FreeNightPasses tab).
+  const SUN = '2026-12-19';
+  const passCount = sent.length;
+  signAndConfirm('Max Gold', [[SUN, 'close']]);
+  signAndConfirm('Sal Roy', [[SUN, 'close']]);
+  passGrid = [['date', 'player_id'], [SUN, idOf('Max Gold')], ['2026-11-28', 'someone-else']];
+  delete cache['free-passes'];
+  context.passHolders_ = null;
+  assert.deepEqual(night(SUN).free.close.people.map(person => person.name), ['Sal'], 'Max holds a pass: the free spot passes to Sal');
+  assert.deepEqual(night(SUN).slots.close.map(slot => [slot.name, !!slot.free]), [['Max', false], ['Sal', true]]);
+  signAndConfirm('Ivy Wong', [[SUN, 'close']]);
+  assert.match(mailTo(emailOf('Ivy Wong'), passCount).pop().body, /🎁 You play free: Sat, Dec 19 \(one of the first 2 to close\)/, 'the second closing spot, Max passed over');
+  context.passHolders_ = null;
+  assert.equal(JSON.parse(cache['free-passes'])[SUN][idOf('Max Gold')], true, 'kept for ten minutes, so the desk Sheet is not read each time');
+  const maxTold = mailTo(emailOf('Max Gold'), passCount).filter(message => /^You are on/.test(message.subject)).pop().body;
+  // Max confirmed before the tab named him, so his confirmation spoke of the special; once it does, nothing more is said.
+  assert.equal(context.freeLines_([context.rows_('Signups').find(entry => entry.date === SUN && entry.player_id === idOf('Max Gold'))], context.rows_('Signups'), clock, true).lines.length, 0,
+    'a pass holder is told nothing about the special');
+  assert.equal(context.freeReminder_(context.rows_('Signups').filter(entry => entry.date === SUN && entry.player_id === idOf('Max Gold')), context.rows_('Signups'), clock), null);
+  assert.ok(maxTold);
+  passGrid = null;
+  delete cache['free-passes'];
+  context.passHolders_ = null;
+  signupRows().filter(row => cell('Signups', row, 'date') === SUN).forEach(row => { row[column('Signups', 'status')] = 'dropped'; });
 
   // Tidy up, so later checks see the calendar as before.
   signupRows().filter(row => cell('Signups', row, 'date') === SAT).forEach(row => { row[column('Signups', 'status')] = 'dropped'; });

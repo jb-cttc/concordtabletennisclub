@@ -4535,7 +4535,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     if (!loaded) return;
     var freeCount = volunteers.filter(function (volunteer) { return volunteer.free && !volunteer.waiting; }).length;
     specialNote.hidden = !special;
-    specialNote.textContent = special ? 'Friday and Saturday special: everyone pays $' + special.fee + ' tonight. The first 2 volunteers to open and the first 2 to close play free' +
+    specialNote.textContent = special ? 'Friday and Saturday special: everyone pays $' + special.fee + ' tonight. The first 2 volunteers to open and the first 2 to close play free, passing over Zeffy pass holders' +
       (freeCount ? ' (' + freeCount + ' tonight, marked \u2605 here, by their name and on their payment button).' : '; nobody has earned it tonight yet.') : '';
     message.textContent = !connected ? 'Not connected to the volunteer sign-ups yet (desk script property CTTC_STAFFING_DB_ID).' :
       volunteers.length ? 'Signed up to open or close on this date. Add the ones who are playing.' : 'No volunteers signed up for this date.';

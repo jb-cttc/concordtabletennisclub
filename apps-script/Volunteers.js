@@ -38,10 +38,12 @@ function staffingSignups_() {
 // [{key, part, confirmed, entries}]: in each part of the night (opening, closing) the first 2 people by sign-up time among
 // everyone holding a slot (confirmed, or waiting for their YES before its deadline). Someone already free as an opener is
 // skipped among the closers, so that spot passes to the next closer: up to 4 different people. Only sign-ups linked to a
-// desk player count (in hybrid mode, someone "not listed" can volunteer but holds no free spot). People already told they
+// desk player count (in hybrid mode, someone "not listed" can volunteer but holds no free spot), and a player whose Zeffy
+// monthly play pass covers that night is passed over (passes: { playerId: true }, from the desk), so pass holders never block
+// someone who pays. People already told they
 // play free (free_night set) keep their place ahead of the rest, so nobody is told and then loses it. A spot held by someone
 // still waiting to confirm is theirs, but free only once they confirm: if they never do, or drop, the next person moves up.
-function freeSpots_(entries, now) {
+function freeSpots_(entries, now, passes) {
   var parts = { desk: 'open', 'desk-backup': 'open', money: 'open', 'money-backup': 'open', tables: 'open', lockup: 'close', close: 'close' };
   var people = { open: {}, close: {} };
   entries.forEach(function (entry) {
@@ -52,7 +54,7 @@ function freeSpots_(entries, now) {
     if (!part) return;
     // Players on the desk's list only: the desk charges by player, so someone it cannot match could never be shown free.
     var playerId = String(entry.player_id || '').trim();
-    if (!playerId) return;
+    if (!playerId || (passes && passes[playerId])) return;
     var key = 'p:' + playerId;
     var person = people[part][key] || (people[part][key] = { key: key, part: part, confirmed: false, told: false, at: 8.64e15, id: '', entries: [] });
     var at = Date.parse(entry.created_at) || 8.64e15;
@@ -75,10 +77,21 @@ function freeSpots_(entries, now) {
   return spots;
 }
 
+// function (date) -> { playerId: true } for the players whose Zeffy play pass covers that night, the same coverage as the
+// payment screen (CashFlow.js cashZeffyCoverage_). If the passes cannot be read, nobody is passed over.
+function zeffyPassFinder_() {
+  try {
+    return cashZeffyCoverage_(rows_('Players'), listPlayers(), nameLinkRows_());
+  } catch (error) {
+    return function () { return {}; };
+  }
+}
+
 // function (date) -> { playerId: 'open' | 'close' } for the confirmed volunteers who play free that night (special nights
-// only). rows: staffingSignups_().rows, read here when not given. A volunteer app the desk cannot read gives nobody a free
-// night rather than stopping the desk, the cash flow page or Clover matching.
-function freeVolunteerFinder_(rows) {
+// only). rows: staffingSignups_().rows, read here when not given; passesOn: zeffyPassFinder_(), made here when not given.
+// A volunteer app the desk cannot read gives nobody a free night rather than stopping the desk, the cash flow page or
+// Clover matching.
+function freeVolunteerFinder_(rows, passesOn) {
   if (!rows) {
     try {
       rows = staffingSignups_().rows;
@@ -108,7 +121,8 @@ function freeVolunteerFinder_(rows) {
     if (found[date]) return found[date];
     var free = {};
     if (specialNight_(date)) {
-      freeSpots_(byDate[date] || [], now).forEach(function (spot) {
+      passesOn = passesOn || zeffyPassFinder_();
+      freeSpots_(byDate[date] || [], now, passesOn(date)).forEach(function (spot) {
         var playerId = spot.key.indexOf('p:') === 0 ? spot.key.slice(2) : '';
         if (!spot.confirmed || !playerId) return;
         free[playerId] = spot.part;
@@ -142,7 +156,7 @@ function listVolunteers(sessionDate) {
   var tonight = signups.rows.filter(function (entry) { return entry.date === sessionDate; });
   var freeBy = {};
   if (special) {
-    freeSpots_(tonight, now).forEach(function (spot) {
+    freeSpots_(tonight, now, zeffyPassFinder_()(sessionDate)).forEach(function (spot) {
       spot.entries.forEach(function (entry) { freeBy[volunteerKey_(entry, players)] = spot.part; });
     });
   }
