@@ -164,7 +164,7 @@
     <p class="legend">
       <span>Drag a person to another spot, or tap them, then tap where they go.</span>
       <span><b>&#10003;</b> confirmed</span><span><b>&#8987;</b> waiting for their YES</span>
-      <span><span class="card-star">&#9733;</span> plays free (special night)</span>
+      <span><span class="card-star">&#9733;</span> plays free (special night)</span><span><b>Zeffy</b> play pass (passed over for free spots)</span>
     </p>
     <div id="nights" class="nights"></div>
   </section>
@@ -386,6 +386,7 @@
       el('span', { 'class': 'who', text: slot.name }),
       slot.free && !ghost ? el('span', { 'class': 'star' + (slot.free === 'held' ? ' held' : ''), title: slot.free === 'yes' ? 'Plays free' : 'Holds a free spot once confirmed', text: '★' }) : null,
       slot.finalize ? el('span', { 'class': 'meta', title: 'Also finalizing the desk', text: 'F' }) : null,
+      slot.pass ? el('span', { 'class': 'meta', title: 'Zeffy play pass: passed over for the free spots', text: 'Zeffy' }) : null,
       el('span', { 'class': 'meta', text: slot.status === 'pending' ? '⌛' : '✓' })]);
     if (ghost) {
       node.appendChild(el('span', { 'class': 'meta', text: '→ ' + (item.date === night.date ? spec(item.position).label.replace(' (Front Desk)', '') : nightOf(item.date).short) }));

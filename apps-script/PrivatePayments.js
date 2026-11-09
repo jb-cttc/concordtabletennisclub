@@ -69,10 +69,12 @@ function setZeffyPass(playerId, active) {
     else if (active) appendObjects_('ZeffyPasses', [{ player_id: playerId, player_name: String(player.display_name), active: true, updated_at: new Date() }]);
     appendAudit_('zeffy_pass_updated', 'player', playerId, { active: active });
     touchDesk_('p');
-    return active;
   } finally {
     lock.releaseLock();
   }
+  // The volunteer app's free spots pass over pass holders: tell it now rather than at the next hourly copy.
+  publishFreeNightPasses_(true);
+  return active;
 }
 
 function getPrivatePaymentState(sessionDate) {

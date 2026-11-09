@@ -157,8 +157,12 @@ const context = {
   // The coach list's own lines are kept apart: they come once at the first read, whatever the mail.
   deskLog_: (...args) => (args[1] === 'coach_list_changed' ? coachLogs : deskLogs).push(args),
   appendAudit_: (...args) => audits.push(args),
-  safeAudit_: (...args) => audits.push(args)
+  safeAudit_: (...args) => audits.push(args),
+  // The hourly copy of who holds a Zeffy pass on the special nights (FreeNightPasses.js, checked in check-volunteers.cjs):
+  // here a quiet run, counted.
+  publishFreeNightPasses_: () => { passCopies += 1; return null; }
 };
+let passCopies = 0;
 const make = (...args) => { const item = (args[0] === 'zeffy' ? message('Play pass', args[1], args[2], 'Zeffy <contact@communication.mailer.zeffy.com>') : voice(...args)); item.when = new Date(args[args.length - 1]).toISOString(); return item; };
 let cache = {};
 let zeffyRows = [];
@@ -531,4 +535,5 @@ assert.match(day[4], /^coaching=7 staffing=7 coaching_failed=3 staffing_failed=3
 }
 
 assert.equal(context.voiceBodyText_('<https://voice.google.com>\n\nHi\n  there \nGoogle LLC\nignored'), 'Hi\nthere');
+assert.ok(passCopies > 0, 'each mail job run offers the hourly copy of Zeffy passes');
 console.log('Mail reader checks passed');

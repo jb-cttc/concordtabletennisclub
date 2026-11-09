@@ -62,6 +62,8 @@ const context = {
   playerAliases_: () => ({ 'danielle chen': 'b' }),
   // The Friday and Saturday special is checked in check-night-fees.cjs; these dates are ordinary nights.
   specialNight_: () => null,
+  // The volunteer app's copy of who holds a pass (FreeNightPasses.js) is checked in check-volunteers.cjs.
+  publishFreeNightPasses_: () => null,
   firstVisitIdsOn_: (sessionDate, playerRows) => { assert.ok(Array.isArray(playerRows), 'first visits reuse the Players rows already read'); return ['b']; },
   displayDate_: value => String(value),
   validateSessionDate_: date => { if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Invalid date'); },

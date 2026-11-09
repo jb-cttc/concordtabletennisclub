@@ -534,6 +534,16 @@ desk's `Volunteers.js`, and a test checks it):
 - **One free night per person.** Someone among the first 2 openers who also
   closes is skipped among the closers, so that closing spot passes to the next
   closer: up to 4 different people a night.
+- **Zeffy play pass holders are passed over.** A player whose monthly pass
+  covers that night already plays free, so they never hold a free spot: the
+  next volunteers who pay get them. The pass coverage is the desk's (the same
+  as its payment screen); the desk copies who holds a pass on each special
+  night ahead to a hidden `FreeNightPasses` tab in its Sheet once an hour on
+  its mail job, and at once when a pass is changed on the desk
+  (`apps-script/FreeNightPasses.js`). This app reads that tab (kept 10
+  minutes, `zeffyPasses_`). A pass bought by email reaches it within about an
+  hour; meanwhile the desk itself already passes them over. Their emails say
+  nothing about the special, and Volunteer Admin marks them **Zeffy**.
 - Only sign-ups linked to a desk player count. The live app runs in directory
   mode, where every sign-up is a name from the desk's player list; in hybrid
   mode someone "not listed" can still volunteer but holds no free spot, since
