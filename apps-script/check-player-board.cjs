@@ -961,6 +961,49 @@ const cases = {
     board.close();
   },
 
+  // The settings strip is up until the board goes full screen and back when it leaves (Esc), in every layout and on a
+  // following board too; the mouse does not bring it up in full screen.
+  async stripGoesInFullScreen() {
+    const world = sim.createWorld({ seed: 89 });
+    const tab = await deskWith(world, 12);
+    const board = boardWindow(world, tab);
+    tab.click(tab.$('#player-board'));
+    await run(world, 1000);
+    boardClick(board, '#choose-desk');
+    const hidden = () => board.$('#board-controls').classList.contains('hidden');
+    const doc = board.w.document;
+    let full = null;
+    Object.defineProperty(doc, 'fullscreenElement', { configurable: true, get: () => full });
+    const setFull = on => { full = on ? doc.documentElement : null; doc.dispatchEvent(new board.w.Event('fullscreenchange')); };
+    const mouse = () => doc.dispatchEvent(new board.w.MouseEvent('mousemove', { bubbles: true }));
+    for (const layout of ['carousel', 'wall', 'spot']) {
+      boardClick(board, '[data-set="concept"] [data-value="' + layout + '"]');
+      await run(world, 6000);
+      assert.equal(hidden(), false, layout + ': the strip stays up outside full screen, however long the mouse is still');
+      setFull(true);
+      assert.equal(hidden(), true, layout + ': full screen takes the strip away');
+      mouse();
+      await run(world, 500);
+      assert.equal(hidden(), true, layout + ': and the mouse does not bring it back');
+      assert.equal(board.$('#bc-full').textContent, 'Exit full screen');
+      setFull(false);
+      assert.equal(hidden(), false, layout + ': leaving full screen (Esc) brings it back');
+      assert.equal(board.$('#bc-full').textContent, 'Full screen');
+    }
+    // A following board is no different.
+    board.$('#bc-follow').checked = true;
+    board.$('#bc-follow').dispatchEvent(new board.w.Event('change', { bubbles: true }));
+    await run(world, 6000);
+    assert.equal(hidden(), false, 'following, not full screen: the strip is up');
+    setFull(true);
+    mouse();
+    assert.equal(hidden(), true, 'following, full screen: gone');
+    setFull(false);
+    assert.equal(hidden(), false);
+    assert.ok(!tab.errors.length, tab.errors.join('\n'));
+    board.close();
+  },
+
   async blockedPopup() {
     const world = sim.createWorld({ seed: 47 });
     const tab = await deskWith(world, 6);
