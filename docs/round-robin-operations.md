@@ -148,7 +148,8 @@ session-start ratings for every match adjustment, with a zero floor.
 
 **Player board** in the desk toolbar opens a second window for the TV plugged into
 the desk laptop: drag it to that screen and press **Full screen** in its settings
-strip (it appears when the mouse moves and fades after a few seconds). The window
+strip (it stays up until **Full screen** is clicked, in every layout; **Esc** leaves
+full screen and brings it back). The window
 follows this desk as it changes, saved to Google or not: who is signed in, their
 group, a green payment check (never how they paid; a Zeffy pass counts), a
 "1st visit" welcome, and a trophy or ▲ beside a player pushed up a group (last
@@ -190,9 +191,8 @@ payments.
     and remembered there. **Show the main laptop's desk** turns on follow mode and goes
     full screen in the same click. **This laptop runs the desk** is for the main desk's
     own board (one laptop driving the TV). To change the answer later, use **Follow the
-    main desk** in the settings strip (move the mouse over the board to show it; on a
-    board that is following, press any key instead, as the strip stays hidden there so
-    it never covers names).
+    main desk** in the settings strip (press **Esc** on that laptop to leave full
+    screen, which brings the strip back).
   - If the laptop is not signed in to the club's Google account, the club site's
     `/desk` page shows a **Sign in with the club's Google account** button after about
     10 seconds. It opens Google's sign-in page, then the desk.

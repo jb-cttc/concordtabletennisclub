@@ -462,7 +462,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 /* A group whose players changed since the sheets last printed */
 .stale { display: inline-flex; align-items: center; align-self: center; padding: 5px 14px; border-radius: 999px; background: var(--gold-hi); color: var(--desk-ink); font: 700 20px/1.1 var(--font-board); letter-spacing: .02em; white-space: nowrap; }
 .wall .stale { font-size: 14px; padding: 2px 8px; }
-/* Settings strip: shows while the mouse moves, then fades */
+/* Settings strip: up until the board goes full screen, back when it leaves (Esc) */
 .bc { position: fixed; right: 16px; bottom: 16px; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; max-width: calc(100vw - 32px); padding: 10px 14px; background: rgba(18, 63, 43, .97); color: #fff; border-radius: 8px; border-bottom: 4px solid #c99934; font: 13px Arial, Helvetica, sans-serif; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); transition: opacity .4s ease; }
 .bc.hidden { opacity: 0; pointer-events: none; }
 .bc .grp { display: inline-flex; align-items: center; gap: 6px; }
@@ -1056,6 +1056,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   });
   document.addEventListener('fullscreenchange', function () {
     document.getElementById('bc-full').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';
+    showStrip();
     fit();
     keepAwake();
   });
@@ -1082,31 +1083,31 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   document.getElementById('choose-desk').addEventListener('click', function () { answer(false); });
   chooser.hidden = !!S.asked;
 
+  // The settings strip is up whenever the board is not full screen, and gone for as long as it is: every layout, a
+  // following board or not. Esc leaves full screen (the browser does that itself) and the strip is back, with its
+  // Full screen button. In full screen the mouse pointer also goes after four seconds without the mouse.
   var hideTimer = null;
-  // A board that follows the main desk is run from there (Projector screen), so its strip stays away: the mouse and
-  // touch do not bring it up, only a key press does (to get back to Full screen after Esc, or to untick Follow).
-  function wake(event) {
-    // Once a key has brought it up, the mouse keeps it up as usual, so there is time to click.
-    if (S.follow && !hideTimer && !(event && event.type === 'keydown')) {
-      bc.classList.add('hidden');
-      document.body.style.cursor = 'none';
-      return;
-    }
-    bc.classList.remove('hidden');
+  function fullScreen() { return !!document.fullscreenElement; }
+  function showStrip() {
+    var full = fullScreen();
+    if (full) { try { if (bc.contains(document.activeElement)) document.activeElement.blur(); } catch (error) { /* nothing focused */ } }
+    bc.classList.toggle('hidden', full);
+    wake();
+  }
+  function wake() {
     document.body.style.cursor = '';
     clearTimeout(hideTimer);
-    // Four seconds with no mouse, key or touch and the strip goes, even with the mouse resting on it or a button of
-    // its own still focused: left up after a click on Full screen, it covered the names at the bottom of the board.
-    hideTimer = setTimeout(function () {
-      try { if (bc.contains(document.activeElement)) document.activeElement.blur(); } catch (error) { /* nothing focused */ }
-      bc.classList.add('hidden');
-      document.body.style.cursor = 'none';
-      hideTimer = null;
-    }, 4000);
+    hideTimer = fullScreen() ? setTimeout(function () { document.body.style.cursor = 'none'; }, 4000) : null;
   }
   ['mousemove', 'keydown', 'touchstart'].forEach(function (name) { document.addEventListener(name, wake); });
+  // Esc leaves full screen. Browsers do this themselves; this is for one that hands the key to the page instead.
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape' || !document.fullscreenElement || !document.exitFullscreen) return;
+    var request = document.exitFullscreen();
+    if (request && request.catch) request.catch(function () {});
+  });
   syncControls();
-  wake();
+  showStrip();
   render();
 
   // Refresh projector on the main desk: draw everything again; say: a message that stays up until the next refresh.
@@ -1734,7 +1735,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     '<h1 id="chooser-title">What is this screen for?</h1>' +
     '<button type="button" class="choice main" id="choose-follow"><strong>Show the main laptop\'s desk</strong><span>Another laptop is running tonight\'s desk. This screen follows it, a few seconds behind, and goes full screen.</span></button>' +
     '<button type="button" class="choice" id="choose-desk"><strong>This laptop runs the desk</strong><span>Sign-ins and scores are entered on this laptop.</span></button>' +
-    '<p>Asked once on this computer. To change it later, move the mouse and use <em>Follow the main desk</em> in the settings strip.</p>' +
+    '<p>Asked once on this computer. To change it later, press Esc to leave full screen and use <em>Follow the main desk</em> in the settings strip.</p>' +
     '</div></div>';
   // A fingerprint of everything written into the board window. It was a number changed by hand, and never was, so a
   // board window left open (the projector's) kept its old page after a release even once its desk was reloaded.
