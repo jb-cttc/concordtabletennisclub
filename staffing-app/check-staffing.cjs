@@ -1905,6 +1905,60 @@ seedCheck();
   assert.match(admin('apply', { changes: new Array(61).fill({ kind: 'remove', id: 'x' }) }).message, /at most 60/);
   assert.match(admin('apply', { changes: [{ kind: 'training', playerId: idOf('Cal Diaz'), skill: 'open', value: true }], note: 'x'.repeat(501) }).message, /too long/);
 
+  // The club adds someone itself (the normal sign-up not working): confirmed at once, and emailed like any other change.
+  const approvedOf = name => grids.Emails.slice(1).some(row => row[0] === idOf(name) && row[5] === 'approved');
+  const lone = PLAYERS.map(player => player[1]).find(name => NO_EMAIL.includes(name) && !approvedOf(name));
+  assert.ok(lone, 'a player with no email on file');
+  assert.ok(admin('board').withEmail.includes(idOf('Cal Diaz')) && !admin('board').withEmail.includes(idOf(lone)), 'the page knows who needs an email typed');
+  const addCal = { kind: 'add', playerId: idOf('Cal Diaz'), to: { date: W2, position: 'tables' } };
+  const addLone = { kind: 'add', playerId: idOf(lone), to: { date: W2, position: 'close' } };
+  const untouched = JSON.stringify([grids.Signups, grids.Batches, grids.Emails]);
+  answer = admin('apply', { preview: true, changes: [addCal, addLone] });
+  assert.deepEqual(answer.problems, [{ index: 1, reason: lone + ' has no email on file. Type the email their confirmation should go to.' }]);
+  assert.match(admin('apply', { preview: true, changes: [Object.assign({ email: 'not-an-email' }, addLone)] }).problems[0].reason, /is not an email address/);
+  assert.match(admin('apply', { preview: true, changes: [Object.assign({ email: 'other@example.com' }, addCal)] }).problems[0].reason, /^Cal Diaz already has an email on file \(c•••@example\.com\)/);
+  assert.match(admin('apply', { preview: true, changes: [{ kind: 'add', playerId: idOf('Cal Diaz'), to: { date: W2, position: 'lockup' } }] }).problems[0].reason, /^Cal Diaz: Lock-up needs key access training/);
+  assert.match(admin('apply', { preview: true, changes: [{ kind: 'add', playerId: idOf('Saul Vega'), to: { date: W2, position: 'tables' } }] }).problems[0].reason,
+    /^Saul Vega already has Money collector \(Front Desk\) on Fri, Jan 22 \(one opening position per night\)/);
+  assert.equal(admin('apply', { preview: true, changes: [{ kind: 'add', playerId: 'player-unknown', to: { date: W2, position: 'tables' } }] }).problems[0].reason, 'That player is not on the desk\'s active player list.');
+  // A spot is full until a removal in the same bucket frees it, wherever the removal sits in the bucket.
+  const addGus = { kind: 'add', playerId: idOf('Gus Hale'), to: { date: W2, position: 'money' } };
+  const saulW2 = { kind: 'remove', id: idFor('Saul Vega', W2, 'money'), was: { date: W2, position: 'money' } };
+  assert.match(admin('apply', { preview: true, changes: [addGus] }).problems[0].reason, /Money collector \(Front Desk\) is full on Fri, Jan 22\./);
+  answer = admin('apply', { preview: true, changes: [addGus, saulW2] });
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+  assert.equal(answer.emails.find(email => email.name === 'Gus Hale').subject, 'The club signed you up for a CTTC volunteer shift');
+  assert.equal(JSON.stringify([grids.Signups, grids.Batches, grids.Emails]), untouched, 'checks and previews change nothing');
+  // Submit: Cal (email on file) and the player with none (email typed).
+  const addLoneTyped = Object.assign({ email: ' Lone.Person@Example.com ' }, addLone);
+  answer = admin('apply', { preview: true, changes: [addCal, addLoneTyped], note: 'The sign-up page was down.' });
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+  const calMail = answer.emails.find(email => email.name === 'Cal Diaz');
+  assert.equal(calMail.subject, 'The club signed you up for a CTTC volunteer shift');
+  assert.match(calMail.text, /Added: Fri, Jan 22: Table\/barrier setup \(opening, [^)]*\): you are confirmed, no reply needed/);
+  assert.match(calMail.text, /The sign-up page was down\./);
+  assert.equal(answer.emails.find(email => email.name === lone).to, 'l•••@example.com', 'the typed address, masked');
+  const sentAdd = sent.length;
+  answer = admin('apply', { changes: [addCal, addLoneTyped], note: 'The sign-up page was down.' });
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+  assert.deepEqual([answer.changes, answer.emailed, answer.people], [2, 2, 2]);
+  assert.equal(cell('Signups', lineOf('Cal Diaz', W2, 'tables'), 'status'), 'confirmed', 'no YES asked');
+  assert.equal(cell('Signups', lineOf(lone, W2, 'close'), 'email'), 'lone.person@example.com');
+  const calBatch = grids.Batches.slice(1).find(row => cell('Batches', row, 'batch_id') === cell('Signups', lineOf('Cal Diaz', W2, 'tables'), 'batch_id'));
+  assert.deepEqual(['status', 'emailed', 'answer', 'source'].map(name => cell('Batches', calBatch, name)), ['confirmed', 'confirmed', 'club', 'club']);
+  assert.deepEqual(grids.Emails.slice(1).filter(row => row[0] === idOf(lone) && row[5] === 'approved').map(row => [row[2], row[4]]), [['lone.person@example.com', 'owner']], 'the typed email is on file now');
+  const addRows = grids.AdminChanges.slice(-2);
+  assert.deepEqual(addRows.map(row => [cell('AdminChanges', row, 'kind'), cell('AdminChanges', row, 'before'), cell('AdminChanges', row, 'emailed')]), [['add', 'not signed up', 'yes'], ['add', 'not signed up', 'yes']]);
+  assert.match(cell('AdminChanges', addRows[1], 'after'), /confirmed by the club \(email put on file: l•••@example\.com\)/);
+  assert.deepEqual(sent.slice(sentAdd).map(message => [message.to, message.subject]).sort(),
+    [['cal.diaz@example.com', 'The club signed you up for a CTTC volunteer shift'], ['lone.person@example.com', 'The club signed you up for a CTTC volunteer shift']], 'one email each, and no second confirmation from the sweep');
+  context.sweep_();
+  assert.equal(sent.length, sentAdd + 2, 'a later sweep sends nothing more');
+  assert.match(admin('apply', { preview: true, changes: [addCal] }).problems[0].reason, /^Cal Diaz already has Table\/barrier setup on Fri, Jan 22\.$/);
+  view = admin('board');
+  assert.deepEqual(view.nights.find(night => night.date === W2).slots.tables.map(slot => [slot.name, slot.status]), [['Cal Diaz', 'confirmed']]);
+  assert.ok(view.withEmail.includes(idOf(lone)));
+
   // Tidy up, so later checks see the calendar as before.
   signupRows().filter(row => [W1, F1, W2, SAT].includes(cell('Signups', row, 'date'))).forEach(row => { row[column('Signups', 'status')] = 'dropped'; });
   grids.Training.slice(1).forEach(row => { if (cell('Training', row, 'player_id') === idOf('Cal Diaz')) row[column('Training', 'keys')] = 'no'; });

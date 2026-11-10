@@ -482,11 +482,20 @@ const volunteerPreview = (function () {
     nights,
     training: names.slice(0, 6).map((name, index) => ({ playerId: id(name), name, keys: index < 4, open: index < 4, front_desk: index >= 2 })),
     recent: [{ at: today + 'T18:05:00.000Z', kind: 'move', name: 'Ben Sample', before: 'Mon, Nov 9: Lock-up (closing, 10:00 PM)', after: 'Wed, Nov 11: Lock-up (closing, 10:00 PM)', emailed: 'yes' }],
-    players: names.map((name, index) => ({ playerId: id(name), name, rating: 1800 - index * 70 })).concat([{ playerId: 'vol-mo', name: 'Mo Sample', rating: 950 }])
+    players: names.map((name, index) => ({ playerId: id(name), name, rating: 1800 - index * 70 })).concat([{ playerId: 'vol-mo', name: 'Mo Sample', rating: 950 }]),
+    // Mo has no email on file, so adding Mo asks for one.
+    withEmail: names.map(id)
   };
+  const playerName = playerId => (board.players.find(player => player.playerId === playerId) || { name: playerId }).name;
   return {
     getVolunteerAdmin: () => JSON.parse(JSON.stringify(board)),
     previewVolunteerAdmin: bucket => ({ ok: true, preview: true, changes: bucket.changes.length, emails: bucket.changes.filter(change => change.kind !== 'training').map(change => {
+      if (change.kind === 'add') {
+        const name = playerName(change.playerId);
+        return { name, to: (change.email || name)[0].toLowerCase() + '\u2022\u2022\u2022@example.com', subject: 'The club signed you up for a CTTC volunteer shift',
+          text: 'Hello ' + name.split(' ')[0] + ',\n\nThe club made a change to your volunteer schedule. Here is what changed:\n\nAdded: ' + change.to.date + ' ' + change.to.position +
+            ': you are confirmed, no reply needed\n\n(Preview only: the real text comes from the volunteer app.)' };
+      }
       const slot = [].concat.apply([], nights.map(night => [].concat.apply([], Object.values(night.slots)))).find(entry => entry.id === change.id);
       return { name: slot.name, to: slot.name[0].toLowerCase() + '\u2022\u2022\u2022@example.com', subject: 'The club changed your CTTC volunteer shift',
         text: 'Hello ' + slot.name.split(' ')[0] + ',\n\nThe club made a change to your volunteer schedule. Here is what changed:\n\n' +

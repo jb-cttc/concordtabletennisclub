@@ -32,8 +32,11 @@
   .chip-filter { border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 5px 11px; font: 13px Arial, sans-serif; }
   .chip-filter[aria-pressed="true"] { background: #123f2b; color: #fff; border-color: #123f2b; }
   .legend { display: flex; gap: 12px; flex-wrap: wrap; font: 12px Arial, sans-serif; color: var(--muted); margin: 0 0 12px; }
-  /* Nights: one panel each, opening and closing side by side. */
-  .nights { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+  /* Nights: one panel each, opening and closing side by side. One week per row, always Monday, Wednesday, Friday, Saturday
+     from left to right (two per row on a narrower screen, Monday and Wednesday above Friday and Saturday); a night not shown
+     leaves its place empty, so every column stays one weekday. */
+  .nights { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .night-gap { min-height: 1px; }
   .night { background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--green); border-radius: 6px; overflow: hidden; }
   .night.needs { border-top-color: #c25e00; }
   .night.covered { border-top-color: var(--gold); }
@@ -73,8 +76,12 @@
   .card.ghost .who { text-decoration: line-through; font-weight: 400; }
   .card.selected { outline: 3px solid var(--blue); outline-offset: 1px; }
   .card.match { box-shadow: 0 0 0 3px #f2c94c; }
+  .card.added { border-color: var(--green); border-left-color: var(--green2); background: #e8f5ec; cursor: default; flex-wrap: wrap; row-gap: 0; }
+  .card.added .who { flex-basis: 100%; }
   .card .undo { border: 0; background: none; color: var(--blue); text-decoration: underline; font-size: 12px; padding: 0 2px; }
   .slot { min-height: 28px; display: flex; align-items: center; justify-content: center; border: 1px dashed #aab5ae; border-radius: 4px; color: #8a958e; font: 12px Arial, sans-serif; background: rgba(255,255,255,.6); }
+  .slot.addable { cursor: pointer; }
+  .slot.addable:hover, .slot.addable:focus-visible { border-color: var(--green); color: var(--green); background: #eef7f1; outline: none; }
   .slot.target { border: 2px dashed var(--blue); color: var(--blue); background: #eef4ff; cursor: pointer; }
   .slot.blocked { opacity: .45; }
   .slot.over { background: #dbe8ff; }
@@ -119,6 +126,7 @@
   .kind.remove { background: var(--red); }
   .kind.training { background: #6b4b00; }
   .kind.player { background: var(--green); }
+  .kind.add { background: var(--green2); }
   .changes del { color: #8a3b2b; }
   .changes ins { color: var(--green); text-decoration: none; font-weight: 700; }
   .changes .text { flex: 1; }
@@ -128,14 +136,30 @@
   .email summary { padding: 8px 10px; cursor: pointer; background: #f7f9f7; }
   .email pre { margin: 0; padding: 10px; white-space: pre-wrap; font: 13px/1.45 Arial, sans-serif; }
   .drawer-foot { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Adding someone to an open spot: a small window over the schedule. */
+  .picker-back { position: fixed; inset: 0; z-index: 40; background: rgba(10,30,20,.45); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 12px 12px; overflow: auto; }
+  .picker { width: min(460px, 100%); background: #fff; border-radius: 6px; box-shadow: 0 12px 32px rgba(0,0,0,.25); font: 14px Arial, sans-serif; }
+  .picker-head { padding: 12px 14px; background: #123f2b; color: #fff; border-bottom: 4px solid var(--gold); border-radius: 6px 6px 0 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .picker-head h2 { margin: 0; font: 700 18px Georgia, serif; }
+  .picker-head small { display: block; margin-top: 3px; color: #dce9e1; font: 13px Arial, sans-serif; }
+  .picker-head button { border: 0; background: transparent; color: #fff; font-size: 22px; line-height: 1; }
+  .picker-body { padding: 12px 14px 14px; }
+  .picker-body > input, .picker-body label input { width: 100%; border: 1px solid #aeb7b1; border-radius: 4px; padding: 8px 10px; }
+  .picker-body label { display: block; margin: 10px 0 3px; font-weight: 700; }
+  .picker .finds button:disabled { color: var(--muted); cursor: default; background: #f6f7f6; }
+  .picker .finds small { display: block; color: var(--muted); font-size: 12px; }
+  .picker .chosen { padding: 8px 10px; background: #eef7f1; border: 1px solid #b9d8c4; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .picker .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .recent { margin-top: 22px; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; font: 13px Arial, sans-serif; }
   .recent h2 { font-size: 17px; margin: 0 0 8px; }
   .recent li { margin: 3px 0; }
   .muted { color: var(--muted); }
   .card-star { color: #8a6400; font-weight: 700; }
+  @media (max-width: 1279px) { .nights { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 760px) {
     .top-inner, .shell { padding-left: 12px; padding-right: 12px; }
     .nights { grid-template-columns: 1fr; }
+    .night-gap { display: none; }
   }
   /* A phone: opening above closing, so full names fit. */
   @media (max-width: 520px) {
@@ -162,7 +186,7 @@
       <label><input id="peopleOnly" type="checkbox"> Nights with sign-ups only</label>
     </div>
     <p class="legend">
-      <span>Drag a person to another spot, or tap them, then tap where they go.</span>
+      <span>Drag a person to another spot, or tap them, then tap where they go. Tap an open spot to add someone yourself.</span>
       <span><b>&#10003;</b> confirmed</span><span><b>&#8987;</b> waiting for their YES</span>
       <span><span class="card-star">&#9733;</span> plays free (special night)</span><span><b>Zeffy</b> play pass (passed over for free spots)</span>
     </p>
@@ -175,6 +199,7 @@
   <section id="recent" class="recent" hidden></section>
 </main>
 <div id="moveBar" class="move-bar" hidden></div>
+<div id="picker" class="picker-back" hidden></div>
 <aside id="drawer" class="drawer" hidden aria-labelledby="drawerTitle">
   <div class="drawer-head"><h2 id="drawerTitle">Changes to submit</h2><button id="drawerClose" type="button" aria-label="Close">&times;</button></div>
   <div id="drawerBody" class="drawer-body"></div>
@@ -233,13 +258,19 @@
     return list;
   }
   function changeFor(id) { return bucket.changes.filter(function (change) { return change.id === id; })[0]; }
-  // Where each sign-up ends up: { id: { date, position, removed, moved } }.
+  // Where each sign-up ends up: { id: { date, position, removed, moved, added } }. Someone the bucket adds (kind 'add') is a
+  // sign-up too, under the change's own id, confirmed once submitted.
   function placed() {
     var out = {};
     signups().forEach(function (item) {
       var change = changeFor(item.slot.id);
       out[item.slot.id] = { item: item, date: change && change.kind === 'move' ? change.to.date : item.date, position: change && change.kind === 'move' ? change.to.position : item.position,
         removed: !!change && change.kind === 'remove', moved: !!change && change.kind === 'move' };
+    });
+    bucket.changes.forEach(function (change) {
+      if (change.kind !== 'add') return;
+      var item = { slot: { id: change.id, playerId: change.playerId, name: nameOf(change.playerId), status: 'confirmed' }, date: change.to.date, position: change.to.position };
+      out[change.id] = { item: item, date: item.date, position: item.position, removed: false, moved: false, added: true };
     });
     return out;
   }
@@ -262,21 +293,27 @@
   }
   // Why id cannot go to (date, position), or ''. The volunteer app checks again on Submit.
   function blocked(id, date, position) {
+    var me = placed()[id];
+    if (me.date === date && me.position === position) return 'Already here';
+    return placeProblem(me.item.slot.playerId, date, position, id);
+  }
+  // Why playerId cannot take (date, position) as the bucket would leave the board, or ''. except: their own sign-up being moved.
+  function placeProblem(playerId, date, position, except) {
     var where = placed();
-    var me = where[id];
     var night = nightOf(date);
     var target = spec(position);
     if (!night || night.closed) return 'Closed that night';
     if (!night.open) return 'That night is over';
-    if (me.date === date && me.position === position) return 'Already here';
-    var others = Object.keys(where).map(function (key) { return where[key]; }).filter(function (other) { return other !== me && !other.removed && other.date === date; });
+    var others = Object.keys(where).filter(function (key) { return key !== except; }).map(function (key) { return where[key]; }).filter(function (other) { return !other.removed && other.date === date; });
     if (others.filter(function (other) { return other.position === position; }).length >= target.max) return 'Full';
-    var skills = training()[me.item.slot.playerId] || {};
+    var skills = training()[playerId] || {};
     var missing = target.training.filter(function (skill) { return !skills[skill]; });
     if (missing.length) return 'Needs ' + missing.map(function (skill) { return board.skills.filter(function (s) { return s.id === skill; })[0].label; }).join(' and ') + ' training';
-    var clash = others.filter(function (other) {
+    var mine = others.filter(function (other) { return other.item.slot.playerId === playerId; });
+    if (mine.some(function (other) { return other.position === position; })) return 'Already here';
+    var clash = mine.filter(function (other) {
       var held = spec(other.position);
-      return other.item.slot.playerId === me.item.slot.playerId && held.part === target.part && target.alsoWith.indexOf(held.id) < 0;
+      return held.part === target.part && target.alsoWith.indexOf(held.id) < 0;
     })[0];
     if (clash) return 'Already ' + (target.part === 'open' ? 'opening' : 'closing') + ' that night';
     return '';
@@ -304,7 +341,23 @@
     selected = '';
     changed();
   }
-  function undo(id) { bucket.changes = bucket.changes.filter(function (change) { return change.id !== id; }); changed(); }
+  function undo(id) {
+    bucket.changes = bucket.changes.filter(function (change) { return change.id !== id; });
+    // A new player whose only change was this add is not added to the desk either.
+    bucket.newPlayers = bucket.newPlayers.filter(function (player) { return bucket.changes.some(function (change) { return change.playerId === player.tempId; }); });
+    changed();
+  }
+  // The club signs someone up itself (when the normal sign-up is not working): confirmed once submitted, and emailed.
+  function add(playerId, date, position, email) {
+    var reason = placeProblem(playerId, date, position, '');
+    if (reason) { say(reason + ': ' + nameOf(playerId) + ' was not added.', 'error'); return false; }
+    var id = 'add-' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+    bucket.changes.push({ kind: 'add', id: id, playerId: playerId, to: { date: date, position: position }, email: email || '' });
+    say(nameOf(playerId) + ' added to ' + spec(position).label + ', ' + nightOf(date).short + '. It waits in the bucket until you submit.', 'ok');
+    changed();
+    return true;
+  }
+  function hasEmail(playerId) { return (board.withEmail || []).indexOf(playerId) >= 0; }
   function setTraining(playerId, skill, value) {
     var row = board.training.filter(function (entry) { return entry.playerId === playerId; })[0];
     var now = !!row && row[skill];
@@ -346,50 +399,86 @@
     var find = $('find').value.trim().toLowerCase();
     var box = $('nights');
     box.replaceChildren();
+    var shown = [];
     board.nights.filter(function (night) { return month === 'all' || night.date.slice(0, 7) === month; }).forEach(function (night) {
       var here = Object.keys(where).map(function (id) { return where[id]; }).filter(function (item) { return item.date === night.date || item.item.date === night.date; });
       if ($('peopleOnly').checked && !here.length) return;
-      var panel = el('article', { 'class': 'night ' + night.status + (night.free ? ' special' : ''), 'aria-label': night.day });
-      panel.appendChild(el('div', { 'class': 'night-head' }, [el('h3', { text: night.short }), el('span', {}, [night.time + ' ', el('span', { 'class': 'badge ' + night.status,
-        text: { needs: 'Needs people', covered: 'Minimum crew', full: 'Fully staffed', closed: 'Closed' }[night.status] || night.status })])]));
-      if (night.closed) { panel.appendChild(el('div', { 'class': 'special-line', text: 'Closed' + (night.note ? ': ' + night.note : '') })); box.appendChild(panel); return; }
-      if (night.free) {
-        panel.appendChild(el('div', { 'class': 'special-line', text: '★ Special: $' + night.free.fee + ' night · free spots left: ' + night.free.open + ' opening, ' + night.free.close + ' closing' +
-          (bucket.changes.length ? ' (before your changes)' : '') }));
-      } else if (night.note) panel.appendChild(el('div', { 'class': 'special-line', text: night.note }));
-      var halves = el('div', { 'class': 'halves' });
-      ['open', 'close'].forEach(function (part) {
-        var half = el('div', { 'class': 'half' }, [el('h4', { text: (part === 'open' ? 'Opening, ' : 'Closing, ') + time12(part === 'open' ? night.start : night.end) })]);
-        board.positions.filter(function (position) { return position.part === part; }).forEach(function (position) {
-          var people = here.filter(function (item) { return (item.date === night.date && item.position === position.id) || (item.moved && item.item.date === night.date && item.item.position === position.id); });
-          var staying = people.filter(function (item) { return item.date === night.date && item.position === position.id && !item.removed; }).length;
-          var cards = el('div', { 'class': 'cards' });
-          people.forEach(function (item) { cards.appendChild(card(item, night, position, find)); });
-          if (staying < position.max && night.open) cards.appendChild(slot(night, position, staying));
-          half.appendChild(el('div', { 'class': 'pos' }, [el('div', { 'class': 'pos-name' }, [el('b', { text: position.label.replace(' (Front Desk)', '') }), el('span', { text: staying + '/' + position.max })]), cards]));
-        });
-        halves.appendChild(half);
-      });
-      panel.appendChild(halves);
-      box.appendChild(panel);
+      shown.push({ night: night, here: here });
     });
-    if (!box.children.length) box.appendChild(el('p', { 'class': 'muted', text: 'No nights to show.' }));
+    // One row per week, Monday, Wednesday, Friday, Saturday from left to right; an empty cell where a night is not shown.
+    var lastWeek = '';
+    var column = 0;
+    shown.forEach(function (entry) {
+      var place = weekPlace(entry.night.date);
+      if (place.week !== lastWeek) {
+        if (lastWeek) while (column < WEEK_COLUMNS) { box.appendChild(el('div', { 'class': 'night-gap', 'aria-hidden': 'true' })); column += 1; }
+        lastWeek = place.week;
+        column = 0;
+      }
+      while (column < place.column) { box.appendChild(el('div', { 'class': 'night-gap', 'aria-hidden': 'true' })); column += 1; }
+      box.appendChild(nightPanel(entry.night, entry.here, where, find));
+      column += 1;
+    });
+    if (!shown.length) box.appendChild(el('p', { 'class': 'muted', text: 'No nights to show.' }));
+  }
+  // The club's nights in their columns: Monday, Wednesday, Friday, Saturday (any other day takes the next column along).
+  var WEEK_COLUMNS = 4;
+  var DAY_COLUMN = { 1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 0: 3 };
+  function weekPlace(date) {
+    var day = new Date(date + 'T12:00:00Z');
+    var weekday = day.getUTCDay();
+    var monday = new Date(day.getTime() - ((weekday + 6) % 7) * 86400000);
+    return { week: monday.toISOString().slice(0, 10), column: DAY_COLUMN[weekday] };
+  }
+  function nightPanel(night, here, where, find) {
+    var panel = el('article', { 'class': 'night ' + night.status + (night.free ? ' special' : ''), 'aria-label': night.day });
+    panel.appendChild(el('div', { 'class': 'night-head' }, [el('h3', { text: night.short }), el('span', {}, [night.time + ' ', el('span', { 'class': 'badge ' + night.status,
+      text: { needs: 'Needs people', covered: 'Minimum crew', full: 'Fully staffed', closed: 'Closed' }[night.status] || night.status })])]));
+    if (night.closed) { panel.appendChild(el('div', { 'class': 'special-line', text: 'Closed' + (night.note ? ': ' + night.note : '') })); return panel; }
+    if (night.free) {
+      panel.appendChild(el('div', { 'class': 'special-line', text: '★ Special: $' + night.free.fee + ' night · free spots left: ' + night.free.open + ' opening, ' + night.free.close + ' closing' +
+        (bucket.changes.length ? ' (before your changes)' : '') }));
+    } else if (night.note) panel.appendChild(el('div', { 'class': 'special-line', text: night.note }));
+    var halves = el('div', { 'class': 'halves' });
+    ['open', 'close'].forEach(function (part) {
+      var half = el('div', { 'class': 'half' }, [el('h4', { text: (part === 'open' ? 'Opening, ' : 'Closing, ') + time12(part === 'open' ? night.start : night.end) })]);
+      board.positions.filter(function (position) { return position.part === part; }).forEach(function (position) {
+        var people = here.filter(function (item) { return (item.date === night.date && item.position === position.id) || (item.moved && item.item.date === night.date && item.item.position === position.id); });
+        var staying = people.filter(function (item) { return item.date === night.date && item.position === position.id && !item.removed; }).length;
+        var cards = el('div', { 'class': 'cards' });
+        people.forEach(function (item) { cards.appendChild(card(item, night, position, find)); });
+        if (staying < position.max && night.open) cards.appendChild(slot(night, position, staying));
+        half.appendChild(el('div', { 'class': 'pos' }, [el('div', { 'class': 'pos-name' }, [el('b', { text: position.label.replace(' (Front Desk)', '') }), el('span', { text: staying + '/' + position.max })]), cards]));
+      });
+      halves.appendChild(half);
+    });
+    panel.appendChild(halves);
+    return panel;
   }
   function card(item, night, position, find) {
     var slot = item.item.slot;
     var ghost = item.moved && !(item.date === night.date && item.position === position.id);
-    var classes = 'card' + (slot.status === 'pending' ? ' waiting' : '') + (ghost ? ' ghost' : item.moved ? ' moved' : '') + (item.removed ? ' removed' : '') +
+    var classes = 'card' + (slot.status === 'pending' ? ' waiting' : '') + (ghost ? ' ghost' : item.moved ? ' moved' : '') + (item.removed ? ' removed' : '') + (item.added ? ' added' : '') +
       (selected === slot.id ? ' selected' : '') + (find && slot.name.toLowerCase().indexOf(find) >= 0 ? ' match' : '');
     var node = el('div', { 'class': classes, draggable: ghost || item.removed ? null : 'true', 'data-id': slot.id, tabindex: ghost || item.removed ? null : '0',
       'aria-label': slot.name + ', ' + position.label + ', ' + (slot.status === 'pending' ? 'waiting to confirm' : 'confirmed') + (slot.free === 'yes' ? ', plays free' : '') +
-        (ghost ? ', moving away' : item.moved ? ', moved here' : '') + (item.removed ? ', to be removed' : '') }, [
+        (ghost ? ', moving away' : item.moved ? ', moved here' : '') + (item.removed ? ', to be removed' : '') + (item.added ? ', being added by the club' : '') }, [
       el('span', { 'class': 'who', text: slot.name }),
       slot.free && !ghost ? el('span', { 'class': 'star' + (slot.free === 'held' ? ' held' : ''), title: slot.free === 'yes' ? 'Plays free' : 'Holds a free spot once confirmed', text: '★' }) : null,
       slot.finalize ? el('span', { 'class': 'meta', title: 'Also finalizing the desk', text: 'F' }) : null,
       slot.pass ? el('span', { 'class': 'meta', title: 'Zeffy play pass: passed over for the free spots', text: 'Zeffy' }) : null,
-      el('span', { 'class': 'meta', text: slot.status === 'pending' ? '⌛' : '✓' })]);
+      item.added ? null : el('span', { 'class': 'meta', text: slot.status === 'pending' ? '⌛' : '✓' })]);
     if (ghost) {
       node.appendChild(el('span', { 'class': 'meta', text: '→ ' + (item.date === night.date ? spec(item.position).label.replace(' (Front Desk)', '') : nightOf(item.date).short) }));
+      return node;
+    }
+    if (item.added) {
+      node.removeAttribute('draggable');
+      node.removeAttribute('tabindex');
+      node.appendChild(el('span', { 'class': 'meta', title: 'Added by the club when you submit: confirmed, and emailed', text: '+ adding, confirmed' }));
+      var drop = el('button', { type: 'button', 'class': 'undo', text: 'undo', 'aria-label': 'Do not add ' + slot.name });
+      drop.addEventListener('click', function (event) { event.stopPropagation(); undo(slot.id); });
+      node.appendChild(drop);
       return node;
     }
     if (item.moved || item.removed) {
@@ -408,17 +497,25 @@
     return node;
   }
   function slot(night, position, staying) {
-    var node = el('div', { 'class': 'slot', 'data-date': night.date, 'data-position': position.id, text: staying < position.min ? 'needed' : 'open spot' });
+    var label = (staying < position.min ? 'needed' : 'open spot') + ' · add';
+    var node = el('div', { 'class': 'slot addable', 'data-date': night.date, 'data-position': position.id, role: 'button', tabindex: '0', text: label,
+      'aria-label': 'Add someone as ' + position.label + ', ' + night.short });
     node.addEventListener('dragover', function (event) { if (!blocked(selected, night.date, position.id)) { event.preventDefault(); node.classList.add('over'); } });
     node.addEventListener('dragleave', function () { node.classList.remove('over'); });
     node.addEventListener('drop', function (event) { event.preventDefault(); move(event.dataTransfer.getData('text/plain'), night.date, position.id); });
-    node.addEventListener('click', function () { if (selected) move(selected, night.date, position.id); });
+    node.addEventListener('click', function () { if (selected) move(selected, night.date, position.id); else openPicker(night, position); });
+    node.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      if (selected) move(selected, night.date, position.id); else openPicker(night, position);
+    });
     return node;
   }
   // While someone is picked up, every spot they may go is outlined; the rest say why not.
   function markTargets() {
     document.querySelectorAll('.slot').forEach(function (node) {
       var reason = selected ? blocked(selected, node.getAttribute('data-date'), node.getAttribute('data-position')) : 'x';
+      node.classList.toggle('addable', !selected);
       node.classList.toggle('target', !!selected && !reason);
       node.classList.toggle('blocked', !!selected && !!reason);
       node.title = selected && reason ? reason : '';
@@ -436,6 +533,96 @@
     var drop = el('button', { type: 'button', text: 'Remove instead' });
     drop.addEventListener('click', function () { remove(selected); });
     bar.append(el('span', {}, ['Moving ', el('b', { text: labelOf(selected) }), '. Tap an outlined spot.']), drop, cancel);
+  }
+
+  // ----- Adding someone to an open spot -----
+  function closePicker() { $('picker').hidden = true; $('picker').replaceChildren(); }
+  function openPicker(night, position) {
+    var back = $('picker');
+    var chosen = null;      // { playerId, name, fresh }
+    var close = el('button', { type: 'button', 'aria-label': 'Close', text: '×' });
+    close.addEventListener('click', closePicker);
+    var body = el('div', { 'class': 'picker-body' });
+    var box = el('div', { 'class': 'picker', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pickerTitle' }, [
+      el('div', { 'class': 'picker-head' }, [el('div', {}, [el('h2', { id: 'pickerTitle', text: 'Add someone' }), el('small', { text: position.label + ', ' + night.short + ', ' + night.time })]), close]),
+      body]);
+    back.replaceChildren(box);
+    back.hidden = false;
+    back.onclick = function (event) { if (event.target === back) closePicker(); };
+
+    function searchStep() {
+      chosen = null;
+      var input = el('input', { type: 'search', placeholder: 'Type a name', 'aria-label': 'Search the desk\'s players', autocomplete: 'off' });
+      var finds = el('ul', { 'class': 'finds' });
+      var form = el('div', { 'class': 'new-player', hidden: 'hidden' });
+      var nameBox = el('input', { type: 'text', maxlength: '80', autocomplete: 'off' });
+      var ratingBox = el('input', { type: 'number', min: '0', max: '4000', step: '1', inputmode: 'numeric', placeholder: 'Required, for example 1200' });
+      var why = el('p', { 'class': 'problem', role: 'alert' });
+      var addNew = el('button', { type: 'button', 'class': 'secondary', text: 'Next' });
+      addNew.addEventListener('click', function () {
+        var name = nameBox.value.replace(/\s+/g, ' ').trim();
+        var rating = Number(ratingBox.value);
+        why.textContent = !name ? 'Type their full name.' : ratingBox.value === '' || !Number.isInteger(rating) || rating < 0 || rating > 4000 ? 'The desk needs a starting rating: a whole number from 0 to 4000.' :
+          board.players.concat(bucket.newPlayers).some(function (player) { return player.name.toLowerCase() === name.toLowerCase(); }) ? name + ' is already on the desk: search for them instead.' :
+          position.training.length ? position.label + ' needs training a new player does not have yet. Give it under Training & access first, or pick another spot.' : '';
+        if (why.textContent) return;
+        confirmStep({ playerId: '', name: name, rating: rating, fresh: true });
+      });
+      form.append(el('b', { text: 'New player on the desk' }), el('label', { text: 'Full name' }), nameBox, el('label', { text: 'Starting rating (the desk needs one)' }), ratingBox, why,
+        el('p', { 'class': 'muted', text: 'They are added to the desk\'s player list when you submit, exactly as from the desk.' }), addNew);
+      input.addEventListener('input', function () {
+        finds.replaceChildren();
+        var query = input.value.trim().toLowerCase();
+        if (query.length < 2) return;
+        var matches = board.players.concat(bucket.newPlayers.map(function (player) { return { playerId: player.tempId, name: player.name, rating: player.rating }; }))
+          .filter(function (player) { return player.name.toLowerCase().indexOf(query) >= 0; }).slice(0, 8);
+        matches.forEach(function (player) {
+          var reason = placeProblem(player.playerId, night.date, position.id, '');
+          var pick = el('button', { type: 'button', disabled: reason ? 'disabled' : null }, [player.name + ' · ' + player.rating, reason ? el('small', { text: reason }) : null]);
+          pick.addEventListener('click', function () { confirmStep({ playerId: player.playerId, name: player.name }); });
+          finds.appendChild(el('li', {}, [pick]));
+        });
+        var fresh = el('button', { type: 'button', text: matches.length ? 'Not listed? Add a new player to the desk…' : 'No player called that. Add a new player to the desk…' });
+        fresh.addEventListener('click', function () { form.hidden = false; nameBox.value = input.value.trim(); nameBox.focus(); });
+        finds.appendChild(el('li', {}, [fresh]));
+      });
+      body.replaceChildren(el('p', { 'class': 'muted', text: 'For when the normal sign-up is not working. They are confirmed straight away (no YES asked) and emailed when you submit.' }),
+        input, finds, form);
+      input.focus();
+    }
+
+    function confirmStep(person) {
+      chosen = person;
+      var needsEmail = person.fresh || !hasEmail(person.playerId);
+      var emailBox = el('input', { type: 'email', maxlength: '254', autocomplete: 'off', placeholder: 'name@example.com' });
+      var why = el('p', { 'class': 'problem', role: 'alert' });
+      emailBox.addEventListener('input', function () { why.textContent = ''; });
+      var change = el('button', { type: 'button', 'class': 'link', text: 'Change' });
+      change.addEventListener('click', searchStep);
+      var ok = el('button', { type: 'button', 'class': 'primary', text: 'Add to the bucket' });
+      var cancel = el('button', { type: 'button', 'class': 'link', text: 'Cancel' });
+      cancel.addEventListener('click', closePicker);
+      ok.addEventListener('click', function () {
+        var email = needsEmail ? emailBox.value.trim() : '';
+        why.textContent = needsEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? 'Type the email their confirmation should go to.' : '';
+        if (why.textContent) return;
+        var playerId = person.playerId;
+        if (person.fresh) {
+          playerId = 'new-' + (Date.now() % 1000000);
+          bucket.newPlayers.push({ tempId: playerId, name: person.name, rating: person.rating });
+        }
+        if (add(playerId, night.date, position.id, email)) closePicker();
+        else if (person.fresh) bucket.newPlayers = bucket.newPlayers.filter(function (player) { return player.tempId !== playerId; });
+      });
+      body.replaceChildren(
+        el('div', { 'class': 'chosen' }, [el('b', { text: person.name + (person.fresh ? ' (new to the desk, rating ' + person.rating + ')' : '') }), change]),
+        needsEmail ? el('label', {}, [person.fresh ? 'Their email' : 'No email on file. Their email', emailBox]) : null,
+        needsEmail ? el('p', { 'class': 'muted', text: 'Put on file for them, so this and later emails reach them.' }) : el('p', { 'class': 'muted', text: 'They are emailed at the address on file.' }),
+        why,
+        el('div', { 'class': 'actions' }, [ok, cancel]));
+      (needsEmail ? emailBox : ok).focus();
+    }
+    searchStep();
   }
 
   function drawSkills() {
@@ -509,6 +696,11 @@
       return line;
     }
     var item = placed()[change.id].item;
+    if (change.kind === 'add') {
+      line.append(el('b', { text: item.slot.name + ': ' }), el('ins', { text: nightOf(item.date).short + ', ' + spec(item.position).label }), ' (confirmed by the club' +
+        (change.email ? '; email to put on file: ' + change.email : '') + ')');
+      return line;
+    }
     var from = nightOf(item.date).short + ', ' + spec(item.position).label;
     line.append(el('b', { text: item.slot.name + ': ' }), el('del', { text: from }));
     if (change.kind === 'move') line.append(' → ', el('ins', { text: nightOf(change.to.date).short + ', ' + spec(change.to.position).label }));
@@ -533,7 +725,7 @@
       lastProblems.filter(function (problem) { return problem.index === index; }).forEach(function (problem) { row.appendChild(el('p', { 'class': 'problem', text: problem.reason })); });
       list.appendChild(row);
     });
-    if (!count()) body.appendChild(el('p', { 'class': 'muted', text: 'Nothing yet. Remove or move people on the Schedule, or change who is trained under Training & access.' }));
+    if (!count()) body.appendChild(el('p', { 'class': 'muted', text: 'Nothing yet. Add, remove or move people on the Schedule, or change who is trained under Training & access.' }));
     body.appendChild(list);
     var schedule = bucket.changes.some(function (change) { return change.kind !== 'training'; });
     if (schedule) {
@@ -571,6 +763,7 @@
       signups().forEach(function (item) { ids[item.slot.id] = item; });
       bucket.changes = bucket.changes.filter(function (change) {
         if (change.kind === 'training') return true;
+        if (change.kind === 'add') { var night = nightOf(change.to.date); return !!night && night.open && !night.closed; }
         var item = ids[change.id];
         return !!item && item.date === change.was.date && item.position === change.was.position;
       });
@@ -578,7 +771,7 @@
       render();
     });
   }
-  function payload() { return { newPlayers: bucket.newPlayers, changes: bucket.changes.map(function (change) { return { kind: change.kind, id: change.id, was: change.was, to: change.to, playerId: change.playerId, skill: change.skill, value: change.value }; }) }; }
+  function payload() { return { newPlayers: bucket.newPlayers, changes: bucket.changes.map(function (change) { return { kind: change.kind, id: change.id, was: change.was, to: change.to, playerId: change.playerId, skill: change.skill, value: change.value, email: change.email }; }) }; }
   function answered(result) {
     lastProblems = (result.problems || []).filter(function (problem) { return problem.index !== undefined; });
     say(result.message + ' ' + (result.problems || []).map(function (problem) { return problem.reason; }).join(' '), 'error');
@@ -628,7 +821,11 @@
       $('training').hidden = tab[1] !== 'training';
     });
   });
-  document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && selected) { selected = ''; render(); } });
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+    if (!$('picker').hidden) closePicker();
+    else if (selected) { selected = ''; render(); }
+  });
   window.addEventListener('beforeunload', function (event) { if (count()) { event.preventDefault(); event.returnValue = ''; } });
   restore();
   load();

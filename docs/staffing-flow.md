@@ -602,8 +602,23 @@ use; the wake key in column A cannot change anything). No owner step is needed.
 closing positions and a small card per person: **full name**, ✓ confirmed or
 ⌛ waiting for their YES, ★ playing free (or a dashed ★ while a free spot waits
 for the YES), F for the finalizer. A special night says how many free spots are
-left. Month filters, *Find a person* (highlights their cards) and *Nights with
-sign-ups only* narrow it down.
+left. Each week is one row, always **Monday, Wednesday, Friday, Saturday** from
+left to right (two per row on a narrower screen, one on a phone); a night that
+is not shown leaves its place empty, so each column stays one weekday. Month
+filters, *Find a person* (highlights their cards) and *Nights with sign-ups
+only* narrow it down.
+
+- **Add:** tap an open spot (*needed · add* or *open spot · add*), search the
+  desk's players and pick one, for when the normal sign-up is not working.
+  People who cannot take that spot are listed greyed out with the reason (needs
+  training, already opening that night, full). Someone not on the desk's list
+  can be added there first, as under Training & access. If the volunteer app
+  has **no email on file** for them, the page asks for one: it is put on file
+  for them (`Emails`, source `owner`) on Submit, so this email and later ones
+  reach them. An added shift is **confirmed** at once (no YES asked): it is
+  saved as its own submission (`Batches` source `club`, answer `club`), and
+  its person is emailed with the rest of the bucket. If that email fails, the
+  hourly sweep sends the usual confirmation instead.
 
 - **Move:** drag a card to another spot, or tap it and tap an outlined spot.
   Spots it may not go show why (full, needs training, already opening that
@@ -623,7 +638,7 @@ searches the desk's own player list. Someone not on it is added there first:
 rating**, and the desk adds them exactly as its own Add a player does, so the
 desk knows them before they ever volunteer. Nobody is emailed about training.
 
-**The bucket.** Nothing changes until it is submitted. Every move, removal,
+**The bucket.** Nothing changes until it is submitted. Every add, move, removal,
 training change and new player waits under **Changes to submit**, each with
 *undo*, and is kept on that device if the page is closed. **Review emails**
 asks this app to check everything against the Sheet as it is now and shows the
@@ -634,8 +649,10 @@ training stops the whole bucket, and the page marks which change and why. An
 optional message goes into every email.
 
 **The emails.** One per person whose shifts changed, *The club changed your
-CTTC volunteer shift(s)*: what changed (the old shift struck through, the new
-one in bold, or "you are off this shift"), the club's message, whether a shift
+CTTC volunteer shift(s)* (or *The club signed you up for a CTTC volunteer
+shift* when the club only added them): what changed (the old shift struck
+through, the new one in bold, "you are off this shift", or an added shift and
+"you are confirmed, no reply needed"), the club's message, whether a shift
 still needs their YES, a free spot gained (★, and `free_night` written) or
 lost, then their upcoming shifts and calendar, and their My nights link.
 Anyone who moves up into a free spot because of the change gets the usual
