@@ -249,6 +249,19 @@ function saveSessionPrint(sessionId, mark) {
   // An Equalizer's mark is the print time and a short fingerprint of the draw that printed.
   if (equalizer && !mark.undone && !/^[0-9a-z]{1,16}$/.test(String(mark.sig || ''))) throw new Error('Print mark: the draw fingerprint is not valid.');
   var clean = mark.undone ? { at: Number(mark.at), undone: true } : equalizer ? { at: Number(mark.at), sig: String(mark.sig) } : { at: Number(mark.at), groups: (mark.groups || []).map(ids), first: ids(mark.first || []) };
+  // The match order on the printed sheets (PlayerBoard.html, sheetOrder): for each group, pairs of places in that
+  // group's lineup. The desk keeps the play order to it when players leave or join after the print.
+  if (!mark.undone && !equalizer && mark.order !== undefined) {
+    if (!Array.isArray(mark.order) || mark.order.length > clean.groups.length) throw new Error('Print mark: the match order is not valid.');
+    clean.order = mark.order.map(function (pairs, group) {
+      if (!Array.isArray(pairs)) throw new Error('Print mark: the match order is not valid.');
+      return pairs.map(function (pair) {
+        var size = clean.groups[group].length;
+        if (!Array.isArray(pair) || pair.length !== 2 || !pair.every(function (seat) { return Number.isInteger(seat) && seat >= 0 && seat < size; }) || pair[0] === pair[1]) throw new Error('Print mark: the match order is not valid.');
+        return [pair[0], pair[1]];
+      });
+    });
+  }
   var text = JSON.stringify(clean);
   if (text.length > 8000) throw new Error('Print mark: too many players to keep.');
   properties.setProperty(key, text);

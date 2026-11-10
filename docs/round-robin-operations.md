@@ -86,6 +86,13 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
   already open elsewhere (an officer's phone, a second laptop) picks it up within
   a minute, and one opened later knows at once. A print made offline is sent
   when the connection returns.
+- **The play order stays as printed.** Once the sheets print, each group's matches
+  keep the order on its sheet, in the scoring section and on any reprint. Removing a
+  player takes only that player's matches out; a late arrival's (or moved-in
+  player's) matches go at the end of the group's list; a player moved back returns
+  to their printed places. The printed order travels with the sheets-printed mark,
+  so every device shows it, and it is reapplied whenever the desk loads. **Undo the
+  print** goes back to the plain order for the groups as they are.
 - **Print labels** appears beside the group summary only while a Late add or
   Updated label exists (taking a late add back off clears both, since the group
   matches its sheet again). It lists them and offers **Clear labels** (the groups

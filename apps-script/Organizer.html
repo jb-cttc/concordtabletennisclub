@@ -107,6 +107,24 @@
     return pairs;
   }
 
+  // A group's matches once its sheet has printed: the pairs on the printed sheets still in this group keep the
+  // order (and the sides) they printed in, whoever has left since, and pairs the sheets never had (a late arrival, a
+  // player moved in) follow at the end. printed: every pair on the printed sheets, [one, two], in sheet order.
+  function keptPairs(printed, ids) {
+    var here = {};
+    var seen = {};
+    var out = [];
+    var key = function (pair) { return pair.slice().sort().join('::'); };
+    ids.forEach(function (id) { here[id] = true; });
+    (printed || []).forEach(function (pair) {
+      if (!here[pair[0]] || !here[pair[1]] || pair[0] === pair[1] || seen[key(pair)]) return;
+      seen[key(pair)] = true;
+      out.push([pair[0], pair[1]]);
+    });
+    roundRobinPairs(ids).forEach(function (pair) { if (!seen[key(pair)]) out.push(pair); });
+    return out;
+  }
+
   // forfeitedBy is a player id (the opponent wins), 'both' (never played), or empty.
   // wonBy marks a match cut short to best of 3: its winner has exactly 2 games and the other player at most 1.
   function shortWin(match) {
@@ -276,6 +294,7 @@
     applyPromotions: applyPromotions,
     insert: insert,
     roundRobinPairs: roundRobinPairs,
+    keptPairs: keptPairs,
     matchState: matchState,
     matchWinner: matchWinner,
     shortWin: shortWin,

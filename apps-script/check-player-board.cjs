@@ -828,6 +828,107 @@ const cases = {
     board.close();
   },
 
+  // Once the sheets print, the play order stays as it is on the paper: removing a player takes only that player's
+  // matches out, a late arrival's matches go at the end, a reprint and another device keep the same order, and a night
+  // whose order was rebuilt before this rule (a print mark without the order) is put back when the desk loads.
+  async playOrderAfterPrint() {
+    const world = sim.createWorld({ seed: 67, players: 40 });
+    const tab = await deskWith(world, 24);
+    // Array.from: each simulated device is its own window, and its arrays are not this file's arrays.
+    const orderOf = (t, n) => Array.from(t.desk().matches).filter(m => m.groupNumber === n).map(m => m.playerOneId + ' v ' + m.playerTwoId);
+    const without = (list, ids) => list.filter(text => !ids.some(id => text.split(' v ').includes(id)));
+    const numbers = tab.desk().groups.map(g => g.groupNumber);
+    tab.window.cttcPlayerBoard.printed();
+    await run(world, 400);
+    const paper = {};
+    numbers.forEach(n => { paper[n] = orderOf(tab, n); });
+    const lineup = tab.desk().groups.map(g => g.playerIds.slice());
+
+    // A score entered before the removals stays with its match.
+    const scoredAt = tab.desk().matches.findIndex(m => m.groupNumber === 1 && !m.playerOneId.includes(lineup[0][1]) && m.playerOneId !== lineup[0][1] && m.playerTwoId !== lineup[0][1] && m.playerOneId !== lineup[0][4] && m.playerTwoId !== lineup[0][4]);
+    const scored = tab.desk().matches[scoredAt];
+    const scoredText = scored.playerOneId + ' v ' + scored.playerTwoId;
+    tab.scoreMatch(scoredAt, 'one', 1);
+    await run(world, 400);
+
+    // Two players leave Group 1 (not the top or bottom seat, so the plain round robin order would reshuffle).
+    const gone = [lineup[0][1], lineup[0][4]];
+    assert.notDeepEqual(tab.window.CTTCOrganizer.roundRobinPairs(lineup[0].filter(id => !gone.includes(id))).map(p => p.join(' v ')), without(paper[1], gone), 'the plain order for the smaller group is a different order');
+    gone.forEach(id => tab.removePlayer(id));
+    await run(world, 400);
+    assert.deepEqual(orderOf(tab, 1), without(paper[1], gone), 'the matches left keep the order on the printed sheet');
+    const still = tab.desk().matches.find(m => m.playerOneId + ' v ' + m.playerTwoId === scoredText);
+    assert.deepEqual([still.playerOneGames, still.playerTwoGames], [3, 1], 'and their scores');
+    numbers.slice(1).forEach(n => assert.deepEqual(orderOf(tab, n), paper[n], 'Group ' + n + ' is untouched'));
+
+    // A late arrival: every printed match stays where it was, and the new player's matches follow at the end.
+    const late = world.players[24].player_id;
+    tab.addPlayer(late);
+    await run(world, 400);
+    const joined = tab.desk().groups.find(g => g.playerIds.includes(late)).groupNumber;
+    const before = joined === 1 ? without(paper[1], gone) : paper[joined];
+    assert.deepEqual(orderOf(tab, joined).slice(0, before.length), before, 'the printed matches keep their places');
+    assert.ok(orderOf(tab, joined).slice(before.length).every(text => text.split(' v ').includes(late)), 'the late add\u2019s matches come last');
+    assert.equal(orderOf(tab, joined).length, before.length + tab.desk().groups[joined - 1].playerIds.length - 1);
+
+    // A move to the next group and back puts the player's matches back where the paper has them.
+    const mover = lineup[1][2];
+    tab.movePlayer(mover, '1');
+    await run(world, 400);
+    assert.ok(tab.desk().groups[2].playerIds.includes(mover), 'moved down a group');
+    assert.deepEqual(orderOf(tab, 2).filter(text => !text.split(' v ').includes(late)), without(paper[2], [mover]), 'the group left keeps its order');
+    assert.deepEqual(orderOf(tab, 3).filter(text => !text.split(' v ').includes(late) && !text.split(' v ').includes(mover)), paper[3], 'and so does the group joined');
+    tab.movePlayer(mover, '-1');
+    await run(world, 400);
+    assert.deepEqual(orderOf(tab, 2).filter(text => !text.split(' v ').includes(late)), paper[2], 'back in the group, back in the printed order');
+
+    // A reprint keeps the order it printed with, here and on a device that loads the night afterwards.
+    const shown = {};
+    numbers.forEach(n => { shown[n] = orderOf(tab, n); });
+    tab.window.cttcPlayerBoard.printed();
+    await run(world, 30000);
+    numbers.forEach(n => assert.deepEqual(orderOf(tab, n), shown[n], 'a reprint changes no order'));
+    const mark = JSON.parse(JSON.stringify(world.server.run('getAppState', world.date).printed));
+    assert.equal(mark.order.length, mark.groups.length, 'Google keeps the printed order with the mark');
+    const second = world.device().open();
+    await run(world, 15000);
+    numbers.forEach(n => assert.deepEqual(orderOf(second, n), shown[n], 'another device draws the same order'));
+    tab.removePlayer(late);
+    await run(world, 30000);
+    assert.deepEqual(orderOf(tab, 1), without(paper[1], gone), 'removing after the reprint still keeps the paper\u2019s order');
+
+    // A night from before this rule: the mark has the lineups as printed and no order, and the saved matches are in
+    // the rebuilt order. Loading the desk puts them back in the printed order.
+    const old = sim.createWorld({ seed: 71, players: 40 });
+    const first = await deskWith(old, 18);
+    first.window.cttcPlayerBoard.printed();
+    await run(old, 30000);
+    const oldPaper = orderOf(first, 1);
+    const oldLineup = first.desk().groups.map(g => g.playerIds.slice());
+    const left = [oldLineup[0][0], oldLineup[0][3]];
+    const legacy = JSON.parse(JSON.stringify(old.server.run('getAppState', old.date).printed));
+    first.window.cttcPlayerBoard.forgetPrint();
+    await run(old, 30000);
+    left.forEach(id => first.removePlayer(id));
+    await run(old, 30000);
+    assert.notDeepEqual(orderOf(first, 1), without(oldPaper, left), 'without the rule the order is rebuilt');
+    old.server.run('saveSessionPrint', 'session-' + old.date, { at: legacy.at + 1, groups: legacy.groups, first: legacy.first });
+    const fresh = old.device().open();
+    await run(old, 15000);
+    // (With the print undone, the removals rebuilt the groups by rating, so Group 1 also took players from Group 2:
+    // their matches are not on Group 1's sheet and follow the printed ones.)
+    const kept = without(oldPaper, left);
+    assert.deepEqual(orderOf(fresh, 1).slice(0, kept.length), kept, 'a fresh load restores the printed order');
+    assert.ok(orderOf(fresh, 1).slice(kept.length).every(text => text.split(' v ').some(id => !oldLineup[0].includes(id))), 'with the matches the sheet never had after them');
+    await run(old, 70000);
+    assert.deepEqual(orderOf(first, 1), orderOf(fresh, 1), 'and a desk left open follows within its refresh');
+
+    // Google keeps only a well-formed order.
+    assert.throws(() => old.server.run('saveSessionPrint', 'session-' + old.date, { at: 1, groups: [['a', 'b']], first: ['a', 'b'], order: [[[0, 2]]] }), /match order/);
+    assert.throws(() => old.server.run('saveSessionPrint', 'session-' + old.date, { at: 1, groups: [['a', 'b']], first: ['a', 'b'], order: 'x' }), /match order/);
+    [tab, second, first, fresh].forEach(t => assert.ok(!t.errors.length, t.errors.join('\n')));
+  },
+
   async blockedPopup() {
     const world = sim.createWorld({ seed: 47 });
     const tab = await deskWith(world, 6);

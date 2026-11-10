@@ -1104,8 +1104,12 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var saved = {};
     state.matches.forEach(function (match) { saved[pairKey(match.playerOneId, match.playerTwoId)] = match; });
     state.matches = [];
+    // Once the sheets have printed, the matches keep the order on the paper (O.keptPairs): removing a player takes
+    // only that player's matches out, and a late arrival's matches go at the end. The printed order comes from the
+    // print mark, so every device draws the same order, and a night reordered before this rule is put back on load.
+    var onPaper = state.event !== 'equalizer' && window.cttcPlayerBoard && window.cttcPlayerBoard.printedPairs ? window.cttcPlayerBoard.printedPairs() : null;
     state.groups.forEach(function (group) {
-      O.roundRobinPairs(group.playerIds).forEach(function (pair) {
+      (onPaper ? O.keptPairs(onPaper, group.playerIds) : O.roundRobinPairs(group.playerIds)).forEach(function (pair) {
         var old = saved[pairKey(pair[0], pair[1])];
         state.matches.push(old && old.playerOneId === pair[0]
           ? Object.assign({}, old, { groupNumber: group.groupNumber })
@@ -1558,6 +1562,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
+      // The print mark is read by the loaded date, which has only now moved to this night (after a change of date the
+      // groups above were drawn against the night before): draw the matches again so they keep this night's printed order.
+      buildMatches();
       state.event = equalizerUnavailable ? 'rr' : openingEvent(sessionDate);
       if (state.event === 'equalizer') state.roster = eqDesk.roster();
       render();
@@ -2422,7 +2429,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       // A print, Clear labels or Undo the print on another device: the after-print rules and labels follow here too.
       var marksChanged = sessionDate === loadedDate && window.cttcPlayerBoard && (window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt) | window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true));
       if (sessionDate === loadedDate && movesFromGoogle(sessionDate, data.movedUp, askedAt)) marksChanged = true;
-      if (marksChanged) render();
+      // A print mark from another device can carry a play order this desk has not drawn yet: the matches follow it.
+      if (marksChanged) { if (state.event !== 'equalizer' && !locked()) buildMatches(); render(); }
       var server = data.session;
       if (!server || !quietForRefresh() || printState() !== before || sessionDate !== loadedDate || Number(server.revision) === Number(revision) || (state.session ? state.session.revision : 0) !== revision) return;
       learnPlayers(data.players);
