@@ -1079,7 +1079,15 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   chooser.hidden = !!S.asked;
 
   var hideTimer = null;
-  function wake() {
+  // A board that follows the main desk is run from there (Projector screen), so its strip stays away: the mouse and
+  // touch do not bring it up, only a key press does (to get back to Full screen after Esc, or to untick Follow).
+  function wake(event) {
+    // Once a key has brought it up, the mouse keeps it up as usual, so there is time to click.
+    if (S.follow && !hideTimer && !(event && event.type === 'keydown')) {
+      bc.classList.add('hidden');
+      document.body.style.cursor = 'none';
+      return;
+    }
     bc.classList.remove('hidden');
     document.body.style.cursor = '';
     clearTimeout(hideTimer);
@@ -1089,6 +1097,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
       try { if (bc.contains(document.activeElement)) document.activeElement.blur(); } catch (error) { /* nothing focused */ }
       bc.classList.add('hidden');
       document.body.style.cursor = 'none';
+      hideTimer = null;
     }, 4000);
   }
   ['mousemove', 'keydown', 'touchstart'].forEach(function (name) { document.addEventListener(name, wake); });

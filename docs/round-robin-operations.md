@@ -183,7 +183,9 @@ payments.
     and remembered there. **Show the main laptop's desk** turns on follow mode and goes
     full screen in the same click. **This laptop runs the desk** is for the main desk's
     own board (one laptop driving the TV). To change the answer later, use **Follow the
-    main desk** in the settings strip (move the mouse over the board to show it).
+    main desk** in the settings strip (move the mouse over the board to show it; on a
+    board that is following, press any key instead, as the strip stays hidden there so
+    it never covers names).
   - If the laptop is not signed in to the club's Google account, the club site's
     `/desk` page shows a **Sign in with the club's Google account** button after about
     10 seconds. It opens Google's sign-in page, then the desk.
