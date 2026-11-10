@@ -1083,10 +1083,12 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     bc.classList.remove('hidden');
     document.body.style.cursor = '';
     clearTimeout(hideTimer);
+    // Four seconds with no mouse, key or touch and the strip goes, even with the mouse resting on it or a button of
+    // its own still focused: left up after a click on Full screen, it covered the names at the bottom of the board.
     hideTimer = setTimeout(function () {
-      var busy = false;
-      try { busy = bc.matches(':hover') || bc.contains(document.activeElement); } catch (error) { busy = false; }
-      if (!busy) { bc.classList.add('hidden'); document.body.style.cursor = 'none'; }
+      try { if (bc.contains(document.activeElement)) document.activeElement.blur(); } catch (error) { /* nothing focused */ }
+      bc.classList.add('hidden');
+      document.body.style.cursor = 'none';
     }, 4000);
   }
   ['mousemove', 'keydown', 'touchstart'].forEach(function (name) { document.addEventListener(name, wake); });
