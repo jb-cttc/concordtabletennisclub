@@ -1562,6 +1562,9 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       setGroups(groupsFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
+      // The print mark is read by the loaded date, which has only now moved to this night (after a change of date the
+      // groups above were drawn against the night before): draw the matches again so they keep this night's printed order.
+      buildMatches();
       state.event = equalizerUnavailable ? 'rr' : openingEvent(sessionDate);
       if (state.event === 'equalizer') state.roster = eqDesk.roster();
       render();
