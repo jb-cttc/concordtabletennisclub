@@ -929,6 +929,38 @@ const cases = {
     [tab, second, first, fresh].forEach(t => assert.ok(!t.errors.length, t.errors.join('\n')));
   },
 
+  // A board window left open across a release (the projector's): its page is whatever desk code first wrote it. The
+  // next Player board click from a desk running other code writes the page again in the same window; the same code
+  // leaves the page alone.
+  async boardLeftOpenAcrossRelease() {
+    const world = sim.createWorld({ seed: 83 });
+    const tab = await deskWith(world, 12);
+    const board = boardWindow(world, tab);
+    tab.click(tab.$('#player-board'));
+    await run(world, 1000);
+    boardClick(board, '#choose-desk');
+    const build = board.w.cttcBoardPage.version;
+    assert.match(String(build), /^[0-9a-z]+\.\d+$/, 'the page carries a fingerprint of its code');
+    board.$('#board').setAttribute('data-kept', '1');
+    tab.click(tab.$('#player-board'));
+    await run(world, 1000);
+    assert.equal(board.$('#board').getAttribute('data-kept'), '1', 'the same code: the page is not written again');
+    // The window as an earlier release left it: a page with another fingerprint (earlier pages all said 2).
+    board.w.cttcBoardPage.version = 2;
+    let retired = 0;
+    const retire = board.w.cttcBoardPage.retire;
+    board.w.cttcBoardPage.retire = () => { retired += 1; retire(); };
+    tab.click(tab.$('#player-board'));
+    await run(world, 1000);
+    assert.equal(board.$('#board').getAttribute('data-kept'), null, 'other code: the page is written again');
+    assert.equal(board.w.cttcBoardPage.version, build, 'with this desk\u2019s code');
+    assert.equal(retired, 1, 'and the old page\u2019s timers are stopped');
+    assert.match(board.$('.b-title strong').textContent, /Round Robin/, 'the new page shows the night');
+    assert.equal(board.$$('#board-controls').length, 1);
+    assert.ok(!tab.errors.length, tab.errors.join('\n'));
+    board.close();
+  },
+
   async blockedPopup() {
     const world = sim.createWorld({ seed: 47 });
     const tab = await deskWith(world, 6);
