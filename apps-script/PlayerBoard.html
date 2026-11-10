@@ -504,7 +504,11 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 // 1920 x 1080 board scaled to the window. It runs in its own window so its timers keep going while the desk works.
 (function () {
   'use strict';
-  var VERSION = 2;
+  // The fingerprint of this page's code, given by the desk that wrote it (setup, below). A desk running other code
+  // writes the page again, so a board left open across a release takes the new code on the next Player board click.
+  var VERSION = window.cttcBoardBuild || '';
+  // This page's repeating timers, stopped when a desk writes a newer page into this window (retire).
+  var beats = [];
   var SETTINGS_KEY = 'cttc-player-board-settings-v1';
   var board = document.getElementById('board');
   var screen = document.getElementById('screen');
@@ -962,7 +966,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     saveSettings();
     syncControls();
   }
-  setInterval(function () {
+  beats.push(setInterval(function () {
     if (!S.follow || ended) return;
     var link = deskBoard();
     if (!link || !link.followTick) return;
@@ -972,14 +976,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     if (quiet > 90000) { notice.textContent = 'Following the main desk: Google has not answered for ' + Math.round(quiet / 60000) + ' min. Showing the last picture.'; notice.hidden = false; }
     else if (!notice.hidden && /^Following/.test(notice.textContent)) notice.hidden = true;
     followNote.textContent = 'Following';
-  }, 10000);
+  }, 10000));
   // The desk tab closed or reloaded: keep the last board up, and say how to reconnect.
-  setInterval(function () {
+  beats.push(setInterval(function () {
     tick();
     var gone = !desk;
     try { gone = gone || desk.closed; } catch (error) { gone = true; }
     if (gone && model) { notice.textContent = 'Not connected to the desk. Click Player board on the desk to reconnect.'; notice.hidden = false; }
-  }, 5000);
+  }, 5000));
 
   // ---- Fit the 1920 x 1080 board to the window ----
   function fit() {
@@ -1043,7 +1047,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     }).catch(function () { lock = null; showAwake(); });
   }
   document.addEventListener('visibilitychange', keepAwake);
-  setInterval(keepAwake, 30000);
+  beats.push(setInterval(keepAwake, 30000));
   keepAwake();
   document.getElementById('bc-full').addEventListener('click', function () {
     var el = document.documentElement;
@@ -1112,7 +1116,14 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     notice.dataset.refresh = say ? '1' : '';
     rebuild();
   }
-  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers, setFollow: setFollow, applySettings: applySettings, refreshNow: refreshNow };
+  // A newer page is about to replace this one in the same window: stop everything that repeats here.
+  function retire() {
+    stopTimers();
+    clearTimeout(hideTimer);
+    beats.forEach(function (id) { clearInterval(id); });
+    beats = [];
+  }
+  window.cttcBoardPage = { version: VERSION, show: show, attach: attach, stop: stopTimers, retire: retire, setFollow: setFollow, applySettings: applySettings, refreshNow: refreshNow };
 })();
 </script>
 <script>
@@ -1124,7 +1135,6 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   var E = window.CTTCEqualizer;
   var ST = window.CTTCStandings;
   var NAME = 'cttc-player-board';
-  var VERSION = 2;
   var PRINT_KEY = 'cttc-player-board-printed-v1';
   var FRESH_MS = 7000;
   // The wall starts a moved card's glow when it lands (up to about 1.5 s later), so the class stays on a little longer.
@@ -1726,9 +1736,18 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     '<button type="button" class="choice" id="choose-desk"><strong>This laptop runs the desk</strong><span>Sign-ins and scores are entered on this laptop.</span></button>' +
     '<p>Asked once on this computer. To change it later, move the mouse and use <em>Follow the main desk</em> in the settings strip.</p>' +
     '</div></div>';
+  // A fingerprint of everything written into the board window. It was a number changed by hand, and never was, so a
+  // board window left open (the projector's) kept its old page after a release even once its desk was reloaded.
+  var VERSION = (function (text) {
+    var hash = 5381;
+    for (var i = 0; i < text.length; i += 1) hash = ((hash * 33) ^ text.charCodeAt(i)) >>> 0;
+    return hash.toString(36) + '.' + text.length;
+  })(STYLE + PAGE + CONTROLS + CHOOSER);
   function setup(w) {
     var doc = w.document;
-    if (w.cttcBoardPage && w.cttcBoardPage.stop) w.cttcBoardPage.stop();
+    if (w.cttcBoardPage && w.cttcBoardPage.retire) w.cttcBoardPage.retire();
+    else if (w.cttcBoardPage && w.cttcBoardPage.stop) w.cttcBoardPage.stop();
+    w.cttcBoardBuild = VERSION;
     doc.documentElement.innerHTML = '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CTTC Player Board</title><style>' + STYLE + '</style></head>' +
       '<body><div id="screen"><div class="board" id="board" data-look="desk"></div></div><div class="board-notice" id="board-notice" role="status" hidden></div><div class="bc" id="board-controls" role="group" aria-label="Board settings">' + CONTROLS + '</div>' + CHOOSER + '</body>';
     doc.title = 'CTTC Player Board';

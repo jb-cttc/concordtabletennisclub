@@ -216,6 +216,9 @@ payments.
     runs an older version of the desk than the main desk (opened before a release),
     its board says so: reload the desk page there and click **Player board**. A
     laptop left open across a release shows the night with the old code until then.
+    The board window can stay open: the click writes the new board into the same
+    window. Nothing on the main desk can reload that laptop's page; the reload has
+    to be done on the laptop itself.
   - It checks only while follow mode is on: every 10 seconds, once a minute after 20
     quiet minutes. It ends when the night is finalized or after 6 hours; that end
     keeps the answer, so the board follows again the next time it opens. After a
