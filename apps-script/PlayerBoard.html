@@ -1779,7 +1779,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var d = data();
     if (!d) return;
     var groups = d.event === 'equalizer' ? null : groupArrays(d);
-    setRecord(d, d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groups, first: printedRoster(d) || flat(groups) });
+    setRecord(d, d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groups, first: printedRoster(d) || flat(groups), order: sheetOrder(d, groups) });
     if (window.cttcDesk && window.cttcDesk.printChanged) window.cttcDesk.printChanged();
   }
 
@@ -1814,7 +1814,12 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     if ((window.cttcOutbox && window.cttcOutbox.find(outboxKey(date, eq))) || (changedHere[key] && askedAt < changedHere[key])) return false;
     var all = readPrints();
     var mine = all[key] || null;
-    var shape = function (m) { return eq ? { at: m.at, sig: m.sig } : { at: m.at, groups: m.groups, first: m.first || flat(m.groups) }; };
+    var shape = function (m) {
+      if (eq) return { at: m.at, sig: m.sig };
+      var out = { at: m.at, groups: m.groups, first: m.first || flat(m.groups) };
+      if (Array.isArray(m.order)) out.order = m.order;
+      return out;
+    };
     if (!mark) {
       if (mine && (eq ? mine.sig : mine.groups)) share(date, shape(mine), eq);
       return false;
@@ -1838,6 +1843,29 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     });
   }
   function flat(groups) { return groups.reduce(function (all, ids) { return all.concat(ids); }, []); }
+  // The match order on the sheets as they print, kept with the mark: for each group, its matches in sheet order, each
+  // as the two players' places in that group's printed lineup ([one, two]). Small enough for 40 players.
+  function sheetOrder(d, groups) {
+    return groups.map(function (ids, gi) {
+      return (d.matches || []).filter(function (m) { return m.groupNumber === gi + 1; }).map(function (m) {
+        return [ids.indexOf(m.playerOneId), ids.indexOf(m.playerTwoId)];
+      }).filter(function (pair) { return pair[0] >= 0 && pair[1] >= 0; });
+    });
+  }
+  // Every pair on the printed sheets, [one, two], in sheet order, or null before a print: what the desk keeps the
+  // play order to (O.keptPairs). A mark from before the order was kept printed in the plain round robin order of its
+  // lineup, so that is what it stands for.
+  function printedPairs(d) {
+    if (!printedRoster(d)) return null;
+    var out = [];
+    d.printed.groups.forEach(function (ids, gi) {
+      var order = Array.isArray(d.printed.order) && Array.isArray(d.printed.order[gi]) ? d.printed.order[gi] : null;
+      (order ? order.map(function (pair) { return [ids[pair[0]], ids[pair[1]]]; }) : O.roundRobinPairs(ids)).forEach(function (pair) {
+        if (pair[0] && pair[1]) out.push(pair);
+      });
+    });
+    return out;
+  }
   // Who was on the round robin sheets when they first printed (reprints keep it), or null before.
   function printedRoster(d) {
     if (!d || d.event === 'equalizer' || !d.printed || !d.printed.groups) return null;
@@ -1874,7 +1902,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     var d = data();
     if (!printedRoster(d)) return false;
     var groups = groupArrays(d);
-    setRecord(d, { at: d.printed.at, groups: groups, first: flat(groups) });
+    setRecord(d, { at: d.printed.at, groups: groups, first: flat(groups), order: sheetOrder(d, groups) });
     return true;
   }
   // A print made by mistake: as if the sheets never printed, on every device (the board goes back to sign-ins until a
@@ -1886,7 +1914,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
     return true;
   }
 
-  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, eqPrintedAt: function () { var d = data(); return d && d.event === 'equalizer' && d.printed ? Number(d.printed.at) || 0 : 0; }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, fromGoogle: fromGoogle, build: build,
+  window.cttcPlayerBoard = { open: open, changed: changed, printed: printed, printNote: printNote, printedRoster: function () { return printedRoster(data()); }, printedPairs: function () { return printedPairs(data()); }, eqPrintedAt: function () { var d = data(); return d && d.event === 'equalizer' && d.printed ? Number(d.printed.at) || 0 : 0; }, labels: labels, keepAsPrinted: keepAsPrinted, forgetPrint: forgetPrint, fromGoogle: fromGoogle, build: build,
     // Follow mode, between the board window's Follow the main desk and the desk (Index.html).
     setFollow: function (on) { return window.cttcDesk && window.cttcDesk.setFollow ? window.cttcDesk.setFollow(on) : { on: false, message: '' }; },
     followTick: function () { return window.cttcDesk && window.cttcDesk.followTick ? window.cttcDesk.followTick() : { on: false }; },
