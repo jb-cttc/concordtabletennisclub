@@ -1,6 +1,7 @@
 // Volunteer Admin (?view=volunteers, framed by the club site's volunteer-admin.html): the club's own page for the volunteer
 // sign-ups. Like the rest of the desk it opens only for the club's Google account. It shows every upcoming night with full
-// names, and the training lists that decide who may run the desk, collect money or lock up; changes are gathered in a bucket,
+// names, and the training lists that decide who may run the desk, collect money or lock up. The club can add someone to an
+// open spot itself (confirmed at once), move or remove people, and change training; changes are gathered in a bucket,
 // reviewed (with the email each person will get) and submitted together.
 //
 // The volunteer app (staffing-app/) owns its Sheet, its rules and its emails, so this page asks it for everything through

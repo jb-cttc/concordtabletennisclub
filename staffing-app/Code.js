@@ -187,8 +187,8 @@ var TABS = {
   SeedReport: ['at', 'kind', 'name', 'count', 'candidates'],
   // Typed by the owner: one date per row (2026-11-13 or 11/13/2026) and a short public note. Those nights show as closed.
   Closures: ['date', 'note'],
-  // One row per change made on the desk's Volunteer Admin page (adminApply_): change_id groups one submission; kind remove,
-  // move or training; before and after in words; emailed 'yes' once the person was told ('-' for training).
+  // One row per change made on the desk's Volunteer Admin page (adminApply_): change_id groups one submission; kind add,
+  // remove, move or training; before and after in words; emailed 'yes' once the person was told ('-' for training).
   AdminChanges: ['at', 'change_id', 'kind', 'ref', 'player_id', 'name', 'before', 'after', 'emailed'],
   // One row per message sent, reply read, step or failure. to is a code, never an address or number.
   Log: ['at', 'channel', 'kind', 'ref', 'to', 'detail']
@@ -4259,10 +4259,10 @@ function remind_(signups, emails, now) {
 // reads and changes this app's schedule and training through doPost (fn 'admin'), with the desk's admin key: the hidden
 // AppWake tab of the desk Sheet, column B, which only the desk writes. Every rule and every email stays here.
 //   board: every upcoming night with full names, the training lists, the last changes, the emails left today.
-//   apply: a bucket of changes (remove a shift, move one, give or take training), checked all together against the
-//   Sheet as it is now. Any problem and nothing is changed. With preview, nothing is changed either: the answer is the
-//   emails each person would get. Otherwise every change is saved, recorded in AdminChanges, and each person whose
-//   shifts changed gets one email saying what changed.
+//   apply: a bucket of changes (add someone to a shift, remove a shift, move one, give or take training), checked all
+//   together against the Sheet as it is now. Any problem and nothing is changed. With preview, nothing is changed either:
+//   the answer is the emails each person would get. Otherwise every change is saved, recorded in AdminChanges, and each
+//   person whose shifts changed gets one email saying what changed.
 var ADMIN_MAX_CHANGES = 60;
 var ADMIN_NOTE_MAX = 500;
 var ADMIN_RECENT = 25;
@@ -4327,8 +4327,12 @@ function adminBoard_() {
   var recent = rows_('AdminChanges').slice(-ADMIN_RECENT).reverse().map(function (row) {
     return { at: row.at, kind: row.kind, name: row.name, before: row.before, after: row.after, emailed: row.emailed };
   });
+  // Who has an email on file: the page asks for one only when adding someone who has none (ids only, never the address).
+  var withEmail = {};
+  rows_('Emails').forEach(function (row) { if (String(row.status).trim().toLowerCase() === 'approved' && cleanEmail_(row.email)) withEmail[String(row.player_id).trim()] = true; });
   return {
     ok: true, today: horizon.today, mode: mode_(), quota: MailApp.getRemainingDailyQuota(), minQuota: MIN_QUOTA, maxChanges: ADMIN_MAX_CHANGES, noteMax: ADMIN_NOTE_MAX,
+    withEmail: Object.keys(withEmail),
     months: horizon.months.map(function (month) { return { year: month.year, month: month.month, title: MONTHS[month.month - 1] + ' ' + month.year }; }),
     positions: POSITIONS.map(function (spec) {
       return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, full: spec.full || spec.min, max: spec.max, training: spec.training, alsoWith: spec.alsoWith || [] };
@@ -4342,8 +4346,12 @@ function adminBoard_() {
 function adminShift_(entry) { return shortDay_(entry.date) + ': ' + shiftLabel_(entry); }
 
 // Checks and applies a bucket of changes (see above). changes: [{ kind: 'remove', id, was: {date, position} } |
-// { kind: 'move', id, was, to: {date, position} } | { kind: 'training', playerId, skill, value }]. newPlayers: players the
-// desk is adding with this bucket ([{playerId, name}]), known to the desk though not yet in this app's cached player list.
+// { kind: 'move', id, was, to: {date, position} } | { kind: 'add', playerId, to: {date, position}, email } |
+// { kind: 'training', playerId, skill, value }]. newPlayers: players the desk is adding with this bucket ([{playerId, name}]),
+// known to the desk though not yet in this app's cached player list.
+// An add is the club signing someone up itself, for when the normal sign-up is not working: it is confirmed at once (no YES
+// asked), and the person is emailed like everyone else the bucket changes. Someone with no email on file needs one typed
+// (email); it is put on file for them (source owner), as the club would approve it.
 function adminApply_(changes, note, preview, newPlayers) {
   if (!Array.isArray(changes) || !changes.length) return fail_('Nothing to submit.');
   if (changes.length > ADMIN_MAX_CHANGES) return fail_('Too many changes at once: submit at most ' + ADMIN_MAX_CHANGES + '.');
@@ -4411,8 +4419,54 @@ function adminRun_(changes, note, preview, known) {
     done.push({ index: index, kind: 'training', playerId: playerId, name: known[playerId], before: change.value ? 'no' : 'yes', after: change.value ? 'yes' : 'no',
       what: SKILLS[change.skill] });
   });
-  changes.forEach(function (change, index) {
-    if (!change || change.kind === 'training') return;
+  // A new night, position and person for a move or an add: the same rules as the sign-up page, '' or the reason.
+  var placeProblem = function (person, name, to, except) {
+    var spec = position_(String(to.position || ''));
+    var night = nightOf_(String(to.date || ''), horizon, closures);
+    if (!spec || !night) return 'That is not a club night and position on the calendar.';
+    if (night.closed) return 'The club is closed that night.';
+    if (night.date < horizon.today || wallMinutes_(night.date, night.end) <= nowMinutes_()) return 'That night is over.';
+    var rule = canTake_(person, spec.id);
+    if (rule) return name + ': ' + rule.replace(/ Please ask the club, or pick Table setup or Closing\.$/, '');
+    var others = copies.filter(function (other) { return other !== except && other.date === night.date && holds_(other, now); });
+    if (others.filter(function (other) { return other.position === spec.id; }).length >= spec.max) return spec.label + ' is full on ' + shortDay_(night.date) + '.';
+    var clash = others.filter(function (other) { return personKey_(other) === person.key && (other.position === spec.id || clash_(spec, position_(other.position))); })[0];
+    if (clash) {
+      return name + ' already has ' + position_(clash.position).label + ' on ' + shortDay_(night.date) + (clash.position === spec.id ? '.' : ' (one ' + (spec.part === 'open' ? 'opening' : 'closing') + ' position per night).');
+    }
+    return '';
+  };
+  // Removals first, so a spot freed anywhere in the bucket can be filled by a move or an add in it.
+  var schedule = changes.map(function (change, index) { return { change: change, index: index }; }).filter(function (item) { return item.change && item.change.kind !== 'training'; });
+  schedule = schedule.filter(function (item) { return item.change.kind === 'remove'; }).concat(schedule.filter(function (item) { return item.change.kind !== 'remove'; }));
+  var typedEmails = {};
+  schedule.forEach(function (item) {
+    var change = item.change;
+    var index = item.index;
+    if (change.kind === 'add') {
+      var playerId = String(change.playerId || '');
+      var name = known[playerId];
+      if (!name) return problem(index, 'That player is not on the desk\'s active player list.');
+      var to = change.to || {};
+      var person = { playerId: playerId, key: 'p:' + playerId, training: trainingOf(playerId) };
+      var reason = placeProblem(person, name, to, null);
+      if (reason) return problem(index, reason);
+      var onFile = approvedEmail_(emails, playerId);
+      var typed = String(change.email || '').trim();
+      var email = onFile ? cleanEmail_(onFile.email) : cleanEmail_(typed) || typedEmails[playerId] || '';
+      if (onFile && typed && !sameAddress_(typed, onFile.email)) return problem(index, name + ' already has an email on file (' + maskEmail_(email) + '). Leave the email blank.');
+      if (!email) return problem(index, typed ? '"' + typed.slice(0, 80) + '" is not an email address.' : name + ' has no email on file. Type the email their confirmation should go to.');
+      if (!onFile) {
+        if (typedEmails[playerId] && !sameAddress_(typedEmails[playerId], email)) return problem(index, name + ' has two different emails in this bucket. Use one.');
+        typedEmails[playerId] = email;
+      }
+      var added = { signup_id: id_(), batch_id: '', date: to.date, position: position_(to.position).id, finalize: '', player_id: playerId, name: name, email: email, status: 'confirmed',
+        created_at: nowIso_(), expires_at: '', confirmed_at: nowIso_(), updated_at: nowIso_() };
+      copies.push(added);
+      byId[added.signup_id] = added;
+      done.push({ index: index, kind: 'add', entry: added, before: null, newEmail: onFile ? '' : email });
+      return;
+    }
     if (change.kind !== 'remove' && change.kind !== 'move') return problem(index, 'Unknown change.');
     var entry = byId[String(change.id || '')];
     var was = change.was || {};
@@ -4429,19 +4483,12 @@ function adminRun_(changes, note, preview, known) {
       return;
     }
     var to = change.to || {};
-    var spec = position_(String(to.position || ''));
-    var night = nightOf_(String(to.date || ''), horizon, closures);
-    if (!spec || !night) return problem(index, 'That is not a club night and position on the calendar.');
-    if (night.closed) return problem(index, 'The club is closed that night.');
-    if (night.date < horizon.today || wallMinutes_(night.date, night.end) <= nowMinutes_()) return problem(index, 'That night is over.');
-    if (night.date === entry.date && spec.id === entry.position) return problem(index, entry.name + ' is already there.');
-    var person = { playerId: entry.player_id, key: personKey_(entry), training: entry.player_id ? trainingOf(entry.player_id) : trainingFor_(trainingRows, { email: entry.email }) };
-    var rule = canTake_(person, spec.id);
-    if (rule) return problem(index, entry.name + ': ' + rule.replace(/ Please ask the club, or pick Table setup or Closing\.$/, ''));
-    var others = copies.filter(function (other) { return other !== entry && other.date === night.date && holds_(other, now); });
-    if (others.filter(function (other) { return other.position === spec.id; }).length >= spec.max) return problem(index, spec.label + ' is full on ' + shortDay_(night.date) + '.');
-    var clash = others.filter(function (other) { return personKey_(other) === person.key && clash_(spec, position_(other.position)); })[0];
-    if (clash) return problem(index, entry.name + ' already has ' + position_(clash.position).label + ' on ' + shortDay_(night.date) + ' (one ' + (spec.part === 'open' ? 'opening' : 'closing') + ' position per night).');
+    if (to.date === entry.date && to.position === entry.position) return problem(index, entry.name + ' is already there.');
+    var mover = { playerId: entry.player_id, key: personKey_(entry), training: entry.player_id ? trainingOf(entry.player_id) : trainingFor_(trainingRows, { email: entry.email }) };
+    var why = placeProblem(mover, entry.name, to, entry);
+    if (why) return problem(index, why);
+    var spec = position_(to.position);
+    var night = nightOf_(to.date, horizon, closures);
     var sameNight = night.date === entry.date;
     var samePart = sameNight && position_(entry.position).part === spec.part;
     entry.date = night.date;
@@ -4459,6 +4506,8 @@ function adminRun_(changes, note, preview, known) {
     entry.updated_at = nowIso_();
     done.push({ index: index, kind: 'move', entry: entry, before: before });
   });
+  problems.sort(function (a, b) { return a.index - b.index; });
+  done.sort(function (a, b) { return a.index - b.index; });
   if (problems.length) return { ok: false, problems: problems, message: problems.length === 1 ? 'One change cannot be made, so nothing was changed.' : problems.length + ' changes cannot be made, so nothing was changed.' };
 
   // One email per person whose shifts changed.
@@ -4479,8 +4528,28 @@ function adminRun_(changes, note, preview, known) {
     }) };
   }
 
-  // Save: the moved and removed sign-ups, then the training, then what each change was.
+  // Save: an email typed for someone added, each person's added shifts as one confirmed submission (as if they had said
+  // YES), the moved, removed and added sign-ups, then the training, then what each change was.
   var changeId = id_();
+  var addBatches = {};
+  done.forEach(function (item) {
+    if (item.kind !== 'add') return;
+    var entry = item.entry;
+    if (item.newEmail && !approvedEmail_(emails, entry.player_id)) {
+      var row = { player_id: entry.player_id, name: entry.name, email: item.newEmail, phone: '', source: 'owner', status: 'approved', requested_at: '', decided_at: nowIso_(), batch_id: '' };
+      save_('Emails', row);
+      emails.push(row);
+    }
+    var batch = addBatches[entry.player_id];
+    if (!batch) {
+      var onFile = approvedEmail_(emails, entry.player_id);
+      // emailed stays '' until the club's email below goes out: if it fails, the sweep sends the usual confirmation instead.
+      batch = addBatches[entry.player_id] = { batch_id: id_(), email: entry.email, name: entry.name, player_id: entry.player_id, phone: onFile ? phoneDigits_(onFile.phone) : '',
+        status: 'confirmed', created_at: nowIso_(), expires_at: '', emailed: '', texted: '', answered_at: nowIso_(), answer: 'club', late: '', updated_at: nowIso_(), source: 'club' };
+      save_('Batches', batch);
+    }
+    entry.batch_id = batch.batch_id;
+  });
   done.forEach(function (item) { if (item.entry) save_('Signups', item.entry); });
   Object.keys(training).forEach(function (playerId) {
     var held = training[playerId];
@@ -4508,6 +4577,10 @@ function adminRun_(changes, note, preview, known) {
   var records = done.map(function (item) {
     var record = { at: nowIso_(), change_id: changeId, kind: item.kind, emailed: '' };
     if (item.kind === 'training') return Object.assign(record, { ref: item.playerId, player_id: item.playerId, name: item.name, before: item.what + ': ' + item.before, after: item.what + ': ' + item.after, emailed: '-' });
+    if (item.kind === 'add') {
+      return Object.assign(record, { ref: item.entry.signup_id, player_id: item.entry.player_id, name: item.entry.name, before: 'not signed up',
+        after: adminShift_(item.entry) + ', confirmed by the club' + (item.newEmail ? ' (email put on file: ' + maskEmail_(item.newEmail) + ')' : '') });
+    }
     return Object.assign(record, { ref: item.entry.signup_id, player_id: item.entry.player_id, name: item.entry.name,
       before: adminShift_(Object.assign({}, item.entry, item.before, { finalize: '' })), after: item.kind === 'remove' ? 'removed' : adminShift_(item.entry) });
   });
@@ -4522,6 +4595,13 @@ function adminRun_(changes, note, preview, known) {
       return;
     }
     emailed += 1;
+    // Their added shifts were in this email: the sweep does not send its own confirmation as well.
+    person.items.forEach(function (item) {
+      var batch = item.kind === 'add' ? addBatches[item.entry.player_id] : null;
+      if (!batch || batch.emailed === 'confirmed') return;
+      batch.emailed = 'confirmed';
+      save_('Batches', batch);
+    });
     (message.freeIds || []).forEach(function (signupId) {
       var entry = byId[signupId];
       if (!entry || entry.free_night) return;
@@ -4542,26 +4622,29 @@ function adminRun_(changes, note, preview, known) {
 function adminMail_(person, after, before, note, now) {
   var removed = person.items.filter(function (item) { return item.kind === 'remove'; });
   var moved = person.items.filter(function (item) { return item.kind === 'move'; });
-  var rows = moved.map(function (item) {
+  var added = person.items.filter(function (item) { return item.kind === 'add'; });
+  var rows = added.map(function (item) { return ['Added', '++' + adminShift_(item.entry) + '++: you are confirmed, no reply needed']; }).concat(moved.map(function (item) {
     return ['Moved', '~~' + adminShift_(Object.assign({}, item.entry, item.before, { finalize: '' })) + '~~ to ++' + adminShift_(item.entry) + '++'];
-  }).concat(removed.map(function (item) { return ['Removed', adminShift_(Object.assign({}, item.entry, item.before)) + ': you are off this shift']; }));
+  })).concat(removed.map(function (item) { return ['Removed', adminShift_(Object.assign({}, item.entry, item.before)) + ': you are off this shift']; }));
   var waiting = moved.filter(function (item) { return signupStatus_(item.entry, now) === 'pending'; });
   // Free nights: where the change gave them one, and where it took one away.
   var key = personKey_(person.items[0].entry);
   var lost = [];
   person.items.forEach(function (item) {
-    if (!perkNight_(item.before.date)) return;
+    if (!item.before || !perkNight_(item.before.date)) return;
     var had = nightFree_(before.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key && spot.confirmed; });
     var has = nightFree_(after.filter(function (entry) { return entry.date === item.before.date; }), now).some(function (spot) { return spot.key === key; });
     if (had && !has && lost.indexOf(item.before.date) < 0) lost.push(item.before.date);
   });
-  var confirmedMoves = moved.filter(function (item) { return signupStatus_(item.entry, now) === 'confirmed'; }).map(function (item) { return item.entry; });
+  var confirmedMoves = added.concat(moved).filter(function (item) { return signupStatus_(item.entry, now) === 'confirmed'; }).map(function (item) { return item.entry; });
   var free = freeLines_(confirmedMoves, after, now, true);
   var upcoming = after.filter(function (entry) {
     return personKey_(entry) === key && entry.date >= pacificNow_().date && holds_(entry, now);
   }).sort(function (a, b) { return (a.date + POSITIONS.indexOf(position_(a.position))).localeCompare(b.date + POSITIONS.indexOf(position_(b.position))); });
   var count = rows.length;
-  return { freeIds: free.freeIds, subject: 'The club changed your CTTC volunteer ' + (count === 1 ? 'shift' : 'shifts'), lines: ['Hello ' + (firstName_(person.name) || 'there') + ',',
+  var subject = added.length === count ? 'The club signed you up for ' + (count === 1 ? 'a CTTC volunteer shift' : count + ' CTTC volunteer shifts') :
+    'The club changed your CTTC volunteer ' + (count === 1 ? 'shift' : 'shifts');
+  return { freeIds: free.freeIds, subject: subject, lines: ['Hello ' + (firstName_(person.name) || 'there') + ',',
     { callout: 'The club made ' + (count === 1 ? 'a change' : count + ' changes') + ' to your volunteer schedule. **Here is what changed:**', tone: 'action' },
     { rows: rows },
     note ? { heading: 'Message from the club' } : null, note || null,
