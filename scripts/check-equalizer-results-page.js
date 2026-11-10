@@ -43,6 +43,9 @@ async function page(sessions, details) {
   const shown = await page(sessions, [session]);
   const root = shown.$('#eq-2026-11-07');
   assert.ok(root && !root.hidden, 'the section shows, with an anchor for the email link');
+  // Below the three regular nights' recent results, above the archive.
+  const order = [...shown.dom.window.document.querySelectorAll('#recent-results, #eq-2026-11-07, #archive')].map(node => node.id);
+  assert.deepEqual(order, ['recent-results', 'eq-2026-11-07', 'archive'], 'the Equalizer sits under the regular nights');
   const text = root.textContent;
   // The pilot banner, with the rules and the request for feedback.
   const banner = shown.$('.eq-pilot');
