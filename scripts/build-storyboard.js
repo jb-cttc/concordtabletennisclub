@@ -2,7 +2,7 @@
 //      npm run build:storyboard -- --advance   (first moves every file:line reference to HEAD's code, then builds)
 //      npm run check:storyboard        (in npm test: both files match their source, every cited file exists)
 //
-// The Round Robin Night Storyboard: a night at the club step by step, from volunteers and texts through the desk and
+// The storyboard (on the site, the Club Night Guide): a night at the club step by step, from volunteers and texts through the desk and
 // the projector to results, with a technical layer under each step. Its content is docs/storyboard/night-club.js and
 // night-desk.js, its page docs/storyboard/template.html. The site page is storyboard.html (linked from About); the
 // same content as plain JSON, for agents, is docs/storyboard/night.json. See docs/storyboard/README.md.
@@ -17,7 +17,7 @@ const DIR = path.join(ROOT, 'docs', 'storyboard');
 const PAGE = path.join(ROOT, 'storyboard.html');
 const JSON_FILE = path.join(DIR, 'night.json');
 const ORDER = ['staff', 'text', 'coach', 'open', 'signin', 'print', 'board', 'finish', 'save', 'ops'];
-const SHORT = { open: 'Opening', signin: 'Sign-ins', print: 'Printing', board: 'Projector', finish: 'Scores & results', save: 'Staying saved', ops: 'Behind the night' };
+const SHORT = { open: 'Opening', signin: 'Sign-in', print: 'Printing', board: 'Projector', finish: 'Results', save: 'Reliability', ops: 'Operations' };
 
 function content() {
   const load = name => { const file = path.join(DIR, name); delete require.cache[file]; return require(file); };
@@ -31,7 +31,7 @@ function content() {
   });
   if (all.length !== ORDER.length) throw new Error('Storyboard: a part is missing from ORDER in scripts/build-storyboard.js');
   const meta = Object.assign({}, desk.meta, {
-    intro: 'A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and the code underneath.'
+    intro: 'A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.'
   });
   return { meta, map: club.map, phases };
 }
@@ -44,7 +44,7 @@ function page(data) {
   const body = template.slice(split).replace('/*DATA*/', () => JSON.stringify(data).replace(/</g, '\\u003c'));
   return '<!DOCTYPE html>\n<!-- Built by scripts/build-storyboard.js from docs/storyboard/: edit those, then npm run build:storyboard. -->\n' +
     '<html lang="en">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
-    '<meta name="description" content="How a night at the Concord Table Tennis Club works, step by step, and the code behind it.">\n' +
+    '<meta name="description" content="How a club night at the Concord Table Tennis Club runs, step by step, and the tools behind it.">\n' +
     '<link rel="icon" href="assets/logo.png" type="image/png">\n' +
     '<style>body { margin: 0; } [hidden] { display: none !important; } img { max-width: 100%; }</style>\n' +
     head + '\n</head>\n<body>\n' + body + '\n</body>\n</html>\n';

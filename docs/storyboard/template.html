@@ -1,4 +1,4 @@
-<title>Round Robin Night Storyboard</title>
+<title>Club Night Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: a film strip of the night. A sticky rail of the seven parts; each step is a frame (picture of the screen)
@@ -335,8 +335,8 @@ body.techview .step-top { grid-template-columns: 1fr; }
 </style>
 
 <header class="mast"><div class="wrap">
-  <div class="eyebrow"><a href="https://concordtabletennisclub.com/about.html">Concord Table Tennis Club</a> · how a night works</div>
-  <h1>Round Robin Night Storyboard</h1>
+  <div class="eyebrow"><a href="https://concordtabletennisclub.com/about.html">Concord Table Tennis Club</a> · How a club night runs</div>
+  <h1>Club Night Guide</h1>
   <p id="mast-intro"></p>
   <div class="tally" id="tally"></div>
 </div></header>
@@ -517,23 +517,23 @@ body.techview .step-top { grid-template-columns: 1fr; }
   var untested = all.reduce(function (n, s) { return n + arr(s.tech && s.tech.untested).length; }, 0);
 
   document.getElementById('mast-intro').textContent = DATA.meta.intro;
-  document.getElementById('tally').innerHTML = [[phases.length, 'parts of the night'], [all.length, 'steps'], [exc.length, 'exceptions mapped'], [count(exc, 'status', 'gap') + count(exc, 'status', 'partial'), 'not fully handled'], [invariants, 'things that must stay true'], [untested, 'with no test'], [findings.length, 'findings']]
+  document.getElementById('tally').innerHTML = [[phases.length, 'parts of the night'], [all.length, 'steps'], [exc.length, 'exceptions mapped'], [count(exc, 'status', 'gap') + count(exc, 'status', 'partial'), 'not fully handled'], [invariants, 'things that must stay true'], [untested, 'with no test'], [findings.length, 'known issues']]
     .map(function (t) { return '<div><b>' + t[0] + '</b><span>' + t[1] + '</span></div>'; }).join('');
 
   document.getElementById('lede').innerHTML =
-    '<section><h2>How to read it</h2><ul><li><b>Each step is one frame:</b> a picture of the screen with the part in use outlined in orange, and what the person does and sees beside it.</li><li><b>Subtext</b> (gold line) is what is quietly happening underneath.</li><li><b>Exceptions</b> say what can go differently, what the desk does today and what to do. Green is handled, amber partly, red is a gap.</li><li><b>Technical layer</b> opens under each step: the functions, what is read and written, what must stay true, which tests cover it and which do not.</li></ul></section>' +
-    '<section><h2>Why this exists</h2><p>On Monday, Nov 9, 2026, a pre-session check loaded the pages and ran the tests, and reported the desk ready. Three problems then showed up during play: the projector’s settings strip covered names, removing a player after printing reshuffled the match order, and a projector board left open kept its old code. <b>None was visible without walking the night step by step.</b> This storyboard is that walk, written down so the next check can follow it.</p></section>' +
-    '<section><h2>What it is built from</h2><p>' + rich(DATA.meta.source) + '</p><p>The pictures are drawings with made-up names, not screenshots. No member data is on this page.</p></section>';
+    '<section><h2>How to read this guide</h2><ul><li><b>Each step is one frame:</b> a picture of the screen with the part in use outlined in orange, and what the person does and sees beside it.</li><li><b>Subtext</b> (gold line) is what is quietly happening underneath.</li><li><b>Exceptions</b> say what can go differently, what the desk does today and what to do. Green is handled, amber partly, red is a gap.</li><li><b>Technical layer</b> opens under each step: the functions, what is read and written, what must stay true, which tests cover it and which do not.</li></ul></section>' +
+    '<section><h2>Why this guide exists</h2><p>A check before a club night can pass every test and still miss a problem that only shows when the night is walked through as volunteers run it. In November 2026 three small problems surfaced that way during play: the projector’s settings bar covered names, removing a player after printing changed the match order, and a projector window kept old code after an update. <b>All three are fixed.</b> This guide writes that walk down, so later checks can follow it.</p></section>' +
+    '<section><h2>Sources</h2><p>' + rich(String(DATA.meta.source).replace('{commit}', DATA.meta.commit.slice(0, 7))) + '</p><p>The pictures are drawings with made-up names, not screenshots. No member data is on this page.</p></section>';
 
 
   if (DATA.map) {
-    document.getElementById('map').innerHTML = '<div class="phase-head" id="map-h" style="border-top:0;padding-top:0"><div class="k">Before the night</div><h2>How the club fits together</h2><p>The round robin desk is the hub, but a night starts days earlier: volunteers sign up to open and close, coaches publish lesson times, and on the day players text ahead. Each row below is one connection: what passes along it, how often, and what stops if it breaks.</p></div>' +
+    document.getElementById('map').innerHTML = '<div class="phase-head" id="map-h" style="border-top:0;padding-top:0"><div class="k">Overview</div><h2>How the Pieces Connect</h2><p>The round robin desk is the hub, but a night starts days earlier: volunteers sign up to open and close, coaches publish lesson times, and on the day players text ahead. Each row below is one connection: what passes along it, how often, and what stops if it breaks.</p></div>' +
       '<div class="map-nodes">' + DATA.map.nodes.map(function (n) { return '<div class="map-node' + (n.core ? ' core' : '') + '"><strong>' + esc(n.label) + '</strong><span>' + esc(n.sub) + '</span></div>'; }).join('') + '</div>' +
       '<div class="tbl"><table class="flow"><thead><tr><th>From</th><th>To</th><th>What passes</th><th>How often</th><th>If it stops</th></tr></thead><tbody>' +
       DATA.map.links.map(function (l) { return '<tr><td><b>' + esc(l[0]) + '</b></td><td><span class="arrow">→</span> ' + esc(l[1]) + '</td><td>' + esc(l[2]) + '</td><td>' + esc(l[3]) + '</td><td>' + esc(l[4]) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   } else document.getElementById('map').hidden = true;
   var nav = document.getElementById('rail-nav');
-  nav.innerHTML = '<a href="#map"><span class="n">◎</span>Map</a><a href="#findings"><span class="n">!</span>Findings</a>' + phases.map(function (p, i) { return '<a href="#' + esc(p.phase) + '"><span class="n">' + (i + 1) + '</span>' + esc(p.short || p.title) + '</a>'; }).join('');
+  nav.innerHTML = '<a href="#map"><span class="n">◎</span>Overview</a><a href="#findings"><span class="n">!</span>Known issues</a>' + phases.map(function (p, i) { return '<a href="#' + esc(p.phase) + '"><span class="n">' + (i + 1) + '</span>' + esc(p.short || p.title) + '</a>'; }).join('');
 
   function list(items, cls) { items = arr(items); return items.length ? '<ul' + (cls ? ' class="' + cls + '"' : '') + '>' + items.map(function (x) { return '<li>' + (cls === 'unt' ? '<span>' + rich(x) + '</span>' : rich(x)) + '</li>'; }).join('') + '</ul>' : '<p class="none">None recorded.</p>'; }
   function section(title, body, wide) { return '<section' + (wide ? ' class="wide"' : '') + '><div class="label">' + title + '</div>' + body + '</section>'; }
@@ -568,7 +568,7 @@ body.techview .step-top { grid-template-columns: 1fr; }
   var sev = 'all';
   function drawFindings() {
     var shown = findings.filter(function (f) { return sev === 'all' || f.severity === sev; });
-    fbox.innerHTML = '<div class="phase-head" id="findings-h" style="border-top-color:var(--bad)"><div class="k">Before the storyboard: what the walk turned up</div><div class="fhead"><h2>Findings</h2><div class="seg" role="group" aria-label="Severity">' +
+    fbox.innerHTML = '<div class="phase-head" id="findings-h" style="border-top-color:var(--bad)"><div class="k">Noted while preparing this guide</div><div class="fhead"><h2>Known Issues and Improvements</h2><div class="seg" role="group" aria-label="Severity">' +
       ['all', 'high', 'medium', 'low'].map(function (k) { return '<button type="button" data-sev="' + k + '" aria-pressed="' + (sev === k) + '">' + (k === 'all' ? 'All ' + findings.length : k.charAt(0).toUpperCase() + k.slice(1) + ' ' + count(findings, 'severity', k)) + '</button>'; }).join('') + '</div></div>' +
       '<p>' + esc(DATA.meta.findingsNote) + '</p></div>' +
       (shown.length ? shown.map(function (f) {

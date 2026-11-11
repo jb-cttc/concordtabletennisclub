@@ -1,9 +1,9 @@
 {
  "meta": {
   "commit": "acdfc2bb318df62b16d1a2fab63bfe238d5f632f",
-  "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and the code underneath.",
-  "source": "Read from the repository at main `795ebbd` (Nov 11, 2026): the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
-  "findingsNote": "Problems found while walking the night through the code, most severe first. Each says how it was confirmed."
+  "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
+  "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
+  "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
  },
  "map": {
   "nodes": [
@@ -150,7 +150,7 @@
   {
    "short": "Volunteers",
    "phase": "staff",
-   "title": "Days ahead: making sure someone opens and closes",
+   "title": "Volunteer Scheduling for Opening and Closing",
    "intro": "The club only opens if volunteers do: a desk organizer with the key, a money collector, table setup, and at the end a lock-up and people to put tables away. The volunteer app on the website lets players pick those shifts weeks ahead, confirms them by email, and the desk shows tonight's crew when they arrive.",
    "steps": [
     {
@@ -627,9 +627,9 @@
    ]
   },
   {
-   "short": "Texting ahead",
+   "short": "Advance texts",
    "phase": "text",
-   "title": "The day of: players text ahead, and the Tonight page",
+   "title": "Advance Texts and the Tonight Page",
    "intro": "On a round robin day players text the club's Google Voice number to say they are coming. One mail reader in the desk collects every text; the desk links each to a player and can answer automatically; the public Tonight page shows how many are coming at each rating level; the volunteer and coaching apps read the same texts for their own commands.",
    "steps": [
     {
@@ -1056,7 +1056,7 @@
   {
    "short": "Coaching",
    "phase": "coach",
-   "title": "Coaching: lessons on Friday and Saturday",
+   "title": "Friday and Saturday Coaching Lessons",
    "intro": "Coaches offer lesson times on Friday evenings and Saturday afternoons; students book them on the website. A confirmed lesson means a player at a table with a coach during a club night: they come through the same door, pay the same desk, and need a table kept free.",
    "steps": [
     {
@@ -1390,7 +1390,7 @@
   {
    "short": "Opening",
    "phase": "open",
-   "title": "Before play: opening the desk",
+   "title": "Opening the Round Robin Desk",
    "intro": "A volunteer arrives, opens the desk on the main laptop, and checks it is on tonight's date with the right players and last week's winners. Everything later rests on this: the wrong date or a stale page means every sign-in lands on the wrong night.",
    "steps": [
     {
@@ -1882,9 +1882,9 @@
    ]
   },
   {
-   "short": "Sign-ins",
+   "short": "Sign-in",
    "phase": "signin",
-   "title": "Sign-ins: building tonight's roster and groups",
+   "title": "Player Sign-In and Group Formation",
    "intro": "Players arrive, pay, and are signed in from the directory, from Voice texts, or as new players. Until the sheets print, the desk keeps the groups as Rebuild by rating would make them; after someone moves a player by hand, it stops reshuffling.",
    "steps": [
     {
@@ -2303,7 +2303,7 @@
   {
    "short": "Printing",
    "phase": "print",
-   "title": "Printing the sheets, and every change after",
+   "title": "Printing Score Sheets and Later Changes",
    "intro": "Once groups are set, the sheets are printed and handed to each table. From that moment the paper is the source of truth at the tables: nobody already printed should change table, and the order of matches on screen must match the paper.",
    "steps": [
     {
@@ -2730,7 +2730,7 @@
   {
    "short": "Projector",
    "phase": "board",
-   "title": "The Player board on the projector",
+   "title": "The Projector Display",
    "intro": "The projector shows every group to the room: who is where before printing, then live standings. It must stay readable from across the gym, never cover a name, and keep up with the main desk.",
    "steps": [
     {
@@ -3062,9 +3062,9 @@
    ]
   },
   {
-   "short": "Scores & results",
+   "short": "Results",
    "phase": "finish",
-   "title": "Scores, finalizing and publishing",
+   "title": "Score Entry, Ratings and Publishing",
    "intro": "Score sheets come back from the tables; the desk enters them, checks the standings, finalizes the night (which changes ratings), and the results publish to the club site and go out by email.",
    "steps": [
     {
@@ -3433,9 +3433,9 @@
    ]
   },
   {
-   "short": "Staying saved",
+   "short": "Reliability",
    "phase": "save",
-   "title": "Staying saved: wifi, two devices, recovery",
+   "title": "Saving, Connection Loss and Recovery",
    "intro": "Underneath everything, every change goes to the laptop first and to Google a moment later. The desk has to survive slow Google, dropped wifi, two devices editing, and a reload at the wrong moment, and say plainly what state it is in.",
    "steps": [
     {
@@ -3703,9 +3703,9 @@
    ]
   },
   {
-   "short": "Behind the night",
+   "short": "Operations",
    "phase": "ops",
-   "title": "Behind the night: timers, limits and releases",
+   "title": "Scheduled Jobs, Google Limits and Updates",
    "intro": "Things nobody at the desk sees until they break: the timers that read texts, sync ratings and publish; the club account's shared Google limits; and how new code reaches each open device.",
    "steps": [
     {

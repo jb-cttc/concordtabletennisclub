@@ -1,4 +1,6 @@
-# Round Robin Night Storyboard
+# The storyboard (Club Night Guide)
+
+On the site the page is titled **Club Night Guide**; in the repository and to agents it is the storyboard.
 
 A night at the club, step by step: the volunteers who sign up to open and
 close, players texting ahead and the Tonight page, coaching lessons, then the

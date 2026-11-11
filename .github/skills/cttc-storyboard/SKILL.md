@@ -1,6 +1,6 @@
 ---
 name: cttc-storyboard
-description: "Keep the Round Robin Night Storyboard (docs/storyboard/, storyboard.html) true to the code: find the steps a change touches, check what must stay true, update steps, invariants, tests and findings, add a part for a new app, and rebuild. Use for any change to how a club night works (the desk, the Player board, the volunteer, coaching, turnout or subscribe apps, site pages players use on a night), when adding a new app or feature, when fixing a storyboard finding, and before reporting a desk change as working or checking the desk before a night."
+description: "Keep the storyboard (the site's Club Night Guide: docs/storyboard/, storyboard.html) true to the code: find the steps a change touches, check what must stay true, update steps, invariants, tests and findings, add a part for a new app, and rebuild. Use for any change to how a club night works (the desk, the Player board, the volunteer, coaching, turnout or subscribe apps, site pages players use on a night), when adding a new app or feature, when fixing a storyboard finding, and before reporting a desk change as working or checking the desk before a night."
 metadata:
   version: "1.0.0"
 ---

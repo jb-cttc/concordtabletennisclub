@@ -9,7 +9,7 @@ const SA = 'staffing-app/Code.js', CA = 'coaching-app/Code.js', SF = 'docs/staff
 
 const phases = [
 {
-  phase: 'staff', short: 'Volunteers', title: 'Days ahead: making sure someone opens and closes',
+  phase: 'staff', short: 'Volunteers', title: 'Volunteer Scheduling for Opening and Closing',
   intro: 'The club only opens if volunteers do: a desk organizer with the key, a money collector, table setup, and at the end a lock-up and people to put tables away. The volunteer app on the website lets players pick those shifts weeks ahead, confirms them by email, and the desk shows tonight\'s crew when they arrive.',
   steps: [
     { id: 'staff-1-pick', title: 'A player picks nights to open or close', who: 'Player', when: 'Days or weeks ahead',
@@ -93,7 +93,7 @@ const phases = [
   ]
 },
 {
-  phase: 'text', short: 'Texting ahead', title: 'The day of: players text ahead, and the Tonight page',
+  phase: 'text', short: 'Advance texts', title: 'Advance Texts and the Tonight Page',
   intro: 'On a round robin day players text the club\'s Google Voice number to say they are coming. One mail reader in the desk collects every text; the desk links each to a player and can answer automatically; the public Tonight page shows how many are coming at each rating level; the volunteer and coaching apps read the same texts for their own commands.',
   steps: [
     { id: 'text-1-send', title: 'A player texts "I\'ll join CTTC\'s RR today"', who: 'Player', when: 'Round robin day, from morning',
@@ -164,7 +164,7 @@ const phases = [
   ]
 },
 {
-  phase: 'coach', short: 'Coaching', title: 'Coaching: lessons on Friday and Saturday',
+  phase: 'coach', short: 'Coaching', title: 'Friday and Saturday Coaching Lessons',
   intro: 'Coaches offer lesson times on Friday evenings and Saturday afternoons; students book them on the website. A confirmed lesson means a player at a table with a coach during a club night: they come through the same door, pay the same desk, and need a table kept free.',
   steps: [
     { id: 'coach-1-offer', title: 'A coach offers times', who: 'Owner', when: 'Up to 28 days ahead',

@@ -11,7 +11,7 @@ const PB = 'apps-script/check-player-board.cjs';
 
 const phases = [
 {
-  phase: 'open', title: 'Before play: opening the desk',
+  phase: 'open', title: 'Opening the Round Robin Desk',
   intro: 'A volunteer arrives, opens the desk on the main laptop, and checks it is on tonight\'s date with the right players and last week\'s winners. Everything later rests on this: the wrong date or a stale page means every sign-in lands on the wrong night.',
   steps: [
     { id: 'open-1-reach', title: 'Open the desk from the club site', who: 'Desk volunteer', when: 'About 6:30 PM',
@@ -102,7 +102,7 @@ const phases = [
   ]
 },
 {
-  phase: 'signin', title: 'Sign-ins: building tonight\'s roster and groups',
+  phase: 'signin', title: 'Player Sign-In and Group Formation',
   intro: 'Players arrive, pay, and are signed in from the directory, from Voice texts, or as new players. Until the sheets print, the desk keeps the groups as Rebuild by rating would make them; after someone moves a player by hand, it stops reshuffling.',
   steps: [
     { id: 'signin-1-rr', title: 'Sign a player in to the round robin', who: 'Desk volunteer', when: 'From about 6:45 PM',
@@ -184,7 +184,7 @@ const phases = [
   findings: []
 },
 {
-  phase: 'print', title: 'Printing the sheets, and every change after',
+  phase: 'print', title: 'Printing Score Sheets and Later Changes',
   intro: 'Once groups are set, the sheets are printed and handed to each table. From that moment the paper is the source of truth at the tables: nobody already printed should change table, and the order of matches on screen must match the paper.',
   steps: [
     { id: 'print-1-print', title: 'Print the round robin sheets', who: 'Desk volunteer', when: 'About 7:10 PM',
@@ -261,7 +261,7 @@ const phases = [
   ]
 },
 {
-  phase: 'board', title: 'The Player board on the projector',
+  phase: 'board', title: 'The Projector Display',
   intro: 'The projector shows every group to the room: who is where before printing, then live standings. It must stay readable from across the gym, never cover a name, and keep up with the main desk.',
   steps: [
     { id: 'board-1-layouts', title: 'Pick a layout: Wall, Carousel or Spotlight', who: 'Owner', when: 'Before play, or from the main desk',
@@ -326,7 +326,7 @@ const phases = [
   ]
 },
 {
-  phase: 'finish', title: 'Scores, finalizing and publishing',
+  phase: 'finish', title: 'Score Entry, Ratings and Publishing',
   intro: 'Score sheets come back from the tables; the desk enters them, checks the standings, finalizes the night (which changes ratings), and the results publish to the club site and go out by email.',
   steps: [
     { id: 'finish-1-score', title: 'Enter scores from the sheets', who: 'Desk volunteer', when: 'From about 7:30 PM',
@@ -396,7 +396,7 @@ const phases = [
   ]
 },
 {
-  phase: 'save', title: 'Staying saved: wifi, two devices, recovery',
+  phase: 'save', title: 'Saving, Connection Loss and Recovery',
   intro: 'Underneath everything, every change goes to the laptop first and to Google a moment later. The desk has to survive slow Google, dropped wifi, two devices editing, and a reload at the wrong moment, and say plainly what state it is in.',
   steps: [
     { id: 'save-1-normal', title: 'Every change saves by itself', who: 'Google (server)', when: 'All night',
@@ -441,7 +441,7 @@ const phases = [
   ]
 },
 {
-  phase: 'ops', title: 'Behind the night: timers, limits and releases',
+  phase: 'ops', title: 'Scheduled Jobs, Google Limits and Updates',
   intro: 'Things nobody at the desk sees until they break: the timers that read texts, sync ratings and publish; the club account\'s shared Google limits; and how new code reaches each open device.',
   steps: [
     { id: 'ops-1-timers', title: 'Timers work in the background', who: 'Timer', when: 'All day',
@@ -491,7 +491,7 @@ const phases = [
 const meta = {
   commit: 'acdfc2bb318df62b16d1a2fab63bfe238d5f632f',
   intro: 'A round robin night at the club, from opening the desk to results on the site: what each person does, what the screen shows, what can go wrong at each step, and the code underneath.',
-  source: 'Read from the repository at main `795ebbd` (Nov 11, 2026): the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
-  findingsNote: 'Problems found while walking the night through the code, most severe first. Each says how it was confirmed.'
+  source: 'Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
+  findingsNote: 'Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement.'
 };
 module.exports = { meta, phases };
