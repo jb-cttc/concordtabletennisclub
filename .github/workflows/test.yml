@@ -1,0 +1,39 @@
+name: Tests
+
+# The whole suite (npm test) on every pull request, so the person or session making a change runs only the checks its
+# test plan names (npm run test:plan, AGENTS.md "Size the checks to the change") and GitHub runs the rest. Offline:
+# no check reaches Google, the Sheets or any secret.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5.0.0
+        with:
+          # The storyboard check reads each reference at the commit it was written against.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the whole suite
+        run: npm test
