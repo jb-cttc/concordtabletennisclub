@@ -33,7 +33,7 @@ const phases = [
       caveats: ['Replies are read when the desk\'s mail reader wakes the volunteer app, within about 5 minutes by day.', 'A volunteer whose mobile is on file and who texted STAFF also gets the question by text (reply CONFIRM or RELEASE).'],
       exceptions: [
         X('The reply can\'t be read ("yes except when it rains")', 'Nothing changes; the volunteer is told once, with their nights and My nights link.', 'They use My nights, or the club uses **Correct a volunteer\'s answer** on the setup page.', 'handled', SF + ':237'),
-        X('The mail reader stops waking the app', 'Replies wait for the hourly sweep; the desk log records `app_wake_failed`.', 'Nothing urgent; confirmations arrive within the hour.', 'partial', OPS + ':421')],
+        X('The mail reader stops waking the app', 'Replies wait for the hourly sweep; the desk log records `app_wake_failed`.', 'Nothing urgent; confirmations arrive within the hour.', 'partial', OPS + ':423')],
       screen: { kind: 'email', status: 'Please confirm your CTTC volunteer nights', note: 'The confirm email listing each pick.' },
       tech: {
         entry: [E(SA, 3795, 'sweep', 'Hourly: expiries, retries, free spots, closures.'), E('apps-script/MailReader.js', 433, 'wakeApps_', 'Calls the staffing and coaching apps\' /exec when a text or a reply arrives.')],
@@ -70,7 +70,7 @@ const phases = [
       summary: 'Under **Tonight\'s volunteers** the desk lists everyone signed up to open or close tonight, with their roles. Each has **RR** and **Open** buttons, because volunteers are busy setting up and often forget to sign in. Free volunteers carry a gold **★** and their payment button reads **★ FREE**.',
       subtext: 'The desk only reads the volunteer app\'s Sheet. A volunteer is at the gym, not necessarily playing: they count on the Tonight page only once added to RR.',
       caveats: ['The section needs the owner-set script property `CTTC_STAFFING_DB_ID`; without it, it says it is not connected.'],
-      exceptions: [X('A volunteer\'s name is not an active directory player', 'The row says so.', 'Find them under Show archived players, or add them under Add a player.', 'handled', OPS + ':481')],
+      exceptions: [X('A volunteer\'s name is not an active directory player', 'The row says so.', 'Find them under Show archived players, or add them under Add a player.', 'handled', OPS + ':483')],
       screen: { kind: 'desk', highlight: ['volunteers'], note: 'Tonight\'s volunteers with RR and Open beside each name.' },
       tech: {
         entry: [E('apps-script/Volunteers.js', 142, 'listVolunteers', 'Reads Signups for the date by header name; never emails or phones.'), E('apps-script/Volunteers.js', 17, 'staffingSignups_', 'Opens the staffing Sheet by CTTC_STAFFING_DB_ID.')],
@@ -150,17 +150,17 @@ const phases = [
       summary: 'The desk lists every text received today, grouped by sender, with likely directory matches. **✓** means the text says they are coming and the contact name is exactly one player; **?** means look first. **Add all ✓** signs in every ✓ sender not already placed; each sender also has **RR**.',
       subtext: 'From 6:45 to 7:30 PM (2:45 to 3:30 PM Saturday) the list refreshes itself every minute and highlights anyone new.',
       caveats: ['Texts from coaches and students with a lesson today are left out; they are under Open Play / Coaching.', 'Signing someone in sends them **Confirmed.** unless the automatic answer already went.'],
-      exceptions: [X('The same person texts and also signs in at the desk', 'They are placed once; the RR button gives way to In RR.', 'Nothing to do.', 'handled', OPS + ':454')],
+      exceptions: [X('The same person texts and also signs in at the desk', 'They are placed once; the RR button gives way to In RR.', 'Nothing to do.', 'handled', OPS + ':456')],
       screen: { kind: 'desk', highlight: ['voice'], note: 'Voice signups with ✓ and ? marks and Add all ✓.' },
       tech: {
-        entry: [E('apps-script/VoiceSuggestions.js', 109, 'voiceSenders_', 'Texts for the date, by sender.'), E('apps-script/VoiceSuggestions.js', 129, 'voiceMatcher_', 'Contact name to player, through Aliases and name links.'), E('apps-script/Index.html', 4105, 'POLL_DAYS', 'When the list refreshes by itself.')],
+        entry: [E('apps-script/VoiceSuggestions.js', 109, 'voiceSenders_', 'Texts for the date, by sender.'), E('apps-script/VoiceSuggestions.js', 129, 'voiceMatcher_', 'Contact name to player, through Aliases and name links.'), E('apps-script/Index.html', 4124, 'POLL_DAYS', 'When the list refreshes by itself.')],
         state: [], writes: ['Confirmed. reply'], reads: ['VoiceTexts'],
         invariants: ['Add all never adds a ? sender.'], limits: [],
         tests: [T('apps-script/check-voice-service.cjs', '', 'Matching and marks.')], untested: [], simulate: 'check-voice-service.cjs.' } }
   ],
   findings: [
-    { severity: 'low', kind: 'doc-mismatch', title: 'Two guides tell people to add an Aliases row in the Sheet', detail: 'The Tonight page guide ("Add an Aliases row in the desk Sheet") and the automatic answers section ("or add an Aliases row") send people to edit the Sheet by hand, against the club\'s rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.', evidence: [TF + ':200', OPS + ':526', 'apps-script/PlayerEdits.js:61'], confirmed: 'read docs and code', suggest: 'Change both lines to point to the directory pencil\'s Other names.' },
-    { severity: 'low', kind: 'fragile', title: 'The round robin schedule is copied in three places', detail: 'NIGHTS in turnout.js, VOICE_REPLY_DAYS in the desk\'s automatic answers and POLL_DAYS in the desk page each hold the days and sign-up times. The guide says to change all three together; nothing checks it. A new Friday round robin added to one would leave texts unanswered or the Tonight page on the wrong night.', evidence: ['turnout.js:30', 'apps-script/VoiceAutoReply.js:24', 'apps-script/Index.html:4105'], confirmed: 'read code only', suggest: 'One shared schedule file, or a check comparing the three.' }
+    { severity: 'low', kind: 'doc-mismatch', title: 'Two guides tell people to add an Aliases row in the Sheet', detail: 'The Tonight page guide ("Add an Aliases row in the desk Sheet") and the automatic answers section ("or add an Aliases row") send people to edit the Sheet by hand, against the club\'s rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.', evidence: [TF + ':200', OPS + ':528', 'apps-script/PlayerEdits.js:61'], confirmed: 'read docs and code', suggest: 'Change both lines to point to the directory pencil\'s Other names.' },
+    { severity: 'low', kind: 'fragile', title: 'The round robin schedule is copied in three places', detail: 'NIGHTS in turnout.js, VOICE_REPLY_DAYS in the desk\'s automatic answers and POLL_DAYS in the desk page each hold the days and sign-up times. The guide says to change all three together; nothing checks it. A new Friday round robin added to one would leave texts unanswered or the Tonight page on the wrong night.', evidence: ['turnout.js:30', 'apps-script/VoiceAutoReply.js:24', 'apps-script/Index.html:4124'], confirmed: 'read code only', suggest: 'One shared schedule file, or a check comparing the three.' }
   ]
 },
 {
@@ -196,11 +196,11 @@ const phases = [
       subtext: 'Coaching students are club players at a club night; they pay the night\'s fee at the desk and their texts are left out of Voice signups.',
       caveats: ['Needs the owner-set script property `CTTC_COACHING_DB_ID`; without it the list is simply empty.', 'The desk shows the coach and the time, not the table number the lesson was booked on.'],
       exceptions: [
-        X('A student\'s name is not in the directory', 'The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**', 'Add them under Add a player.', 'handled', 'apps-script/Index.html:3923'),
-        X('The coaching Sheet cannot be read', 'The status bar is overwritten with **Coaching lessons unavailable:** and the error.', 'Reload; check with the owner if it persists.', 'partial', 'apps-script/Index.html:3956')],
+        X('A student\'s name is not in the directory', 'The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**', 'Add them under Add a player.', 'handled', 'apps-script/Index.html:3942'),
+        X('The coaching Sheet cannot be read', 'The status bar is overwritten with **Coaching lessons unavailable:** and the error.', 'Reload; check with the owner if it persists.', 'partial', 'apps-script/Index.html:3975')],
       screen: { kind: 'desk', highlight: ['open-play'], note: 'Open Play / Coaching with the night\'s confirmed lessons.' },
       tech: {
-        entry: [E('apps-script/Coaching.js', 3, 'coachingLessons_', 'Confirmed Requests for the date, with coach and student; reads by CTTC_COACHING_DB_ID.'), E('apps-script/Coaching.js', 44, 'getCoachingParticipants', 'Matches each name to one directory player.'), E('apps-script/Index.html', 3903, 'renderOpen', 'Lists lessons first, then players added with Open.')],
+        entry: [E('apps-script/Coaching.js', 3, 'coachingLessons_', 'Confirmed Requests for the date, with coach and student; reads by CTTC_COACHING_DB_ID.'), E('apps-script/Coaching.js', 44, 'getCoachingParticipants', 'Matches each name to one directory player.'), E('apps-script/Index.html', 3922, 'renderOpen', 'Lists lessons first, then players added with Open.')],
         state: ['coaching (per page)'], writes: ['None (read-only).'], reads: ['Coaching Sheet: Requests, Coaches, Students'],
         invariants: ['Every lesson confirmed for tonight appears at the desk.', 'The desk never writes to the coaching Sheet.'],
         limits: [], tests: [T('apps-script/check-open-play.cjs', '', 'Open Play and the coaching list.')],
@@ -219,7 +219,7 @@ const phases = [
   ],
   findings: [
     { severity: 'medium', kind: 'design-gap', title: 'The desk does not show which table a lesson is booked on', detail: 'A lesson is booked on table 1, 2 or 3 (Availability.table), but the desk\'s lesson rows carry only the coach and time. On a Saturday the round robin pilot and lessons share the 3–6 PM window: the organizer can print groups onto a table a coach expects at 3:30.', evidence: ['apps-script/Coaching.js:29', CA + ':113'], confirmed: 'read code only', suggest: 'Carry the table into coachingLessons_ and show "Table 2, 3:30–4:30 PM" on the desk; on Saturdays, note lesson tables beside Print RR Sheets.' },
-    { severity: 'low', kind: 'fragile', title: '"Coaching lessons unavailable" writes over the status bar', detail: 'If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.', evidence: ['apps-script/Index.html:3956'], confirmed: 'read code only', suggest: 'Use the page\'s setStatus, or show it inside the Open Play / Coaching section.' }
+    { severity: 'low', kind: 'fragile', title: '"Coaching lessons unavailable" writes over the status bar', detail: 'If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.', evidence: ['apps-script/Index.html:3975'], confirmed: 'read code only', suggest: 'Use the page\'s setStatus, or show it inside the Open Play / Coaching section.' }
   ]
 }
 ];

@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "795ebbdcc7fe4f1003aa3134f6f300a6b26db61c",
+  "commit": "acdfc2bb318df62b16d1a2fab63bfe238d5f632f",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and the code underneath.",
   "source": "Read from the repository at main `795ebbd` (Nov 11, 2026): the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Problems found while walking the night through the code, most severe first. Each says how it was confirmed."
@@ -266,7 +266,7 @@
        "happens": "Replies wait for the hourly sweep; the desk log records `app_wake_failed`.",
        "handling": "Nothing urgent; confirmations arrive within the hour.",
        "status": "partial",
-       "evidence": "docs/round-robin-operations.md:421"
+       "evidence": "docs/round-robin-operations.md:423"
       }
      ],
      "screen": {
@@ -498,7 +498,7 @@
        "happens": "The row says so.",
        "handling": "Find them under Show archived players, or add them under Add a player.",
        "status": "handled",
-       "evidence": "docs/round-robin-operations.md:481"
+       "evidence": "docs/round-robin-operations.md:483"
       }
      ],
      "screen": {
@@ -970,7 +970,7 @@
        "happens": "They are placed once; the RR button gives way to In RR.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "docs/round-robin-operations.md:454"
+       "evidence": "docs/round-robin-operations.md:456"
       }
      ],
      "screen": {
@@ -996,7 +996,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4105,
+        "line": 4124,
         "symbol": "POLL_DAYS",
         "note": "When the list refreshes by itself."
        }
@@ -1032,7 +1032,7 @@
      "detail": "The Tonight page guide (\"Add an Aliases row in the desk Sheet\") and the automatic answers section (\"or add an Aliases row\") send people to edit the Sheet by hand, against the club's rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.",
      "evidence": [
       "docs/turnout-flow.md:200",
-      "docs/round-robin-operations.md:526",
+      "docs/round-robin-operations.md:528",
       "apps-script/PlayerEdits.js:61"
      ],
      "confirmed": "read docs and code",
@@ -1046,7 +1046,7 @@
      "evidence": [
       "turnout.js:30",
       "apps-script/VoiceAutoReply.js:24",
-      "apps-script/Index.html:4105"
+      "apps-script/Index.html:4124"
      ],
      "confirmed": "read code only",
      "suggest": "One shared schedule file, or a check comparing the three."
@@ -1240,14 +1240,14 @@
        "happens": "The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**",
        "handling": "Add them under Add a player.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:3923"
+       "evidence": "apps-script/Index.html:3942"
       },
       {
        "when": "The coaching Sheet cannot be read",
        "happens": "The status bar is overwritten with **Coaching lessons unavailable:** and the error.",
        "handling": "Reload; check with the owner if it persists.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:3956"
+       "evidence": "apps-script/Index.html:3975"
       }
      ],
      "screen": {
@@ -1273,7 +1273,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 3903,
+        "line": 3922,
         "symbol": "renderOpen",
         "note": "Lists lessons first, then players added with Open."
        }
@@ -1380,7 +1380,7 @@
      "title": "\"Coaching lessons unavailable\" writes over the status bar",
      "detail": "If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.",
      "evidence": [
-      "apps-script/Index.html:3956"
+      "apps-script/Index.html:3975"
      ],
      "confirmed": "read code only",
      "suggest": "Use the page's setStatus, or show it inside the Open Play / Coaching section."
@@ -1450,7 +1450,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2464,
+        "line": 2483,
         "symbol": "DESK_BUILD",
         "note": "The page keeps its own fingerprint for Refresh projector."
        }
@@ -1531,7 +1531,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1003,
+        "line": 1020,
         "symbol": "(club date)",
         "note": "Elsewhere the page uses Intl with timeZone America/Los_Angeles; the two can differ on a laptop not set to Pacific."
        },
@@ -1595,7 +1595,7 @@
        "happens": "The line reads **Promotion history unavailable:** with the error. Ratings stay as the desk last had them; the next load tries again.",
        "handling": "Carry on: groups build by rating without promotions. Move last week's winners up by hand with the arrows if needed.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1383"
+       "evidence": "apps-script/Index.html:1400"
       },
       {
        "when": "This is the first time this weekday has been played",
@@ -1609,7 +1609,7 @@
        "happens": "Winners are matched by exact display name, so a renamed winner is not promoted.",
        "handling": "Move them up by hand. A desk control to link old and new names would fix it for good.",
        "status": "gap",
-       "evidence": "apps-script/Index.html:1498"
+       "evidence": "apps-script/Index.html:1515"
       }
      ],
      "screen": {
@@ -1625,7 +1625,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1505,
+        "line": 1522,
         "symbol": "load",
         "note": "Starts fetchHistory in parallel, calls getAppState, then setGroups."
        },
@@ -1637,13 +1637,13 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1452,
+        "line": 1469,
         "symbol": "syncRatings",
         "note": "Calls syncRatingsFromPublicSite once per page; failures are silent."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1473,
+        "line": 1490,
         "symbol": "fetchHistory",
         "note": "sessions.json then session-details-YYYY.json from the site."
        },
@@ -1655,9 +1655,9 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1498,
+        "line": 1501,
         "symbol": "loadHistory",
-        "note": "Group winners by name: byName[name]."
+        "note": "Group winners by name: byName[name] (line 1515)."
        }
       ],
       "state": [
@@ -1713,14 +1713,14 @@
        "happens": "**The device copy contains players no longer in the directory. Download it for review.**",
        "handling": "Download it and keep Google's version; re-add anyone missing by hand.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:926"
+       "evidence": "apps-script/Index.html:927"
       },
       {
        "when": "Nobody notices the notice",
        "happens": "Edits are blocked (pendingRecovery) until a choice is made, so the desk does not quietly fork.",
        "handling": "Answer it before signing anyone in.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:880"
+       "evidence": "apps-script/Index.html:881"
       }
      ],
      "screen": {
@@ -1736,7 +1736,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 880,
+        "line": 881,
         "symbol": "offerDeviceDraft",
         "note": "Compares the device draft with the loaded session."
        },
@@ -1788,7 +1788,7 @@
        "happens": "**The browser blocked the Player board window. Allow pop-ups for this page, then click Player board again.**",
        "handling": "Allow pop-ups for the desk in the browser's address bar.",
        "status": "handled",
-       "evidence": "apps-script/PlayerBoard.html:1776"
+       "evidence": "apps-script/PlayerBoard.html:1787"
       },
       {
        "when": "The projector laptop opened before the main desk started the night",
@@ -1809,13 +1809,13 @@
       "entry": [
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1776,
+        "line": 1787,
         "symbol": "open",
         "note": "Opens or reuses the named window and writes the board page when its fingerprint differs."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2479,
+        "line": 2498,
         "symbol": "startFollow",
         "note": "Follow mode on the projector's desk."
        }
@@ -1863,7 +1863,7 @@
      "detail": "today() uses the browser's own time zone while the rest of the page uses Pacific time, and nothing moves the picker at midnight. A desk left open from Monday and used on Wednesday adds Wednesday's players to Monday's night if Monday was not finalized.",
      "evidence": [
       "apps-script/Index.html:568",
-      "apps-script/Index.html:1003"
+      "apps-script/Index.html:1020"
      ],
      "confirmed": "read code only",
      "suggest": "Default the picker with the Pacific formatter at line 1003, and warn when loadedDate is not today on the first sign-in of a page loaded more than 12 hours ago."
@@ -1874,7 +1874,7 @@
      "title": "Promotions match last week's winners by display name",
      "detail": "If last week's Group 3 winner \"Dev M.\" is renamed \"Dev Malhotra\" in the directory, the promotion silently does not happen.",
      "evidence": [
-      "apps-script/Index.html:1498"
+      "apps-script/Index.html:1515"
      ],
      "confirmed": "read code only",
      "suggest": "Publish player ids with session details and match by id, falling back to name and aliases."
@@ -1926,13 +1926,13 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1123,
+        "line": 1140,
         "symbol": "addToRoster",
         "note": "Refuses while locked, pending recovery or following."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1091,
+        "line": 1108,
         "symbol": "organize",
         "note": "O.organize then O.applyPromotions, then setGroups."
        },
@@ -1956,7 +1956,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1053,
+        "line": 1070,
         "symbol": "keepArrangement",
         "note": "arrangedByHand() or playAfterPrint() switches to insert."
        }
@@ -2249,7 +2249,7 @@
        "happens": "A confirm names what would be lost (\"Manual moves are replaced; promotions are reapplied.\").",
        "handling": "Cancel it.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:1057"
+       "evidence": "apps-script/Index.html:1074"
       }
      ],
      "screen": {
@@ -2263,13 +2263,13 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1165,
+        "line": 1182,
         "symbol": "move",
         "note": "Moves within groupArrays and records movedUp."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1057,
+        "line": 1074,
         "symbol": "rebuildQuestion",
         "note": "The confirm text before a rebuild."
        }
@@ -2323,7 +2323,7 @@
        "happens": "The print waits for a save; offline, the device copy is used.",
        "handling": "Reconnect and print again if the sheets must carry records.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1956"
+       "evidence": "apps-script/Index.html:1975"
       },
       {
        "when": "The print dialog is cancelled",
@@ -2357,13 +2357,13 @@
        },
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1798,
+        "line": 1809,
         "symbol": "printed",
         "note": "Records { at, groups, first, order } for tonight."
        },
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1868,
+        "line": 1879,
         "symbol": "sheetOrder",
         "note": "For each group, pairs of places in the printed lineup."
        }
@@ -2420,7 +2420,7 @@
        "happens": "The mark waits in the outbox and is sent when the connection returns.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "apps-script/PlayerBoard.html:1831"
+       "evidence": "apps-script/PlayerBoard.html:1842"
       }
      ],
      "screen": {
@@ -2437,7 +2437,7 @@
       "entry": [
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1831,
+        "line": 1842,
         "symbol": "fromGoogle",
         "note": "Applies Google's mark unless this device's own change is newer or still in the outbox."
        },
@@ -2524,7 +2524,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1103,
+        "line": 1120,
         "symbol": "buildMatches",
         "note": "Uses keptPairs whenever a print mark exists."
        }
@@ -2563,7 +2563,7 @@
      "title": "A player leaves after printing",
      "who": "Desk volunteer",
      "when": "During play",
-     "summary": "Click **×** on their row. Only their matches leave the group's list; every other match stays where it is on the paper, with its score. Nobody else changes table.",
+     "summary": "Click **×** on their row. Only their matches leave the group's list; every other match stays where it is on the paper, with its score. Nobody else changes table, and every group keeps the number on its sheet (\"Table #\").",
      "subtext": "Before Monday's fix this rebuilt the whole order and the screen stopped matching the paper.",
      "caveats": [
       "Strike the player's matches through on the paper sheet."
@@ -2571,17 +2571,17 @@
      "exceptions": [
       {
        "when": "Everyone in one group leaves",
-       "happens": "The empty group disappears and every later group is renumbered: the desk's Group 2 is now the paper's Table #3, and Print labels says **Group 2 changed since the sheets last printed: that is the sheet to replace.**",
-       "handling": "Today: enter Table #3's scores under the desk's Group 2. It should keep the printed group numbers (see findings).",
-       "status": "gap",
-       "evidence": "apps-script/Index.html:958"
+       "happens": "That group goes; every other group keeps its printed number, so Table #3's sheet is still Group 3 on the desk, the board and the results. No sheet is named to replace. (Before Nov 11, 2026 the later groups were renumbered.)",
+       "handling": "Nothing to do; the table is free for open play.",
+       "status": "handled",
+       "evidence": "apps-script/Index.html:964"
       },
       {
        "when": "A player with scores is removed",
        "happens": "Their matches and scores are dropped from the night.",
        "handling": "Use a forfeit instead if the results should count.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1147"
+       "evidence": "apps-script/Index.html:1164"
       }
      ],
      "screen": {
@@ -2596,33 +2596,39 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1147,
+        "line": 1164,
         "symbol": "removeFromRoster",
         "note": "After print: setGroups with the player filtered out (no reorganize)."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 958,
+        "line": 964,
         "symbol": "setGroups",
-        "note": "Filters empty groups and renumbers index + 1."
+        "note": "With KEEP_NUMBERS after the print, each group keeps its number and an emptied group goes; numbers from Google, device copies and merges are kept too. Before the print, groups are numbered 1, 2, 3."
        },
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1251,
+        "line": 1254,
+        "symbol": "groupsByNumber",
+        "note": "Group N at index N - 1, [] for a gap: how the print mark records groups."
+       },
+       {
+        "file": "apps-script/PlayerBoard.html",
+        "line": 1261,
         "symbol": "changedGroups",
-        "note": "Compares groups to the mark by index."
+        "note": "Compares each group with the printed sheet of the same number; a gone group has no sheet to replace."
        }
       ],
       "state": [
-       "state.groups",
+       "state.groups (groupNumber can skip one after the print)",
        "state.matches"
       ],
       "writes": [
-       "autosave"
+       "autosave (SessionPlayers.group_number keeps the printed number)"
       ],
       "reads": [],
       "invariants": [
-       "After print, a group keeps its printed number for the rest of the night.",
+       "After print, a group keeps its printed number for the rest of the night, on every device and after reload.",
        "Removing a player removes only matches that include them."
       ],
       "limits": [],
@@ -2631,12 +2637,15 @@
         "file": "apps-script/check-player-board.cjs",
         "case": "playOrderAfterPrint",
         "covers": "Removals keep the printed order and scores."
+       },
+       {
+        "file": "apps-script/check-player-board.cjs",
+        "case": "groupEmptiedAfterPrint",
+        "covers": "An emptied group keeps every other number: desk, scores, Google, another device, Clear labels; no sheet named to replace."
        }
       ],
-      "untested": [
-       "A whole group emptied after print (renumbering)."
-      ],
-      "simulate": "docs/storyboard/repro/empty-group.cjs: print 3 groups of 6, remove all of Group 2; observed groups 1:6 2:6 and printNote naming Group 2."
+      "untested": [],
+      "simulate": "`node docs/storyboard/repro/empty-group.cjs` prints FIXED: groups stay 1 and 3 after Group 2 empties."
      }
     },
     {
@@ -2670,25 +2679,25 @@
       "entry": [
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1911,
+        "line": 1922,
         "symbol": "labels",
         "note": "Late and updated, or null."
        },
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1921,
+        "line": 1932,
         "symbol": "keepAsPrinted",
         "note": "Rewrites the mark with the current groups and order."
        },
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1930,
+        "line": 1941,
         "symbol": "forgetPrint",
         "note": "Shares { undone: true }."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1272,
+        "line": 1289,
         "symbol": "renderPrintLabels",
         "note": "Shows the note only while a label exists."
        }
@@ -2716,21 +2725,7 @@
      }
     }
    ],
-   "findings": [
-    {
-     "severity": "high",
-     "kind": "bug",
-     "title": "If a whole group leaves after printing, later groups are renumbered",
-     "detail": "Three tables are printed. The four players at Table #2 all go home. The desk now calls Table #3's players \"Group 2\", its scoring section says Group 2, and Print labels tells the volunteer \"Group 2 changed since the sheets last printed: that is the sheet to replace\" when no sheet needs replacing. Scores from the sheet marked Table #3 must be typed under Group 2, and the group's number in the results changes.",
-     "evidence": [
-      "apps-script/Index.html:958",
-      "apps-script/PlayerBoard.html:1251",
-      "apps-script/Print.html:249"
-     ],
-     "confirmed": "reproduced with simulator: 3 groups of 6, printed, all of Group 2 removed; groups became 1:6 2:6, a Group 3 player was in Group 2, labels() returned updated: [2] (docs/storyboard/repro/empty-group.cjs).",
-     "suggest": "After print, keep empty groups as placeholders (or keep printed group numbers) instead of renumbering; add a playOrderAfterPrint case that empties a middle group."
-    }
-   ]
+   "findings": []
   },
   {
    "short": "Projector",
@@ -2923,7 +2918,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2501,
+        "line": 2520,
         "symbol": "followCheck",
         "note": "Reads getDeskStamps, then only the changed areas."
        },
@@ -2989,7 +2984,7 @@
        "happens": "Older pages keep running until reloaded and may not carry the new field when they save.",
        "handling": "Reload every device right after a release.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:2464"
+       "evidence": "apps-script/Index.html:2483"
       }
      ],
      "screen": {
@@ -3010,13 +3005,13 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2464,
+        "line": 2483,
         "symbol": "DESK_BUILD",
         "note": "Compared with refresh.build."
        },
        {
         "file": "apps-script/PlayerBoard.html",
-        "line": 1742,
+        "line": 1753,
         "symbol": "VERSION",
         "note": "Fingerprint of the board page; open() rewrites a window with another."
        }
@@ -3089,7 +3084,7 @@
        "happens": "Tap the right numbers on both lines; the last value wins.",
        "handling": "Watch the standings change as you enter.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:2102"
+       "evidence": "apps-script/Index.html:2121"
       },
       {
        "when": "A player did not play a match",
@@ -3110,13 +3105,13 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1356,
+        "line": 1373,
         "symbol": "data-score",
         "note": "Each ball carries the match's index in state.matches."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2102,
+        "line": 2121,
         "symbol": "(click handler)",
         "note": "Reads state.matches[Number(dataset.score)]."
        },
@@ -3178,7 +3173,7 @@
        "happens": "**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**",
        "handling": "Reconnect, wait for \"Changes saved to Google Sheets\", then finalize.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:3319"
+       "evidence": "apps-script/Index.html:3338"
       },
       {
        "when": "Finalize stopped partway (Google timed out)",
@@ -3219,7 +3214,7 @@
        },
        {
         "file": "apps-script/SessionService.js",
-        "line": 719,
+        "line": 738,
         "symbol": "validateCompleteRoundRobin_",
         "note": "Every pair played or forfeited."
        },
@@ -3269,15 +3264,15 @@
      "summary": "The desk shows a countdown; after about 2 minutes (or at once with **Publish now**) Google starts the GitHub workflow, which reads the finalized night from the Sheet, commits the site's data files (\"Update session data\"), and the results and new ratings appear on the site. The results email follows.",
      "subtext": "The 2-minute hold is the window to catch a mistake and reopen before the world sees it.",
      "caveats": [
-      "Once the site lists the night, the lock button will not reopen it."
+      "Reopen during the 2-minute hold if a correction is needed. Once publishing starts, the lock refuses, and once the site lists the night it refuses for good."
      ],
      "exceptions": [
       {
-       "when": "The night is reopened while the workflow is already running",
-       "happens": "Allowed. The site gets the version the workflow read; after the correction is finalized, every later publication stops with **Previously published session missing or changed**.",
-       "handling": "Do not reopen once \"Publishing started\" shows. Wait for the site to list it and ask for a corrections fix.",
-       "status": "gap",
-       "evidence": "apps-script/SessionService.js:640"
+       "when": "Someone clicks the lock while publishing is running",
+       "happens": "Refused: **This night is being published to the club site right now, so it can no longer be reopened here...** (Before Nov 11, 2026 it was allowed, and every later publication then failed.)",
+       "handling": "Wait for the site to list the night; corrections after publication need a separate fix. If the run failed and the site never lists it, the lock works again 30 minutes after publishing started.",
+       "status": "handled",
+       "evidence": "apps-script/SessionService.js:632"
       },
       {
        "when": "The GitHub token is missing or expired",
@@ -3319,6 +3314,12 @@
         "line": 620,
         "symbol": "sessionOnSite_",
         "note": "Reopen guard: is it on the site yet?"
+       },
+       {
+        "file": "apps-script/SessionService.js",
+        "line": 632,
+        "symbol": "reopenBlockedByPublish_",
+        "note": "Reopen guard: is it being published (dispatched in the last 30 minutes, or past the site step)?"
        }
       ],
       "state": [
@@ -3331,7 +3332,7 @@
        "site data/sessions.json"
       ],
       "invariants": [
-       "A night cannot change after the workflow has read it.",
+       "A night cannot be reopened from the moment publishing starts.",
        "What the site shows equals the finalized rows."
       ],
       "limits": [
@@ -3346,13 +3347,11 @@
        {
         "file": "apps-script/check-reopen-session.cjs",
         "case": "",
-        "covers": "Reopen guards."
+        "covers": "Reopen guards, including each publishing state: refused while dispatched or emailing, allowed in the hold, after a failed run (30 min) and for another night."
        }
       ],
-      "untested": [
-       "Reopen while state is dispatched."
-      ],
-      "simulate": "docs/storyboard/repro/reopen-while-publishing.cjs."
+      "untested": [],
+      "simulate": "`node docs/storyboard/repro/reopen-while-publishing.cjs` prints FIXED: the reopen is refused while dispatched."
      }
     },
     {
@@ -3409,19 +3408,6 @@
     }
    ],
    "findings": [
-    {
-     "severity": "high",
-     "kind": "bug",
-     "title": "Reopening while publishing is running blocks every later publication",
-     "detail": "The volunteer finalizes, sees \"Publishing started\", spots a wrong score and clicks the lock. The reopen is allowed because the site does not list the night yet. The workflow publishes the first version; after the fix is finalized, the next publication fails with \"Previously published session missing or changed: 2026-10-14\", and so does every one after it until someone repairs the published files.",
-     "evidence": [
-      "apps-script/SessionService.js:640",
-      "apps-script/SessionService.js:620",
-      "apps-script/PublishTimer.js:191"
-     ],
-     "confirmed": "reproduced with simulator on main 795ebbd: reopen allowed while dispatched (revision 14→15), second buildPublication throws (docs/storyboard/repro/reopen-while-publishing.cjs).",
-     "suggest": "Refuse a reopen while CTTC_PENDING_PUBLISH is dispatched for this session, with a message to wait for the site; add a check-reopen-session case."
-    },
     {
      "severity": "medium",
      "kind": "bug",
@@ -3496,7 +3482,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1616,
+        "line": 1635,
         "symbol": "save",
         "note": "saveSessionDraft with the revision."
        },
@@ -3557,7 +3543,7 @@
        "happens": "**Checking Google Sheets before saving again...** then it either confirms or merges.",
        "handling": "Keep going.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:1726"
+       "evidence": "apps-script/Index.html:1745"
       }
      ],
      "screen": {
@@ -3572,19 +3558,19 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1704,
+        "line": 1723,
         "symbol": "withSaveTimeout",
         "note": "Slow-reply message."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1726,
+        "line": 1745,
         "symbol": "reconcile",
         "note": "Asks Google what it holds before sending again."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1719,
+        "line": 1738,
         "symbol": "contentKey",
         "note": "Compares groups and matches ignoring order."
        },
@@ -3661,13 +3647,13 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2415,
+        "line": 2434,
         "symbol": "quietForRefresh",
         "note": "The once-a-minute refresh."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 871,
+        "line": 869,
         "symbol": "applyCopy",
         "note": "Applies Google's version."
        }
@@ -3709,7 +3695,7 @@
      "evidence": [
       "apps-script/SessionService.js:235",
       "apps-script/SessionService.js:188",
-      "apps-script/Index.html:1719"
+      "apps-script/Index.html:1738"
      ],
      "confirmed": "read code only",
      "suggest": "Accept, or save the match order with the matches once printed."
@@ -3870,7 +3856,8 @@
      "summary": "What an automated check can do today: run `npm test`, open the real live desk read-only (`npm run desk:google`), confirm /exec matches main, and drive the local preview in a real browser. What it cannot do: click on the real desk, print, or see the real projector.",
      "subtext": "Monday's check did the first three and missed all three problems, because each needed a night walked through with a printed sheet, a removal, and the board full screen.",
      "caveats": [
-      "A green test suite proves only what a test asserts. Each \"Must stay true\" line in this storyboard should become one."
+      "A green test suite proves only what a test asserts. Each \"Must stay true\" line in this storyboard should become one.",
+      "The procedure, for agents and developers: .github/skills/cttc-storyboard/SKILL.md (before a night, and with every change to how a night works)."
      ],
      "exceptions": [],
      "screen": {

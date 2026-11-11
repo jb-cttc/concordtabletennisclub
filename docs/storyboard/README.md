@@ -32,7 +32,8 @@ Google or the club's data.
 with how it was confirmed. The scripts that reproduce them are in
 [`repro/`](repro/); run one with `node docs/storyboard/repro/<name>.cjs`.
 `repro/measure-board.js` measures the Player board in a real browser (see its
-first lines). When a finding is fixed, add a test for it and remove it here.
+first lines). When a finding is fixed, add a test for it, mark the step's
+exception handled, remove the finding, and make its repro print `FIXED`.
 
 ## Changing it
 
@@ -47,9 +48,15 @@ npm test                   # check:storyboard: both are up to date, every cited 
 ```
 
 File references are `path:line` and link to that line at `meta.commit` in
-`night-desk.js`, so they stay right as the code moves on. When you revise a
-step, re-read the code at today's `main`, update its line numbers, and set
-`meta.commit` to that commit.
+`night-desk.js`, so they stay right as the code moves on. After committing a
+code change, `npm run build:storyboard -- --advance` moves every reference to
+the new commit through git's diff and lists those whose lines changed: re-read
+each in the code and fix the step by hand. The check also confirms each entry
+point's name is on its cited line.
+
+The full procedure (finding the steps a change touches, invariants and tests,
+adding a part for a new app, the life of a finding) is the
+[CTTC storyboard skill](../../.github/skills/cttc-storyboard/SKILL.md).
 
 **Keep it public-safe.** The page is on the public site. Use made-up names only
 (Ana Reyes, Ben Okafor, Coach Lee …), never a member's name, email, phone,

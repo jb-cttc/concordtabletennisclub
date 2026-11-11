@@ -106,7 +106,11 @@ site; the same content as plain data is `docs/storyboard/night.json`.
   Green tests prove only what they assert.
 - When a change alters how a step works, update that step in
   `docs/storyboard/night-*.js` and run `npm run build:storyboard` in the same
-  PR (`npm test` fails while the page is out of date).
+  PR (`npm test` fails while the page is out of date). A new app or feature
+  people meet on a night gets its own steps (and a part, and rows in the map of
+  how the apps connect). Follow the
+  [CTTC storyboard skill](.github/skills/cttc-storyboard/SKILL.md), and say in
+  the PR which steps changed, or why none did.
 
 ## Designing for the whole system
 
