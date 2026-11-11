@@ -51,6 +51,7 @@ const makeSheet = name => {
       };
       return handle;
     },
+    appendRow: values => { grid.push(Array.from(values, value => String(value).replace(/^'/, ''))); },
     deleteRow: row => { grid.splice(row - 1, 1); },
     clearContents: () => { grid.length = 0; },
     setFrozenRows: () => {}
@@ -68,6 +69,18 @@ const makeBook = (id, url) => {
     getName: () => books[id].title || '',
     rename: title => { books[id].title = title; }
   });
+};
+// The desk's Sheet, where its one mail reader collects every forwarded text (apps-script/MailReader.js): the app reads texts
+// from its VoiceTexts tab, never from Gmail. Here the reader always looks fresh, and the tab is the preview's own inbox.
+properties.DESK_SHEET_ID = 'preview-desk';
+books['preview-desk'] = {
+  getSheetByName: name => ({
+    VoiceTexts: { getDataRange: () => ({ getValues: () => [['message_id', 'received_at', 'from', 'subject', 'text']]
+      .concat(inbox.map(message => [message.getId(), String(message.getDate().getTime()), message.getFrom(), message.getSubject(), message.getPlainBody()])) }) },
+    MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(Date.now() - 60000)]] }) },
+    // Who the club's coaching page shows (apps-script/CoachList.js): here, every coach the app lists.
+    CoachList: { getDataRange: () => ({ getValues: () => [['shown_coach']].concat(context.CLUB_COACHES.map(coach => [coach[0]])) }) }
+  }[name] || null)
 };
 const pacific = ms => {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -88,11 +101,15 @@ const context = {
   },
   Session: { getActiveUser: () => ({ getEmail: () => activeEmail }), getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
   ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }) }) }) },
-  LockService: { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
+  LockService: {
+    getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }),
+    getUserLock: () => ({ tryLock: () => true, releaseLock: () => {} })
+  },
   CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; }, remove: key => { delete cache[key]; } }) },
   MailApp: { getRemainingDailyQuota: () => 100, sendEmail: message => { outbox.unshift(Object.assign({ at: new Date(), id: 'mail-' + messageCount++ }, message)); } },
   GmailApp: {
     getInboxUnreadCount: () => 0,
+    getMessageById: id => inbox.concat(answers).find(message => message.getId() === id) || null,
     search: query => {
       const list = /CTTC ref/.test(query) ? answers : inbox;
       return list.length ? [{ getMessages: () => list.slice() }] : [];
@@ -157,6 +174,8 @@ function demoCoach(name, email, plan, phone) {
 }
 // Made-up coaches and bookings, only with DEMO=1. Without it the preview shows what setup() gives the real app: the five club coaches.
 if (process.env.DEMO === '1') {
+// Only coaches on the club's list stay switched on, so the made-up ones join it here (never in Code.js).
+context.CLUB_COACHES.push(['Olaf Demo', 'olaf.demo@example.com'], ['Mia Demo', 'mia.demo@example.com'], ['Kai Demo', 'kai.demo@example.com']);
 demoCoach('Olaf Demo', 'olaf.demo@example.com', { 5: [['19:00', 60], ['20:00', 30], ['20:30', 30], ['21:00', 60]], 6: [['15:00', 60], ['16:00', 30], ['16:30', 30], ['17:00', 60]] }, '925-555-0142');
 demoCoach('Mia Demo', 'mia.demo@example.com', { 5: [['19:00', 60], ['20:00', 30], ['20:30', 30]], 6: [['15:30', 30], ['16:00', 60]] }, '925-555-0143');
 // A third coach at Friday 7 PM fills both tables, so only that time shows Table 3.
