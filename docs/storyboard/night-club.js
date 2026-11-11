@@ -171,7 +171,7 @@ const phases = [
       summary: 'A club coach picks times on the coaching page (Fridays 7–10 PM, Saturdays 3–6 PM, 30 or 60 minutes, on table 1 to 3) and confirms them by replying YES to *Confirm your coaching times*. Only then are the times published on the booking board.',
       subtext: 'Which coaches can offer is set by the club site\'s coaching page (USATT certified); the desk copies that list to its Sheet every hour for the coaching app to read.',
       caveats: ['A coach list not confirmed in 48 hours lapses; a late YES is answered and the list offered again if the times are still free.'],
-      exceptions: [X('A coach is not shown on the coaching page', 'The hourly sweep disables them and hides their times.', 'Add or remove a coach in CLUB_COACHES and coaching.html, not in the Sheet.', 'handled', CF + ':370')],
+      exceptions: [X('A coach is not shown on the coaching page', 'The hourly sweep disables them and hides their times.', 'Add or remove a coach in CLUB_COACHES and coaching.html, not in the Sheet.', 'handled', CF + ':389')],
       screen: { kind: 'booking', highlight: ['slot'], note: 'The booking board: Friday and Saturday times by coach and table.' },
       tech: {
         entry: [E(CA, 88, 'CLUB_COACHES', 'The club\'s coaches.'), E(CA, 1791, 'syncClubCoaches_', 'Matches the CoachList tab the desk writes.'), E('apps-script/CoachList.js', 14, 'publishCoachList_', 'Hourly copy of the shown coaches.'), E(CA, 113, 'Availability', 'avail_id, coach_id, date, start, minutes, confirmed, table.')],
@@ -185,7 +185,7 @@ const phases = [
       exceptions: [
         X('The student mistypes their email address', 'Leaving the email box points out a likely typo: *Did you mean sam@gmail.com?* with **Use gmail.com** and **Keep mine** (amber for a clear slip such as gmial.com, a quieter hint such as *Most Comcast addresses end in .net* for one worth a look). Pressing Send straight away shows no hint on the form; a clear slip is pointed out again in the confirm box, where one tap fixes it on the same screen.', 'Nothing to do: the student can always keep what they typed, and the app\'s own check of the address is unchanged.', 'handled', 'coaching-app/Index.html:536'),
         X('The coach never answers', 'The request expires; student, coach and club are emailed.', 'The club follows up with the coach.', 'handled', CF + ':40'),
-        X('The student cancels or moves', 'They confirm the change by email YES; a move takes effect only if the new time is still open.', 'Nothing to do.', 'handled', CF + ':165')],
+        X('The student cancels or moves', 'They confirm the change by email YES; a move takes effect only if the new time is still open.', 'Nothing to do.', 'handled', CF + ':185')],
       screen: { kind: 'booking', highlight: ['form'], note: 'The request form and its confirm box.' },
       tech: {
         entry: [E('coaching-app/Index.html', 536, 'emailTypo', 'A likely typo in the address: clear or worth a look.'), E('coaching-app/Index.html', 725, 'showEmail', 'The confirm box: the address large, a clear typo pointed out.'), E(CA, 660, 'requestSlot', 'Saves the request as pending and asks the coach.'), E(CA, 28, 'HOLD_HOURS', '48.'), E(CA, 1595, 'sweep', 'Hourly: expiries, reminders, retries, the public Sheet.')],
