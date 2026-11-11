@@ -23,7 +23,9 @@ manifest.icons.forEach(icon => {
 });
 assert.deepEqual(pngSize('assets/icons/apple-touch-icon.png'), [180, 180]);
 
-const pages = fs.readdirSync(root).filter(name => name.endsWith('.html') && !['desk.html', 'cash.html', 'volunteer-admin.html', 'text.html'].includes(name));
+// Standalone pages without the site header: the desk's frames, the Text CTTC icon, and the storyboard (a generated
+// document, scripts/build-storyboard.js, that links back to About).
+const pages = fs.readdirSync(root).filter(name => name.endsWith('.html') && !['desk.html', 'cash.html', 'volunteer-admin.html', 'text.html', 'storyboard.html'].includes(name));
 pages.forEach(name => {
   const html = fs.readFileSync(path.join(root, name), 'utf8');
   assert.match(html, /<link rel="apple-touch-icon" href="assets\/icons\/apple-touch-icon\.png">/, name);

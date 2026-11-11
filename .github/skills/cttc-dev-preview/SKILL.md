@@ -40,7 +40,9 @@ numbered deployment. Both URLs use the real club Sheet.
    or rely on `/dev` as an isolated database. Recheck Google HEAD if another
    editor may have pushed while you were testing.
 5. Iterate on the branch and repeat steps 2-4 until the preview meets the
-   request. Report the preview behavior and checks in a PR to `jb-cttc/main`.
+   request. Before calling it working, check the storyboard steps the change
+   touches and update them in the same branch
+   ([cttc-storyboard skill](../cttc-storyboard/SKILL.md)). Report the preview behavior and checks in a PR to `jb-cttc/main`.
    A clasp push is not a Git commit or a PR, and a PR merge deploys neither URL.
 6. **Only after approval and merge**, push the merged commit to Google, verify
    `/dev`, create an Apps Script version, and redeploy the *existing* `/exec`

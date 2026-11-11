@@ -7,6 +7,7 @@ const writes = [];
 let siteSessions = [];
 let siteStatus = 200;
 let failOn = '';
+let publishing = null;
 const reset = () => {
   tables.Players = [
     { player_id: 'a', display_name: 'Ava', current_rating: 1420 },
@@ -21,6 +22,7 @@ const reset = () => {
   siteSessions = [{ date: '2026-09-30', source: 'app' }];
   siteStatus = 200;
   failOn = '';
+  publishing = null;
   writes.length = 0;
 };
 reset();
@@ -30,6 +32,7 @@ const context = {
   UrlFetchApp: { fetch: () => ({ getResponseCode: () => siteStatus, getContentText: () => JSON.stringify(siteSessions) }) },
   appendAudit_: (...args) => { writes.push(['audit', ...args]); return '3f2a9c1d-0000-4000-8000-000000000000'; },
   cancelPublish_: id => writes.push(['cancelPublish', id]),
+  pendingPublish_: () => publishing,
   TABLES: {}
 };
 vm.createContext(context);
@@ -116,5 +119,27 @@ assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active');
 assert.ok(writes.some(entry => entry[0] === 'audit' && entry[1] === 'reopen_ledger_cleanup_failed'));
 assert.ok(writes.some(entry => entry[0] === 'audit' && entry[1] === 'session_reopened'));
 assert.throws(() => context.reopenSession('missing', 1), /Session not found/);
+
+// Publishing has started (the GitHub workflow may already have read the finalized night): no reopen until the site lists
+// it, which then refuses for good. A run that failed stops blocking after 30 minutes. Another night's publishing, and
+// the 2-minute hold before publishing starts (which a reopen cancels), do not block.
+const minutesAgo = minutes => Date.now() - minutes * 60000;
+reset();
+publishing = { sessionId: 'session-2026-10-05', state: 'dispatched', dispatchedAt: minutesAgo(1) };
+refuses(/being published to the club site right now/);
+assert.ok(!writes.some(entry => entry[0] === 'cancelPublish'), 'the publication in progress is left alone');
+reset();
+publishing = { sessionId: 'session-2026-10-05', state: 'email_pending', dispatchedAt: minutesAgo(5) };
+refuses(/already lists this session/);
+reset();
+publishing = { sessionId: 'session-2026-10-05', state: 'dispatched', dispatchedAt: minutesAgo(31) };
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active', 'a run that never listed the night stops blocking after 30 minutes');
+reset();
+publishing = { sessionId: 'session-2026-10-05', state: 'pending', dueAt: Date.now() + 60000 };
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active', 'during the 2-minute hold a reopen is allowed');
+assert.ok(writes.some(entry => entry[0] === 'cancelPublish'), 'and cancels the publication');
+reset();
+publishing = { sessionId: 'session-2026-10-12', state: 'dispatched', dispatchedAt: minutesAgo(1) };
+assert.equal(context.reopenSession('session-2026-10-05', 7).status, 'active', 'another night publishing does not block');
 
 console.log('Session reopen checks passed');

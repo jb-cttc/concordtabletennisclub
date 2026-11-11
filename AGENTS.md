@@ -92,6 +92,26 @@ never commit, post, or quote member names or rows.
   person signed in to the shared Google account. Avoid claiming a PR merge
   automatically updates Google.
 
+## How a night works: the storyboard
+
+[`docs/storyboard/`](docs/storyboard/README.md) walks a whole club night step by
+step (volunteers, texts and the Tonight page, coaching, then the desk from
+opening to published results), with a technical layer per step: entry points,
+what is read and written, **what must stay true**, which tests cover it and
+which do not, and how to simulate it. The page is `storyboard.html` on the
+site; the same content as plain data is `docs/storyboard/night.json`.
+
+- Before reporting a desk change as working, find the steps it touches and
+  check their `tech.invariants`, especially those listed in `tech.untested`.
+  Green tests prove only what they assert.
+- When a change alters how a step works, update that step in
+  `docs/storyboard/night-*.js` and run `npm run build:storyboard` in the same
+  PR (`npm test` fails while the page is out of date). A new app or feature
+  people meet on a night gets its own steps (and a part, and rows in the map of
+  how the apps connect). Follow the
+  [CTTC storyboard skill](.github/skills/cttc-storyboard/SKILL.md), and say in
+  the PR which steps changed, or why none did.
+
 ## Designing for the whole system
 
 Lessons from October 2026, when each fix was sized for one app or one limit and

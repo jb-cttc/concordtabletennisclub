@@ -1248,10 +1248,21 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
 
   // ---- Round robin ----
   function groupArrays(d) { return d.groups.map(function (g) { return g.playerIds.slice(); }); }
+  // The groups by number: Group N at index N - 1, and [] where a number has no group (after the sheets print, a group
+  // whose players all left keeps its gap, so later groups keep the numbers on their sheets). The print mark keeps its
+  // groups this way, so a sheet is always compared with the group of the same number.
+  function groupsByNumber(d) {
+    var out = [];
+    d.groups.forEach(function (g) { out[g.groupNumber - 1] = g.playerIds.slice(); });
+    for (var i = 0; i < out.length; i += 1) if (!out[i]) out[i] = [];
+    return out;
+  }
+  // Groups that differ from their printed sheet, by number. A group that is gone has no sheet to replace.
   function changedGroups(d) {
     var out = {};
     if (!d.printed || !d.printed.groups) return out;
-    groupArrays(d).forEach(function (ids, gi) {
+    groupsByNumber(d).forEach(function (ids, gi) {
+      if (!ids.length) return;
       var then = (d.printed.groups[gi] || []).slice().sort().join(',');
       if (ids.slice().sort().join(',') !== then) out[gi + 1] = true;
     });
@@ -1798,7 +1809,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function printed() {
     var d = data();
     if (!d) return;
-    var groups = d.event === 'equalizer' ? null : groupArrays(d);
+    var groups = d.event === 'equalizer' ? null : groupsByNumber(d);
     setRecord(d, d.event === 'equalizer' ? { at: Date.now(), sig: drawSignature(d) } : { at: Date.now(), groups: groups, first: printedRoster(d) || flat(groups), order: sheetOrder(d, groups) });
     if (window.cttcDesk && window.cttcDesk.printChanged) window.cttcDesk.printChanged();
   }
@@ -1921,7 +1932,7 @@ body { margin: 0; background: #050605; overflow: hidden; font-family: Arial, Hel
   function keepAsPrinted() {
     var d = data();
     if (!printedRoster(d)) return false;
-    var groups = groupArrays(d);
+    var groups = groupsByNumber(d);
     setRecord(d, { at: d.printed.at, groups: groups, first: flat(groups), order: sheetOrder(d, groups) });
     return true;
   }

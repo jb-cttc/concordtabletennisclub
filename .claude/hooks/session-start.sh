@@ -46,4 +46,5 @@ if [ -n "$clasp_ok" ]; then
   echo "- Clover card payments, through the desk: npm run desk:google -- --view clover"
 fi
 echo "- GitHub (this repository): the session's GitHub tools, and git push to branches"
+echo "Storyboard (AGENTS.md, How a night works): docs/storyboard/night.json lists, step by step, what must stay true on a club night. Check the steps a change touches before calling it working, and update them in the same PR (.github/skills/cttc-storyboard/SKILL.md)."
 echo "Rule (AGENTS.md, Never edit the Sheets by hand): never advise or document a direct Sheet edit. If no app control exists for a data change, propose a governed form (who may use it, checks, Review and Confirm, a change record)."
