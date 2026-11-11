@@ -55,10 +55,13 @@ earlier) both showed only "requested".
 
 **How a request is made (from November 2026).** The student picks a time
 that has not started yet (Pacific time), fills in the form and presses **Send
-request**. The page then shows a confirm box: the lesson, the coach, and every
-detail the coach will get (student, parent if under 18, email, mobile), with
-*Clicking Confirm submission sends a message to Coach … to confirm the lesson
-and gives Coach … your contact information* and the address we will email.
+request**. The page then shows a confirm box: the lesson, the coach, the
+address we will email under *We will email the coach's answer to:* in large
+bold type, and every other detail the coach will get (student, parent if under
+18, mobile), with *Clicking Confirm submission sends a message to Coach … to
+confirm the lesson and gives Coach … your contact information: the email
+address above and these details*. Tapping the address (**✎ Edit**) corrects it
+right in the box, and the correction goes back into the form.
 **Confirm submission** sends it; **Go back** (or Esc) sends nothing. The
 request is saved as `pending` and the coach is asked at once. There is no
 emailed or texted YES from the student for a new request, and no student
@@ -66,6 +69,22 @@ reminder. The emailed YES is still how a student confirms a **cancel or move**.
 Before November 2026 a new request waited up to 2 hours for the student's
 emailed YES (`unverified`); a request still waiting when the change was
 released finishes the old way (its YES still counts; it is not reminded).
+
+**A likely typo in the email address (from November 2026).** When the student
+leaves the email box (Tab, or a tap elsewhere), the page checks the part after
+the `@` against common providers and shows *Did you mean …?* with **Use …**
+and **Keep mine** under the box (`emailTypo` in `coaching-app/Index.html`). A
+clear slip (one letter off a big provider such as `gmial.com`, a made-up ending
+such as `.con`, `gmail.co`, `.com.com`) is amber; an address worth a look
+(`comcast.com`, `hotmail.co`) gets a quieter hint that says why. A student who
+presses **Send request** straight after typing sees no hint on the form (the
+button would move under their finger); a clear slip is pointed out again in
+the confirm box, where one tap fixes it, and a softer one is not. Editing the
+address in the confirm box runs the same check. It is only a suggestion: the
+student can always keep what they typed, and the server's own check of the
+address is unchanged. Real providers next to a big one (`mail.com`,
+`email.com`, `gmx.com`, `ymail.com`) and country endings (`hotmail.fr`) are
+never flagged.
 
 ## 2. Did each message actually go out?
 
@@ -432,6 +451,7 @@ screen, so a refused request looked like nothing happened.
 | Message on the page | What happened |
 | --- | --- |
 | A box *Send this request to Coach …?* with **Confirm submission** and **Go back** | Nothing is sent yet. Only Confirm submission sends it. |
+| "Did you mean …?" under the email box or in the confirm box | A likely typo in the address (§1). Nothing is sent or blocked; **Keep mine** keeps what was typed. |
 | "Request sent to Coach … It is not booked until Coach … accepts. We emailed a copy to …" | Saved as `pending`. Waiting for the coach. |
 | "Almost done: we emailed you… Reply YES… within 2 hours" | Only from an app released before November 2026 (the site's page can be a release ahead of the app): saved as `unverified`, waiting for the student. |
 | "Student … already has a lesson (or a request) at that time…" | The same student (email and name) already holds an overlapping time. Use Move on that time instead. |
@@ -448,7 +468,7 @@ screen, so a refused request looked like nothing happened.
 | --- | --- | --- | --- |
 | Page said "Something went wrong", retries say the time is taken, but a "requested" row exists for the student | Before `fix(coaching): never report a saved lesson request as a failure`, an error *after* saving (email, text, public Sheet rebuild) was shown as a failure. | Row is `unverified`; `student_emailed` may be empty. Executions show a failed `requestSlot`. | Fixed in code. For the stuck case, the next sweep sends the confirm email if it has not gone out. The student replies YES before `expires_at`. |
 | Student says they replied YES to a cancel or move but nothing changed (or, before November 2026, a request is still `unverified`) | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or ask again from the page. |
-| Student never got any email about their request | The address was mistyped (the confirm box shows it, but it can still be wrong), or it went to spam. | `student_email` on the row; `student_emailed = pending` means it went out. | The coach has the address the student typed in their request email; correct it by cancelling and booking again. |
+| Student never got any email about their request | The address was mistyped (the confirm box shows it large and points out likely typos, but it can still be wrong), or it went to spam. | `student_email` on the row; `student_emailed = pending` means it went out. | The coach has the address the student typed in their request email; correct it by cancelling and booking again. |
 | Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | `coach_emailed = pending`? `coach_texted = pending`? `Coaches.ask_ref` = this `request_id`? | Remind the coach to reply `YES` to the email or text. |
 | Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | `Coaches.registered_at` empty; `phone` column. | Have them text `COACH` to the club number. |
 | No emails at all for a while | Daily mail quota low (sending pauses at 10 left), or Gmail/MailApp errors. | Executions log; `student_emailed`/`coach_emailed` lagging behind `status`. | Wait for the quota reset; the sweep retries for 3 days. |

@@ -445,12 +445,12 @@ assert.match(grids.About[0][0], /does not change any booking/);
   // No emailed YES for a new request: the page asks once, showing what goes to the coach and where we will write back.
   const submitHandler = page.slice(page.indexOf("form.addEventListener('submit', function (event) {\n      event.preventDefault();\n      var slot = getChosen();"));
   assert.doesNotMatch(submitHandler.slice(0, submitHandler.indexOf('sendNow.addEventListener')), /guarded\(/, 'pressing Send request only opens the confirm step');
-  assert.match(page, /el\('button', \{ type: 'button', text: 'Confirm submission' \}\)/);
+  assert.match(page, /el\('button', \{ type: 'button', 'data-sends': 'yes', text: 'Confirm submission' \}\)/);
   assert.match(page, /el\('button', \{ type: 'button', 'class': 'plain', text: 'Go back' \}\)/);
-  assert.match(page, /'\. Clicking Confirm submission sends a message to ' \+ slot\.coach \+ ' to confirm the lesson and gives ' \+ slot\.coach \+ ' your contact information:'/);
-  assert.match(page, /\[\['Student', name\], \['Parent', minor\.checked \? guardian : ''\], \['Email', email\], \['Mobile', phone \|\| 'not given'\]\]/, 'every detail the coach gets is listed');
-  assert.match(page, /accepts\. We email you at ' \+ email \+ ' as soon as the coach answers, so please check that address is right\.'/, 'a mistyped address is caught before it is lost');
-  assert.match(page, /sendNow\.addEventListener\('click', function \(\) \{\n      var slot = getChosen\(\);\n      sending = true;\n      closeDialog\(\);\n      if \(slot\) send\(slot\);/, 'only Confirm submission sends');
+  assert.match(page, /'Clicking Confirm submission sends a message to ' \+ slot\.coach \+ ' to confirm the lesson and gives ' \+ slot\.coach \+ ' your contact information: the email address above and these details:'/);
+  assert.match(page, /\[\['Student', name\], \['Parent', minor\.checked \? guardian : ''\], \['Mobile', phone \|\| 'not given'\]\]/, 'every detail the coach gets is listed, with the address shown large above');
+  assert.match(page, /text: 'We will email the coach’s answer to:'/, 'the address we will write to is shown on its own, large, so a mistyped one is caught before it is lost');
+  assert.match(page, /sendNow\.addEventListener\('click', function \(\) \{[\s\S]{0,400}?var slot = getChosen\(\);\n      sending = true;\n      closeDialog\(\);\n      if \(slot\) send\(slot\);/, 'only Confirm submission sends');
   assert.match(page, /if \(typeof dialog\.showModal === 'function'\) \{[\s\S]{0,80}\} else if \(window\.confirm\(/, 'a browser without dialogs still asks');
   assert.doesNotMatch(page, /reply(ing)? YES to the email \(or text\) we send, and the lesson is booked/, 'the page no longer asks for a YES to book');
   assert.match(page, /any time that has not started yet can be requested/);
@@ -2140,6 +2140,146 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
   assert.match(shown, /Coaching is on Fridays/, 'the booking view is drawn');
   assert.deepEqual(copy.messages, ['cttc-coaching-ready']);
   copy.dom.window.close();
+  // ---- The student's email address on the request form ----
+  // A likely typo is pointed out when the student leaves the box; only a clear one is pointed out again in the confirm step,
+  // where the address is shown large and can be corrected without leaving it. Nothing here sends a request.
+  {
+    const requested = [];
+    // A coach with one open time on a Friday at least three days ahead.
+    const friday = new Date(clock + 3 * 86400000);
+    while (friday.getUTCDay() !== 5) friday.setUTCDate(friday.getUTCDate() + 1);
+    const umaId = addCoach('Uma Coach', 'uma@example.com', '(925) 555-0188');
+    publish(umaId, 'Uma Coach', [slot(friday.toISOString().slice(0, 10), '19:00', 60)]);
+    const dom = new JSDOM(page, {
+      url: SITE + '/coaching-app.html', runScripts: 'dangerously', pretendToBeVisual: true,
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        // jsdom has no modal dialogs: these stand in for the browser's.
+        window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+        window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+        window.top.postMessage = () => {};
+        window.fetch = (url, options) => {
+          const body = JSON.parse(options.body);
+          if (body.fn === 'requestSlot') { requested.push(body.args[0]); return new Promise(() => {}); }
+          return viaDoPost(options);
+        };
+      }
+    });
+    await wait(50);
+    const win = dom.window, doc = win.document, $ = selector => doc.querySelector(selector);
+    // What counts as a typo, and how sure it is.
+    const typo = email => { const found = win.emailTypo(email); return found && [found.level, found.suggestion]; };
+    [['gmial.com', 'gmail.com'], ['gmai.com', 'gmail.com'], ['gamil.com', 'gmail.com'], ['gmail.con', 'gmail.com'], ['gmail.co', 'gmail.com'], ['gmail.de', 'gmail.com'],
+      ['gmail.com.com', 'gmail.com'], ['yahooo.com', 'yahoo.com'], ['hotmial.com', 'hotmail.com'], ['outlok.com', 'outlook.com'], ['iclod.com', 'icloud.com'],
+      ['comcats.net', 'comcast.net'], ['sbcglobl.net', 'sbcglobal.net'], ['example.con', 'example.com'], ['mail.con', 'mail.com']].forEach(([typed, meant]) => {
+      assert.deepEqual(typo('sam@' + typed), ['clear', 'sam@' + meant], typed + ' is a clear slip');
+    });
+    [['comcast.com', 'comcast.net'], ['hotmail.co', 'hotmail.com'], ['att.com', 'att.net'], ['msm.com', 'msn.com']].forEach(([typed, meant]) => {
+      assert.deepEqual(typo('sam@' + typed), ['possible', 'sam@' + meant], typed + ' is worth a look');
+    });
+    ['gmail.com', 'yahoo.com', 'ymail.com', 'mail.com', 'email.com', 'gmx.com', 'hotmail.fr', 'yahoo.co.uk', 'me.com', 'mac.com', 'aol.com', 'pacbell.net', 'berkeley.edu',
+      'example.org', 'acme.co'].forEach(domain => assert.equal(typo('sam@' + domain), null, domain + ' is real'));
+    assert.deepEqual(typo(' Sam.Lee@GMIAL.com '), ['clear', 'Sam.Lee@gmail.com'], 'the part before the @ is kept as typed');
+    assert.equal(win.emailTypo('not an address'), null);
+    assert.equal(win.emailTypo('sam@hotmail.co').reason, 'Most Hotmail addresses end in .com', 'a softer hint says why');
+
+    const free = $('button.tbl.free');
+    assert.ok(free, 'an open time to request');
+    free.click();
+    const form = $('#request'), email = $('#email'), hint = $('#emailHint'), dialog = $('#confirmRequest');
+    assert.equal(form.hidden, false);
+    const type = (input, value) => { input.value = value; input.dispatchEvent(new win.Event('input', { bubbles: true })); };
+    const leave = input => input.dispatchEvent(new win.FocusEvent('blur'));
+    const press = button => button.dispatchEvent(new win.Event('pointerdown', { bubbles: true }));
+    const button = (root, text) => Array.from(root.querySelectorAll('button')).find(node => node.textContent === text);
+    type($('#name'), 'Sam Lee');
+    // Leaving the box: a clear slip, in amber, with a one-tap fix.
+    type(email, 'sam.lee@gmial.com');
+    assert.equal(hint.hidden, true, 'nothing is said while typing');
+    leave(email);
+    assert.equal(hint.hidden, false);
+    assert.equal(hint.className, 'typo');
+    assert.match(hint.textContent, /^Did you mean sam\.lee@gmail\.com\?Use gmail\.comKeep mine$/);
+    assert.ok(email.classList.contains('typo-clear'));
+    leave(email);
+    assert.equal(hint.querySelectorAll('button').length, 2, 'leaving again does not redraw it (a tap on its button is never lost)');
+    button(hint, 'Use gmail.com').click();
+    assert.equal(email.value, 'sam.lee@gmail.com', 'one tap fixes it');
+    assert.equal(hint.textContent, '✓ Changed to gmail.com.');
+    type(email, 'sam.lee@gmail.co');
+    assert.equal(hint.hidden, true, 'typing again puts the hint away');
+    // A softer hint for an address worth a look, which says why.
+    type(email, 'sam.lee@comcast.com');
+    leave(email);
+    assert.equal(hint.className, 'typo soft');
+    assert.match(hint.textContent, /^Most Comcast addresses end in \.net\. Did you mean sam\.lee@comcast\.net\?/);
+    button(hint, 'Keep mine').click();
+    assert.equal(hint.hidden, true);
+    leave(email);
+    assert.equal(hint.hidden, true, 'an address kept is not pointed out again');
+    // Send request with only a "worth a look" address: the confirm step does not stop for it.
+    form.requestSubmit();
+    assert.ok(dialog.open, 'Send request opens the confirm step');
+    assert.equal($('#confirmHint').hidden, true);
+    assert.equal($('#confirmAddr').textContent, 'sam.lee@comcast.com', 'the address is shown as it will be used');
+    assert.equal($('#confirmLead').textContent, 'We will email the coach’s answer to:');
+    assert.doesNotMatch($('#confirmSend').textContent, /Email/, 'the list holds the other details; the address is shown large above it');
+    button(dialog, 'Go back').click();
+    assert.equal(dialog.open, false);
+    // Straight from typing to Send request with a clear slip: not drawn under the box (the button would move under the
+    // finger), but pointed out in the confirm step, with the doubtful part underlined.
+    type(email, 'sam.lee@gmial.com');
+    press($('#request button[type=submit]'));
+    leave(email);
+    assert.equal(hint.hidden, true, 'a press on Send request is not leaving the box');
+    form.requestSubmit();
+    const confirmHint = $('#confirmHint');
+    assert.equal(confirmHint.hidden, false, 'a clear slip stops the student in the confirm step');
+    assert.match(confirmHint.textContent, /^Did you mean sam\.lee@gmail\.com\?/);
+    assert.equal($('#confirmAddr .dom').textContent, 'gmial.com');
+    assert.match($('#confirmEmail').className, /warn/);
+    assert.equal($('#confirmRequest').getAttribute('aria-describedby'), 'confirmWhat confirmLead confirmAddr confirmHint', 'a screen reader hears the address and the hint');
+    button(confirmHint, 'Use gmail.com').click();
+    assert.equal(email.value, 'sam.lee@gmail.com', 'the fix goes back into the form');
+    assert.equal($('#confirmAddr').textContent, 'sam.lee@gmail.com');
+    assert.equal(confirmHint.textContent, '✓ Changed to gmail.com. Your form is updated too.');
+    assert.ok(dialog.open, 'still on the same screen');
+    // Edit right in the confirm step: leaving the box runs the same check; Confirm with a clear slip only now seen stops.
+    $('#confirmAddress').click();
+    const edit = $('#confirmEmailInput');
+    assert.equal($('#confirmEdit').hidden, false);
+    assert.equal(edit.value, 'sam.lee@gmail.com');
+    type(edit, 'sam.lee@hotmial.com');
+    press(button(dialog, 'Confirm submission'));
+    leave(edit);
+    assert.equal(confirmHint.hidden, true, 'a press on Confirm is not leaving the box either');
+    button(dialog, 'Confirm submission').click();
+    assert.equal(requested.length, 0, 'a clear slip only now seen is shown before anything is sent');
+    assert.ok(dialog.open);
+    assert.equal($('#confirmEdit').hidden, true, 'the edit is kept');
+    assert.equal(email.value, 'sam.lee@hotmial.com');
+    assert.match(confirmHint.textContent, /^Did you mean sam\.lee@hotmail\.com\?/, 'instead of a "changed" note');
+    // An address that cannot work is refused in the box.
+    $('#confirmAddress').click();
+    type(edit, 'sam.lee@');
+    button(dialog, 'Done').click();
+    assert.equal($('#confirmEdit').hidden, false);
+    assert.equal($('#confirmEmailInputError').textContent, 'Please enter a valid email address.');
+    assert.equal(edit.getAttribute('aria-invalid'), 'true');
+    type(edit, 'sam.lee@hotmial.com');
+    assert.equal($('#confirmEmailInputError'), null, 'typing clears it');
+    leave(edit);
+    assert.match(confirmHint.textContent, /^Did you mean sam\.lee@hotmail\.com\?Use hotmail\.comKeep mine$/, 'leaving the box in the confirm step');
+    button(confirmHint, 'Keep mine').click();
+    assert.equal($('#confirmEdit').hidden, true, 'keeping it ends the edit');
+    assert.equal(confirmHint.hidden, true);
+    // Confirm sends the address as it now stands on the form.
+    button(dialog, 'Confirm submission').click();
+    assert.equal(requested.length, 1);
+    assert.equal(requested[0].email, 'sam.lee@hotmial.com', 'what the student kept is what is sent');
+    assert.equal(dialog.open, false);
+    dom.window.close();
+  }
   // The app before this release answers a POST with Google's HTML error page: the copy goes to Google's page instead.
   copy = openCopy(() => Promise.resolve({ json: () => Promise.reject(new SyntaxError('Unexpected token <')) }));
   await wait(50);

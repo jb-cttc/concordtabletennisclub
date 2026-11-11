@@ -98,6 +98,27 @@
   .sendlist li { padding: 6px 10px; border-top: 1px solid #eee; font-size: 0.95rem; overflow-wrap: anywhere; }
   .sendlist li:first-child { border-top: 0; }
   .sendlist b { display: inline-block; min-width: 86px; color: #555; font-weight: 600; }
+  /* The address we will write to, large enough to read letter by letter, and editable right in the confirm step. */
+  .emailcheck { margin: 4px 0 14px; padding: 12px 14px; border: 2px solid #1f6b3a; border-radius: 8px; background: #f2f8f4; }
+  .emailcheck.warn { border-color: #c98a00; background: #fffaf0; }
+  .emailcheck .lead { display: block; margin: 0 0 2px; color: #1c1c1c; font-size: 0.9rem; font-weight: 600; }
+  button.addrbtn { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px; padding: 0; border: 0; background: none; color: #111; text-align: left; font-weight: 700; }
+  button.addrbtn .addr { flex: 1 1 auto; min-width: 0; font-size: 1.3rem; line-height: 1.3; overflow-wrap: anywhere; }
+  button.addrbtn .nobr { white-space: nowrap; }
+  button.addrbtn .dom { text-decoration: underline; text-decoration-color: #c98a00; text-decoration-thickness: 3px; text-underline-offset: 3px; }
+  button.addrbtn .pen { flex: 0 0 auto; padding: 5px 10px; border: 1px solid #1f6b3a; border-radius: 4px; background: #fff; color: #1f6b3a; font-size: 0.85rem; font-weight: 600; }
+  .emailcheck label { margin-top: 0; }
+  .emailcheck input[type=email] { font-size: 1.15rem; font-weight: 700; }
+  .emailcheck .fixed { margin: 6px 0 0; color: #1f6b3a; font-size: 0.88rem; font-weight: 600; }
+  /* A likely typo in an email address: amber for a clear slip, a quieter blue for one worth a look. */
+  .typo { margin: 8px 0 4px; padding: 8px 10px; border: 1px solid #e0b84a; border-radius: 6px; background: #fff5dc; color: #1c1c1c; font-size: 0.92rem; }
+  .typo.soft { border-color: #b7c7d9; background: #eef3f8; }
+  .typo.done { border-color: #9cc7a9; background: #f2f8f4; color: #1f6b3a; font-weight: 600; }
+  .typo b { overflow-wrap: anywhere; }
+  .typo .actions { margin-top: 6px; }
+  .typo button { padding: 6px 12px; font-size: 0.9rem; }
+  input.typo-clear { border-color: #c98a00; box-shadow: 0 0 0 2px #f6e3b0; }
+  input.typo-soft { border-color: #7d98b8; box-shadow: 0 0 0 2px #dbe5f0; }
 </style>
 </head>
 <body>
@@ -475,6 +496,72 @@
     return form;
   }
 
+  // ----- A likely typo in the domain of an email address -----
+  // Returns null, or { level, suggestion, reason }. 'clear' is almost surely a slip (gmial.com, gmail.con): it is shown when
+  // the student leaves the box, and again in the confirm step. 'possible' is worth a look (comcast.com, hotmail.co): it is
+  // shown when they leave the box, and never stops a request. Only ever a suggestion: they can keep what they typed, and
+  // the app's own check of the address is unchanged.
+  // Big providers. A name of five letters or more is long enough that one slip cannot land on another real domain.
+  var MAIL_PROVIDERS = ['gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'comcast.net',
+    'sbcglobal.net', 'verizon.net', 'protonmail.com', 'ymail.com', 'rocketmail.com', 'live.com', 'aol.com', 'msn.com', 'me.com', 'mac.com', 'att.net'];
+  // Real providers one or two letters from a big one: never flagged.
+  var MAIL_REAL = ['mail.com', 'email.com', 'gmx.com', 'gmx.net', 'fastmail.com', 'hey.com', 'zoho.com', 'proton.me', 'pm.me', 'duck.com',
+    'yandex.com', 'mail.ru', 'pacbell.net', 'sonic.net', 'earthlink.net', 'cox.net', 'charter.net'];
+  var MAIL_NAMES = { gmail: 'Gmail', yahoo: 'Yahoo', hotmail: 'Hotmail', outlook: 'Outlook', icloud: 'iCloud', comcast: 'Comcast', sbcglobal: 'SBC Global',
+    verizon: 'Verizon', protonmail: 'Proton Mail', live: 'Live', aol: 'AOL', msn: 'MSN', att: 'AT&T' };
+  // Not real endings, and one key away from .com or .net.
+  var MAIL_BAD_ENDINGS = { con: 'com', cmo: 'com', ocm: 'com', vom: 'com', xom: 'com', cpm: 'com', cim: 'com', comm: 'com', coom: 'com', comn: 'com', nte: 'net', ner: 'net', nett: 'net' };
+  // Letters changed, added, dropped, or two side by side swapped (gmial), each counting as one slip.
+  function mailSlips(a, b) {
+    var d = [], i, j;
+    for (i = 0; i <= a.length; i++) d[i] = [i];
+    for (j = 0; j <= b.length; j++) d[0][j] = j;
+    for (i = 1; i <= a.length; i++) {
+      for (j = 1; j <= b.length; j++) {
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+    return d[a.length][b.length];
+  }
+  function mailName(domain) { return domain.slice(0, domain.lastIndexOf('.')); }
+  function closestProvider(domain) {
+    var best = null;
+    MAIL_PROVIDERS.forEach(function (provider) {
+      var slips = mailName(domain) === mailName(provider) ? 1 : mailSlips(domain, provider);
+      if (!best || slips < best.slips) best = { domain: provider, slips: slips };
+    });
+    return best && best.slips <= 2 ? best : null;
+  }
+  function emailTypo(email) {
+    var value = String(email || '').trim(), at = value.lastIndexOf('@');
+    if (at < 1) return null;
+    var local = value.slice(0, at), domain = value.slice(at + 1).toLowerCase();
+    if (MAIL_PROVIDERS.indexOf(domain) >= 0 || MAIL_REAL.indexOf(domain) >= 0) return null;
+    var labels = domain.split('.'), ending = labels[labels.length - 1];
+    function to(level, fixed, reason) { return { level: level, suggestion: local + '@' + fixed, reason: reason || '' }; }
+    var doubled = /^(.+\.(com|net))\.?\2$/.exec(domain);
+    if (doubled) return to('clear', doubled[1]);
+    if (MAIL_BAD_ENDINGS[ending]) {
+      var mended = labels.slice(0, -1).concat(MAIL_BAD_ENDINGS[ending]).join('.');
+      var near = closestProvider(mended);
+      return to('clear', near && near.slips <= 1 && MAIL_REAL.indexOf(mended) < 0 ? near.domain : mended);
+    }
+    var best = closestProvider(domain);
+    if (!best) return null;
+    var name = mailName(best.domain);
+    if (mailName(domain) === name) {
+      // The right provider with another ending. A country ending (hotmail.fr, yahoo.de) is usually real, except for Gmail;
+      // .co is the usual slip for .com.
+      if (ending.length === 2 && ending !== 'co' && name !== 'gmail') return null;
+      return to(name === 'gmail' ? 'clear' : 'possible', best.domain, 'Most ' + (MAIL_NAMES[name] || name) + ' addresses end in ' + best.domain.slice(name.length));
+    }
+    if (best.slips === 1 && name.length >= 5) return to('clear', best.domain);
+    // One slip from a short name (aol, msn), or two from a long one: it could be a real address, so only a gentle hint.
+    if (best.slips === 1 || name.length >= 6) return to('possible', best.domain, 'That is close to ' + best.domain);
+    return null;
+  }
+
   function requestForm(getChosen, getLength) {
     var minor = el('input', { type: 'checkbox', id: 'minor' });
     var guardianBox = el('div', { id: 'guardianBox', hidden: 'hidden' }, field('Parent or guardian name (required)', el('input', { type: 'text', id: 'guardian', name: 'guardian', maxlength: '60', autocomplete: 'off' })));
@@ -518,14 +605,99 @@
     ));
     var fields = { name: '#name', email: '#email', phone: '#phone', guardian: '#guardian' };
     form.addEventListener('input', clearInvalid);
+    // A likely typo is pointed out once the student leaves the email box (Tab, or a tap anywhere else), not while typing.
+    var emailInput = form.querySelector('#email');
+    var emailHint = el('div', { id: 'emailHint', 'class': 'typo', hidden: 'hidden', role: 'status' });
+    emailInput.parentNode.insertBefore(emailHint, emailInput.nextSibling);
+    // An address the student chose to keep after a hint: not pointed out again, here or in the confirm step.
+    var keptEmail = '';
+    function typoFor(value) {
+      var typo = emailTypo(value);
+      return typo && String(value).trim().toLowerCase() !== keptEmail ? typo : null;
+    }
+    function domainOf(value) { return value.slice(value.lastIndexOf('@') + 1); }
+    // Fills a hint box with "Did you mean ...?" and its two answers, or empties and hides it. A box already showing this
+    // suggestion is left alone, so a tap on its button is never lost to the box being redrawn as the input loses focus.
+    function fillHint(box, typo, use, keep) {
+      var key = typo ? typo.level + ' ' + typo.suggestion : '';
+      if (key && box.getAttribute('data-for') === key && !box.hidden) return;
+      box.setAttribute('data-for', key);
+      while (box.firstChild) box.removeChild(box.firstChild);
+      box.hidden = !typo;
+      if (!typo) return;
+      box.className = 'typo' + (typo.level === 'clear' ? '' : ' soft');
+      box.appendChild(document.createTextNode((typo.reason ? typo.reason + '. ' : '') + 'Did you mean '));
+      box.appendChild(el('b', { text: typo.suggestion }));
+      box.appendChild(document.createTextNode('?'));
+      box.appendChild(el('div', { 'class': 'actions' }, [
+        el('button', { type: 'button', text: 'Use ' + domainOf(typo.suggestion), onclick: function () { use(typo.suggestion); } }),
+        el('button', { type: 'button', 'class': 'plain', text: 'Keep mine', onclick: keep })]));
+    }
+    function doneHint(box, text) {
+      while (box.firstChild) box.removeChild(box.firstChild);
+      box.setAttribute('data-for', '');
+      box.className = 'typo done';
+      box.textContent = '✓ ' + text;
+      box.hidden = false;
+    }
+    function markTypo(input, typo) {
+      input.classList.remove('typo-clear', 'typo-soft');
+      if (typo) input.classList.add(typo.level === 'clear' ? 'typo-clear' : 'typo-soft');
+    }
+    // A press on Send request (or Confirm, or Done) after typing is not "leaving the box": the hint is not drawn then, so the
+    // button never moves away under the finger (a tap that lands elsewhere is lost), and the confirm step points out a clear
+    // slip instead. pointerdown comes before the box loses focus, on a mouse and on a touch screen alike.
+    var headingOn = 0;
+    function headingTo(button) {
+      button.addEventListener('pointerdown', function () { headingOn = Date.now(); });
+      // The press is over once its click arrives (after the box has lost focus); a press dragged off the button just expires.
+      button.addEventListener('click', function () { headingOn = 0; }, true);
+    }
+    function headingAway(event) { return Date.now() - headingOn < 1500 || event && event.relatedTarget && event.relatedTarget.getAttribute('data-sends') === 'yes'; }
+    submit.setAttribute('data-sends', 'yes');
+    headingTo(submit);
+    function checkFormEmail(event) {
+      if (headingAway(event)) return;
+      var value = emailInput.value.trim();
+      var typo = looksLikeEmail(value) ? typoFor(value) : null;
+      markTypo(emailInput, typo);
+      if (typo || !emailHint.classList.contains('done')) fillHint(emailHint, typo, function (fixed) {
+        emailInput.value = fixed;
+        markTypo(emailInput, null);
+        doneHint(emailHint, 'Changed to ' + domainOf(fixed) + '.');
+      }, function () {
+        keptEmail = emailInput.value.trim().toLowerCase();
+        markTypo(emailInput, null);
+        fillHint(emailHint, null);
+      });
+    }
+    emailInput.addEventListener('blur', checkFormEmail);
+    // Typing again puts the hint away until they leave the box again.
+    emailInput.addEventListener('input', function () {
+      markTypo(emailInput, null);
+      fillHint(emailHint, null);
+      emailHint.classList.remove('done');
+    });
     // The last check before sending: there is no emailed YES any more, so this is where the student sees what goes to the coach
-    // and the address we will write to (a mistyped one would never hear back).
-    var sendNow = el('button', { type: 'button', text: 'Confirm submission' });
+    // and the address we will write to (a mistyped one would never hear back). The address is shown large, a clear typo is
+    // pointed out again, and it can be corrected right here: checking it and sending happen on the same screen.
+    var sendNow = el('button', { type: 'button', 'data-sends': 'yes', text: 'Confirm submission' });
     var goBack = el('button', { type: 'button', 'class': 'plain', text: 'Go back' });
-    var dialog = el('dialog', { id: 'confirmRequest', 'aria-labelledby': 'confirmTitle', 'aria-describedby': 'confirmWhat' }, [
-      el('h2', { id: 'confirmTitle' }), el('p', { id: 'confirmWhat' }), el('ul', { id: 'confirmSend', 'class': 'sendlist' }), el('p', { id: 'confirmNext' }),
+    var addrText = el('span', { 'class': 'addr', id: 'confirmAddr' });
+    var addrButton = el('button', { type: 'button', 'class': 'addrbtn', id: 'confirmAddress' }, [addrText, el('span', { 'class': 'pen', 'aria-hidden': 'true', text: '✎ Edit' })]);
+    var editInput = el('input', { type: 'email', id: 'confirmEmailInput', maxlength: '254', autocomplete: 'email', inputmode: 'email' });
+    var editDone = el('button', { type: 'button', 'data-sends': 'yes', text: 'Done' });
+    var editBox = el('div', { id: 'confirmEdit', hidden: 'hidden' }, field('Your email address', editInput));
+    // Done sits under the hint, so a suggestion appears right under the address it is about.
+    var editActions = el('div', { 'class': 'actions', hidden: 'hidden' }, [editDone]);
+    var confirmHint = el('div', { id: 'confirmHint', 'class': 'typo', hidden: 'hidden', role: 'status' });
+    var lead = el('span', { 'class': 'lead', id: 'confirmLead', text: 'We will email the coach’s answer to:' });
+    var emailBox = el('div', { id: 'confirmEmail', 'class': 'emailcheck' }, [lead, addrButton, editBox, confirmHint, editActions]);
+    var dialog = el('dialog', { id: 'confirmRequest', 'aria-labelledby': 'confirmTitle', 'aria-describedby': 'confirmWhat confirmLead confirmAddr confirmHint' }, [
+      el('h2', { id: 'confirmTitle' }), el('p', { id: 'confirmWhat' }), emailBox, el('p', { id: 'confirmGives' }), el('ul', { id: 'confirmSend', 'class': 'sendlist' }),
       el('div', { 'class': 'actions' }, [sendNow, goBack])]);
     document.body.appendChild(dialog);
+    dialog.addEventListener('input', clearInvalid);
     var sending = false;
     function closeDialog() {
       if (dialog.open) dialog.close();
@@ -535,6 +707,103 @@
     // Esc closes it the same way.
     dialog.addEventListener('cancel', function () { sending = false; });
     function looksLikeEmail(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
+    // The address in large type. A long one wraps at its dots or before the @, and the part after the @ stays on one line;
+    // the doubtful part is underlined when there is a clear typo.
+    function showAddress(value, typo) {
+      while (addrText.firstChild) addrText.removeChild(addrText.firstChild);
+      var at = value.lastIndexOf('@');
+      value.slice(0, at).split('.').forEach(function (part, index) {
+        if (index) { addrText.appendChild(document.createTextNode('.')); addrText.appendChild(el('wbr')); }
+        addrText.appendChild(document.createTextNode(part));
+      });
+      addrText.appendChild(el('wbr'));
+      addrText.appendChild(el('span', { 'class': 'nobr' }, [document.createTextNode('@'), el('span', { 'class': typo ? 'dom' : '', text: value.slice(at + 1) })]));
+      addrButton.setAttribute('aria-label', 'Email address ' + value + '. Edit');
+    }
+    // Shows the address as it now stands on the form. Only a clear typo is pointed out here, so a student who taps Send
+    // straight away is stopped only for a real slip; a "worth a look" hint was offered when they left the box.
+    function showEmail() {
+      var value = emailInput.value.trim();
+      var typo = typoFor(value);
+      if (typo && typo.level !== 'clear') typo = null;
+      showAddress(value, typo);
+      emailBox.className = 'emailcheck' + (typo ? ' warn' : '');
+      if (typo || !confirmHint.classList.contains('done')) fillHint(confirmHint, typo, useSuggestion, keepTyped);
+      return typo;
+    }
+    // The hint's two answers, whether it was shown for the address or for the box being edited (the same hint can be both:
+    // leaving the box draws it, then Done or Confirm closes the box), so each reads the address as it is when tapped.
+    function useSuggestion(fixed) {
+      var note = 'Changed to ' + domainOf(fixed) + '. Your form is updated too.';
+      if (editBox.hidden) useEmail(fixed, note);
+      else { editInput.value = fixed; closeEditor(note); }
+    }
+    function keepTyped() {
+      keptEmail = (editBox.hidden ? emailInput : editInput).value.trim().toLowerCase();
+      if (!editBox.hidden) closeEditor();
+      else { showEmail(); addrButton.focus(); }
+    }
+    // A corrected address goes back into the form, so the request, and "Remember my details", use it.
+    function useEmail(value, note) {
+      emailInput.value = value;
+      markTypo(emailInput, null);
+      fillHint(emailHint, null);
+      confirmHint.classList.remove('done');
+      // A slip still in the new address is pointed out instead of the note.
+      if (!showEmail() && note) doneHint(confirmHint, note);
+      addrButton.focus();
+    }
+    function openEditor() {
+      editInput.value = emailInput.value.trim();
+      unmark(editBox);
+      fillHint(confirmHint, null);
+      confirmHint.classList.remove('done');
+      emailBox.className = 'emailcheck';
+      addrButton.hidden = true;
+      lead.hidden = true;
+      editBox.hidden = false;
+      editActions.hidden = false;
+      editInput.focus();
+    }
+    // Leaving the box in the confirm step runs the same check as on the form, "worth a look" hints included.
+    function checkEditor(event) {
+      if (headingAway(event)) return;
+      var value = editInput.value.trim();
+      var typo = looksLikeEmail(value) ? typoFor(value) : null;
+      markTypo(editInput, typo);
+      emailBox.className = 'emailcheck' + (typo ? ' warn' : '');
+      fillHint(confirmHint, typo, useSuggestion, keepTyped);
+    }
+    // Done: a valid address replaces the one on the form. Returns false while the address cannot be used.
+    function closeEditor(note) {
+      if (editBox.hidden) return true;
+      var value = editInput.value.trim();
+      if (!looksLikeEmail(value)) {
+        unmark(editBox);
+        var problem = el('p', { 'class': 'field-error', id: 'confirmEmailInputError', role: 'alert', text: 'Please enter a valid email address.' });
+        editInput.parentNode.insertBefore(problem, editInput.nextSibling);
+        editInput.setAttribute('aria-invalid', 'true');
+        editInput.setAttribute('aria-describedby', problem.id);
+        editInput.focus();
+        return false;
+      }
+      editBox.hidden = true;
+      addrButton.hidden = false;
+      lead.hidden = false;
+      editActions.hidden = true;
+      markTypo(editInput, null);
+      useEmail(value, note || (value !== emailInput.value.trim() ? 'Changed. Your form is updated too.' : ''));
+      return true;
+    }
+    headingTo(sendNow);
+    headingTo(editDone);
+    addrButton.addEventListener('click', openEditor);
+    editDone.addEventListener('click', function () { closeEditor(); });
+    editInput.addEventListener('blur', checkEditor);
+    editInput.addEventListener('input', function () { markTypo(editInput, null); fillHint(confirmHint, null); emailBox.className = 'emailcheck'; });
+    editInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { event.preventDefault(); closeEditor(); }
+    });
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       var slot = getChosen();
@@ -552,23 +821,34 @@
       }
       resetStatus(form);
       dialog.querySelector('#confirmTitle').textContent = 'Send this request to ' + slot.coach + '?';
-      dialog.querySelector('#confirmWhat').textContent = 'A ' + slot.minutes + ' minute lesson on ' + slot.day + ', ' + slot.time + ', at Table ' + slot.table + '. Clicking Confirm submission sends a message to ' + slot.coach + ' to confirm the lesson and gives ' + slot.coach + ' your contact information:';
+      dialog.querySelector('#confirmWhat').textContent = 'A ' + slot.minutes + ' minute lesson on ' + slot.day + ', ' + slot.time + ', at Table ' + slot.table + '. It is not booked until ' + slot.coach + ' accepts.';
+      dialog.querySelector('#confirmGives').textContent = 'Clicking Confirm submission sends a message to ' + slot.coach + ' to confirm the lesson and gives ' + slot.coach + ' your contact information: the email address above and these details:';
       var list = dialog.querySelector('#confirmSend');
       while (list.firstChild) list.removeChild(list.firstChild);
-      [['Student', name], ['Parent', minor.checked ? guardian : ''], ['Email', email], ['Mobile', phone || 'not given']].forEach(function (row) {
+      [['Student', name], ['Parent', minor.checked ? guardian : ''], ['Mobile', phone || 'not given']].forEach(function (row) {
         if (row[1]) list.appendChild(el('li', {}, [el('b', { text: row[0] }), document.createTextNode(row[1])]));
       });
-      dialog.querySelector('#confirmNext').textContent = 'It is not booked until ' + slot.coach + ' accepts. We email you at ' + email + ' as soon as the coach answers, so please check that address is right.';
+      editBox.hidden = true;
+      addrButton.hidden = false;
+      lead.hidden = false;
+      editActions.hidden = true;
+      fillHint(confirmHint, null);
+      confirmHint.classList.remove('done');
+      var typo = showEmail();
       sending = false;
       if (typeof dialog.showModal === 'function') {
         dialog.showModal();
         sendNow.focus();
-      } else if (window.confirm(dialog.querySelector('#confirmTitle').textContent + '\n\n' + dialog.querySelector('#confirmWhat').textContent + '\n' +
-          list.textContent + '\n\n' + dialog.querySelector('#confirmNext').textContent)) {
+      } else if (window.confirm(dialog.querySelector('#confirmTitle').textContent + '\n\n' + dialog.querySelector('#confirmWhat').textContent + '\n\nWe will email the coach\'s answer to: ' +
+          email + (typo ? '\nDid you mean ' + typo.suggestion + '? Press Cancel to fix it.' : '') + '\n\n' + dialog.querySelector('#confirmGives').textContent + '\n' + list.textContent)) {
         send(slot);
       }
     });
     sendNow.addEventListener('click', function () {
+      // An address being edited is used first; a clear typo only now revealed stops the request so it can be seen.
+      var editing = !editBox.hidden;
+      if (!closeEditor()) return;
+      if (editing && showEmail()) { sendNow.focus(); return; }
       var slot = getChosen();
       sending = true;
       closeDialog();

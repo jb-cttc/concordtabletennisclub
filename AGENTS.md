@@ -72,13 +72,15 @@ never commit, post, or quote member names or rows.
   [New issue](https://github.com/jb-cttc/concordtabletennisclub/issues/new).
   Explain that the repository and issues are public: never include private
   member links, contact details, payments, or credentials.
-- Work on a branch and submit a PR to `jb-cttc/main` for approval. Run
-  `npm test` before review. Do not treat edits in the Google editor as the
-  source of truth; bring any such changes back into this repository for review.
+- Work on a branch and submit a PR to `jb-cttc/main` for approval. Before
+  review, run the checks the test plan names (`npm run test:changed`; see
+  *Size the checks to the change* below); GitHub runs the whole `npm test` on
+  every PR. Do not treat edits in the Google editor as the source of truth;
+  bring any such changes back into this repository for review.
 - With owner approval for the branch, push Apps Script updates to `/dev` during
   development so the real Google-hosted UI can be tested before the PR. First
   check Google HEAD for editor-side changes and preserve any found in the repo;
-  run `npm test`. The shared `/dev` code uses the real Sheet, so use read-only
+  run the plan's checks. The shared `/dev` code uses the real Sheet, so use read-only
   checks or disposable data, never real-session finalization. Follow the
   [CTTC dev preview skill](.github/skills/cttc-dev-preview/SKILL.md).
   After PR approval and merge, push the merged commit, verify `/dev`, then
@@ -101,9 +103,11 @@ what is read and written, **what must stay true**, which tests cover it and
 which do not, and how to simulate it. The page is `storyboard.html` on the
 site; the same content as plain data is `docs/storyboard/night.json`.
 
-- Before reporting a desk change as working, find the steps it touches and
+- Before reporting a desk change as working, find the steps it touches
+  (`npm run test:plan` lists the steps that cite the changed lines) and
   check their `tech.invariants`, especially those listed in `tech.untested`.
-  Green tests prove only what they assert.
+  Green tests prove only what they assert. A step is not affected just because
+  its file changed: update it only when what it says is no longer true.
 - When a change alters how a step works, update that step in
   `docs/storyboard/night-*.js` and run `npm run build:storyboard` in the same
   PR (`npm test` fails while the page is out of date). A new app or feature
@@ -111,6 +115,39 @@ site; the same content as plain data is `docs/storyboard/night.json`.
   how the apps connect). Follow the
   [CTTC storyboard skill](.github/skills/cttc-storyboard/SKILL.md), and say in
   the PR which steps changed, or why none did.
+
+## Size the checks to the change
+
+Checking costs time; spend it where a change can break something, the way a
+good developer keeps a running list of what they touched while they build.
+
+- **Keep the list as you go.** `npm run test:plan` prints it from the branch at
+  any moment: each file touched and the checks that read it; anything shared
+  with another app that changed (a Sheet tab or its columns, a script property,
+  a site data file, a call between apps) and that app's checks; and the
+  storyboard steps citing the changed lines, or that none do. It works this out
+  from the code and the storyboard, so there is no list of tests to keep up.
+  Run it when shaping a change and again before review, and paste it in the PR.
+- **Look for reuse while building.** Before writing a helper, search the other
+  apps for one. When something you build would serve another app (the coaching
+  page's email typo check suits every form that takes an email), say so in the
+  PR instead of copying it.
+- **Run what the plan names** with `npm run test:changed`. Run the whole
+  `npm test` only when the plan says *full* (dependencies, the Node version,
+  the test workflow, or most checks read the change). GitHub runs the whole
+  suite on every PR (`.github/workflows/test.yml`), so never run it again "to
+  be safe"; after a small follow-up fix, run the plan again, not the suite.
+- **Match the effort to the change:**
+
+  | Change | Tests to write | Storyboard | Look at it |
+  | --- | --- | --- | --- |
+  | One page's look or a self-contained feature (a table that sorts) | None, or one assertion where it could break silently | Not affected unless the plan lists a step | Once, wide and phone |
+  | A clearer screen in a flow that works the same (the coaching confirm step) | One test of the handshake: what the page sends is what the person confirmed | Re-read the listed steps; change only what is no longer true | The changed screen, wide and phone |
+  | Something another app reads (plan level *cross-app*) | The contract, on both sides | Update the steps and the map's links | `/dev` of each app touched |
+  | Dependencies or shared libraries (plan level *full*) | As the change needs | As the plan lists | As the change needs |
+
+- **Screenshots chase problems.** One wide and one phone look at the changed
+  screen; take more only to follow up something that looks wrong.
 
 ## Designing for the whole system
 

@@ -116,6 +116,10 @@
   var compareSecond = null;
   var activeTab = "rankings";
   var improvedDays = 30;
+  // Each table's sort: the column's key, and whether highest (or Z) comes first. Rank 1 first by default.
+  var rankingsSort = { key: "rank", desc: false };
+  var improvedSort = { key: "rank", desc: false };
+  var rankOf = {};
 
   var status = document.getElementById("leaderboard-status");
   var tabs = document.getElementById("leaderboard-tabs");
@@ -156,6 +160,87 @@
     if (p.length !== 3) return "";
     return DAYS_LONG[new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])).getDay()];
   }
+
+  // ----- Sorting by any column -----
+  // A tap on a column heading sorts by it: numbers highest first, names A to Z. A second tap reverses it. Equal values keep
+  // their rank order, and the Rank column always shows the real rank, so a table sorted by Sessions still shows who ranks where.
+  var RANKINGS_COLUMNS = [
+    { key: "rank", label: "Rank", desc: false, value: function (player) { return rankOf[player.name]; } },
+    { key: "player", label: "Player", desc: false, value: function (player) { return player.name; } },
+    { key: "rating", label: "Rating", desc: true, value: function (player) { return player.currentRating; } },
+    { key: "trend", label: "Trend", desc: true, value: function (player) { return trendChange(player.ratingHistory); } },
+    { key: "sessions", label: "Sessions", desc: true, value: function (player) { return player.sessionsPlayed; } },
+    { key: "record", label: "W-L", desc: true, value: function (player) { return player.totalWins; }, then: function (player) { return -player.totalLosses; } }
+  ];
+  var IMPROVED_COLUMNS = [
+    { key: "rank", label: "Rank", desc: false, value: function (row) { return row.rank; } },
+    { key: "player", label: "Player", desc: false, value: function (row) { return row.player.name; } },
+    { key: "gain", label: "Gain", desc: true, value: function (row) { return row.gain; } },
+    { key: "was", label: "Was", desc: true, value: function (row) { return row.was; } },
+    { key: "now", label: "Now", desc: true, value: function (row) { return row.now; } },
+    { key: "sessions", label: "Sessions", desc: true, value: function (row) { return row.sessions; } }
+  ];
+
+  // The change across the sparkline's sessions (the last 20), which is what the Trend column draws.
+  function trendChange(history) {
+    var shown = (history || []).slice(-20);
+    return shown.length ? shown[shown.length - 1].rating - shown[0].rating : 0;
+  }
+
+  function compareValues(a, b) {
+    if (typeof a === "string" || typeof b === "string") return String(a).localeCompare(String(b), undefined, { sensitivity: "base" });
+    return (Number(a) || 0) - (Number(b) || 0);
+  }
+
+  function sortRows(list, columns, sort, rankOfRow) {
+    var column = columns.filter(function (item) { return item.key === sort.key; })[0] || columns[0];
+    return list.slice().sort(function (a, b) {
+      var order = compareValues(column.value(a), column.value(b));
+      if (!order && column.then) order = compareValues(column.then(a), column.then(b));
+      return (sort.desc ? -order : order) || rankOfRow(a) - rankOfRow(b);
+    });
+  }
+
+  // Turns each heading into a button; returns a function that shows which column is sorted, and which way.
+  function sortableHeadings(tableEl, columns, sort, render) {
+    var cells = tableEl.querySelectorAll("thead th");
+    columns.forEach(function (column, index) {
+      var th = cells[index];
+      clear(th);
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "sort-button";
+      button.appendChild(document.createTextNode(column.label));
+      var arrow = document.createElement("span");
+      arrow.className = "sort-arrow";
+      arrow.setAttribute("aria-hidden", "true");
+      button.appendChild(arrow);
+      button.addEventListener("click", function () {
+        if (sort.key === column.key) {
+          sort.desc = !sort.desc;
+        } else {
+          sort.key = column.key;
+          sort.desc = column.desc;
+        }
+        render();
+      });
+      th.appendChild(button);
+    });
+    return function showSort() {
+      columns.forEach(function (column, index) {
+        var th = cells[index];
+        var on = sort.key === column.key;
+        if (on) th.setAttribute("aria-sort", sort.desc ? "descending" : "ascending");
+        else th.removeAttribute("aria-sort");
+        th.classList.toggle("sorted", on);
+        th.querySelector(".sort-arrow").textContent = on ? (sort.desc ? "\u25BC" : "\u25B2") : "";
+        th.querySelector(".sort-button").title = "Sort by " + column.label + (on ? (sort.desc ? ", highest first" : ", lowest first") : "");
+      });
+    };
+  }
+
+  var showRankingsSort = sortableHeadings(table, RANKINGS_COLUMNS, rankingsSort, function () { renderRows(); });
+  var showImprovedSort = sortableHeadings(document.querySelector(".improved-table"), IMPROVED_COLUMNS, improvedSort, function () { renderImproved(); });
 
   function visiblePlayers() {
     var query = searchQuery.trim().toLowerCase();
@@ -430,8 +515,9 @@
 
   function renderRows() {
     clear(tbody);
-    var visible = visiblePlayers();
+    var visible = sortRows(visiblePlayers(), RANKINGS_COLUMNS, rankingsSort, function (player) { return rankOf[player.name]; });
     updateCount(visible);
+    showRankingsSort();
 
     if (!visible.length) {
       var emptyRow = document.createElement("tr");
@@ -455,7 +541,7 @@
       });
 
       var rank = document.createElement("td");
-      rank.textContent = players.indexOf(player) + 1;
+      rank.textContent = rankOf[player.name];
       row.appendChild(rank);
       row.appendChild(makePlayerCell(player));
 
@@ -516,13 +602,16 @@
     });
 
     rows.sort(function (a, b) { return b.gain - a.gain || a.player.name.localeCompare(b.player.name); });
+    rows.forEach(function (r, i) { r.rank = i + 1; });
+    rows = sortRows(rows, IMPROVED_COLUMNS, improvedSort, function (r) { return r.rank; });
+    showImprovedSort();
 
     clear(improvedBody);
-    rows.forEach(function (r, i) {
+    rows.forEach(function (r) {
       var row = document.createElement("tr");
 
       var rankCell = document.createElement("td");
-      rankCell.textContent = i + 1;
+      rankCell.textContent = r.rank;
       row.appendChild(rankCell);
 
       var nameCell = document.createElement("td");
@@ -577,6 +666,8 @@
     })
     .then(function (data) {
       players = data.players || [];
+      rankOf = {};
+      players.forEach(function (player, index) { rankOf[player.name] = index + 1; });
       status.hidden = true;
       tabs.hidden = false;
       tools.hidden = false;

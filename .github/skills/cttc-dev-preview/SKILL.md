@@ -24,7 +24,9 @@ numbered deployment. Both URLs use the real club Sheet.
    copies, accounting for intended branch edits. If Google has independent
    edits, preserve them in the branch and verify again; never blindly overwrite
    them. Avoid logging private data or credentials.
-3. Run `npm test`. If checks fail, repair the relevant slice before previewing.
+3. Run the checks the test plan names (`npm run test:changed`; the whole
+   `npm test` only when the plan says *full*). If checks fail, repair the
+   relevant slice before previewing.
    From `apps-script/`, run `npx --no-install @google/clasp status` to confirm
    the files that would be pushed. Then run `npx --no-install @google/clasp push`.
    This updates shared HEAD only, not `/exec`.

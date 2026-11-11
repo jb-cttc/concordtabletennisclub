@@ -1206,13 +1206,50 @@ h2.announcement-tag {
   cursor: pointer;
 }
 
+/* Column headings sort the table: a tap sorts by that column, a second tap reverses it. */
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sort-button:hover,
+.sort-button:focus-visible {
+  text-decoration: underline;
+}
+
+.sort-arrow {
+  min-width: 0.8em;
+  font-size: 0.7em;
+  color: var(--red);
+}
+
+.leaderboard-table th.sorted {
+  border-bottom-color: var(--red);
+}
+
 .player-row:hover,
 .player-row.expanded {
   background: #fff9ee;
 }
 
-.leaderboard-table td:nth-child(2) {
+.leaderboard-table td:nth-child(2),
+.leaderboard-table:not(.improved-table) td:nth-child(6) {
   white-space: nowrap;
+}
+
+/* Most Improved: Was is a number like Now, so it lines up on the right too */
+.improved-table th:nth-child(4),
+.improved-table td:nth-child(4) {
+  text-align: right;
 }
 
 .vs-button,
@@ -1441,14 +1478,17 @@ footer {
 
   .leaderboard-table th,
   .leaderboard-table td {
-    padding-right: 8px;
+    padding-right: 6px;
   }
 
-  /* Rankings table: hide Trend and Sessions columns */
+  /* Long names wrap, so Rank, Rating, Sessions and W-L all fit beside them */
+  .leaderboard-table td:nth-child(2) {
+    white-space: normal;
+  }
+
+  /* Rankings table: hide the Trend column (Sessions stays, so it can be sorted on a phone too) */
   .leaderboard-table:not(.improved-table) th:nth-child(4),
-  .leaderboard-table:not(.improved-table) td:nth-child(4),
-  .leaderboard-table:not(.improved-table) th:nth-child(5),
-  .leaderboard-table:not(.improved-table) td:nth-child(5) {
+  .leaderboard-table:not(.improved-table) td:nth-child(4) {
     display: none;
   }
 
@@ -1491,6 +1531,18 @@ footer {
 
   .archive-player-search {
     width: 100%;
+  }
+}
+
+/* The smallest phones: slightly smaller leaderboard text keeps all five Rankings columns on screen */
+@media (max-width: 360px) {
+  .leaderboard-table {
+    font-size: 0.74rem;
+  }
+
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding-right: 4px;
   }
 }
 

@@ -21,10 +21,11 @@ keeps doing that job if every change keeps it current.
 
 ## When a change touches a night
 
-1. **Find the steps.** List the files the branch changes
-   (`git diff --name-only origin/main`) and search
-   `docs/storyboard/night.json` for them (`tech.entry[].file`, evidence
-   strings). Read those steps, including their exceptions.
+1. **Find the steps.** `npm run test:plan` lists the steps whose citations
+   (`tech.entry[]`, exception evidence) are near the changed lines, and says
+   when none are. Read those steps, including their exceptions. A step is not
+   affected just because its file changed: update it only when what it says
+   is no longer true (a page that sorts its table changes no step).
 2. **Check what must stay true.** For each step, confirm the change keeps every
    `tech.invariants` line. Those also in `tech.untested` have no test: check
    them with the step's `tech.simulate` (desk simulator, or the offline preview
@@ -44,7 +45,7 @@ keeps doing that job if every change keeps it current.
      in `tech.tests`, or, if there is none yet, a line in `tech.untested`.
    - A new connection between apps (a Sheet another app reads, a wake call, a
      shared file): a row in `map.links` in `night-club.js`.
-5. **Rebuild and test.** `npm run build:storyboard`, then `npm test`
+5. **Rebuild and test.** `npm run build:storyboard`, then `npm run test:changed`
    (`check:storyboard` fails while `storyboard.html` or `night.json` is out of
    date, a cited file is missing, or an entry point's name is not on its line).
 6. **Say so in the PR:** "Storyboard: steps print-4, finish-3 updated", or

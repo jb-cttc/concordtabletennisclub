@@ -82,7 +82,7 @@ For effective agent-assisted changes:
       worked. Include the page or workflow and whether you mean the website,
       Google desk, or private Sheet. Ask it to check the owning code and nearby
       tests before editing, then keep the change focused.
-2. Work on a branch, run `npm test`, and review the diff in a PR. Test visible
+2. Work on a branch, run `npm run test:changed`, and review the diff in a PR. Test visible
       changes in a browser as well; passing code checks cannot show whether a
       tutorial is clear or a screen is crowded. See [Contributing](#contributing).
 3. Keep private names, contact details, payments, credentials, and Sheet
@@ -101,7 +101,7 @@ For effective agent-assisted changes:
 
 For a UI change, a maintainer can approve **preview pushes** from a feature
 branch with clasp for the duration of its development. Check Google HEAD for
-other editors' changes and run `npm test` before each push. The push updates
+other editors' changes and run the plan's checks (`npm run test:changed`) before each push. The push updates
 the script's latest code, which
 project editors can open at the existing `/dev` URL. The agent and organizer
 can try the real Google-hosted page, compare it with the requested behavior,
@@ -252,11 +252,16 @@ The **Organize** button on the Round Robins page opens the Google desk. The
 desk only opens for the club's Google account; collaborators can review and
 change its code in `apps-script/`, but a maintainer deploys it (see below).
 
-Run all checks before opening a pull request:
+Before opening a pull request, run the checks your change needs:
 
 ```sh
-npm test
+npm run test:plan      # what you touched, what it shares with other apps, the storyboard steps, and the checks
+npm run test:changed   # runs those checks
 ```
+
+GitHub runs the whole suite (`npm test`) on every pull request, so you only
+need it yourself when the plan says *full*. See *Size the checks to the
+change* in [AGENTS.md](AGENTS.md).
 
 `npm test` runs the desk, rating, standings, and publication checks. None of
 them touch the network or change tracked files. The desk checks include
@@ -280,7 +285,7 @@ All changes go through pull requests. Nobody pushes directly to `main`.
    git switch main && git pull
    git switch -c fix/leaderboard-sort
    ```
-3. **Make a focused change** and run `npm test`. Check pages you touched in
+3. **Make a focused change** and run `npm run test:changed`. Check pages you touched in
    the browser at <http://localhost:3000>.
 4. **Commit** with a clear message, ideally in
    [Conventional Commits](https://www.conventionalcommits.org/) style

@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "acdfc2bb318df62b16d1a2fab63bfe238d5f632f",
+  "commit": "e735829d849eeedc713a9ec5666622fcffd79ab7",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -1075,7 +1075,7 @@
        "happens": "The hourly sweep disables them and hides their times.",
        "handling": "Add or remove a coach in CLUB_COACHES and coaching.html, not in the Sheet.",
        "status": "handled",
-       "evidence": "docs/coaching-flow.md:370"
+       "evidence": "docs/coaching-flow.md:389"
       }
      ],
      "screen": {
@@ -1145,12 +1145,19 @@
      "title": "A student books a lesson",
      "who": "Player",
      "when": "Any time before the lesson",
-     "summary": "The student picks a time, fills in the form and presses **Send request**, checks the details in the confirm box and presses **Confirm submission**. The coach is asked at once by email (and text if registered) and replies YES or NO. Both get *Lesson confirmed* with each other's contact details.",
+     "summary": "The student picks a time, fills in the form and presses **Send request**, checks the details in the confirm box and presses **Confirm submission**. The confirm box shows *We will email the coach’s answer to:* with the address in large bold type and an **✎ Edit** button, so a mistyped address can be fixed right there. The coach is asked at once by email (and text if registered) and replies YES or NO. Both get *Lesson confirmed* with each other's contact details.",
      "subtext": "A request waits up to 48 hours for the coach, and expires 12 hours before the lesson (or at its start on short notice).",
      "caveats": [
       "Every email carries a six-character booking code; `?log=CODE` on the app shows exactly where a booking is."
      ],
      "exceptions": [
+      {
+       "when": "The student mistypes their email address",
+       "happens": "Leaving the email box points out a likely typo: *Did you mean sam@gmail.com?* with **Use gmail.com** and **Keep mine** (amber for a clear slip such as gmial.com, a quieter hint such as *Most Comcast addresses end in .net* for one worth a look). Pressing Send straight away shows no hint on the form; a clear slip is pointed out again in the confirm box, where one tap fixes it on the same screen.",
+       "handling": "Nothing to do: the student can always keep what they typed, and the app's own check of the address is unchanged.",
+       "status": "handled",
+       "evidence": "coaching-app/Index.html:536"
+      },
       {
        "when": "The coach never answers",
        "happens": "The request expires; student, coach and club are emailed.",
@@ -1163,7 +1170,7 @@
        "happens": "They confirm the change by email YES; a move takes effect only if the new time is still open.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "docs/coaching-flow.md:165"
+       "evidence": "docs/coaching-flow.md:185"
       }
      ],
      "screen": {
@@ -1175,6 +1182,18 @@
      },
      "tech": {
       "entry": [
+       {
+        "file": "coaching-app/Index.html",
+        "line": 536,
+        "symbol": "emailTypo",
+        "note": "A likely typo in the address: clear or worth a look."
+       },
+       {
+        "file": "coaching-app/Index.html",
+        "line": 725,
+        "symbol": "showEmail",
+        "note": "The confirm box: the address large, a clear typo pointed out."
+       },
        {
         "file": "coaching-app/Code.js",
         "line": 660,
@@ -1207,7 +1226,9 @@
       ],
       "invariants": [
        "A lesson is confirmed only by the coach's reply.",
-       "A student never holds two overlapping lessons."
+       "A student never holds two overlapping lessons.",
+       "A request is sent only by Confirm submission, to the address shown large in the confirm box (an edit there goes back into the form).",
+       "A typo hint never blocks a request: a clear slip is pointed out before sending, a softer one only on leaving the box, and the student can keep what they typed."
       ],
       "limits": [
        "Email quota shared; sending pauses at 10 left."
@@ -1217,10 +1238,17 @@
         "file": "coaching-app/check-coaching.cjs",
         "case": "",
         "covers": "The whole request lifecycle."
+       },
+       {
+        "file": "coaching-app/check-coaching.cjs",
+        "case": "The student's email address on the request form",
+        "covers": "Typo levels, the hints, fixing and editing in the confirm box, what is sent."
        }
       ],
-      "untested": [],
-      "simulate": "check-coaching.cjs."
+      "untested": [
+       "How the hints look on a real phone (checked by hand in the local preview, npm run preview:coaching)."
+      ],
+      "simulate": "check-coaching.cjs; DEMO=1 npm run preview:coaching for the page itself."
      }
     },
     {
