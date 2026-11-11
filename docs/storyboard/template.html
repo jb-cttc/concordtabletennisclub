@@ -1,0 +1,618 @@
+<title>Round Robin Night Storyboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a film strip of the night. A sticky rail of the seven parts; each step is a frame (picture of the screen)
+   beside its plain-words story, with exceptions under it and a technical layer that opens beneath. */
+:root {
+  --bg: #f3f5f1; --surface: #ffffff; --surface-2: #eaefe9; --ink: #17211b; --dim: #56655c; --line: #d3dbd4;
+  --green: #176b45; --green-deep: #123f2b; --gold: #b98a26; --ball: #d96a0b;
+  --ok: #1d7a4c; --ok-bg: #e2f2e9; --warn: #8a5a00; --warn-bg: #fbefd2; --bad: #a12f28; --bad-bg: #f9e1de;
+  --code-bg: #eef2ee; --shadow: 0 1px 2px rgba(18, 63, 43, .08), 0 6px 18px rgba(18, 63, 43, .06);
+  --display: Georgia, "Times New Roman", serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  /* The pictures are drawn in the desk's own colours whatever the page theme, like screenshots. */
+  --m-head: #123f2b; --m-gold: #c99934; --m-bg: #f5f6f1; --m-panel: #ffffff; --m-ink: #17211b; --m-dim: #6b766f;
+  --m-line: #d9dfd9; --m-green: #176b45; --m-ball: #f58220; --m-red: #a43831; --m-lead: #e6f3ec; --m-paper: #fffdf7;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1712; --surface: #14231b; --surface-2: #1a2e23; --ink: #eef3ee; --dim: #a3b6a9; --line: #2a4235;
+  --green: #55c990; --green-deep: #0b1f15; --gold: #e3bb62; --ball: #ff9a3d;
+  --ok: #6fd6a2; --ok-bg: #14382a; --warn: #f0c56a; --warn-bg: #3a2f10; --bad: #ff9c94; --bad-bg: #44201d;
+  --code-bg: #0f1d16; --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 18px rgba(0, 0, 0, .25); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0d1712; --surface: #14231b; --surface-2: #1a2e23; --ink: #eef3ee; --dim: #a3b6a9; --line: #2a4235;
+  --green: #55c990; --green-deep: #0b1f15; --gold: #e3bb62; --ball: #ff9a3d;
+  --ok: #6fd6a2; --ok-bg: #14382a; --warn: #f0c56a; --warn-bg: #3a2f10; --bad: #ff9c94; --bad-bg: #44201d;
+  --code-bg: #0f1d16; --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 18px rgba(0, 0, 0, .25); color-scheme: dark }
+*, *::before, *::after { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+a { color: var(--green); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.2; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: .88em; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* Masthead */
+.mast { background: var(--m-head); color: #fff; border-bottom: 5px solid var(--m-gold); }
+.mast .wrap { padding-block: 28px 22px; display: grid; gap: 14px; }
+.mast .eyebrow { font: 700 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: #e8c06a; }
+.mast .eyebrow a { color: inherit; }
+.mast h1 { font-size: clamp(28px, 4.2vw, 42px); }
+.mast p { max-width: 68ch; color: #dce9e1; }
+.tally { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tally div { display: grid; }
+.tally b { font: 700 24px/1.1 var(--display); color: #fff; }
+.tally span { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #b9d1c3; }
+
+/* Rail */
+.rail { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: var(--shadow); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--m-head); }
+.rail .wrap { display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap; padding-block: 8px; }
+.rail nav { display: flex; gap: 6px; overflow-x: auto; flex: 1 1 320px; min-width: 0; padding-bottom: 2px; }
+.rail nav a { flex: none; display: inline-flex; gap: 7px; align-items: center; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; color: var(--ink); font-weight: 600; font-size: 13px; white-space: nowrap; background: var(--surface); }
+.rail nav a .n { font: 700 11px/1 var(--mono); color: var(--dim); }
+.rail nav a.on { background: var(--green); border-color: var(--green); color: var(--surface); }
+.rail nav a.on .n { color: var(--surface); }
+.tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tools input[type="search"] { width: 190px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 10px; font-size: 13px; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--green-deep); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { background: var(--green); color: var(--bg); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { background: var(--green); color: var(--bg); } }
+
+main { display: grid; gap: 44px; padding-block: 28px 80px; }
+.lede { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.lede section { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: grid; gap: 8px; align-content: start; }
+.lede h2 { font-size: 18px; }
+.lede ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.lede li, .lede p { color: var(--dim); }
+.lede li b, .lede p b { color: var(--ink); }
+
+.phase-head { display: grid; gap: 6px; border-top: 4px solid var(--green); padding-top: 14px; scroll-margin-top: 70px; }
+.phase-head .k { font: 700 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+.phase-head h2 { font-size: clamp(22px, 3vw, 30px); }
+.phase-head p { max-width: 75ch; color: var(--dim); }
+.phase { display: grid; gap: 22px; }
+
+/* Step */
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); overflow: hidden; scroll-margin-top: 70px; }
+.step-top { display: grid; grid-template-columns: minmax(0, 46fr) minmax(0, 54fr); }
+.frame-col { background: var(--surface-2); padding: 16px; display: grid; gap: 8px; align-content: start; border-right: 1px solid var(--line); min-width: 0; }
+.frame-cap { font-size: 12.5px; color: var(--dim); }
+.frame-cap b { color: var(--ink); font-weight: 600; }
+.story { padding: 18px 20px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.story .num { font: 700 12px/1 var(--mono); color: var(--gold); letter-spacing: .04em; }
+.story h3 { font-size: 21px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--dim); border: 1px solid var(--line); }
+.chip.who { background: var(--green-deep); border-color: var(--green-deep); color: #fff; }
+.story .summary { max-width: 65ch; }
+.story .subtext { max-width: 65ch; color: var(--dim); border-left: 3px solid var(--gold); padding-left: 12px; font-style: italic; }
+.label { font: 700 11px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.caveats { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 68ch; }
+.block { display: grid; gap: 6px; }
+
+.exc { border-top: 1px solid var(--line); padding: 14px 20px 16px; display: grid; gap: 8px; }
+.exc-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.exc-item { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.pill { justify-self: start; align-self: start; font: 700 11px/1 var(--body); letter-spacing: .05em; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; }
+.pill.handled, .pill.low { background: var(--ok-bg); color: var(--ok); }
+.pill.partial, .pill.medium { background: var(--warn-bg); color: var(--warn); }
+.pill.gap, .pill.high { background: var(--bad-bg); color: var(--bad); }
+.exc-item dl { margin: 0; display: grid; gap: 3px; min-width: 0; }
+.exc-item dt { font-weight: 700; }
+.exc-item dd { margin: 0; color: var(--dim); overflow-wrap: anywhere; }
+.exc-item dd b { color: var(--ink); font-weight: 600; }
+
+details.tech { border-top: 1px solid var(--line); background: var(--code-bg); }
+details.tech > summary { list-style: none; cursor: pointer; padding: 11px 20px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-weight: 700; }
+details.tech > summary::-webkit-details-marker { display: none; }
+details.tech > summary::before { content: "▸"; color: var(--gold); }
+details.tech[open] > summary::before { content: "▾"; }
+details.tech > summary .meta { font: 600 12px/1.2 var(--mono); color: var(--dim); }
+.tech-body { padding: 4px 20px 18px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.tech-body section { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.tech-body section.wide { grid-column: 1 / -1; }
+.tech-body ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; }
+.tech-body li { overflow-wrap: anywhere; }
+.tech-body .inv li { list-style: "✓  "; }
+.tech-body .unt li { list-style: "✗  "; color: var(--bad); }
+.tech-body .unt li span { color: var(--ink); }
+.tbl { overflow-x: auto; }
+.tbl table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.tbl th { text-align: left; font: 700 11px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); padding: 4px 10px 6px 0; }
+.tbl td { padding: 5px 10px 5px 0; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.tbl td:first-child { white-space: nowrap; }
+.sim { font-size: 13.5px; background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; padding: 10px 12px; }
+.copy { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+
+/* Findings */
+.findings { display: grid; gap: 12px; }
+.fhead { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 8px; grid-template-columns: 76px minmax(0, 1fr); }
+.finding h3 { font-size: 17px; }
+.finding .body { display: grid; gap: 6px; min-width: 0; }
+.finding .body p { color: var(--dim); overflow-wrap: anywhere; }
+.finding .body p b { color: var(--ink); font-weight: 600; }
+.finding .ev { font: 12.5px/1.5 var(--mono); overflow-wrap: anywhere; }
+.none { color: var(--dim); font-style: italic; }
+body.techview .frame-col, body.techview .exc { display: none; }
+body.techview .step-top { grid-template-columns: 1fr; }
+@media (max-width: 860px) {
+  .step-top { grid-template-columns: 1fr; }
+  .frame-col { border-right: 0; border-bottom: 1px solid var(--line); }
+  .exc-item, .finding { grid-template-columns: 1fr; }
+}
+
+
+/* calendar (volunteer app) */
+.c-shot { background: #fbfaf6; padding: .9em 1.1em; gap: .6em; }
+.c-title { font: 700 1.15em Georgia, serif; color: var(--m-head); display: flex; justify-content: space-between; align-items: baseline; }
+.c-title span { font: 400 .6em Arial, sans-serif; color: var(--m-dim); }
+.c-legend { display: flex; gap: .9em; font-size: .62em; color: var(--m-dim); flex-wrap: wrap; padding: .2em .3em; }
+.c-legend b { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; border-radius: .3em; margin-right: .3em; color: #fff; font-size: .9em; }
+.c-grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: .3em; }
+.c-day { background: #fff; border: 1px solid var(--m-line); border-radius: .3em; font-size: .62em; padding: .2em .3em; position: relative; display: grid; align-content: space-between; }
+.c-day.off { background: transparent; border-color: transparent; }
+.c-day i { font-style: normal; justify-self: end; width: 1.5em; height: 1.5em; border-radius: .3em; display: grid; place-items: center; color: #fff; font-weight: 700; }
+.c-day u { text-decoration: none; position: absolute; top: .1em; right: .25em; color: var(--m-gold); font-size: 1.1em; }
+.st-need { background: var(--m-red); } .st-min { background: #d6a420; } .st-full { background: var(--m-head); } .st-closed { background: #9aa39c; }
+/* tonight page */
+.t-shot { background: #263a2f; padding: .8em 1em; color: #fff; gap: .5em; }
+.t-head { display: flex; justify-content: space-between; align-items: baseline; }
+.t-head strong { font: 700 1.2em Georgia, serif; }
+.t-head span { font-size: .7em; color: #cfe2d6; }
+.t-floor { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: .35em; }
+.t-court { background: #2f6b4b; border: .12em solid #e8e3cf; border-radius: .2em; display: grid; grid-template-rows: auto 1fr auto; padding: .25em; gap: .2em; text-align: center; }
+.t-court small { font-size: .62em; color: #e8e3cf; }
+.t-court b { font: 700 1.1em Georgia, serif; }
+.t-figs { display: flex; flex-wrap: wrap; gap: .3em .25em; justify-content: center; align-content: center; padding: .2em 0; }
+.t-figs i { width: .95em; height: 1.9em; border-radius: .5em .5em .15em .15em; background: #fff; }
+.t-figs i.g { background: transparent; border: .1em dashed #fff; } .t-figs i.c { background: transparent; border: .1em solid rgba(232, 227, 207, .55); border-radius: 50%; width: .95em; height: .95em; align-self: flex-end; }
+.t-figs i.tx { outline: .15em solid #4cc488; outline-offset: .1em; }
+.t-key { display: flex; gap: 1em; font-size: .6em; color: #cfe2d6; }
+/* booking board (coaching app) */
+.k-shot { background: #fbfaf6; padding: .9em 1.1em; gap: .5em; }
+.k-cols { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: .8em; min-height: 0; }
+.k-col { display: grid; gap: .3em; align-content: start; }
+.k-col h6 { margin: 0; font: 700 .85em Georgia, serif; color: var(--m-head); border-bottom: 1px solid var(--m-line); padding-bottom: .2em; }
+.k-slot { display: grid; grid-template-columns: 4.6em 1fr auto; gap: .5em; align-items: center; font-size: .66em; background: #fff; border: 1px solid var(--m-line); border-radius: .3em; padding: .3em .5em; }
+.k-slot b { font-family: Georgia, serif; }
+.k-slot em { font-style: normal; font-size: .9em; border-radius: 99em; padding: .05em .55em; background: var(--m-lead); color: var(--m-green); }
+.k-slot em.req { background: #fff3d9; color: #8a5a00; } .k-slot em.bk { background: #e8ece7; color: var(--m-dim); }
+.k-form { border: .12em solid var(--m-green); border-radius: .4em; background: #fff; padding: .5em .7em; display: grid; gap: .3em; font-size: .66em; }
+.k-form span.tb { justify-self: start; font-size: 1em; }
+/* text messages */
+.m-shot { background: #cfd6cf; align-items: center; justify-content: center; }
+.m-dev { height: 92%; aspect-ratio: 9 / 17; background: #fff; border: .35em solid #1c1f1d; border-radius: 1.6em; overflow: hidden; display: flex; flex-direction: column; font-size: .72em; }
+.m-top { background: #f2f2f4; text-align: center; padding: .6em .4em; font-size: .85em; border-bottom: 1px solid #ddd; }
+.m-top b { display: block; font-size: 1.05em; }
+.m-body { flex: 1; padding: .6em; display: flex; flex-direction: column; gap: .5em; justify-content: flex-end; }
+.m-b { max-width: 82%; padding: .45em .7em; border-radius: 1em; font-size: .85em; line-height: 1.3; }
+.m-b.me { align-self: flex-end; background: #2f7cf6; color: #fff; } .m-b.them { align-self: flex-start; background: #e7e7ec; color: #111; }
+/* map */
+.map { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 16px; }
+.map-nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.map-node { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; background: var(--bg); }
+.map-node strong { font-family: var(--display); font-size: 16px; }
+.map-node span { font-size: 12.5px; color: var(--dim); }
+.map-node.core { background: var(--green-deep); border-color: var(--green-deep); color: #fff; }
+.map-node.core span { color: #cfe2d6; }
+.flow { font-variant-numeric: tabular-nums; }
+.flow td:first-child { white-space: normal; }
+.flow td b { font-weight: 600; }
+.flow .arrow { color: var(--gold); font-weight: 700; }
+/* ---------- Pictures (drawn with the desk's own colours; sizes follow the frame's width) ---------- */
+.frame { container-type: inline-size; width: 100%; }
+.shot { font-size: 2.05cqw; aspect-ratio: 16 / 10.4; border-radius: 1.2em; overflow: hidden; border: 1px solid #b9c4bb; background: var(--m-bg); color: var(--m-ink); position: relative; display: flex; flex-direction: column; font-family: Arial, Helvetica, sans-serif; line-height: 1.25; }
+.shot * { min-width: 0; }
+.hl { outline: .22em solid var(--m-ball); outline-offset: .12em; border-radius: .35em; position: relative; z-index: 2; box-shadow: 0 0 0 .5em rgba(245, 130, 32, .18); }
+.shot.has-hl .dimmable:not(.hl) { opacity: .62; }
+.bar { height: .5em; border-radius: .25em; background: var(--m-line); }
+.bar.d { background: #b9c2ba; } .bar.g { background: var(--m-green); opacity: .75; } .bar.w { background: rgba(255, 255, 255, .7); }
+/* desk */
+.d-head { background: var(--m-head); color: #fff; border-bottom: .3em solid var(--m-gold); padding: .7em 1em; display: flex; align-items: center; gap: .8em; }
+.d-head .logo { width: 1.5em; height: 1.5em; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffc98a, #f58220 55%, #c95f0a); flex: none; }
+.d-head strong { font: 700 1.25em Georgia, serif; }
+.d-head .sp { flex: 1; }
+.d-head .mode { font-size: .7em; border: 1px solid rgba(255, 255, 255, .6); border-radius: 99em; padding: .1em .6em; }
+.d-date { display: flex; gap: .5em; align-items: center; padding: .2em; }
+.d-date span { background: #fff; color: var(--m-ink); border-radius: .25em; padding: .25em .6em; font-size: .8em; }
+.d-date b { background: #fff; color: var(--m-green); border-radius: .25em; padding: .25em .6em; font: 700 .8em Georgia, serif; }
+.d-status { margin: .7em 1em 0; background: #e8ece7; border-left: .35em solid var(--m-green); padding: .5em .8em; font-size: .86em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-notice { margin: .5em 1em 0; background: #fff3d9; border: 1px solid var(--m-gold); border-radius: .3em; padding: .45em .8em; font-size: .8em; display: flex; gap: .6em; align-items: center; }
+.d-notice i { flex: 1; font-style: normal; }
+.d-notice b { border: 1px solid var(--m-green); color: var(--m-green); border-radius: .25em; padding: .1em .5em; font-size: .9em; }
+.d-body { flex: 1; display: grid; grid-template-columns: 27% 1fr; gap: .9em; padding: .8em 1em 1em; min-height: 0; }
+.d-side { background: var(--m-panel); border: 1px solid var(--m-line); border-radius: .4em; display: flex; flex-direction: column; overflow: hidden; }
+.d-sec { padding: .5em .65em; border-bottom: 1px solid var(--m-line); display: grid; gap: .32em; }
+.d-sec:last-child { border-bottom: 0; flex: 1; }
+.d-sec h6 { margin: 0; font: 700 .8em Georgia, serif; }
+.d-sec .ln { display: flex; gap: .4em; align-items: center; }
+.d-sec .ln .bar { flex: 1; }
+.d-sec .ln b { font-size: .55em; border: 1px solid #a9b3ab; border-radius: .25em; padding: 0 .4em; font-weight: 400; }
+.d-work { display: flex; flex-direction: column; gap: .6em; min-height: 0; }
+.d-tools { display: flex; flex-wrap: wrap; gap: .35em; align-items: center; }
+.d-tools h5 { margin: 0 .5em 0 0; font: 700 1.05em Georgia, serif; }
+.tb { font: 700 .66em Georgia, serif; border: 1px solid var(--m-green); color: var(--m-green); background: #fff; border-radius: .3em; padding: .28em .55em; white-space: nowrap; }
+.tb.solid { background: var(--m-green); color: #fff; }
+.tb.red { background: var(--m-red); border-color: var(--m-red); color: #fff; }
+.tb.seg2 { padding: 0; display: inline-flex; overflow: hidden; }
+.tb.seg2 i { font-style: normal; padding: .28em .5em; }
+.tb.seg2 i.on { background: var(--m-green); color: #fff; }
+.d-labels { background: #fff3d9; border: 1px solid var(--m-gold); border-radius: .3em; padding: .35em .7em; font-size: .72em; }
+.d-groups { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5em; }
+.d-group { background: var(--m-panel); border: 1px solid var(--m-line); border-top: .22em solid var(--m-gold); border-radius: .35em; padding: .4em .5em; display: grid; gap: .3em; }
+.d-group h6 { margin: 0; font: 700 .78em Georgia, serif; display: flex; justify-content: space-between; }
+.d-group h6 span { font: 400 .8em Arial, sans-serif; color: var(--m-dim); }
+.d-row { display: flex; gap: .35em; align-items: center; font-size: .66em; padding: .12em .2em; }
+.d-row .nm { flex: 1; font: 700 1em Georgia, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-row .pay { border: 1px solid #a9b3ab; border-radius: .25em; padding: 0 .35em; font-size: .85em; }
+.d-row .pay.paid { background: var(--m-lead); border-color: var(--m-green); color: var(--m-green); }
+.d-row .late { background: var(--m-gold); color: #fff; border-radius: .25em; padding: 0 .3em; font-size: .8em; }
+.d-open { border-top: 1px solid var(--m-line); border-bottom: .22em solid var(--m-green); padding: .3em 0; font: 700 .8em Georgia, serif; }
+.d-score { background: var(--m-panel); border: 1px solid var(--m-line); border-radius: .35em; padding: .4em .6em; display: grid; gap: .28em; flex: 1; min-height: 0; overflow: hidden; }
+.d-score h6 { margin: 0; font: 700 .78em Georgia, serif; display: flex; justify-content: space-between; }
+.d-match { display: grid; grid-template-columns: 1fr auto auto 1fr; gap: .5em; align-items: center; font-size: .64em; }
+.d-match .a { font: 700 1em Georgia, serif; } .d-match .b { font: 700 1em Georgia, serif; text-align: right; }
+.balls { display: flex; gap: .2em; }
+.balls i { width: 1.15em; height: 1.15em; border-radius: 50%; border: 1px solid #a9b3ab; font-style: normal; display: grid; place-items: center; font-size: .8em; }
+.balls i.on { background: var(--m-ball); border-color: var(--m-ball); color: #fff; }
+.d-publish { background: var(--m-lead); border: 1px solid var(--m-green); border-radius: .3em; padding: .4em .7em; font-size: .74em; display: flex; gap: .6em; align-items: center; }
+.d-publish i { flex: 1; font-style: normal; }
+.d-cover { position: absolute; inset: 0; background: rgba(245, 246, 241, .93); display: grid; place-content: center; text-align: center; gap: .6em; z-index: 3; }
+.d-cover strong { font: 700 1.2em Georgia, serif; }
+.d-help { width: 1.5em; height: 1.5em; border-radius: 50%; border: 1px solid #fff; display: grid; place-items: center; font-size: .8em; }
+/* board */
+.b-shot { background: #f4f5f0; }
+.b-shot .bt { background: var(--m-head); color: #fff; border-top: .25em solid #e8c06a; border-bottom: .3em solid var(--m-gold); padding: .6em 1.2em; display: flex; align-items: center; gap: .8em; }
+.b-shot .bt strong { font: 700 1.5em Georgia, serif; }
+.b-shot .bt small { display: block; font-size: .6em; letter-spacing: .08em; opacity: .85; }
+.b-shot .stage { margin: 0 auto; background: rgba(0, 0, 0, .25); border-radius: 99em; padding: .3em .9em; font-size: .8em; font-weight: 700; white-space: nowrap; }
+.b-shot .stage::before { content: "● "; color: #4cc488; }
+.b-shot .cnt { font: 700 1.6em Georgia, serif; }
+.b-panels { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: .7em; padding: .9em 1.2em .6em; min-height: 0; }
+.b-panel { background: #fff; border-radius: .35em; border-top: .2em solid var(--m-green); box-shadow: 0 .1em .3em rgba(0, 0, 0, .12); padding: .3em .6em; display: flex; flex-direction: column; gap: .16em; overflow: hidden; }
+.b-panel h6 { margin: 0; font: 700 .9em Georgia, serif; display: flex; justify-content: space-between; }
+.b-panel h6 span { font: 700 .75em Arial, sans-serif; }
+.b-row { display: flex; gap: .5em; font-size: .62em; align-items: center; padding: .05em .2em; }
+.b-row .nm { flex: 1; font: 700 1.05em Georgia, serif; white-space: nowrap; }
+.b-row.lead { background: var(--m-lead); color: var(--m-green); }
+.b-foot { background: #fff; border-top: 1px solid var(--m-line); padding: .5em 1.2em; display: flex; justify-content: space-between; font-size: .72em; color: var(--m-dim); }
+.b-strip { position: absolute; right: .8em; bottom: .7em; left: 28%; background: rgba(18, 63, 43, .97); color: #fff; border-bottom: .22em solid var(--m-gold); border-radius: .4em; padding: .4em .7em; font-size: .6em; display: flex; gap: .8em; align-items: center; z-index: 2; }
+.b-strip b { background: #e8c06a; color: #17211b; border-radius: .25em; padding: .15em .5em; margin-left: auto; }
+.b-strip u { text-decoration: none; border: 1px solid rgba(255, 255, 255, .5); border-radius: .25em; padding: .1em .4em; }
+.b-notice { position: absolute; top: .7em; left: 50%; transform: translateX(-50%); background: #fff3d9; border: 1px solid var(--m-gold); color: #5a3d00; font-weight: 700; font-size: .68em; padding: .4em .8em; border-radius: .3em; z-index: 3; max-width: 80%; text-align: center; }
+.b-chooser { position: absolute; inset: 0; background: rgba(5, 6, 5, .85); display: grid; place-content: center; z-index: 4; }
+.b-chooser div { background: #fff; border-bottom: .3em solid var(--m-gold); border-radius: .4em; padding: 1em 1.2em; display: grid; gap: .5em; width: 26em; max-width: 90%; }
+.b-chooser strong { font: 700 1.15em Georgia, serif; color: var(--m-head); }
+.b-chooser span { border: .12em solid var(--m-green); border-radius: .3em; padding: .4em .6em; font-size: .8em; font-weight: 700; color: var(--m-green); }
+.b-chooser span.main { background: var(--m-green); color: #fff; }
+/* sheet */
+.s-shot { background: #cfd6cf; padding: 1em 1.4em; }
+.s-paper { background: var(--m-paper); flex: 1; box-shadow: 0 .2em .6em rgba(0, 0, 0, .25); padding: 1em 1.2em; display: grid; grid-template-columns: 42% 1fr; gap: 1.2em; min-height: 0; }
+.s-col { display: grid; gap: .4em; align-content: start; }
+.s-col h6 { margin: 0; font: 700 .85em Georgia, serif; border-bottom: 1px solid #333; padding-bottom: .2em; display: flex; justify-content: space-between; }
+.s-reg { display: grid; gap: .3em; font-size: .68em; }
+.s-reg div { display: flex; justify-content: space-between; border-bottom: 1px dotted #999; }
+.s-reg b { font-family: Georgia, serif; }
+.s-m { display: grid; grid-template-columns: 1fr 2.2em 3em; gap: .5em; font-size: .64em; border-bottom: 1px solid #bbb; padding: .12em 0; align-items: center; }
+.s-m span b { display: block; font-family: Georgia, serif; }
+.s-m i { border: 1px solid #555; height: 2.2em; display: grid; grid-template-rows: 1fr 1fr; font-style: normal; text-align: center; font-size: .9em; }
+.s-m i u { text-decoration: none; border-bottom: 1px solid #999; }
+.s-m em { font-style: normal; color: #555; text-align: right; }
+/* phone */
+.p-shot { background: #cfd6cf; align-items: center; justify-content: center; }
+.p-dev { height: 92%; aspect-ratio: 9 / 17; background: var(--m-bg); border: .35em solid #1c1f1d; border-radius: 1.6em; overflow: hidden; display: flex; flex-direction: column; font-size: .72em; }
+.p-dev .d-head { padding: .5em .7em; } .p-dev .d-status { margin: .5em .6em 0; white-space: normal; }
+.p-dev .pb { padding: .5em .6em; display: grid; gap: .4em; }
+/* devices */
+.v-shot { background: #f7f8f4; padding: 1em; }
+.v-grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); gap: 1.1em 2.2em; position: relative; }
+.v-node { background: #fff; border: 1px solid var(--m-line); border-radius: .5em; padding: .55em .7em; display: grid; gap: .25em; align-content: center; text-align: center; position: relative; }
+.v-node strong { font: 700 .95em Georgia, serif; }
+.v-node span { font-size: .66em; color: var(--m-dim); }
+.v-node .ico { font-size: 1.5em; line-height: 1; }
+.v-node.core { background: var(--m-head); color: #fff; border-color: var(--m-head); }
+.v-node.core span { color: #cfe2d6; }
+.v-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.v-svg line { stroke: #9aa79d; stroke-width: 1.4; stroke-dasharray: 4 3; }
+/* site, email */
+.w-shot { background: #cfd6cf; padding: 1em 1.4em; }
+.w-win { background: #fff; flex: 1; border-radius: .5em; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 .2em .6em rgba(0, 0, 0, .2); }
+.w-chrome { background: #e4e8e3; padding: .4em .7em; display: flex; gap: .35em; align-items: center; font-size: .66em; color: #555; }
+.w-chrome i { width: .7em; height: .7em; border-radius: 50%; background: #b9c2ba; }
+.w-chrome span { background: #fff; border-radius: 99em; padding: .15em .9em; margin-left: .6em; flex: 1; }
+.w-page { padding: .9em 1.2em; display: grid; gap: .55em; align-content: start; }
+.w-page h6 { margin: 0; font: 700 1.2em Georgia, serif; color: var(--m-head); }
+.w-tbl { display: grid; gap: .3em; }
+.w-tbl div { display: grid; grid-template-columns: 1.4em 1fr 3em 3em; gap: .6em; font-size: .72em; border-bottom: 1px solid var(--m-line); padding: .15em 0; }
+.w-tbl b { font-family: Georgia, serif; }
+</style>
+
+<header class="mast"><div class="wrap">
+  <div class="eyebrow"><a href="https://concordtabletennisclub.com/about.html">Concord Table Tennis Club</a> · how a night works</div>
+  <h1>Round Robin Night Storyboard</h1>
+  <p id="mast-intro"></p>
+  <div class="tally" id="tally"></div>
+</div></header>
+
+<div class="rail"><div class="wrap">
+  <nav id="rail-nav" aria-label="Parts of the night"></nav>
+  <div class="tools">
+    <input type="search" id="q" placeholder="Search steps…" aria-label="Search steps">
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" id="v-story" aria-pressed="true">Story</button>
+      <button type="button" id="v-both" aria-pressed="false">Story + technical</button>
+      <button type="button" id="v-tech" aria-pressed="false">Technical only</button>
+    </div>
+  </div>
+</div></div>
+
+<main class="wrap">
+  <div class="lede" id="lede"></div>
+  <section class="map" id="map" aria-labelledby="map-h"></section>
+  <section class="findings" id="findings" aria-labelledby="findings-h"></section>
+  <div id="phases" style="display:grid;gap:44px"></div>
+</main>
+
+<script id="story-data" type="application/json">/*DATA*/</script>
+<script>
+(function () {
+  'use strict';
+  var DATA = JSON.parse(document.getElementById('story-data').textContent);
+  var REPO = 'https://github.com/jb-cttc/concordtabletennisclub/blob/' + DATA.meta.commit + '/';
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function arr(v) { return Array.isArray(v) ? v : v ? [v] : []; }
+  // "apps-script/Index.html:1103" (or a range, or several in one string) becomes links to that line at the commit.
+  function evidence(text) {
+    return esc(text).replace(/([\w./-]+\.(?:html|js|cjs|md|json|yml|yaml|sh|py))(?::(\d+)(?:-(\d+))?)?/g, function (all, file, a, b) {
+      if (!/^(apps-script|scripts|docs|data|\.github|\.claude|coaching-app|staffing-app|turnout-app|subscribe-app)\//.test(file) && !/^(README|AGENTS|package)/.test(file)) return all;
+      return '<a href="' + (/^docs\/storyboard\//.test(file) ? REPO.replace(DATA.meta.commit, 'main') : REPO) + file + (a ? '#L' + a + (b ? '-L' + b : '') : '') + '" target="_blank" rel="noopener">' + all + '</a>';
+    });
+  }
+  function rich(text) { return evidence(text).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'); }
+
+  // ---------- Pictures ----------
+  var NAMES = ['Ana Reyes', 'Ben Okafor', 'Chloe Tran', 'Dev Malhotra', 'Elif Kaya', 'Finn Carter', 'Gia Rossi', 'Hugo Lind'];
+  function on(hl, id) { return hl.indexOf(id) >= 0 ? ' hl' : ''; }
+  function has(hl, ids) { return ids.some(function (id) { return hl.indexOf(id) >= 0; }); }
+  function bars(n, cls) { var out = ''; for (var i = 0; i < n; i += 1) out += '<div class="ln"><div class="bar ' + (cls || '') + '" style="max-width:' + (88 - (i * 17) % 40) + '%"></div><b>RR</b></div>'; return out; }
+  function deskGroup(n, hl, late) {
+    var rows = '';
+    for (var i = 0; i < 4; i += 1) {
+      var isLate = late && n === 2 && i === 3;
+      rows += '<div class="d-row dimmable' + (n === 2 && i === 1 ? on(hl, 'group-row') : '') + '"><span class="nm">' + NAMES[(n * 3 + i) % NAMES.length] + '</span>' + (isLate ? '<span class="late">Late add</span>' : '') + '<span class="pay' + (i % 2 ? ' paid' : '') + '">' + (i % 2 ? 'Paid ✓' : 'Payment') + '</span><span>↑</span><span>↓</span><span>×</span></div>';
+    }
+    return '<div class="d-group"><h6>Group ' + n + '<span>' + (late && n === 2 ? '7' : '6') + ' players</span></h6>' + rows + '</div>';
+  }
+  function match(a, b, x, y) {
+    function balls(v) { return '<span class="balls">' + [0, 1, 2, 3].map(function (g) { return '<i' + (v === g ? ' class="on"' : '') + '>' + g + '</i>'; }).join('') + '</span>'; }
+    return '<div class="d-match"><span class="a">' + a + '</span>' + balls(x) + balls(y) + '<span class="b">' + b + '</span></div>';
+  }
+  function desk(s, phone) {
+    var hl = arr(s.highlight);
+    var labels = has(hl, ['print-labels']);
+    var head = '<div class="d-head dimmable' + on(hl, 'header-date') + '"><span class="logo"></span><strong>CTTC Desk</strong>' + (phone ? '' : '<span class="d-help dimmable' + on(hl, 'help') + '">?</span>') + '<span class="sp"></span><span class="mode">/exec</span>' + (phone ? '' : '<span class="d-date"><span>Mon, Nov 9</span><b>Load session</b></span>') + '</div>';
+    var status = '<div class="d-status dimmable' + on(hl, 'status-bar') + '">' + esc(s.status || 'Session loaded. Changes are stored in Google Sheets.') + '</div>';
+    if (phone) return '<div class="shot p-shot"><div class="p-dev">' + head + status + '<div class="pb">' + deskGroup(1, hl) + deskGroup(2, hl) + '</div></div></div>';
+    var notice = has(hl, ['draft-notice']) ? '<div class="d-notice hl"><i>This device has an unsaved copy of this night.</i><b>Use this device’s copy</b><b>Keep Google’s</b></div>' : '';
+    var side = '<div class="d-side">' +
+      '<div class="d-sec dimmable' + on(hl, 'directory') + '"><h6>Player directory</h6>' + bars(3) + '</div>' +
+      '<div class="d-sec dimmable' + on(hl, 'add-player') + '"><h6>Add a player</h6><div class="ln"><div class="bar d"></div><b>Add</b></div></div>' +
+      '<div class="d-sec dimmable' + on(hl, 'voice') + '"><h6>Voice signups</h6>' + bars(2, 'g') + '</div>' +
+      '<div class="d-sec dimmable' + on(hl, 'volunteers') + '"><h6>Tonight’s volunteers</h6>' + bars(2) + '</div>' +
+      '<div class="d-sec dimmable' + on(hl, 'clover') + '"><h6>Clover card payments</h6>' + bars(1, 'd') + '</div>' +
+      '<div class="d-sec dimmable' + on(hl, 'zeffy') + '"><h6>Zeffy passes</h6>' + bars(2, 'd') + '</div></div>';
+    var tools = '<div class="d-tools dimmable' + on(hl, 'toolbar') + '"><h5>Session workspace</h5>' +
+      '<span class="tb seg2 dimmable' + on(hl, 'event-switch') + '"><i class="on">Round robin</i><i>Equalizer</i></span>' +
+      '<span class="tb seg2 dimmable' + on(hl, 'group-size') + '"><i>5</i><i class="on">6</i><i>7</i></span><span class="tb">Rebuild by rating</span>' +
+      '<span class="tb dimmable' + on(hl, 'print-button') + '">Print RR Sheets</span><span class="tb dimmable' + on(hl, 'board-button') + '">Player board</span>' +
+      '<span class="tb dimmable' + on(hl, 'projector-button') + '">Projector screen</span><span class="tb">Clear</span>' +
+      '<span class="tb solid dimmable' + on(hl, 'save-button') + '">Save to Sheets</span><span class="tb red dimmable' + on(hl, 'finalize-button') + '">Finalize RR Results</span></div>';
+    var work = tools +
+      (labels ? '<div class="d-labels hl">Sheets printed at 7:12 PM. <b>Late add</b>: 1 player. <b>Updated</b>: Group 2. &nbsp; Clear labels · Undo the print</div>' : '') +
+      '<div class="d-groups dimmable' + on(hl, 'groups') + '">' + deskGroup(1, hl, labels) + deskGroup(2, hl, labels || has(hl, ['group-row']) && /late/i.test(s.note || '')) + deskGroup(3, hl, labels) + '</div>' +
+      '<div class="d-open dimmable' + on(hl, 'open-play') + '">Open Play / Coaching</div>' +
+      (has(hl, ['publish-panel']) ? '<div class="d-publish hl"><i>Finalized. Publishing to the club site in 1:42.</i><span class="tb">Publish now</span><span class="tb">Hold</span></div>' : '') +
+      '<div class="d-score dimmable' + on(hl, 'scoring') + '"><h6>Group 1<span>2 / 15 complete</span></h6>' + match(NAMES[0], NAMES[5], 3, 1) + match(NAMES[1], NAMES[4], 2, 3) + match(NAMES[2], NAMES[3]) + match(NAMES[0], NAMES[4]) + '</div>';
+    var cover = has(hl, ['tab-cover']) ? '<div class="d-cover"><strong>The desk is open in another tab on this device.</strong><span class="tb solid" style="justify-self:center">Use the desk here</span></div>' : '';
+    return '<div class="shot' + (hl.length ? ' has-hl' : '') + '">' + head + status + notice + '<div class="d-body">' + side + '<div class="d-work">' + work + '</div></div>' + cover + '</div>';
+  }
+  function board(s) {
+    var hl = arr(s.highlight);
+    var scores = /score|print|live|decid|played|result/i.test((s.status || '') + ' ' + (s.note || ''));
+    var panels = '';
+    for (var g = 1; g <= 6; g += 1) {
+      var rows = '';
+      for (var i = 0; i < 6; i += 1) rows += '<div class="b-row' + (scores && i === 0 ? ' lead' : '') + (g === 5 && i === 5 ? on(hl, 'panel-row') : '') + '"><span>' + (i + 1) + '</span><span class="nm">' + NAMES[(g * 2 + i) % NAMES.length] + '</span><span>' + (scores ? (5 - i) + '–' + i : 1700 - g * 120 - i * 14) + '</span></div>';
+      panels += '<div class="b-panel dimmable"><h6>Group ' + g + '<span>' + (scores ? '9 of 15' : '6 players') + '</span></h6>' + rows + '</div>';
+    }
+    return '<div class="shot b-shot' + (hl.length ? ' has-hl' : '') + '"><div class="bt dimmable' + on(hl, 'top-bar') + '"><span class="logo" style="width:2em;height:2em;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffc98a,#f58220 55%,#c95f0a)"></span><div><strong>Round Robin</strong><small>CONCORD TABLE TENNIS CLUB · MONDAY, NOV 9</small></div><span class="stage dimmable' + on(hl, 'stage-pill') + '">' + esc(s.status || (scores ? 'Sheets printed · live scores' : 'Signing in · groups can still change')) + '</span><span class="cnt">' + (scores ? '38' : '36') + '</span></div>' +
+      '<div class="b-panels dimmable' + on(hl, 'panels') + '">' + panels + '</div><div class="b-foot dimmable' + on(hl, 'footer') + '"><span>Watching the desk…</span><span>☑ payment recorded &nbsp; ▲ moved up</span></div>' +
+      (has(hl, ['strip']) ? '<div class="b-strip hl"><span>LAYOUT</span><u>Carousel</u><u>Wall</u><u>Spotlight</u><span>LOOK</span><u>Desk</u><u>Dark</u><span>☐ Follow the main desk</span><b>Full screen</b></div>' : '') +
+      (has(hl, ['notice']) ? '<div class="b-notice hl">' + esc(s.status || 'Not connected to the desk. Click Player board on the desk to reconnect.') + '</div>' : '') +
+      (has(hl, ['chooser']) ? '<div class="b-chooser"><div class="hl"><strong>What is this screen for?</strong><span class="main">Show the main laptop’s desk</span><span>This laptop runs the desk</span></div></div>' : '') + '</div>';
+  }
+  function sheet(s) {
+    var hl = arr(s.highlight);
+    var reg = '', sched = '';
+    for (var i = 0; i < 6; i += 1) reg += '<div><b>' + NAMES[i] + '</b><span>[' + (1690 - i * 55) + '] (41/22) (9/4)</span></div>';
+    [[0, 5], [1, 4], [2, 3], [0, 4], [3, 5], [1, 2], [0, 3]].forEach(function (p, k) {
+      sched += '<div class="s-m"><span><b>' + NAMES[p[0]] + '</b><b>' + NAMES[p[1]] + '</b></span><i class="dimmable' + (k === 0 ? on(hl, 'results') : '') + '"><u>' + (k === 0 ? '3' : '') + '</u><span>' + (k === 0 ? '1' : '') + '</span></i><em>8/8</em></div>';
+    });
+    return '<div class="shot s-shot' + (hl.length ? ' has-hl' : '') + '"><div class="s-paper"><div class="s-col dimmable' + on(hl, 'register') + '"><h6>Mon, Nov 9 <span>Table # 1</span></h6><div class="s-reg">' + reg + '</div></div><div class="s-col dimmable' + on(hl, 'schedule') + '"><h6>Match Schedules/Results <span>Adj.</span></h6>' + sched + '</div></div></div>';
+  }
+  function devices(s) {
+    var hl = arr(s.highlight);
+    function node(id, ico, title, sub, core) { return '<div class="v-node dimmable' + (core ? ' core' : '') + on(hl, id) + '"><span class="ico">' + ico + '</span><strong>' + title + '</strong><span>' + sub + '</span></div>'; }
+    return '<div class="shot v-shot' + (hl.length ? ' has-hl' : '') + '"><div class="v-grid"><svg class="v-svg" viewBox="0 0 300 200" preserveAspectRatio="none"><line x1="50" y1="50" x2="150" y2="50"/><line x1="150" y1="50" x2="250" y2="50"/><line x1="150" y1="50" x2="50" y2="150"/><line x1="150" y1="50" x2="150" y2="150"/><line x1="150" y1="150" x2="250" y2="150"/></svg>' +
+      node('main-desk', '💻', 'Main desk laptop', 'the desk page, /exec') + node('google', '▦', 'Google', 'Apps Script + the Sheet', true) + node('projector', '📽', 'Projector laptop', 'desk tab + Player board window') +
+      node('phone', '📱', 'Officer’s phone', 'a second desk') + node('site', '🌐', 'Club site', 'results, ratings, /desk') + node('github', '⚙', 'GitHub', 'code, publishing workflow') + '</div></div>';
+  }
+  function web(s, email) {
+    var rows = '';
+    for (var i = 0; i < 5; i += 1) rows += '<div><span>' + (i + 1) + '</span><b>' + NAMES[i] + '</b><span>' + (4 - i) + '–' + i + '</span><span>' + (i < 2 ? '+' : '−') + (12 - i * 3) + '</span></div>';
+    return '<div class="shot w-shot"><div class="w-win"><div class="w-chrome"><i></i><i></i><i></i><span>' + (email ? 'Inbox · CTTC results' : 'concordtabletennisclub.com') + '</span></div><div class="w-page"><h6>' + esc(s.status || (email ? 'Monday round robin: results' : 'Round robin results · Monday, Nov 9')) + '</h6><div class="bar d" style="width:55%"></div><div class="w-tbl">' + rows + '</div><div class="bar" style="width:70%"></div><div class="bar" style="width:40%"></div></div></div></div>';
+  }
+
+  function calendar(s) {
+    var hl = arr(s.highlight);
+    var marks = [['need', '!'], ['min', '+'], ['full', '✓'], ['full', '✓'], ['closed', '×'], ['min', '+'], ['need', '!']];
+    var days = '';
+    for (var i = 0; i < 28; i += 1) {
+      var wd = i % 7, club = wd === 1 || wd === 3 || wd === 5 || wd === 6;
+      var m = marks[(i * 3) % marks.length];
+      var star = (wd === 5 || wd === 6) && i > 9 && m[0] !== 'closed';
+      days += '<div class="c-day' + (club ? '' : ' off') + (club && i === 15 ? on(hl, 'night') : '') + (star && i === 20 ? on(hl, 'free') : '') + '"><span>' + (i + 1) + '</span>' + (club ? '<i class="st-' + m[0] + '">' + m[1] + '</i>' : '') + (club && star ? '<u>★</u>' : '') + '</div>';
+    }
+    return '<div class="shot c-shot' + (hl.length ? ' has-hl' : '') + '"><div class="c-title">Volunteer signups<span>November 2026 · Mon, Wed, Fri, Sat</span></div>' +
+      '<div class="c-legend' + on(hl, 'legend') + '"><span><b class="st-need">!</b>Needs people</span><span><b class="st-min">+</b>Minimum crew</span><span><b class="st-full">✓</b>Fully staffed</span><span><b class="st-closed">×</b>Closed</span><span><b style="background:var(--m-gold)">★</b>Free</span></div><div class="c-grid">' + days + '</div></div>';
+  }
+  function tonight(s) {
+    var zones = [['<600', 1, 0, 2], ['600–799', 2, 1, 2], ['800–999', 4, 1, 3], ['1000–1199', 5, 2, 2], ['1200–1399', 4, 1, 2], ['1400–1599', 3, 0, 2], ['1600+', 2, 1, 1]];
+    var courts = zones.map(function (z) {
+      var figs = '';
+      for (var i = 0; i < z[1]; i += 1) figs += '<i' + (i === 0 && z[1] > 2 ? ' class="tx"' : '') + '></i>';
+      for (i = 0; i < z[2]; i += 1) figs += '<i class="g"></i>';
+      for (i = 0; i < z[3]; i += 1) figs += '<i class="c"></i>';
+      return '<div class="t-court"><small>' + z[0] + '</small><div class="t-figs">' + figs + '</div><b>' + (z[1] + z[2] + z[3]) + '</b></div>';
+    }).join('');
+    return '<div class="shot t-shot"><div class="t-head"><strong>Tonight · Monday</strong><span>21 playing · about 30 expected</span></div><div class="t-floor">' + courts + '</div><div class="t-key"><span>▮ playing</span><span>▮• texted</span><span>▯ likely</span><span>○ expected</span></div></div>';
+  }
+  function booking(s) {
+    var hl = arr(s.highlight);
+    function slot(t, coach, table, st, id) { return '<div class="k-slot' + (id ? on(hl, id) : '') + '"><b>' + t + '</b><span>Coach ' + coach + ' · Table ' + table + '</span><em class="' + (st === 'Open' ? '' : st === 'Requested' ? 'req' : 'bk') + '">' + st + '</em></div>'; }
+    var fri = slot('7:00 PM', 'Lee', 1, 'Booked') + slot('7:00 PM', 'Mia', 2, 'Open', 'slot') + slot('8:00 PM', 'Lee', 1, 'Requested') + slot('8:30 PM', 'Mia', 3, 'Open');
+    var sat = slot('3:00 PM', 'Lee', 1, 'Open') + slot('3:30 PM', 'Mia', 2, 'Booked', 'table') + slot('4:30 PM', 'Mia', 2, 'Open');
+    var form = has(hl, ['form']) ? '<div class="k-form hl"><b>Fri, Nov 13 · 7:00 PM · Coach Mia · Table 2</b><div class="bar d" style="width:70%"></div><div class="bar d" style="width:55%"></div><span class="tb solid">Confirm submission</span></div>' : '';
+    return '<div class="shot k-shot' + (hl.length ? ' has-hl' : '') + '"><div class="c-title">Coaching<span>Fridays 7–10 PM · Saturdays 3–6 PM</span></div><div class="k-cols"><div class="k-col"><h6>Friday, Nov 13</h6>' + fri + '</div><div class="k-col"><h6>Saturday, Nov 14</h6>' + sat + form + '</div></div></div>';
+  }
+  function sms(s) {
+    var hl = arr(s.highlight);
+    return '<div class="shot m-shot' + (hl.length ? ' has-hl' : '') + '"><div class="m-dev"><div class="m-top"><b>CTTC</b>(925) 238-3505</div><div class="m-body"><div class="m-b me' + on(hl, 'bubble') + '">I\'ll join CTTC\'s RR today</div>' +
+      (has(hl, ['reply']) ? '<div class="m-b them hl">Received - you\'re on the list, Ana Reyes! See you tonight.</div>' : '') + '</div></div></div>';
+  }
+  function picture(s) {
+    s = s || {};
+    var kind = s.kind || 'desk';
+    return kind === 'calendar' ? calendar(s) : kind === 'tonight' ? tonight(s) : kind === 'booking' ? booking(s) : kind === 'sms' ? sms(s) : kind === 'board' ? board(s) : kind === 'sheet' ? sheet(s) : kind === 'phone' ? desk(s, true) : kind === 'devices' ? devices(s) : kind === 'site' ? web(s, false) : kind === 'email' ? web(s, true) : desk(s, false);
+  }
+
+  // ---------- Page ----------
+  var phases = DATA.phases;
+  var all = [];
+  phases.forEach(function (p) { arr(p.steps).forEach(function (s, i) { s._phase = p; s._n = i + 1; all.push(s); }); });
+  var findings = [];
+  phases.forEach(function (p) { arr(p.findings).forEach(function (f) { f._phase = p; findings.push(f); }); });
+  var rank = { high: 0, medium: 1, low: 2 };
+  findings.sort(function (a, b) { return (rank[a.severity] == null ? 3 : rank[a.severity]) - (rank[b.severity] == null ? 3 : rank[b.severity]); });
+  var exc = [].concat.apply([], all.map(function (s) { return arr(s.exceptions); }));
+  var count = function (list, key, value) { return list.filter(function (x) { return x[key] === value; }).length; };
+  var invariants = all.reduce(function (n, s) { return n + arr(s.tech && s.tech.invariants).length; }, 0);
+  var untested = all.reduce(function (n, s) { return n + arr(s.tech && s.tech.untested).length; }, 0);
+
+  document.getElementById('mast-intro').textContent = DATA.meta.intro;
+  document.getElementById('tally').innerHTML = [[phases.length, 'parts of the night'], [all.length, 'steps'], [exc.length, 'exceptions mapped'], [count(exc, 'status', 'gap') + count(exc, 'status', 'partial'), 'not fully handled'], [invariants, 'things that must stay true'], [untested, 'with no test'], [findings.length, 'findings']]
+    .map(function (t) { return '<div><b>' + t[0] + '</b><span>' + t[1] + '</span></div>'; }).join('');
+
+  document.getElementById('lede').innerHTML =
+    '<section><h2>How to read it</h2><ul><li><b>Each step is one frame:</b> a picture of the screen with the part in use outlined in orange, and what the person does and sees beside it.</li><li><b>Subtext</b> (gold line) is what is quietly happening underneath.</li><li><b>Exceptions</b> say what can go differently, what the desk does today and what to do. Green is handled, amber partly, red is a gap.</li><li><b>Technical layer</b> opens under each step: the functions, what is read and written, what must stay true, which tests cover it and which do not.</li></ul></section>' +
+    '<section><h2>Why this exists</h2><p>On Monday, Nov 9, 2026, a pre-session check loaded the pages and ran the tests, and reported the desk ready. Three problems then showed up during play: the projector’s settings strip covered names, removing a player after printing reshuffled the match order, and a projector board left open kept its old code. <b>None was visible without walking the night step by step.</b> This storyboard is that walk, written down so the next check can follow it.</p></section>' +
+    '<section><h2>What it is built from</h2><p>' + rich(DATA.meta.source) + '</p><p>The pictures are drawings with made-up names, not screenshots. No member data is on this page.</p></section>';
+
+
+  if (DATA.map) {
+    document.getElementById('map').innerHTML = '<div class="phase-head" id="map-h" style="border-top:0;padding-top:0"><div class="k">Before the night</div><h2>How the club fits together</h2><p>The round robin desk is the hub, but a night starts days earlier: volunteers sign up to open and close, coaches publish lesson times, and on the day players text ahead. Each row below is one connection: what passes along it, how often, and what stops if it breaks.</p></div>' +
+      '<div class="map-nodes">' + DATA.map.nodes.map(function (n) { return '<div class="map-node' + (n.core ? ' core' : '') + '"><strong>' + esc(n.label) + '</strong><span>' + esc(n.sub) + '</span></div>'; }).join('') + '</div>' +
+      '<div class="tbl"><table class="flow"><thead><tr><th>From</th><th>To</th><th>What passes</th><th>How often</th><th>If it stops</th></tr></thead><tbody>' +
+      DATA.map.links.map(function (l) { return '<tr><td><b>' + esc(l[0]) + '</b></td><td><span class="arrow">→</span> ' + esc(l[1]) + '</td><td>' + esc(l[2]) + '</td><td>' + esc(l[3]) + '</td><td>' + esc(l[4]) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  } else document.getElementById('map').hidden = true;
+  var nav = document.getElementById('rail-nav');
+  nav.innerHTML = '<a href="#map"><span class="n">◎</span>Map</a><a href="#findings"><span class="n">!</span>Findings</a>' + phases.map(function (p, i) { return '<a href="#' + esc(p.phase) + '"><span class="n">' + (i + 1) + '</span>' + esc(p.short || p.title) + '</a>'; }).join('');
+
+  function list(items, cls) { items = arr(items); return items.length ? '<ul' + (cls ? ' class="' + cls + '"' : '') + '>' + items.map(function (x) { return '<li>' + (cls === 'unt' ? '<span>' + rich(x) + '</span>' : rich(x)) + '</li>'; }).join('') + '</ul>' : '<p class="none">None recorded.</p>'; }
+  function section(title, body, wide) { return '<section' + (wide ? ' class="wide"' : '') + '><div class="label">' + title + '</div>' + body + '</section>'; }
+  function stepHtml(s, pi) {
+    var t = s.tech || {};
+    var entry = arr(t.entry);
+    var tests = arr(t.tests);
+    var ex = arr(s.exceptions);
+    var sc = s.screen || {};
+    return '<article class="step" id="' + esc(s.id) + '" data-text="' + esc((s.title + ' ' + s.summary + ' ' + JSON.stringify(s.exceptions || '') + ' ' + JSON.stringify(t)).toLowerCase()) + '">' +
+      '<div class="step-top"><div class="frame-col"><div class="frame">' + picture(sc) + '</div><div class="frame-cap"><b>In the picture:</b> ' + esc(sc.note || 'the part of the screen in use is outlined.') + '</div></div>' +
+      '<div class="story"><div class="num">' + (pi + 1) + '.' + s._n + '</div><h3>' + esc(s.title) + '</h3><div class="chips"><span class="chip who">' + esc(s.who || '') + '</span>' + (s.when ? '<span class="chip">' + esc(s.when) + '</span>' : '') + '</div>' +
+      '<p class="summary">' + rich(s.summary) + '</p>' + (s.subtext ? '<p class="subtext">' + rich(s.subtext) + '</p>' : '') +
+      (arr(s.caveats).length ? '<div class="block"><div class="label">Caveats</div><ul class="caveats">' + arr(s.caveats).map(function (c) { return '<li>' + rich(c) + '</li>'; }).join('') + '</ul></div>' : '') + '</div></div>' +
+      (ex.length ? '<div class="exc"><div class="label">Exceptions · ' + ex.length + '</div><div class="exc-list">' + ex.map(function (e) {
+        var st = /^(handled|partial|gap)$/.test(e.status) ? e.status : 'partial';
+        return '<div class="exc-item"><span class="pill ' + st + '">' + (st === 'gap' ? 'Gap' : st === 'partial' ? 'Partly' : 'Handled') + '</span><dl><dt>' + rich(e.when) + '</dt><dd><b>Today:</b> ' + rich(e.happens) + '</dd><dd><b>What to do:</b> ' + rich(e.handling) + '</dd>' + (e.evidence ? '<dd class="mono">' + evidence(e.evidence) + '</dd>' : '') + '</dl></div>';
+      }).join('') + '</div></div>' : '') +
+      '<details class="tech"><summary>Technical layer <span class="meta">' + entry.length + ' entry points · ' + arr(t.invariants).length + ' must-hold · ' + tests.length + ' tests · ' + arr(t.untested).length + ' untested</span></summary><div class="tech-body">' +
+      section('Entry points', entry.length ? '<div class="tbl"><table><thead><tr><th>Where</th><th>Symbol</th><th>What it does here</th></tr></thead><tbody>' + entry.map(function (e) { return '<tr><td class="mono">' + evidence(e.file + (e.line ? ':' + e.line : '')) + '</td><td class="mono">' + esc(e.symbol || '') + '</td><td>' + rich(e.note || '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="none">None recorded.</p>', true) +
+      section('Must stay true (invariants)', list(t.invariants, 'inv')) + section('Not covered by any test', list(t.untested, 'unt')) +
+      section('State', list(t.state)) + section('Writes', list(t.writes)) + section('Reads', list(t.reads)) + section('Limits and timers', list(t.limits)) +
+      section('Existing tests', tests.length ? '<div class="tbl"><table><thead><tr><th>File</th><th>Case</th><th>Covers</th></tr></thead><tbody>' + tests.map(function (e) { return '<tr><td class="mono">' + evidence(e.file || '') + '</td><td class="mono">' + esc(e['case'] || '') + '</td><td>' + rich(e.covers || '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="none">None recorded.</p>', true) +
+      section('How to simulate', '<div class="sim">' + rich(t.simulate || 'Not recorded.') + '</div><div><button type="button" class="copy" data-copy="' + esc(s.id) + '">Copy this step as JSON</button></div>', true) +
+      '</div></details></article>';
+  }
+  document.getElementById('phases').innerHTML = phases.map(function (p, pi) {
+    return '<section class="phase"><div class="phase-head" id="' + esc(p.phase) + '"><div class="k">Part ' + (pi + 1) + ' of ' + phases.length + '</div><h2>' + esc(p.title) + '</h2><p>' + rich(p.intro || '') + '</p></div>' + arr(p.steps).map(function (s) { return stepHtml(s, pi); }).join('') + '</section>';
+  }).join('');
+
+  var fbox = document.getElementById('findings');
+  var sev = 'all';
+  function drawFindings() {
+    var shown = findings.filter(function (f) { return sev === 'all' || f.severity === sev; });
+    fbox.innerHTML = '<div class="phase-head" id="findings-h" style="border-top-color:var(--bad)"><div class="k">Before the storyboard: what the walk turned up</div><div class="fhead"><h2>Findings</h2><div class="seg" role="group" aria-label="Severity">' +
+      ['all', 'high', 'medium', 'low'].map(function (k) { return '<button type="button" data-sev="' + k + '" aria-pressed="' + (sev === k) + '">' + (k === 'all' ? 'All ' + findings.length : k.charAt(0).toUpperCase() + k.slice(1) + ' ' + count(findings, 'severity', k)) + '</button>'; }).join('') + '</div></div>' +
+      '<p>' + esc(DATA.meta.findingsNote) + '</p></div>' +
+      (shown.length ? shown.map(function (f) {
+        var s = /^(high|medium|low)$/.test(f.severity) ? f.severity : 'low';
+        return '<div class="finding"><span class="pill ' + s + '">' + s + '</span><div class="body"><h3>' + esc(f.title) + '</h3><div class="chips"><span class="chip">' + esc(f.kind || '') + '</span><span class="chip"><a href="#' + esc(f._phase.phase) + '">' + esc(f._phase.short || f._phase.title) + '</a></span>' + (f.checked ? '<span class="chip">' + esc(f.checked) + '</span>' : '') + '</div><p>' + rich(f.detail) + '</p><p><b>How it was confirmed:</b> ' + rich(f.confirmed || 'not stated') + '</p><p><b>To close it:</b> ' + rich(f.suggest || '') + '</p><div class="ev">' + arr(f.evidence).map(evidence).join(' · ') + '</div></div></div>';
+      }).join('') : '<p class="none">No findings at this level.</p>');
+  }
+  drawFindings();
+  fbox.addEventListener('click', function (e) { var b = e.target.closest('[data-sev]'); if (!b) return; sev = b.getAttribute('data-sev'); drawFindings(); });
+
+  // View: story / both / technical only
+  var views = { 'v-story': 'story', 'v-both': 'both', 'v-tech': 'tech' };
+  function setView(mode) {
+    Object.keys(views).forEach(function (id) { document.getElementById(id).setAttribute('aria-pressed', String(views[id] === mode)); });
+    document.body.classList.toggle('techview', mode === 'tech');
+    document.querySelectorAll('details.tech').forEach(function (d) { d.open = mode !== 'story'; });
+    try { localStorage.setItem('cttc-storyboard-view', mode); } catch (error) { /* a convenience only */ }
+  }
+  Object.keys(views).forEach(function (id) { document.getElementById(id).addEventListener('click', function () { setView(views[id]); }); });
+  var saved = 'story';
+  try { saved = localStorage.getItem('cttc-storyboard-view') || 'story'; } catch (error) { saved = 'story'; }
+  if (saved !== 'story') setView(saved);
+
+  document.getElementById('q').addEventListener('input', function (e) {
+    var q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('.step').forEach(function (el) { el.hidden = !!q && el.getAttribute('data-text').indexOf(q) < 0; });
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (!b) return;
+    var step = all.filter(function (s) { return s.id === b.getAttribute('data-copy'); })[0];
+    var text = JSON.stringify(step, function (k, v) { return k.charAt(0) === '_' ? undefined : v; }, 1);
+    var done = function (ok) { b.textContent = ok ? 'Copied' : 'Copy failed: open Technical only and select the text'; setTimeout(function () { b.textContent = 'Copy this step as JSON'; }, 2500); };
+    try { navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); }); } catch (error) { done(false); }
+  });
+  // The rail marks the part in view.
+  var links = [].slice.call(nav.querySelectorAll('a'));
+  var heads = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); });
+  function mark() {
+    var at = 0;
+    heads.forEach(function (h, i) { if (h && h.getBoundingClientRect().top < 140) at = i; });
+    links.forEach(function (a, i) { a.classList.toggle('on', i === at); });
+  }
+  window.addEventListener('scroll', mark, { passive: true });
+  mark();
+})();
+</script>

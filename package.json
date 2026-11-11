@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:equalizer && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:staffing && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs && npm run -s check:cash-page && npm run -s check:desk-log && npm run -s check:membership && npm run -s check:volunteer && npm run -s check:volunteer-admin && npm run -s check:closures && npm run -s check:turnout && npm run -s check:turnout-app && npm run -s check:home-screen && npm run -s check:starter-seed",
+    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:equalizer && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:staffing && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs && npm run -s check:cash-page && npm run -s check:desk-log && npm run -s check:membership && npm run -s check:volunteer && npm run -s check:volunteer-admin && npm run -s check:closures && npm run -s check:turnout && npm run -s check:turnout-app && npm run -s check:home-screen && npm run -s check:starter-seed && npm run -s check:storyboard",
     "build:sessions": "NODE_USE_SYSTEM_CA=1 node scripts/build-sessions.js",
     "build:data": "NODE_USE_SYSTEM_CA=1 node scripts/fetch-and-parse.js",
     "build:data:full": "NODE_USE_SYSTEM_CA=1 CTTC_FULL_REFRESH=true node scripts/fetch-and-parse.js",
@@ -53,7 +53,9 @@
     "check:nights": "node scripts/check-desk-nights.js",
     "desk:google": "node scripts/desk-google-view.js",
     "equalizer:desk-screenshots": "node scripts/equalizer-desk-screenshots.js",
-    "sheet:read": "node scripts/sheet-read.js"
+    "sheet:read": "node scripts/sheet-read.js",
+    "build:storyboard": "node scripts/build-storyboard.js",
+    "check:storyboard": "node scripts/build-storyboard.js --check"
   },
   "dependencies": {
     "nodemailer": "^9.0.5"
