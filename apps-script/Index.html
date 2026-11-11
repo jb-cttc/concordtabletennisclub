@@ -782,18 +782,19 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var winnerById = {};
     (state.winners || []).forEach(function (w) { winnerById[w.playerId] = w; });
     var promotions = {};
-    var arrays = (session ? session.groups : []).map(function (group, index) {
-      return group.players.map(function (entry) {
+    // Google's own group numbers: after the sheets print they can skip one (a group whose players all left).
+    var groups = (session ? session.groups : []).map(function (group, index) {
+      return { groupNumber: Number(group.groupNumber) || index + 1, playerIds: group.players.map(function (entry) {
         if (entry.promotionFromGroup) {
           var won = winnerById[entry.playerId];
-          promotions[entry.playerId] = { fromGroup: entry.promotionFromGroup, toGroup: index + 1, wonGroup: won && won.groupName, date: won && won.date };
+          promotions[entry.playerId] = { fromGroup: entry.promotionFromGroup, toGroup: Number(group.groupNumber) || index + 1, wonGroup: won && won.groupName, date: won && won.date };
         }
         return entry.playerId;
-      });
-    }).filter(function (ids) { return ids.length; });
+      }) };
+    }).filter(function (group) { return group.playerIds.length; });
     return {
-      roster: [].concat.apply([], arrays),
-      groups: arrays.map(function (ids, index) { return { groupNumber: index + 1, playerIds: ids }; }),
+      roster: [].concat.apply([], groups.map(function (group) { return group.playerIds; })),
+      groups: groups,
       matches: (session ? session.matches || [] : []).map(function (match) {
         return Object.assign({}, match, { playerOneGames: match.playerOneGames == null ? null : match.playerOneGames, playerTwoGames: match.playerTwoGames == null ? null : match.playerTwoGames, forfeit: !!match.forfeit, forfeitedBy: match.forfeitedBy || null, wonBy: match.wonBy || null });
       }),
@@ -870,7 +871,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     state.promotions = copy.promotions || {};
     state.matches = copy.matches;
     state.customized = true;
-    setGroups(copy.groups.map(function (group) { return group.playerIds.slice(); }));
+    setGroups(copy.groups.map(function (group) { return group.playerIds.slice(); }), copy.groups.map(function (group) { return group.groupNumber; }));
   }
   function copySummary(groupIds, matchList) {
     var players = groupIds.reduce(function (total, ids) { return total + ids.length; }, 0);
@@ -932,7 +933,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     state.promotions = draft.promotions || {};
     state.matches = draft.matches;
     state.customized = !!draft.customized;
-    setGroups(draft.groups.map(function (group) { return group.playerIds; }));
+    setGroups(draft.groups.map(function (group) { return group.playerIds; }), draft.groups.map(function (group) { return group.groupNumber; }));
     pendingRecovery = null;
     announceSync = true;
     persistDeviceDraft();
@@ -955,9 +956,25 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (confirm(question)) clearDeviceDraft(pendingRecovery.date);
   });
 
-  function setGroups(arrays) {
-    state.groups = arrays.filter(function (ids) { return ids.length; }).map(function (ids, index) {
-      return { groupNumber: index + 1, playerIds: ids };
+  // numbers: each array's group number (from Google, a device copy or a merge), or KEEP_NUMBERS for arrays that are
+  // this page's own groups changed in place (a removal, a late add, a move). Once the sheets print, a group keeps the
+  // number on its sheet ("Table #") all night: a group whose players all leave goes, and nobody else's table changes
+  // number. Before printing, and without numbers, groups are numbered 1, 2, 3 in order.
+  var KEEP_NUMBERS = 'keep';
+  function setGroups(arrays, numbers) {
+    if (numbers === KEEP_NUMBERS) numbers = sheetsPrinted() ? state.groups.map(function (group) { return group.groupNumber; }) : null;
+    var taken = {};
+    var top = 0;
+    var numbered = arrays.map(function (ids, index) {
+      var number = numbers && Number(numbers[index]);
+      number = Number.isInteger(number) && number > 0 && !taken[number] ? number : 0;
+      if (number) { taken[number] = true; top = Math.max(top, number); }
+      return { ids: ids, number: number };
+    });
+    var next = 0;
+    state.groups = numbered.filter(function (entry) { return entry.ids.length; }).map(function (entry) {
+      next = numbers ? (entry.number || ++top) : next + 1;
+      return { groupNumber: next, playerIds: entry.ids };
     });
     Object.keys(state.promotions).forEach(function (id) {
       var group = state.groups.find(function (entry) { return entry.playerIds.indexOf(id) >= 0; });
@@ -1135,7 +1152,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var keep = keepArrangement();
     var stay = playAfterPrint();
     state.roster.push(id);
-    if (keep) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions, groupSize(), stay));
+    if (keep) setGroups(O.insert(groupArrays(), id, state.roster, player, state.promotions, groupSize(), stay), KEEP_NUMBERS);
     else organize();
     persistDeviceDraft();
     var placed = stay && state.groups.find(function (group) { return group.playerIds.indexOf(id) >= 0; });
@@ -1156,7 +1173,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     var keep = keepArrangement();
     state.roster = state.roster.filter(function (other) { return other !== id; });
     delete state.promotions[id];
-    if (keep) setGroups(groupArrays().map(function (ids) { return ids.filter(function (other) { return other !== id; }); }));
+    if (keep) setGroups(groupArrays().map(function (ids) { return ids.filter(function (other) { return other !== id; }); }), KEEP_NUMBERS);
     else organize();
     persistDeviceDraft();
     setStatus(player(id).name + ' removed from RR draft.');
@@ -1176,7 +1193,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (movedUp[id] !== wasMoved) shareMoves();
     delete state.promotions[id];
     state.customized = true;
-    setGroups(arrays);
+    setGroups(arrays, KEEP_NUMBERS);
     persistDeviceDraft();
   }
 
@@ -1532,10 +1549,12 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       state.roster = [];
       state.customized = !!state.session;
       var groupsFromSession = [];
+      var numbersFromSession = [];
       if (state.session) {
         var winnerById = {};
         state.winners.forEach(function (w) { winnerById[w.playerId] = w; });
         state.session.groups.forEach(function (group) {
+          numbersFromSession.push(group.groupNumber);
           groupsFromSession.push(group.players.map(function (entry) {
             if (entry.promotionFromGroup) {
               var won = winnerById[entry.playerId];
@@ -1559,7 +1578,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
       // The sheets-printed mark another device may have made (PlayerBoard.html keeps it), before the groups draw.
       if (window.cttcPlayerBoard) { window.cttcPlayerBoard.fromGoogle(sessionDate, data.printed, askedAt); window.cttcPlayerBoard.fromGoogle(sessionDate, data.printedEq, askedAt, true); }
       movesFromGoogle(sessionDate, data.movedUp, askedAt);
-      setGroups(groupsFromSession);
+      setGroups(groupsFromSession, numbersFromSession);
       savedPrintState = printState();
       loadedDate = sessionDate;
       // The print mark is read by the loaded date, which has only now moved to this night (after a change of date the

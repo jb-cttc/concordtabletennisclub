@@ -1004,6 +1004,55 @@ const cases = {
     board.close();
   },
 
+  // After the sheets print, a group whose players all leave goes, and every other group keeps the number on its sheet
+  // ("Table #"): on the desk, the scores, the board, a reprint, Google and another device. Nothing asks for a sheet to be
+  // replaced, and a late add joins a group that is still playing.
+  async groupEmptiedAfterPrint() {
+    const world = sim.createWorld({ seed: 97, players: 40 });
+    const tab = await deskWith(world, 18);
+    const numbers = t => Array.from(t.desk().groups).map(g => g.groupNumber);
+    assert.deepEqual(numbers(tab), [1, 2, 3]);
+    tab.window.cttcPlayerBoard.printed();
+    await run(world, 2000);
+    const printed = Array.from(tab.desk().groups).map(g => Array.from(g.playerIds));
+    const third = printed[2][0];
+    const orderOf = (t, n) => Array.from(t.desk().matches).filter(m => m.groupNumber === n).map(m => m.playerOneId + ' v ' + m.playerTwoId);
+    const paper3 = orderOf(tab, 3);
+    for (const id of printed[1]) { tab.removePlayer(id); await run(world, 300); }
+    assert.deepEqual(numbers(tab), [1, 3], 'Group 3 keeps its number when Group 2 empties');
+    assert.equal(tab.desk().groups.find(g => g.playerIds.includes(third)).groupNumber, 3);
+    assert.deepEqual(orderOf(tab, 3), paper3, 'its matches keep their number and printed order');
+    assert.equal(orderOf(tab, 2).length, 0);
+    assert.equal(tab.window.cttcPlayerBoard.printNote(), '', 'no sheet needs replacing');
+    assert.equal(tab.window.cttcPlayerBoard.labels(), null, 'and no Updated label');
+    const headings = [...tab.window.document.querySelectorAll('#groups .group-head strong')].map(el => el.textContent);
+    assert.deepEqual(headings, ['Group 1', 'Group 3'], 'the desk shows the printed numbers');
+    // A late add joins a group still playing, never the empty number.
+    const late = world.players[18].player_id;
+    tab.addPlayer(late);
+    await run(world, 400);
+    assert.deepEqual(numbers(tab), [1, 3]);
+    const joined = tab.desk().groups.find(g => g.playerIds.includes(late)).groupNumber;
+    assert.equal(tab.window.cttcPlayerBoard.printNote(), 'Group ' + joined + ' changed since the sheets last printed: that is the sheet to replace.', 'only the late add\u2019s group, by its printed number');
+    // Google keeps the numbers; a reload and another device show them.
+    await run(world, 30000);
+    const saved = sim.googleSession(world, world.date);
+    assert.deepEqual([...new Set(saved.groups.map(g => g.groupNumber))].sort(), [1, 3], 'Google holds groups 1 and 3');
+    const other = world.device().open();
+    await run(world, 15000);
+    assert.deepEqual(numbers(other), [1, 3], 'another device shows the printed numbers');
+    assert.deepEqual(orderOf(other, 3), orderOf(tab, 3));
+    assert.equal(other.window.cttcPlayerBoard.printNote(), tab.window.cttcPlayerBoard.printNote(), 'the same note on the other device');
+    // Clear labels and a reprint keep the numbers; the mark records Group 2 as gone.
+    tab.window.cttcPlayerBoard.keepAsPrinted();
+    await run(world, 400);
+    assert.deepEqual(numbers(tab), [1, 3]);
+    const mark = JSON.parse(JSON.stringify(world.server.run('getAppState', world.date).printed));
+    assert.equal(mark.groups.length, 3);
+    assert.deepEqual(mark.groups[1], [], 'the mark keeps Group 2\u2019s place, empty');
+    [tab, other].forEach(t => assert.ok(!t.errors.length, t.errors.join('\n')));
+  },
+
   async blockedPopup() {
     const world = sim.createWorld({ seed: 47 });
     const tab = await deskWith(world, 6);

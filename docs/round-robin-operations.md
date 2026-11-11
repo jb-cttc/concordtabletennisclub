@@ -79,7 +79,9 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
   once a score is in, a late arrival only joins the group their rating gives
   them, even if that makes a group of 8: nobody else changes table, so the
   printed sheets stay right and the desk places the newcomer by hand with the
-  arrows. A removal leaves the gap. Anyone signed in after the first print
+  arrows. A removal leaves the gap, and every group keeps the number on its
+  sheet ("Table #") all night: if all of one table's players leave, that
+  group goes and no other group is renumbered. Anyone signed in after the first print
   carries a **Late add** label on the desk and on the Player board (a reprint
   keeps it). Rebuild by rating and the group size buttons ask first. The print
   mark is saved to Google with the night, so every device follows it: a desk
@@ -635,6 +637,10 @@ correction. Reopening is refused when
 
 - the club site already lists the session (the site will not change a
   published session),
+- publishing has started and the site does not list it yet (the workflow may
+  already have read it; reopening then would keep the old version on the site
+  and stop every later night from publishing). This lasts until the site lists
+  the night, or 30 minutes if the run fails,
 - a later session is already finalized (reopen the most recent one first), or
 - a player's rating changed after the session was finalized.
 

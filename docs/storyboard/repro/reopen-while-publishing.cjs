@@ -1,4 +1,5 @@
 // Run: node docs/storyboard/repro/reopen-while-publishing.cjs   (a storyboard finding; see docs/storyboard/README.md)
+// Fixed (reopenBlockedByPublish_ in apps-script/SessionService.js); kept to show it stays fixed.
 // Repro: while the publish workflow is running ('dispatched', the site does not list the session yet), the lock
 // button can still reopen the session. If the workflow already read the finalized rows, the site gets that version;
 // after the reopen (and a refinalize) every later publication stops with "Previously published session missing or changed".
@@ -42,7 +43,7 @@ const plainTables = world => {
   try {
     const reopened = world.server.run('reopenSession', ID, session.revision);
     console.log('reopen allowed while dispatched:', reopened.status, 'revision', reopened.revision, '| pending now:', props.CTTC_PENDING_PUBLISH || '(cleared)');
-  } catch (e) { console.log('reopen refused:', e.message); }
+  } catch (e) { console.log('FIXED: reopen refused while publishing:', e.message.slice(0, 80) + '...'); return; }
   // Corrected and finalized again; next publish run starts from the files the first run committed.
   const again = world.server.run('getSessionByDate', DATE);
   world.server.run('finalizeSession', ID, again.revision);

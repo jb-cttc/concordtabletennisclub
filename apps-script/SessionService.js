@@ -625,6 +625,20 @@ function sessionOnSite_(sessionDate, sessionId) {
   });
 }
 
+// Why a reopen must wait for publishing, or '' when it need not. Only a run started in the last 30 minutes blocks it: a
+// run that failed never lists the night on the site, and after that long the lock reopens it again. Every later state
+// (the email steps) comes after the site listed the night, which refuses a reopen in any case.
+var REOPEN_PUBLISH_WAIT_MS_ = 30 * 60 * 1000;
+function reopenBlockedByPublish_(sessionId) {
+  var pending = pendingPublish_();
+  if (!pending || pending.sessionId !== String(sessionId)) return '';
+  if (/^email_/.test(String(pending.state)) || pending.state === 'emailed') {
+    return 'The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.';
+  }
+  if (pending.state !== 'dispatched' || Date.now() - (Number(pending.dispatchedAt) || 0) >= REOPEN_PUBLISH_WAIT_MS_) return '';
+  return 'This night is being published to the club site right now, so it can no longer be reopened here: the site would keep the version it is publishing, and later nights would stop publishing. Wait for the site to list it; corrections after publication need a separate fix. (If the site has not listed it 30 minutes after publishing started, the lock reopens it again.)';
+}
+
 // Reopens the most recent finalized session: restores each player's rating from the ledger, makes the session
 // editable again, and removes the ledger rows. It must be finalized again after the correction. If Google stops
 // before the session is open, the ratings are put back; if that fails too, clicking the lock again finishes the job
@@ -655,6 +669,11 @@ function reopenLocked_(sessionId, expectedRevision) {
     return date > sessionDate || (date === sessionDate && (new Date(row.finalized_at).getTime() || 0) > finalizedAt);
   });
   if (later.length) throw new Error('The ' + displayDate_(later[0].session_date) + (isEqualizerSessionId_(later[0].session_id) ? ' Equalizer' : ' session') + ' is already finalized. Reopen the most recent session first.');
+  // Publishing has started: the workflow may already have read the finalized night, so the site would get that version
+  // and every later publication would stop at "Previously published session missing or changed". Checked before the
+  // site, which does not list the night until the workflow has finished.
+  var publishing = reopenBlockedByPublish_(sessionId);
+  if (publishing) throw new Error(publishing);
   if (sessionOnSite_(sessionDate, sessionId)) throw new Error('The club site already lists this session, so it can no longer be reopened here. Corrections after publication need a separate fix.');
 
   var ledger = rows_('RatingLedger').filter(function (row) { return String(row.session_id) === sessionId; });
