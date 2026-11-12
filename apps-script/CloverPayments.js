@@ -759,7 +759,9 @@ function cloverDeskState_(sessionDate, payments, config) {
   });
   var pageUrl = '';
   try { pageUrl = String(ScriptApp.getService().getUrl() || ''); } catch (error) { pageUrl = ''; }
-  return { connected: true, enabled: config.enabled, date: sessionDate, checkedAt: Date.now(), items: items, names: names, fees: fees, pageUrl: pageUrl ? pageUrl + '?view=clover' : '' };
+  // onNight: everyone saved in the day's RR, Equalizer or Open Play, so the section suggests adding a card payer only once
+  // it knows the night's lists, not in the moment before the desk has drawn them.
+  return { connected: true, enabled: config.enabled, date: sessionDate, checkedAt: Date.now(), items: items, names: names, fees: fees, onNight: Object.keys(night.roster), pageUrl: pageUrl ? pageUrl + '?view=clover' : '' };
 }
 
 // The Clover section's check for the open night. Reads Clover (without the script lock: score saves never wait on it),

@@ -3728,12 +3728,14 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return item.playerIds.length ? item.playerIds : item.payerId ? [item.payerId] : [];
   }
 
-  // Players a known card paid for on this date who are not on tonight's lists, newest payment first, each once.
+  // Players a known card paid for on this date who are on none of the night's lists, newest payment first, each once: not
+  // saved on one (onNight, from Google) and not on one on this device (the draft may be ahead of Google).
   function arrivalsOf() {
     var found = [];
+    var onNight = state.onNight || [];
     state.items.forEach(function (item) {
       knownPlayers(item).forEach(function (id) {
-        if (!id || placedAs(id) || found.some(function (entry) { return entry.id === id; })) return;
+        if (!id || onNight.indexOf(id) >= 0 || placedAs(id) || found.some(function (entry) { return entry.id === id; })) return;
         found.push({ id: id, item: item });
       });
     });

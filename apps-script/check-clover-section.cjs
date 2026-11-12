@@ -208,6 +208,14 @@ function boot(desk) {
   page = boot(arriving(false));
   await tick();
   assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5', 'p6']);
+  // Someone already saved on the night is never offered, even before the desk has drawn its lists.
+  const saved = arriving(true);
+  saved.onNight = ['p1', 'p2', 'p3', 'p4', 'p6'];
+  page = boot(saved);
+  await tick();
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5']);
+  page = boot(arriving(false));
+  await tick();
   // A payment being set aside is not anyone's.
   page.window.cttcOutbox.enqueue('clover:' + DATE + ':E', 'setAsideCloverPayment', [DATE, 'E']);
   await tick();
