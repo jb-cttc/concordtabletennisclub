@@ -295,6 +295,19 @@ clover.payments = [payment('Q3', NIGHTS[2], 3, 15, { last4: '9191' })];
 state = desk(NIGHTS[2]);
 assert.deepEqual([item(state, 'Q3').state, item(state, 'Q3').reason, item(state, 'Q3').playerIds], ['matched', 'pays-for', ['p5']], 'Gray\'s own fee never counts: his pass covers him');
 
+// Earlier nights at the desk: the card Blake's Credit was matched to on 11/9 pays again with nothing else to go on, so
+// Blake is ticked (never matched by itself); who pays for whom goes with the answer, for Whose card?.
+const LATER = '2026-11-30';
+['p1', 'p2', 'p4'].forEach(id => tables.SessionPlayers.push({ session_id: 'session-' + LATER, player_id: id }));
+clock = at(LATER, 40);
+clover.payments = [payment('R1', LATER, 3, 10, { last4: '8888' })];
+state = desk(LATER);
+assert.deepEqual([item(state, 'R1').state, item(state, 'R1').likely, item(state, 'R1').likelyWhy], ['unmatched', 'p2', 'history']);
+assert.deepEqual(item(state, 'R1').history, [{ playerId: 'p2', dates: ['2026-11-09'] }]);
+assert.deepEqual(state.payersOf.p3, ['p2'], 'Casey is Blake\'s junior');
+assert.deepEqual(state.payersOf.p5, ['p6'], 'Gray pays for Emery');
+assert.ok(Array.isArray(state.usualCard));
+
 // The desk log only keeps codes and numbers from these audit entries.
 assert.ok(audits.filter(entry => /^clover_/.test(entry.action)).every(entry => Object.keys(entry.details).every(key => ['playerId', 'players', 'how', 'remember', 'cards'].indexOf(key) >= 0)));
 

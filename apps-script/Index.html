@@ -3370,6 +3370,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .clover-offer p{margin:0 0 5px}
 .clover-offer .clover-actions{margin-top:0}
 .clover-likely{margin:3px 0 0;font:12px Arial,sans-serif;color:var(--green2)}
+.clover-option .clover-usual{color:var(--muted);font-size:11px}
 .clover-pairs{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:4px 0 2px;font:12px Arial,sans-serif;color:var(--muted)}
 .clover-pairs .small{padding:2px 7px;font:12px Arial,sans-serif}
 .clover-payer{display:flex;align-items:center;gap:6px;margin:4px 0 0;font:12px Arial,sans-serif;color:var(--muted)}
@@ -3497,6 +3498,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // Matched players already put on their payment buttons, so a new match is shown there once.
   var shown = {};
 
+  function dayOf(date) { return new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }); }
+  function daysOf(dates) {
+    var shown = dates.slice(-3).map(dayOf);
+    return shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : shown[0] || '';
+  }
+  function usualCard(id) { return !!(state && state.usualCard && state.usualCard.indexOf(id) >= 0); }
   function clockOf(ms) { return new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }); }
   function money(dollars) { return '$' + (dollars % 1 ? dollars.toFixed(2) : String(dollars)); }
   function nameOf(id) { return state && state.names[id] || rosterName(id) || 'a player'; }
@@ -3618,6 +3625,13 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var name = document.createElement('span');
       name.textContent = nameOf(id);
       label.append(tick, name);
+      if (usualCard(id)) {
+        var usual = document.createElement('span');
+        usual.className = 'clover-usual';
+        usual.textContent = 'usually card';
+        usual.title = 'Paid by card on most of their recent nights';
+        label.appendChild(usual);
+      }
       if (feeOf(id) != null) {
         var fee = document.createElement('span');
         fee.className = 'clover-fee';
@@ -3627,7 +3641,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       box.appendChild(label);
     });
     var credit = creditByHand().filter(function (row) { return offered(item).indexOf(row.id) < 0; });
-    var others = rosterRows().filter(function (row) { return !row.paid && offered(item).indexOf(row.id) < 0; });
+    var others = rosterRows().filter(function (row) { return !row.paid && offered(item).indexOf(row.id) < 0; })
+      .sort(function (left, right) { return (usualCard(right.id) ? 1 : 0) - (usualCard(left.id) ? 1 : 0); });
     if (others.length || credit.length) {
       var choose = document.createElement('select');
       choose.setAttribute('aria-label', 'Someone else checked in tonight');
@@ -3643,7 +3658,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         part[1].forEach(function (row) {
           var option = document.createElement('option');
           option.value = row.id;
-          option.textContent = row.name;
+          option.textContent = row.name + (usualCard(row.id) ? ' \u00b7 usually card' : '');
           group.appendChild(option);
         });
         choose.appendChild(group);
@@ -3659,7 +3674,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     actions.className = 'clover-actions';
     // Whose card it is: asked when several are ticked, or when the card is known to be someone not ticked (a Zeffy pass
     // holder, or anyone paying for another). Otherwise it is the one player ticked.
-    var owners = item.payerId && pick.ids.indexOf(item.payerId) < 0 ? [item.payerId] : [];
+    var owners = [];
+    var known = [item.payerId];
+    pick.ids.forEach(function (id) { known = known.concat(state.payersOf && state.payersOf[id] || []); });
+    known.forEach(function (id) {
+      if (id && pick.ids.indexOf(id) < 0 && owners.indexOf(id) < 0) owners.push(id);
+    });
     var askWhose = !!item.card && pick.ids.length > 0 && (pick.ids.length > 1 || owners.length > 0);
     var payer = !askWhose ? (pick.ids.length === 1 ? pick.ids[0] : '') : pick.ids.indexOf(pick.payer) >= 0 || owners.indexOf(pick.payer) >= 0 ? pick.payer : '';
     var match = button('Match', 'small', '', function () { send('matchCloverPayment', item, pick.ids.slice(), pick.remember && !!payer, askWhose ? payer : ''); });
@@ -3747,7 +3767,15 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       return li;
     }
     if (item.note) li.appendChild(small('clover-note', item.note.replace('{player}', nameOf(item.notePlayerId))));
-    if (item.likely && (item.state === 'unmatched' || item.payerCovered)) li.appendChild(small('clover-likely', 'Likely ' + nameOf(item.likely) + ': marked Credit' + (item.likelyAt ? ' at ' + clockOf(item.likelyAt) : '') + ', with no card payment yet'));
+    var placing = item.state === 'unmatched' || item.payerCovered;
+    var paidBefore = placing ? item.history || [] : [];
+    var likelyBefore = paidBefore.filter(function (entry) { return entry.playerId === item.likely; })[0];
+    if (item.likely && placing) li.appendChild(small('clover-likely', item.likelyWhy === 'history' && likelyBefore
+      ? 'Likely ' + nameOf(item.likely) + ': this card paid for them on ' + daysOf(likelyBefore.dates)
+      : 'Likely ' + nameOf(item.likely) + ': marked Credit' + (item.likelyAt ? ' at ' + clockOf(item.likelyAt) : '') + ', with no card payment yet'));
+    // Who else this card paid for on earlier nights.
+    var others = paidBefore.filter(function (entry) { return !(item.likelyWhy === 'history' && entry.playerId === item.likely); });
+    if (others.length) li.appendChild(small('clover-who', 'This card paid before for ' + others.map(function (entry) { return nameOf(entry.playerId) + ' (' + daysOf(entry.dates) + ')'; }).join(', ')));
     if (live()) {
       var pairs = pairChoices(item, pickFor(item));
       if (pairs) li.appendChild(pairs);

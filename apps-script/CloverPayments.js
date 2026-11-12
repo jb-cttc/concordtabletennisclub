@@ -379,7 +379,8 @@ function cloverMatchNight_(payments, context) {
 // amount, the desk matches them by itself.
 var CLOVER_CREDIT_MINUTES_ = 15;
 
-// The organizer's own Credit marks are the best clue for a payment no card or name fits: whoever was marked Credit by
+// The organizer's own Credit marks are the best clue for a payment no card or name fits (then, at the desk, what the same
+// card paid for on earlier nights, and who usually pays by card: context.cardHistory, context.cardShare): whoever was marked Credit by
 // hand that no Clover payment covers yet, at that payment's amount, closest in time first (context.handAt: when each
 // method was saved, in ms). Each such payment gets:
 //   likely        the one Credit player paired with it, nearest first, each player and payment used once;
@@ -403,11 +404,12 @@ function cloverCreditClues_(rows, context, claimed, open) {
     if (option.row.likely || used[option.id]) return;
     option.row.likely = option.id;
     option.row.likelyAt = context.handAt[option.id] || 0;
+    option.row.likelyWhy = 'credit';
     used[option.id] = true;
   });
   // Matched by itself: one waiting payment and one waiting Credit at that amount, close in time.
   unplaced.forEach(function (row) {
-    if (!row.likely || held[row.payment.id] || row.state !== 'unmatched') return;
+    if (!row.likely || row.likelyWhy !== 'credit' || held[row.payment.id] || row.state !== 'unmatched') return;
     var dollars = row.payment.net / 100;
     var sameAmount = unplaced.filter(function (other) { return other.payment.net / 100 === dollars; });
     if (sameAmount.length !== 1 || fits(row).length !== 1 || gap(row.likely, row) > CLOVER_CREDIT_MINUTES_ * 60000) return;
@@ -417,10 +419,27 @@ function cloverCreditClues_(rows, context, claimed, open) {
   waiting = waiting.filter(function (id) { return !claimed[id]; });
   var unpaid = open.concat(waiting).filter(function (id, index, all) { return all.indexOf(id) === index && !claimed[id]; });
   var linked = function (one, two) { return (context.paysFor[one] || []).indexOf(two) >= 0 || (context.paysFor[two] || []).indexOf(one) >= 0; };
+  var share = function (id) { return (context.cardShare || {})[id] || 0; };
   unplaced.filter(function (row) { return row.state === 'unmatched' || row.payerCovered; }).forEach(function (row) {
     var dollars = row.payment.net / 100;
     var credit = fits(row).sort(function (left, right) { return gap(left, row) - gap(right, row); });
-    row.suggestions = credit.concat(row.suggestions.filter(function (id) { return credit.indexOf(id) < 0 && !claimed[id]; })).slice(0, 6);
+    // Who this card paid for on earlier nights, most nights first: tonight's checked-in players still unpaid.
+    var paidBefore = (context.cardHistory || {})[cloverCardLabel_(row.payment)] || {};
+    var before = Object.keys(paidBefore).filter(function (id) { return context.roster[id] && !claimed[id] && !context.covered[id] && (!context.hand[id] || context.hand[id] === 'credit'); })
+      .sort(function (left, right) { return paidBefore[right].length - paidBefore[left].length; });
+    row.history = before.slice(0, 3).map(function (id) { return { playerId: id, dates: paidBefore[id].slice().sort() }; });
+    var beforeFits = before.filter(function (id) { return cloverFee_(id, context) === dollars; });
+    // Then the rest, those who usually pay by card first (a tie-break, never a match by itself).
+    var rest = row.suggestions.filter(function (id) { return credit.indexOf(id) < 0 && beforeFits.indexOf(id) < 0 && !claimed[id]; })
+      .map(function (id, index) { return { id: id, index: index }; })
+      .sort(function (left, right) { return share(right.id) - share(left.id) || left.index - right.index; }).map(function (entry) { return entry.id; });
+    row.suggestions = credit.concat(beforeFits.filter(function (id) { return credit.indexOf(id) < 0; }), rest).slice(0, 6);
+    // No Credit mark to go on: the one player this card paid for before, at this fee, still unpaid tonight.
+    if (!row.likely && beforeFits.length === 1 && !used[beforeFits[0]]) {
+      row.likely = beforeFits[0];
+      row.likelyWhy = 'history';
+      used[beforeFits[0]] = true;
+    }
     if (row.likely) return;
     var pairs = [];
     for (var i = 0; i < unpaid.length; i += 1) {
@@ -429,7 +448,8 @@ function cloverCreditClues_(rows, context, claimed, open) {
         var two = unpaid[j];
         if (cloverFee_(one, context) + cloverFee_(two, context) !== dollars) continue;
         var marked = (waiting.indexOf(one) >= 0 ? 1 : 0) + (waiting.indexOf(two) >= 0 ? 1 : 0);
-        pairs.push({ ids: [one, two], score: (linked(one, two) ? 4 : 0) + marked * 2, gap: Math.min(gap(one, row), gap(two, row)) });
+        var paid = (paidBefore[one] ? 1 : 0) + (paidBefore[two] ? 1 : 0);
+        pairs.push({ ids: [one, two], score: (linked(one, two) ? 4 : 0) + marked * 2 + paid * 2, gap: Math.min(gap(one, row), gap(two, row)) });
       }
     }
     pairs.sort(function (left, right) { return right.score - left.score || left.gap - right.gap; });
@@ -609,11 +629,47 @@ function cloverTable_(name, headers) {
   return sheet;
 }
 
-// Reading never adds the tab: before the first match it simply has no rows.
+// Reading never adds the tab: before the first match it simply has no rows. Without sessionId, every night's rows.
 function cloverMatchRows_(sessionId) {
   if (!SpreadsheetApp.getActive().getSheetByName('CloverMatches')) return [];
   TABLES.CloverMatches = CLOVER_MATCH_HEADERS;
-  return rows_('CloverMatches').filter(function (row) { return String(row.session_id) === sessionId; });
+  return rows_('CloverMatches').filter(function (row) { return !sessionId || String(row.session_id) === sessionId; });
+}
+
+// How many of a player's latest nights with a payment recorded count, and the share of them by card, for "usually pays
+// by card".
+var CLOVER_USUAL_NIGHTS_ = 10;
+var CLOVER_USUAL_MIN_ = 3;
+var CLOVER_USUAL_SHARE_ = 2 / 3;
+
+// From the rows the desk already reads: { cardHistory: { 'VISA ••1234': { playerId: [dates] } }, usualCard: { id: true },
+// cardShare: { id: 0..1 } }, from nights before sessionDate only. A payment matched to a player (by the desk, by hand or
+// by a rule) is that card paying for them; refunded, undone and set-aside payments say nothing.
+function cloverHistory_(sessionDate, matchRows, paymentRows) {
+  var cardHistory = {};
+  matchRows.forEach(function (row) {
+    var date = sessionDateOf_(row.session_id);
+    var id = String(row.player_id || '');
+    var card = String(row.card || '');
+    if (!id || !card || !date || date >= sessionDate || row.how === 'refunded' || row.how === 'held' || row.how === 'ignored') return;
+    var byPlayer = cardHistory[card] || (cardHistory[card] = {});
+    var dates = byPlayer[id] || (byPlayer[id] = []);
+    if (dates.indexOf(date) < 0) dates.push(date);
+  });
+  var nights = {};
+  paymentRows.forEach(function (row) {
+    var date = sessionDateOf_(row.session_id);
+    if (!date || date >= sessionDate || !row.method) return;
+    (nights[String(row.player_id)] || (nights[String(row.player_id)] = [])).push({ date: date, credit: String(row.method) === 'credit' });
+  });
+  var usualCard = {};
+  var cardShare = {};
+  Object.keys(nights).forEach(function (id) {
+    var latest = nights[id].sort(function (left, right) { return left.date < right.date ? 1 : -1; }).slice(0, CLOVER_USUAL_NIGHTS_);
+    cardShare[id] = latest.filter(function (night) { return night.credit; }).length / latest.length;
+    if (latest.length >= CLOVER_USUAL_MIN_ && cardShare[id] >= CLOVER_USUAL_SHARE_) usualCard[id] = true;
+  });
+  return { cardHistory: cardHistory, usualCard: usualCard, cardShare: cardShare };
 }
 
 function cloverDayPayments_(config, sessionDate, fresh) {
@@ -656,7 +712,10 @@ function cloverNight_(sessionDate) {
   openRows.forEach(function (row) { if (displayDate_(row.session_date).slice(0, 10) === sessionDate) roster[String(row.player_id)] = true; });
   var hand = {};
   var handAt = {};
-  cashRows_('SessionPayments').forEach(function (row) {
+  var paymentRows = cashRows_('SessionPayments');
+  var matchRows = cloverMatchRows_();
+  var history = cloverHistory_(sessionDate, matchRows, paymentRows);
+  paymentRows.forEach(function (row) {
     if (String(row.session_id) !== sessionId || !row.method) return;
     hand[String(row.player_id)] = String(row.method);
     handAt[String(row.player_id)] = new Date(row.updated_at).getTime() || 0;
@@ -675,7 +734,11 @@ function cloverNight_(sessionDate) {
     handAt: handAt,
     links: cloverLinkRows_(),
     paysFor: cloverPaysFor_(players, linkRows),
-    matches: cloverMatchRows_(sessionId)
+    matches: matchRows.filter(function (row) { return String(row.session_id) === sessionId; }),
+    allMatches: matchRows,
+    cardHistory: history.cardHistory,
+    usualCard: history.usualCard,
+    cardShare: history.cardShare
   };
 }
 
@@ -784,7 +847,7 @@ function cloverDeskState_(sessionDate, payments, config) {
   var heldIds = {};
   Object.keys(decided).forEach(function (id) { if (held(id)) heldIds[id] = true; });
   var context = { index: night.index, links: night.links, paysFor: night.paysFor, statuses: night.statuses, firstVisits: night.firstVisits, date: night.date, free: night.free, covered: night.covered, roster: night.roster, hand: hand, claimed: claimed,
-    handAt: night.handAt, held: heldIds };
+    handAt: night.handAt, held: heldIds, cardHistory: night.cardHistory, cardShare: night.cardShare };
   var open = payments.filter(function (payment) { return !decided[payment.id] || held(payment.id); });
   var rows = cloverMatchNight_(open, context);
   rows.forEach(function (row) {
@@ -836,6 +899,12 @@ function cloverDeskState_(sessionDate, payments, config) {
     return item;
   });
   cloverPaysForOffers_(items, payments, night);
+  // Who pays for each player (pays-for links and a junior's member), offered under Whose card? when that player is ticked.
+  var payersOf = {};
+  Object.keys(night.paysFor).forEach(function (payerId) {
+    night.paysFor[payerId].forEach(function (id) { (payersOf[id] || (payersOf[id] = [])).push(payerId); referenced[payerId] = true; });
+  });
+  items.forEach(function (item) { (item.history || []).forEach(function (entry) { referenced[entry.playerId] = true; }); });
   items.forEach(function (item) { if (item.offer) [item.offer.payerId].concat(item.offer.playerIds).forEach(function (id) { referenced[id] = true; }); });
   Object.keys(night.roster).forEach(function (id) { referenced[id] = true; });
   var names = {};
@@ -848,7 +917,8 @@ function cloverDeskState_(sessionDate, payments, config) {
   try { pageUrl = String(ScriptApp.getService().getUrl() || ''); } catch (error) { pageUrl = ''; }
   // onNight: everyone saved in the day's RR, Equalizer or Open Play, so the section suggests adding a card payer only once
   // it knows the night's lists, not in the moment before the desk has drawn them.
-  return { connected: true, enabled: config.enabled, date: sessionDate, checkedAt: Date.now(), items: items, names: names, fees: fees, onNight: Object.keys(night.roster), pageUrl: pageUrl ? pageUrl + '?view=clover' : '' };
+  var usualCard = Object.keys(night.roster).filter(function (id) { return night.usualCard[id]; });
+  return { connected: true, enabled: config.enabled, date: sessionDate, checkedAt: Date.now(), items: items, names: names, fees: fees, onNight: Object.keys(night.roster), usualCard: usualCard, payersOf: payersOf, pageUrl: pageUrl ? pageUrl + '?view=clover' : '' };
 }
 
 // The Clover section's check for the open night. Reads Clover (without the script lock: score saves never wait on it),
@@ -877,7 +947,7 @@ function cloverPaysForOffers_(items, payments, night) {
   }).filter(Boolean);
   if (!candidates.length) return;
   var history = {};
-  rows_('CloverMatches').forEach(function (row) {
+  night.allMatches.forEach(function (row) {
     if (!String(row.player_id) || row.how === 'refunded' || row.how === 'held' || row.how === 'ignored') return;
     var entry = history[row.payment_id] || (history[row.payment_id] = { card: String(row.card || ''), players: [] });
     entry.players.push(String(row.player_id));
@@ -1261,6 +1331,8 @@ function cloverReportRow_(row) {
     notePlayerId: row.notePlayerId || '',
     suggestions: row.suggestions,
     likely: row.likely || '',
+    likelyWhy: row.likelyWhy || '',
+    history: row.history || [],
     payerCovered: !!row.payerCovered,
     likelyAt: row.likelyAt || 0,
     pairs: row.pairs || [],

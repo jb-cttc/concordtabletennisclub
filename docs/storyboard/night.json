@@ -2171,7 +2171,7 @@
      "title": "Take payment",
      "who": "Desk volunteer",
      "when": "At sign-in",
-     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button. Choosing **Credit** on the button is a clue too: a card payment the desk cannot place is ticked for whoever was marked Credit at about that time (\"Likely Drew: marked Credit at 7:03 PM\"), and one person paying for two gets pairs whose fees add up, then **Whose card?**.",
+     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button. Choosing **Credit** on the button is a clue too: a card payment the desk cannot place is ticked for whoever was marked Credit at about that time (\"Likely Drew: marked Credit at 7:03 PM\"), and one person paying for two gets pairs whose fees add up, then **Whose card?**. With no Credit mark, what the same card paid for on earlier nights is the next clue, and players who usually pay by card come first.",
      "subtext": "Payments are kept per player per night. The Clover list checks every minute while tonight is open.",
      "caveats": [
       "A card name that does not match a player waits under \"Cards to check\" on the Clover page; once linked, that card is remembered.",
@@ -2282,7 +2282,8 @@
        "A payment belongs to a player id and a date, not to a group or a position.",
        "Adding a card payer from Clover only puts them in this device's draft or Open Play, as the directory's buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.",
        "A Credit marked by hand matches a card payment by itself only when each is the only one at that amount, within 15 minutes, on a payment the organizer never undid; no card is learned from it.",
-       "A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?)."
+       "A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?).",
+       "A card's history and who usually pays by card only order and tick suggestions; neither matches a payment by itself."
       ],
       "limits": [
        "Clover requests: at most 3 at once, 4 retries."

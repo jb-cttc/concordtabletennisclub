@@ -75,6 +75,14 @@ the only Credit waiting at that fee, they are within 15 minutes of each other,
 and the organizer never undid that payment. No card is learned from it. The
 Clover page's comparison with the records does not use this clue.
 
+**Earlier nights.** With no Credit mark to go on, the desk looks at what the
+same card (brand and last 4 digits) paid for on earlier nights: the one player
+it paid for before, at this fee and unpaid tonight, is ticked ("Likely Defrim:
+this card paid for them on Nov 4 and Nov 9"), and anyone else it paid for is
+listed. Among the rest, players who paid by card on at least two thirds of
+their last 10 nights with a payment (3 or more) come first, tagged **usually
+card**. Neither clue ever matches a payment by itself.
+
 A member's juniors count as players they pay for, so a parent's $15 for
 themselves and their junior matches by itself. A payer whose Zeffy play pass
 covers the night owes nothing, so their own fee never counts: a pass holder's
@@ -97,7 +105,11 @@ passes. Its count is the number of payments waiting for the organizer.
 - **One payment for two.** An amount no single fee fits offers **For two?**
   pairs whose fees add up, those marked Credit or linked first; one press
   ticks both. With two or more ticked, **Whose card?** (the card's known owner
-  to start with, or *Not sure*) decides whom the card is remembered for.
+  to start with, or *Not sure*) decides whom the card is remembered for. It is
+  also asked when the card is known to be someone not ticked (a Zeffy pass
+  holder, say), or when someone pays for the ticked player (a parent, or a
+  pays-for link): then it starts at *Not sure*, and nothing is remembered
+  until the organizer chooses.
 - **Someone else checked in** lists players marked Credit by hand first.
   Choosing Credit on a payment button makes the section check Clover again
   once Google has it, rather than at the next minute.

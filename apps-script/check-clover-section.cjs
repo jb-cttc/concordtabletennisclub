@@ -310,6 +310,23 @@ function boot(desk) {
   assert.equal(blakes().querySelector('[data-clover-payer]').value, 'p2');
   assert.equal(blakes().querySelector('.clover-actions label').textContent, 'Remember as Blake Stone\u2019s card');
 
+  // Earlier nights: why someone is ticked, who else the card paid for, who usually pays by card, and whoever pays for a
+  // ticked player offered as whose card it is.
+  const pastNights = tonight(true);
+  pastNights.usualCard = ['p4'];
+  pastNights.payersOf = { p3: ['p2'] };
+  pastNights.items = [item('H', { note: 'No player found', likely: 'p3', likelyWhy: 'history', suggestions: ['p3', 'p4'],
+    history: [{ playerId: 'p3', dates: ['2026-09-14', '2026-09-21'] }, { playerId: 'p4', dates: ['2026-09-07'] }] })];
+  page = boot(pastNights);
+  await tick();
+  const fromPast = () => page.$('li[data-clover-payment="H"]');
+  assert.equal(fromPast().querySelector('.clover-likely').textContent, 'Likely Casey Stone: this card paid for them on Sep 14 and Sep 21');
+  assert.match(fromPast().textContent, /This card paid before for Drew Lane \(Sep 7\)/);
+  assert.equal(fromPast().querySelector('input[data-player="p4"]').closest('label').querySelector('.clover-usual').textContent, 'usually card');
+  assert.deepEqual(plain(Array.from(fromPast().querySelectorAll('[data-clover-payer] option')).map(option => option.textContent)), ['Not sure', 'Blake Stone', 'Casey Stone'], 'Blake pays for Casey: maybe his card');
+  assert.equal(fromPast().querySelector('[data-clover-payer]').value, '', 'not sure until the organizer says');
+  assert.equal(fromPast().querySelector('.clover-actions label'), null, 'nothing remembered while not sure');
+
   // What the finalize confirmation says: payments still waiting, and Credit marks no Clover payment covers.
   const counted = tonight(true);
   counted.handMethods = { p4: 'credit', p1: 'credit' };
