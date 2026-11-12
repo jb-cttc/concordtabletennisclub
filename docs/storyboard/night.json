@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "e735829d849eeedc713a9ec5666622fcffd79ab7",
+  "commit": "fbc58ad7511f23e6049f0c81515eaa830aaf97e6",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -996,7 +996,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4124,
+        "line": 4213,
         "symbol": "POLL_DAYS",
         "note": "When the list refreshes by itself."
        }
@@ -1046,7 +1046,7 @@
      "evidence": [
       "turnout.js:30",
       "apps-script/VoiceAutoReply.js:24",
-      "apps-script/Index.html:4124"
+      "apps-script/Index.html:4213"
      ],
      "confirmed": "read code only",
      "suggest": "One shared schedule file, or a check comparing the three."
@@ -1268,14 +1268,14 @@
        "happens": "The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**",
        "handling": "Add them under Add a player.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:3942"
+       "evidence": "apps-script/Index.html:4031"
       },
       {
        "when": "The coaching Sheet cannot be read",
        "happens": "The status bar is overwritten with **Coaching lessons unavailable:** and the error.",
        "handling": "Reload; check with the owner if it persists.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:3975"
+       "evidence": "apps-script/Index.html:4064"
       }
      ],
      "screen": {
@@ -1301,7 +1301,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 3922,
+        "line": 4011,
         "symbol": "renderOpen",
         "note": "Lists lessons first, then players added with Open."
        }
@@ -1408,7 +1408,7 @@
      "title": "\"Coaching lessons unavailable\" writes over the status bar",
      "detail": "If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.",
      "evidence": [
-      "apps-script/Index.html:3975"
+      "apps-script/Index.html:4064"
      ],
      "confirmed": "read code only",
      "suggest": "Use the page's setStatus, or show it inside the Open Play / Coaching section."
@@ -1438,7 +1438,7 @@
        "happens": "After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.",
        "handling": "Click the button, sign in with the club account, then reopen /desk.",
        "status": "handled",
-       "evidence": "README.md:352"
+       "evidence": "README.md:357"
       },
       {
        "when": "Someone opened the /dev link by mistake",
@@ -2171,7 +2171,7 @@
      "title": "Take payment",
      "who": "Desk volunteer",
      "when": "At sign-in",
-     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Cash, Venmo and Zelle are chosen on the button.",
+     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button.",
      "subtext": "Payments are kept per player per night. The Clover list checks every minute while tonight is open.",
      "caveats": [
       "A card name that does not match a player waits under \"Cards to check\" on the Clover page; once linked, that card is remembered.",
@@ -2221,6 +2221,12 @@
         "line": 1,
         "symbol": "",
         "note": "Night fees and the Friday/Saturday special."
+       },
+       {
+        "file": "apps-script/Index.html",
+        "line": 3732,
+        "symbol": "arrivalsOf",
+        "note": "Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open."
        }
       ],
       "state": [
@@ -2233,7 +2239,8 @@
        "Clover API through the desk (token in Script Properties)"
       ],
       "invariants": [
-       "A payment belongs to a player id and a date, not to a group or a position."
+       "A payment belongs to a player id and a date, not to a group or a position.",
+       "Adding a card payer from Clover only puts them in this device's draft or Open Play, as the directory's buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone."
       ],
       "limits": [
        "Clover requests: at most 3 at once, 4 retries."
@@ -2243,6 +2250,11 @@
         "file": "apps-script/check-clover-desk.cjs",
         "case": "",
         "covers": "Clover on the desk."
+       },
+       {
+        "file": "apps-script/check-clover-section.cjs",
+        "case": "",
+        "covers": "The Clover section, including card payers offered with RR and Open."
        },
        {
         "file": "apps-script/check-night-fees.cjs",
