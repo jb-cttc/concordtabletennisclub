@@ -3354,6 +3354,15 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 </style>
 <style>
 .clover-payments h2 .count[hidden]{display:none}
+.clover-arrivals{margin:6px 0 10px;padding:7px 9px;border-left:3px solid var(--green);background:#eef6f1}
+.clover-arrivals[hidden]{display:none}
+.clover-arrivals .clover-arrivals-title{margin:0;font:700 13px Arial,sans-serif;color:var(--green2)}
+.clover-payments .clover-arrivals ul{margin:4px 0 0}
+.clover-payments .clover-arrivals li{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:5px 0;border-bottom:1px solid #d3e3d9;font:13px Arial,sans-serif}
+.clover-arrivals .clover-arrival-name{display:flex;flex-direction:column;min-width:0;margin-right:auto}
+.clover-arrivals .clover-arrival-name span{color:var(--muted);font-size:12px}
+.clover-arrivals .clover-arrival-actions{display:flex;gap:4px}
+.clover-arrivals .clover-arrival-actions .small{padding:3px 9px;font:12px Arial,sans-serif}
 .clover-payments ul{list-style:none;padding:0;margin:8px 0}
 .clover-payments li{padding:9px 0;border-bottom:1px solid #dce3df}
 .clover-payments li:last-child{border-bottom:0}
@@ -3439,7 +3448,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   allNights.title = 'The Clover payments page: every night, and the cards learned from your records';
   allNights.hidden = true;
   footer.append(refresh, allNights);
-  section.append(heading, message, list, matched.details, aside.details, footer);
+  // At the top: players a known card paid for on this date who are not on tonight's lists yet, with RR and Open buttons,
+  // as Voice signups have. A press only adds them to this device's draft or Open Play, like the directory's buttons.
+  var arrivals = document.createElement('div');
+  arrivals.className = 'clover-arrivals';
+  arrivals.hidden = true;
+  var arrivalsTitle = document.createElement('p');
+  arrivalsTitle.className = 'clover-arrivals-title';
+  var arrivalsList = document.createElement('ul');
+  arrivals.append(arrivalsTitle, arrivalsList);
+  section.append(heading, arrivals, message, list, matched.details, aside.details, footer);
   var sidebar = document.querySelector('.sidebar');
   sidebar.insertBefore(section, document.querySelector('.zeffy-passes'));
 
@@ -3690,8 +3708,78 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     return li;
   }
 
+  // Where a player is tonight ('In RR', 'In Open', 'Coaching'), or '' when on no list yet.
+  function placedAs(id) {
+    var desk = window.cttcDesk;
+    if (desk && desk.has(id)) return desk.event().placed;
+    if (open.querySelector('[data-coaching="' + CSS.escape(id) + '"]')) return 'Coaching';
+    if (open.querySelector('[data-open-remove="' + CSS.escape(id) + '"]')) return 'In Open';
+    if (groups.querySelector('[data-move="' + CSS.escape(id) + '"]')) return desk ? desk.event().placed : 'In RR';
+    return '';
+  }
+
+  // Who a payment is known to be for: a match (made, or that would be made in the dry run), the players the organizer is
+  // matching it to, or the payer the card, customer or name points to when the amount still needs a look. Not a payment
+  // the organizer undid or set aside, or one no single player fits.
+  function knownPlayers(item) {
+    var entry = pending(item.id);
+    if (entry) return entry.fn === 'matchCloverPayment' ? entry.args[2] : [];
+    if (item.state !== 'matched' && item.state !== 'needs-action') return [];
+    return item.playerIds.length ? item.playerIds : item.payerId ? [item.payerId] : [];
+  }
+
+  // Players a known card paid for on this date who are not on tonight's lists, newest payment first, each once.
+  function arrivalsOf() {
+    var found = [];
+    state.items.forEach(function (item) {
+      knownPlayers(item).forEach(function (id) {
+        if (!id || placedAs(id) || found.some(function (entry) { return entry.id === id; })) return;
+        found.push({ id: id, item: item });
+      });
+    });
+    return found;
+  }
+
+  function renderArrivals() {
+    var found = state && state.connected ? arrivalsOf() : [];
+    var event = window.cttcDesk ? window.cttcDesk.event() : { short: 'RR', target: 'the RR draft' };
+    arrivalsList.replaceChildren.apply(arrivalsList, found.map(function (entry) {
+      var li = document.createElement('li');
+      li.setAttribute('data-clover-arrival', entry.id);
+      var who = document.createElement('div');
+      who.className = 'clover-arrival-name';
+      var name = document.createElement('strong');
+      name.textContent = nameOf(entry.id);
+      var paid = document.createElement('span');
+      paid.textContent = 'Paid ' + money(entry.item.net) + ' by card at ' + entry.item.clock + (entry.item.playerIds.length > 1 ? ' for ' + entry.item.playerIds.length : '');
+      who.append(name, paid);
+      var actions = document.createElement('div');
+      actions.className = 'clover-arrival-actions';
+      var rr = button(event.short, 'small', 'Add ' + nameOf(entry.id) + ' to ' + event.target, function () { addArrival(entry.id, 'rr'); });
+      rr.setAttribute('data-clover-rr', entry.id);
+      var openButton = button('Open', 'small', 'Add ' + nameOf(entry.id) + ' to Open Play', function () { addArrival(entry.id, 'open'); });
+      openButton.setAttribute('data-clover-open', entry.id);
+      actions.append(rr, openButton);
+      li.append(who, actions);
+      return li;
+    }));
+    arrivals.hidden = !found.length;
+    arrivalsTitle.textContent = 'Paid by card, not checked in (' + found.length + ')';
+  }
+
+  function addArrival(id, where) {
+    var added = where === 'open' ? window.cttcOpenPlay && window.cttcOpenPlay.add(id) : window.cttcDesk && window.cttcDesk.add(id, 'Clover payment');
+    if (added && where !== 'open') {
+      // Highlighted where it landed, without scrolling, as a Voice signup is.
+      var row = groups.querySelector('[data-move="' + CSS.escape(id) + '"]');
+      if (row && row.closest('li')) row.closest('li').classList.add('just-added');
+    }
+    render();
+  }
+
   function render() {
     if (!state) return;
+    renderArrivals();
     allNights.hidden = !state.pageUrl;
     if (state.pageUrl) allNights.href = state.pageUrl;
     if (!state.connected) {
@@ -3763,6 +3851,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       picks = {};
       shown = {};
       badge.hidden = true;
+      arrivals.hidden = true;
       list.replaceChildren();
       matched.details.hidden = true;
       aside.details.hidden = true;
