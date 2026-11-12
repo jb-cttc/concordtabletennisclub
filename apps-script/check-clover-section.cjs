@@ -278,6 +278,16 @@ function boot(desk) {
   await tick();
   assert.equal(page.$('.clover-offers').hidden, true);
 
+  // What the finalize confirmation says: payments still waiting, and Credit marks no Clover payment covers.
+  const counted = tonight(true);
+  counted.handMethods = { p4: 'credit', p1: 'credit' };
+  page = boot(counted);
+  await tick();
+  assert.deepEqual(plain(page.window.cttcClover.openCount()), { payments: 2, credit: 1 }, 'B and C wait; Drew is marked Credit, Avery is covered by payment A');
+  page = boot(tonight(false));
+  await tick();
+  assert.equal(page.window.cttcClover.openCount(), null, 'nothing in the dry run');
+
   // Credit chosen on a payment button: once Google has it, the section checks Clover again instead of waiting a minute.
   page = boot(tonight(true));
   await tick();
