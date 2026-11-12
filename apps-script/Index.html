@@ -1876,7 +1876,11 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     if (saved.deviceOnly) { setStatus('Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.', 'error'); return; }
     var incomplete = state.matches.filter(function (m) { return O.matchState(m) !== 'complete'; }).length;
     if (incomplete) { setStatus(incomplete + ' match' + (incomplete === 1 ? ' is' : 'es are') + ' not complete yet.', 'error'); return; }
-    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks and publishes to the club site in 2 minutes, and the results email goes out 2 minutes after the site shows it. Until publishing you can click the lock button to reopen and correct it, or use Publish now to go out immediately.')) return;
+    // Card payments still open (the Clover section): said here, never in the way, since they can be matched after finalizing.
+    var clover = typeof window !== 'undefined' && window.cttcClover;
+    var cards = clover && clover.openCount ? clover.openCount() : null;
+    var cardNote = cards && (cards.payments || cards.credit) ? '\n\nCard payments: ' + [cards.payments ? cards.payments + ' Clover payment' + (cards.payments === 1 ? '' : 's') + ' still to match' : '', cards.credit ? cards.credit + ' player' + (cards.credit === 1 ? '' : 's') + ' marked Credit with no Clover payment' : ''].filter(Boolean).join(', and ') + '. They stay in Clover card payments, to match after finalizing too.' : '';
+    if (!confirm('Finalize this session and update every player rating?\n\nThe session locks and publishes to the club site in 2 minutes, and the results email goes out 2 minutes after the site shows it. Until publishing you can click the lock button to reopen and correct it, or use Publish now to go out immediately.' + cardNote)) return;
     var stopClock = busyStatus('Finalizing ratings...');
     try {
       state.session = await call('finalizeSession', saved.sessionId, saved.revision);
@@ -1977,6 +1981,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     playerEdited: playerEdited,
     remove: removeFromRoster,
     has: function (id) { return state.roster.indexOf(id) >= 0; },
+    // The active directory, { playerId, name }, for pickers such as the edit window's links.
+    players: function () { return state.players.map(function (p) { return { playerId: p.playerId, name: p.name }; }); },
     // What the sidebar calls the event the roster feeds: the round robin or the Equalizer.
     event: function () { return state.event === 'equalizer' ? { short: 'EQ', placed: 'In EQ', target: 'the Equalizer' } : { short: 'RR', placed: 'In RR', target: 'the RR draft' }; },
     print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
@@ -2969,7 +2975,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // status: what the Player board shows, a payment recorded (any method, or a Zeffy pass) and a first visit; never how.
   // free: a volunteer playing free tonight, who owes nothing.
   function paymentStatus(playerId) { return { paid: !!methods[playerId] || !!covered[playerId] || !!freeVolunteers[playerId], first: !!firstVisits[playerId], free: !!freeVolunteers[playerId] }; }
-  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function (options) { refreshPayments(options); }, status: paymentStatus };
+  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function (options) { refreshPayments(options); }, status: paymentStatus,
+    // The method on the player's button ('' when none), for the Clover section's Credit-by-hand clue.
+    method: function (playerId) { return methods[playerId] || ''; } };
   var initialPayment = window.cttcRequest('getPrivatePaymentOverview', dateField.value);
   window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
@@ -3356,6 +3364,17 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .clover-payments h2 .count[hidden]{display:none}
 .clover-arrivals{margin:6px 0 10px;padding:7px 9px;border-left:3px solid var(--green);background:#eef6f1}
 .clover-arrivals[hidden]{display:none}
+.clover-offers{margin:6px 0 10px}
+.clover-offers[hidden]{display:none}
+.clover-offer{margin:0 0 6px;padding:7px 9px;border-left:3px solid var(--gold);background:#fff7e3;font:13px Arial,sans-serif}
+.clover-offer p{margin:0 0 5px}
+.clover-offer .clover-actions{margin-top:0}
+.clover-likely{margin:3px 0 0;font:12px Arial,sans-serif;color:var(--green2)}
+.clover-option .clover-usual{color:var(--muted);font-size:11px}
+.clover-pairs{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:4px 0 2px;font:12px Arial,sans-serif;color:var(--muted)}
+.clover-pairs .small{padding:2px 7px;font:12px Arial,sans-serif}
+.clover-payer{display:flex;align-items:center;gap:6px;margin:4px 0 0;font:12px Arial,sans-serif;color:var(--muted)}
+.clover-payer select{width:auto;flex:1;margin:0}
 .clover-arrivals .clover-arrivals-title{margin:0;font:700 13px Arial,sans-serif;color:var(--green2)}
 .clover-payments .clover-arrivals ul{margin:4px 0 0}
 .clover-payments .clover-arrivals li{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:5px 0;border-bottom:1px solid #d3e3d9;font:13px Arial,sans-serif}
@@ -3457,13 +3476,17 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   arrivalsTitle.className = 'clover-arrivals-title';
   var arrivalsList = document.createElement('ul');
   arrivals.append(arrivalsTitle, arrivalsList);
-  section.append(heading, arrivals, message, list, matched.details, aside.details, footer);
+  // Offers to save "X pays for Y" when a card has covered the same people before (CloverPayments.js, cloverPaysForOffers_).
+  var offers = document.createElement('div');
+  offers.className = 'clover-offers';
+  offers.hidden = true;
+  section.append(heading, arrivals, offers, message, list, matched.details, aside.details, footer);
   var sidebar = document.querySelector('.sidebar');
   sidebar.insertBefore(section, document.querySelector('.zeffy-passes'));
 
   var POLL_MS = 60000;
   var REASONS = {
-    card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
+    credit: 'Credit marked at the same time', card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
     name: 'name on card', initial: 'initial and last name on card', 'customer-name': 'Clover customer name',
     'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays for', hand: 'matched at the desk'
   };
@@ -3475,6 +3498,13 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // Matched players already put on their payment buttons, so a new match is shown there once.
   var shown = {};
 
+  function dayOf(date) { return new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }); }
+  function daysOf(dates) {
+    var shown = dates.slice(-3).map(dayOf);
+    return shown.length > 1 ? shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1] : shown[0] || '';
+  }
+  function usualCard(id) { return !!(state && state.usualCard && state.usualCard.indexOf(id) >= 0); }
+  function clockOf(ms) { return new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }); }
   function money(dollars) { return '$' + (dollars % 1 ? dollars.toFixed(2) : String(dollars)); }
   function nameOf(id) { return state && state.names[id] || rosterName(id) || 'a player'; }
   function feeOf(id) { return state && state.fees[id] != null ? state.fees[id] : null; }
@@ -3556,14 +3586,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // organizer added from the list of tonight's players.
   function offered(item) {
     var ids = [];
-    [item.payerId].concat(item.playerIds, item.suggestions, (picks[item.id] || {}).ids || []).forEach(function (id) {
+    // A Zeffy pass holder's card: they are whose card it is, never someone to tick.
+    [item.payerCovered ? '' : item.payerId, item.likely].concat(item.playerIds, item.suggestions, (picks[item.id] || {}).ids || []).forEach(function (id) {
       if (id && ids.indexOf(id) < 0) ids.push(id);
     });
     return ids;
   }
   function pickFor(item) {
     // Waiting with a likely answer: that payer (or the players they paid for) is ticked to start with.
-    if (!picks[item.id]) picks[item.id] = { ids: item.state !== 'needs-action' ? [] : item.playerIds.length ? item.playerIds.slice() : item.payerId ? [item.payerId] : [], remember: true };
+    // A payment no card fits, with one person marked Credit by hand at about that time: that person.
+    if (!picks[item.id]) picks[item.id] = { ids: item.state !== 'needs-action' || item.payerCovered ? item.likely ? [item.likely] : [] : item.playerIds.length ? item.playerIds.slice() : item.payerId ? [item.payerId] : [], remember: true, payer: item.payerId || '' };
     return picks[item.id];
   }
 
@@ -3593,6 +3625,13 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var name = document.createElement('span');
       name.textContent = nameOf(id);
       label.append(tick, name);
+      if (usualCard(id)) {
+        var usual = document.createElement('span');
+        usual.className = 'clover-usual';
+        usual.textContent = 'usually card';
+        usual.title = 'Paid by card on most of their recent nights';
+        label.appendChild(usual);
+      }
       if (feeOf(id) != null) {
         var fee = document.createElement('span');
         fee.className = 'clover-fee';
@@ -3601,19 +3640,28 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       }
       box.appendChild(label);
     });
-    var others = rosterRows().filter(function (row) { return !row.paid && offered(item).indexOf(row.id) < 0; });
-    if (others.length) {
+    var credit = creditByHand().filter(function (row) { return offered(item).indexOf(row.id) < 0; });
+    var others = rosterRows().filter(function (row) { return !row.paid && offered(item).indexOf(row.id) < 0; })
+      .sort(function (left, right) { return (usualCard(right.id) ? 1 : 0) - (usualCard(left.id) ? 1 : 0); });
+    if (others.length || credit.length) {
       var choose = document.createElement('select');
       choose.setAttribute('aria-label', 'Someone else checked in tonight');
       var prompt = document.createElement('option');
       prompt.value = '';
       prompt.textContent = item.payerId || offered(item).length ? 'Someone else checked in\u2026' : 'Who paid? Tonight\u2019s players\u2026';
       choose.appendChild(prompt);
-      others.forEach(function (row) {
-        var option = document.createElement('option');
-        option.value = row.id;
-        option.textContent = row.name;
-        choose.appendChild(option);
+      // Marked Credit on their button, with no Clover payment yet: the likeliest, so listed first.
+      [['Marked Credit by hand', credit], ['Not paid yet', others]].forEach(function (part) {
+        if (!part[1].length) return;
+        var group = document.createElement('optgroup');
+        group.label = part[0];
+        part[1].forEach(function (row) {
+          var option = document.createElement('option');
+          option.value = row.id;
+          option.textContent = row.name + (usualCard(row.id) ? ' \u00b7 usually card' : '');
+          group.appendChild(option);
+        });
+        choose.appendChild(group);
       });
       choose.addEventListener('change', function () {
         if (!choose.value) return;
@@ -3624,7 +3672,17 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     }
     var actions = document.createElement('div');
     actions.className = 'clover-actions';
-    var match = button('Match', 'small', '', function () { send('matchCloverPayment', item, pick.ids.slice(), pick.remember && pick.ids.length === 1); });
+    // Whose card it is: asked when several are ticked, or when the card is known to be someone not ticked (a Zeffy pass
+    // holder, or anyone paying for another). Otherwise it is the one player ticked.
+    var owners = [];
+    var known = [item.payerId];
+    pick.ids.forEach(function (id) { known = known.concat(state.payersOf && state.payersOf[id] || []); });
+    known.forEach(function (id) {
+      if (id && pick.ids.indexOf(id) < 0 && owners.indexOf(id) < 0) owners.push(id);
+    });
+    var askWhose = !!item.card && pick.ids.length > 0 && (pick.ids.length > 1 || owners.length > 0);
+    var payer = !askWhose ? (pick.ids.length === 1 ? pick.ids[0] : '') : pick.ids.indexOf(pick.payer) >= 0 || owners.indexOf(pick.payer) >= 0 ? pick.payer : '';
+    var match = button('Match', 'small', '', function () { send('matchCloverPayment', item, pick.ids.slice(), pick.remember && !!payer, askWhose ? payer : ''); });
     match.disabled = !pick.ids.length;
     match.title = pick.ids.length ? 'Record Credit for ' + pick.ids.map(nameOf).join(' and ') : 'Tick who this payment is for';
     actions.appendChild(match);
@@ -3637,19 +3695,64 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       sum.textContent = 'Fees ' + money(total) + ' of ' + money(item.net);
       actions.appendChild(sum);
     }
-    if (pick.ids.length === 1 && item.card) {
+    // One payment for several: whose card it was, so the card is remembered for them (and the desk can learn who they
+    // pay for). Not sure leaves the card unremembered.
+    if (askWhose) {
+      var whose = document.createElement('label');
+      whose.className = 'clover-payer';
+      var chooser = document.createElement('select');
+      chooser.setAttribute('data-clover-payer', item.id);
+      [''].concat(owners, pick.ids).forEach(function (id) {
+        var option = document.createElement('option');
+        option.value = id;
+        option.textContent = id ? nameOf(id) + (id === item.payerId && item.payerCovered ? ' (Zeffy pass)' : '') : 'Not sure';
+        option.selected = id === payer;
+        chooser.appendChild(option);
+      });
+      chooser.addEventListener('change', function () { pick.payer = chooser.value; redraw(''); });
+      whose.append(document.createTextNode('Whose card?'), chooser);
+      box.appendChild(whose);
+    }
+    if (payer && item.card) {
       var remember = document.createElement('label');
       var tick = document.createElement('input');
       tick.type = 'checkbox';
       tick.checked = pick.remember;
       tick.addEventListener('change', function () { pick.remember = tick.checked; });
-      remember.append(tick, document.createTextNode('Remember this card'));
-      remember.title = 'Next time this card pays, ' + nameOf(pick.ids[0]) + ' is marked Credit without asking';
+      remember.append(tick, document.createTextNode(askWhose ? 'Remember as ' + nameOf(payer) + '\u2019s card' : 'Remember this card'));
+      remember.title = askWhose ? 'Next time this card pays, the desk knows it is ' + nameOf(payer) + '\u2019s' : 'Next time this card pays, ' + nameOf(pick.ids[0]) + ' is marked Credit without asking';
       actions.appendChild(remember);
     }
     actions.appendChild(button('Not a desk fee', 'small clover-aside', 'Set this payment aside: it is not for a night at the club', function () { send('setAsideCloverPayment', item); }));
     box.appendChild(actions);
     return box;
+  }
+
+  // Players whose button shows Credit chosen by hand, with no Clover payment matched to them yet tonight.
+  function creditByHand() {
+    var claimed = {};
+    (state ? state.items : []).forEach(function (item) { if (item.state === 'matched') item.playerIds.forEach(function (id) { claimed[id] = true; }); });
+    outbox.entries('matchCloverPayment').forEach(function (entry) { if (entry.args[0] === date.value) entry.args[2].forEach(function (id) { claimed[id] = true; }); });
+    var method = window.cttcPayments && window.cttcPayments.method;
+    return method ? rosterRows().filter(function (row) { return method(row.id) === 'credit' && !claimed[row.id]; }) : [];
+  }
+
+  // A payment for two people no card fits: pairs whose fees add up, one press ticks both.
+  function pairChoices(item, pick) {
+    if (!item.pairs || !item.pairs.length || (item.state !== 'unmatched' && !item.payerCovered)) return null;
+    var row = document.createElement('div');
+    row.className = 'clover-pairs';
+    row.appendChild(document.createTextNode('For two?'));
+    item.pairs.forEach(function (pair) {
+      var choice = button(pair.map(nameOf).join(' + '), 'small', 'Tick ' + pair.map(nameOf).join(' and '), function () {
+        pick.ids = pair.slice();
+        pick.payer = '';
+        render();
+      });
+      choice.setAttribute('data-clover-pair', pair.join(','));
+      row.appendChild(choice);
+    });
+    return row;
   }
 
   function waitingItem(item) {
@@ -3664,7 +3767,21 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       return li;
     }
     if (item.note) li.appendChild(small('clover-note', item.note.replace('{player}', nameOf(item.notePlayerId))));
+    var placing = item.state === 'unmatched' || item.payerCovered;
+    var paidBefore = placing ? item.history || [] : [];
+    var likelyBefore = paidBefore.filter(function (entry) { return entry.playerId === item.likely; })[0];
+    if (item.likely && placing) li.appendChild(small('clover-likely', item.likelyWhy === 'history' && likelyBefore
+      ? 'Likely ' + nameOf(item.likely) + ': this card paid for them on ' + daysOf(likelyBefore.dates)
+      : 'Likely ' + nameOf(item.likely) + ': marked Credit' + (item.likelyAt ? ' at ' + clockOf(item.likelyAt) : '') + ', with no card payment yet'));
+    // Who else this card paid for on earlier nights.
+    var others = paidBefore.filter(function (entry) { return !(item.likelyWhy === 'history' && entry.playerId === item.likely); });
+    if (others.length) li.appendChild(small('clover-who', 'This card paid before for ' + others.map(function (entry) { return nameOf(entry.playerId) + ' (' + daysOf(entry.dates) + ')'; }).join(', ')));
+    if (live()) {
+      var pairs = pairChoices(item, pickFor(item));
+      if (pairs) li.appendChild(pairs);
+    }
     if (live()) li.appendChild(picker(item));
+    else if (item.payerCovered) li.appendChild(small('clover-who', nameOf(item.payerId) + '\u2019s card (' + (REASONS[item.reason] || item.reason) + '), paying for someone else'));
     else if (item.payerId) li.appendChild(small('clover-who', 'Likely ' + nameOf(item.payerId) + ' (' + (REASONS[item.reason] || item.reason) + ')'));
     else if (item.suggestions.length) li.appendChild(small('clover-who', 'Checked in at this amount: ' + item.suggestions.map(nameOf).join(', ')));
     return li;
@@ -3779,9 +3896,70 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     render();
   }
 
+  // Offers dismissed on this device tonight: { 'date': { 'payer>ids': true } }.
+  var OFFERS_KEY = 'cttc-clover-offers-v1';
+  function dismissed() {
+    try { return (JSON.parse(localStorage.getItem(OFFERS_KEY) || '{}') || {})[date.value] || {}; } catch (error) { return {}; }
+  }
+  function dismiss(key) {
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem(OFFERS_KEY) || '{}') || {}; } catch (error) { all = {}; }
+    var kept = {};
+    kept[date.value] = Object.assign({}, all[date.value] || {});
+    kept[date.value][key] = true;
+    try { localStorage.setItem(OFFERS_KEY, JSON.stringify(kept)); } catch (error) { /* lasts until the page reloads */ }
+    offerState[key] = 'dismissed';
+  }
+  // key -> 'confirm' (asking), 'saving', 'saved', 'dismissed', or an error message.
+  var offerState = {};
+  function renderOffers() {
+    var seen = dismissed();
+    var shown = (state && state.connected && live() ? state.items : []).filter(function (item) { return item.offer; }).map(function (item) {
+      var offer = item.offer;
+      var key = offer.payerId + '>' + offer.playerIds.join(',');
+      if (seen[key] || offerState[key] === 'dismissed') return null;
+      var box = document.createElement('div');
+      box.className = 'clover-offer';
+      box.setAttribute('data-clover-offer', key);
+      var who = nameOf(offer.payerId);
+      var whom = offer.playerIds.map(nameOf).join(' and ');
+      var text = document.createElement('p');
+      var actions = document.createElement('div');
+      actions.className = 'clover-actions';
+      var now = offerState[key];
+      if (now === 'saved') {
+        text.textContent = 'Saved: ' + who + ' pays for ' + whom + '. Change it any time in ' + who + '\u2019s pencil window.';
+      } else if (now === 'confirm' || now === 'saving') {
+        text.textContent = 'Save \u201c' + who + ' pays for ' + whom + '\u201d? From the next check, one payment from ' + who + '\u2019s card that adds up to their fees is matched to them by itself. It shows under Pays for in ' + who + '\u2019s pencil window.';
+        var yes = button(now === 'saving' ? 'Saving\u2026' : 'Confirm and save', 'small', '', function () { saveOffer(key, offer); });
+        yes.disabled = now === 'saving';
+        actions.append(yes, button('Back', 'small', '', function () { delete offerState[key]; render(); }));
+      } else {
+        text.textContent = who + '\u2019s card has paid for ' + whom + (offer.times > 1 ? ' ' + offer.times + ' times' : '') + '. Save that ' + who + ' pays for them?' + (typeof now === 'string' && now ? ' ' + now : '');
+        actions.append(button('Review', 'small', 'See what saving it does', function () { offerState[key] = 'confirm'; render(); }), button('Not now', 'small', 'Hide this on this device tonight', function () { dismiss(key); render(); }));
+      }
+      box.append(text, actions);
+      return box;
+    }).filter(Boolean);
+    offers.replaceChildren.apply(offers, shown);
+    offers.hidden = !shown.length;
+  }
+  function saveOffer(key, offer) {
+    offerState[key] = 'saving';
+    render();
+    window.cttcRequest('addCloverPaysFor', offer.payerId, offer.playerIds).then(function () {
+      offerState[key] = 'saved';
+      render();
+    }).catch(function (failure) {
+      offerState[key] = 'Not saved: ' + (failure && failure.message || failure) + '.';
+      render();
+    });
+  }
+
   function render() {
     if (!state) return;
     renderArrivals();
+    renderOffers();
     allNights.hidden = !state.pageUrl;
     if (state.pageUrl) allNights.href = state.pageUrl;
     if (!state.connected) {
@@ -3842,6 +4020,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     if (!result || result.date !== date.value) return;
     state = result;
     render();
+    creditSeen = creditByHand().map(function (row) { return row.id; }).sort().join(',');
   }
 
   // quiet: the minute's check, keeping the list as it is while Google answers.
@@ -3870,8 +4049,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     });
   }
 
-  function send(fn, item, ids, remember) {
-    var args = fn === 'matchCloverPayment' ? [date.value, item.id, ids, remember] : [date.value, item.id];
+  function send(fn, item, ids, remember, payer) {
+    var args = fn === 'matchCloverPayment' ? [date.value, item.id, ids, remember].concat(payer ? [payer] : []) : [date.value, item.id];
     if (fn === 'unmatchCloverPayment') item.playerIds.forEach(function (id) { if (!item.changed.some(function (change) { return change.playerId === id; })) window.cttcPayments.recorded(date.value, id, '', true); });
     delete picks[item.id];
     outbox.enqueue(actionKey(item.id), fn, args);
@@ -3894,6 +4073,31 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     });
   });
   outbox.onChange(function () { if (state) render(); });
+  // Credit chosen on a payment button changes who a payment is likely for: once Google has the change, check again
+  // rather than waiting for the minute.
+  var creditSeen = '';
+  var creditCheck = 0;
+  function creditChanged() {
+    if (!state || !state.connected) return;
+    // Only what Google already has: a change still being sent, here or by a Clover match, is waited for.
+    if (outbox.entries().some(function (entry) { return /^(setSessionPayment|matchCloverPayment|unmatchCloverPayment|setAsideCloverPayment)$/.test(entry.fn) && entry.args[0] === date.value; })) return;
+    var now = creditByHand().map(function (row) { return row.id; }).sort().join(',');
+    if (now === creditSeen) return;
+    creditSeen = now;
+    clearTimeout(creditCheck);
+    creditCheck = setTimeout(function () { if (!section.contains(document.activeElement)) load(true); }, 1500);
+  }
+  outbox.onChange(creditChanged);
+  // For the finalize confirmation: payments waiting for the organizer, and Credit marks no Clover payment covers.
+  window.cttcClover = {
+    openCount: function () {
+      if (!state || !state.connected || !live() || state.date !== date.value) return null;
+      var payments = state.items.filter(function (item) { return !pending(item.id) && (item.state === 'needs-action' || item.state === 'unmatched'); }).length;
+      return { payments: payments, credit: creditByHand().length };
+    }
+  };
+  // Credit chosen on another device reaches this one with the payments' own refresh.
+  document.addEventListener('cttc:payment-overview', function () { setTimeout(creditChanged, 0); });
   // The payments' own refresh shows Google's saved methods; a match still being sent goes back on top of them.
   document.addEventListener('cttc:payment-overview', function () { setTimeout(function () { if (state) render(); }, 0); });
   // Players checked in or removed change who can be chosen; redrawn at most once a frame.
@@ -4981,6 +5185,12 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .player-editor-card label.player-editor-keep[hidden]{display:none}
 .player-editor-card .player-editor-keep input{display:inline-block;width:auto;margin:0}
 .player-editor-notes .player-editor-warning{color:#6f241f}
+.player-editor-card .player-editor-links .player-editor-keep input{flex:none}
+.player-editor-links .player-editor-sub{margin:8px 0 4px;font-size:12px;color:var(--ink);font-weight:700}
+.player-editor-links .hint{margin:0 0 6px}
+.player-editor-card .player-editor-links label.player-editor-member{margin:4px 0 8px 24px}
+.player-editor-card .player-editor-links label.player-editor-member[hidden]{display:none}
+.player-editor-links [data-paid-by]:empty{display:none}
 .player-editor-card footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);padding-top:13px}
 .player-editor-card footer .secondary{padding:9px 13px}
 .new-player-choice{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;padding:12px;background:rgba(10,19,17,.6)}
@@ -5012,6 +5222,18 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         '<ul data-aliases></ul>' +
         '<button type="button" class="secondary small" data-alias-add>+ Add another name</button>' +
       '</fieldset>' +
+      '<fieldset class="player-editor-aliases player-editor-links" hidden><legend>Links</legend>' +
+        '<label class="player-editor-keep"><input type="checkbox" name="junior"> Junior (pays the junior fee)</label>' +
+        '<label class="player-editor-member" hidden>Member account<input name="member" list="player-editor-directory" maxlength="80" autocomplete="off" spellcheck="false" placeholder="None: a junior member on their own"></label>' +
+        '<div data-juniors-box><p class="player-editor-sub">Juniors on this account</p><ul data-link-list="juniors"></ul>' +
+        '<button type="button" class="secondary small" data-link-add="juniors">+ Add a junior</button></div>' +
+        '<p class="player-editor-sub">Pays for</p>' +
+        '<p class="hint">Players whose fee this player often pays on the same card payment, so one Clover payment can match them together.</p>' +
+        '<ul data-link-list="paysFor"></ul>' +
+        '<button type="button" class="secondary small" data-link-add="paysFor">+ Add a player</button>' +
+        '<p class="hint" data-paid-by></p>' +
+      '</fieldset>' +
+      '<datalist id="player-editor-directory"></datalist>' +
       '<p class="player-editor-error" role="alert"></p>' +
       '<footer><button type="button" class="secondary" data-editor-cancel>Cancel</button><button type="submit" class="primary" data-editor-review>Review changes</button></footer>' +
     '</div>' +
@@ -5031,6 +5253,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var fields = { name: form.elements.name, rating: form.elements.rating, email: form.elements.email };
   var aliasList = editor.querySelector('[data-aliases]');
   var keepOld = editor.querySelector('.player-editor-keep');
+  // Links (LinkedNames.js): junior and member account, juniors on this account, and who this player pays for. Each
+  // player is typed or picked from the directory; the window sends player ids.
+  var linksBox = editor.querySelector('.player-editor-links');
+  var juniorTick = form.elements.junior;
+  var memberLabel = editor.querySelector('.player-editor-member');
+  var juniorsBox = editor.querySelector('[data-juniors-box]');
+  var linkLists = { juniors: editor.querySelector('[data-link-list="juniors"]'), paysFor: editor.querySelector('[data-link-list="paysFor"]') };
+  var paidBy = editor.querySelector('[data-paid-by]');
+  var datalist = editor.querySelector('#player-editor-directory');
+  var directory = [];
   var current = null;
   var loaded = null;
   var opener = null;
@@ -5041,6 +5273,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function setFieldsDisabled(disabled) {
     Object.keys(fields).forEach(function (key) { fields[key].disabled = disabled; });
     aliasList.querySelectorAll('input,button').forEach(function (control) { control.disabled = disabled; });
+    linksBox.querySelectorAll('input,button').forEach(function (control) { control.disabled = disabled; });
     editor.querySelector('[data-alias-add]').disabled = disabled;
     editor.querySelector('[data-editor-review]').disabled = disabled;
   }
@@ -5070,6 +5303,56 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     aliasList.appendChild(li);
     return input;
   }
+  function linkName(id) {
+    var player = directory.filter(function (entry) { return entry.playerId === id; })[0];
+    return player ? player.name : loaded && loaded.links && loaded.links.names[id] || '';
+  }
+  // The one directory player a typed name is, or ''.
+  function idForName(name) {
+    var key = nameKey(name);
+    var found = key ? directory.filter(function (entry) { return nameKey(entry.name) === key; }) : [];
+    return found.length === 1 ? found[0].playerId : '';
+  }
+  function linkRow(kind, name) {
+    var li = document.createElement('li');
+    var input = document.createElement('input');
+    input.maxLength = 80;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('list', 'player-editor-directory');
+    input.value = name;
+    input.setAttribute('aria-label', name || (kind === 'juniors' ? 'New junior on this account' : 'New player this player pays for'));
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon';
+    remove.setAttribute('data-link-remove', '');
+    remove.setAttribute('aria-label', name ? 'Remove ' + name : 'Remove this player');
+    remove.textContent = '\u00d7';
+    li.append(input, remove);
+    linkLists[kind].appendChild(li);
+    showJunior();
+    return input;
+  }
+  function showJunior() {
+    memberLabel.hidden = !juniorTick.checked;
+    juniorsBox.hidden = juniorTick.checked && !linkLists.juniors.children.length;
+  }
+  function fillLinks(links) {
+    linksBox.hidden = !links;
+    linkLists.juniors.replaceChildren();
+    linkLists.paysFor.replaceChildren();
+    juniorTick.checked = !!(links && links.junior);
+    form.elements.member.value = links && links.memberId ? linkName(links.memberId) : '';
+    paidBy.textContent = links && links.paidBy.length ? 'Paid for by ' + links.paidBy.map(linkName).join(', ') + ' (change it in their window).' : '';
+    if (links) {
+      links.juniors.forEach(function (id) { linkRow('juniors', linkName(id)); });
+      links.paysFor.forEach(function (id) { linkRow('paysFor', linkName(id)); });
+    }
+    showJunior();
+  }
+  function linkNames(kind) {
+    return [].map.call(linkLists[kind].querySelectorAll('input'), function (input) { return input.value.trim().replace(/\s+/g, ' '); }).filter(Boolean);
+  }
   function showKeepOld() {
     keepOld.hidden = !loaded || fields.name.value.trim().replace(/\s+/g, ' ') === loaded.name;
   }
@@ -5093,6 +5376,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     fields.email.value = '';
     fields.email.placeholder = 'Loading...';
     aliasList.replaceChildren();
+    directory = window.cttcDesk && window.cttcDesk.players ? window.cttcDesk.players() : [];
+    datalist.replaceChildren.apply(datalist, directory.map(function (entry) { var option = document.createElement('option'); option.value = entry.name; return option; }));
+    fillLinks(null);
     form.elements.keepOld.checked = true;
     keepOld.hidden = true;
     error(editStep, '');
@@ -5110,6 +5396,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       fields.email.value = details.email || '';
       fields.email.placeholder = 'No email on file';
       (details.aliases || []).forEach(function (alias) { aliasRow(alias.name); });
+      fillLinks(details.links);
       setFieldsDisabled(false);
       fields.name.focus();
     }).catch(function (failure) {
@@ -5138,7 +5425,36 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     if (loaded && name !== loaded.name && form.elements.keepOld.checked && !aliases.some(function (alias) { return nameKey(alias.name) === nameKey(loaded.name); })) {
       aliases.push({ from: '', name: loaded.name });
     }
-    return { name: name, rating: fields.rating.value.trim(), email: fields.email.value.trim(), aliases: aliases };
+    var links = loaded && loaded.links ? { junior: juniorTick.checked, member: juniorTick.checked ? form.elements.member.value.trim().replace(/\s+/g, ' ') : '', juniors: linkNames('juniors'), paysFor: linkNames('paysFor') } : null;
+    return { name: name, rating: fields.rating.value.trim(), email: fields.email.value.trim(), aliases: aliases, links: links };
+  }
+  // The links as player ids, or { problem } when a name is not one directory player.
+  function linkIds(next) {
+    var links = next.links;
+    var out = { junior: links.junior, memberId: '', juniors: [], paysFor: [] };
+    var me = loaded.playerId;
+    var lookup = function (name) {
+      var id = idForName(name);
+      if (!id) throw new Error(name + ' is not one player in the directory. Choose a name from the list.');
+      if (id === me) throw new Error(loaded.name + ' cannot be linked to themselves.');
+      return id;
+    };
+    try {
+      if (links.junior && links.member) out.memberId = lookup(links.member);
+      ['juniors', 'paysFor'].forEach(function (kind) {
+        links[kind].forEach(function (name) {
+          var id = lookup(name);
+          if (out[kind].indexOf(id) >= 0) throw new Error(name + ' is listed twice. Remove one of them.');
+          out[kind].push(id);
+        });
+      });
+      if (out.junior && out.juniors.length) throw new Error('A junior cannot have juniors on their account. Untick Junior, or remove the juniors.');
+      if (out.memberId && out.juniors.indexOf(out.memberId) >= 0) throw new Error(linkName(out.memberId) + ' cannot be both the member account and a junior on it.');
+      if (out.juniors.length > 10 || out.paysFor.length > 10) throw new Error('Up to 10 players in each list.');
+    } catch (failure) {
+      return { problem: failure.message };
+    }
+    return out;
   }
   function problem(next) {
     if (!next.name || next.name.length > 80) return 'Enter a name of 1 to 80 characters.';
@@ -5153,7 +5469,24 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       seen[nameKey(alias.name)] = alias.name;
     }
     if (next.aliases.length > 20) return 'A player can have up to 20 other names.';
+    if (next.links) {
+      var ids = linkIds(next);
+      if (ids.problem) return ids.problem;
+      if (next.name !== loaded.name && linkChanges(ids).length) return 'Save the new name first, then change the links.';
+    }
     return '';
+  }
+  function linkChanges(ids) {
+    var before = loaded.links;
+    var list = [];
+    if (!before) return list;
+    if (ids.junior !== !!before.junior) list.push({ label: 'Junior', from: before.junior ? 'Yes' : 'No', to: ids.junior ? 'Yes' : 'No', link: 'junior' });
+    if (ids.junior && (ids.memberId || '') !== (before.memberId || '')) list.push({ label: 'Member account', from: before.memberId ? linkName(before.memberId) : '(none)', to: ids.memberId ? linkName(ids.memberId) : '(none)', link: 'member' });
+    [['juniors', 'Junior added to this account', 'Junior removed from this account'], ['paysFor', 'Now pays for', 'No longer pays for']].forEach(function (kind) {
+      ids[kind[0]].forEach(function (id) { if (before[kind[0]].indexOf(id) < 0) list.push({ label: kind[1], from: null, to: linkName(id), link: kind[0] }); });
+      before[kind[0]].forEach(function (id) { if (ids[kind[0]].indexOf(id) < 0) list.push({ label: kind[2], from: linkName(id), to: null, link: kind[0] }); });
+    });
+    return list;
   }
   function changes(next) {
     var list = [];
@@ -5169,6 +5502,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     (loaded.aliases || []).forEach(function (alias) {
       if (!kept[alias.name]) list.push({ label: 'Other name removed', from: alias.name, to: null, alias: alias.name });
     });
+    if (next.links) list = list.concat(linkChanges(linkIds(next)));
     return list;
   }
   function item(parent, build) {
@@ -5221,6 +5555,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         li.textContent = counts.join(' and ') + ' under ' + uses.name + ' will no longer count for ' + loaded.name + ' unless another of their names matches.';
       });
     });
+    var links = list.filter(function (change) { return change.link; }).map(function (change) { return change.link; });
+    if (links.indexOf('junior') >= 0) item(notes, function (li) { li.textContent = next.links.junior ? loaded.name + ' pays the junior fee from now on, and their badge shows J.' : loaded.name + ' is no longer a junior: their fee follows their Member or Visitor badge.'; });
+    if (list.some(function (change) { return change.label === 'Junior added to this account'; })) item(notes, function (li) { li.textContent = 'A junior added here pays the junior fee, and leaves any other account they were on.'; });
+    if (links.indexOf('paysFor') >= 0) item(notes, function (li) { li.textContent = 'From the next Clover check, one payment from ' + loaded.name + '\u2019s card can match the players they pay for when it adds up to their fees.'; });
     if (list.some(function (change) { return /^Other name/.test(change.label); })) {
       item(notes, function (li) { li.textContent = 'Other names count for Voice signups, Zeffy passes, Clover payments and the cash page from their next check.'; });
     }
@@ -5238,8 +5576,15 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     backButton.disabled = true;
     confirmButton.textContent = 'Saving...';
     error(confirmStep, '');
-    window.cttcRequest('updatePlayer', playerId, { name: next.name, rating: Number(next.rating), email: next.email, aliases: next.aliases },
-      { name: loaded.name, rating: loaded.currentRating, email: loaded.email || '', aliases: (loaded.aliases || []).map(function (alias) { return alias.name; }) }).then(function (saved) {
+    var sentChanges = { name: next.name, rating: Number(next.rating), email: next.email, aliases: next.aliases };
+    var sentBefore = { name: loaded.name, rating: loaded.currentRating, email: loaded.email || '', aliases: (loaded.aliases || []).map(function (alias) { return alias.name; }) };
+    // Links only when they changed, with what the window loaded so a change on another device is not overwritten.
+    var ids = next.links ? linkIds(next) : null;
+    if (ids && !ids.problem && linkChanges(ids).length) {
+      sentChanges.links = ids;
+      sentBefore.links = { junior: !!loaded.links.junior, memberId: loaded.links.memberId || '', juniors: loaded.links.juniors, paysFor: loaded.links.paysFor };
+    }
+    window.cttcRequest('updatePlayer', playerId, sentChanges, sentBefore).then(function (saved) {
       saving = false;
       close();
       window.cttcDesk.playerEdited(saved);
@@ -5268,6 +5613,19 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   });
   editor.querySelector('[data-editor-cancel]').addEventListener('click', close);
   editor.querySelector('[data-alias-add]').addEventListener('click', function () { aliasRow('').focus(); });
+  linksBox.addEventListener('click', function (event) {
+    var add = event.target.closest('[data-link-add]');
+    if (add && !add.disabled) { linkRow(add.getAttribute('data-link-add'), '').focus(); return; }
+    var remove = event.target.closest('[data-link-remove]');
+    if (!remove || remove.disabled) return;
+    var row = remove.closest('li');
+    var list = row.parentNode;
+    var next = row.nextElementSibling || row.previousElementSibling;
+    row.remove();
+    showJunior();
+    (next ? next.querySelector('input') : linksBox.querySelector('[data-link-add="' + (list === linkLists.juniors ? 'juniors' : 'paysFor') + '"]')).focus();
+  });
+  juniorTick.addEventListener('change', showJunior);
   aliasList.addEventListener('click', function (event) {
     var remove = event.target.closest('[data-alias-remove]');
     if (!remove || remove.disabled) return;

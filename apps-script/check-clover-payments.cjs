@@ -179,7 +179,82 @@ assert.equal(rows[0].state, 'needs-action', 'an amount no group fits waits for t
 
 sheets.NameLinks = [{ kind: 'pays_for', name: 'Avery Park', linked_name: 'Kai Park' }, { kind: 'pays_for', name: 'Avery Park', linked_name: 'Nobody Here' }];
 assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), paysFor, 'NameLinks pays_for rows, by name; an unknown name is skipped');
+// A member's juniors count as players they pay for: a parent's card covering their child.
+sheets.NameLinks = [{ kind: 'junior', name: 'Kai Park', linked_name: 'Avery Park' }, { kind: 'pays_for', name: 'Avery Park', linked_name: 'Kai Park' }];
+assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), { p1: ['p6'] }, 'a junior link, once, even when also a pays_for row');
+sheets.NameLinks = [{ kind: 'junior', name: 'Kai Park', linked_name: 'Avery Park' }];
+assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), { p1: ['p6'] });
 sheets.NameLinks = [];
+
+// A Zeffy pass holder's card pays only for others: their own fee never counts, and with no link that adds up, the
+// organizer chooses who it was for (the holder is never ticked).
+rows = night([payment('2026-10-07', 5, { cardholderName: 'AVERY PARK' })], { covered: { p1: true }, paysFor: { p1: ['p6'] } });
+assert.deepEqual([rows[0].state, rows[0].reason, rows[0].playerIds], ['matched', 'pays-for', ['p6']], 'Avery\'s card pays their junior Kai\'s $5');
+rows = night([payment('2026-10-07', 5, { cardholderName: 'AVERY PARK' })], { covered: { p1: true }, paysFor: { p1: ['p6'] }, date: '2026-11-13' });
+assert.deepEqual([rows[0].state, rows[0].playerIds], ['matched', ['p6']], 'on a $5 special night too: Avery\'s own $5 is not a second fit');
+rows = night([payment('2026-10-07', 10, { cardholderName: 'AVERY PARK' })], { covered: { p1: true }, paysFor: { p1: ['p6'] } });
+assert.deepEqual([rows[0].state, rows[0].payerCovered, rows[0].playerIds, rows[0].notePlayerId], ['needs-action', true, [], 'p1']);
+assert.deepEqual(rows[0].suggestions.slice(0, 1), ['p6'], 'the players they pay for come first');
+
+// Credit marked by hand is the best clue for a payment no card or name fits (cloverCreditClues_). Only the desk passes
+// handAt; the Clover page's report does not, and works as before.
+const minute = 60000;
+const unknown = (dollars, extra) => payment('2026-10-07', dollars, { cardholderName: '' }, extra);
+const credit = (marks, payments) => ({ hand: Object.fromEntries(Object.keys(marks).map(id => [id, 'credit'])), handAt: Object.fromEntries(Object.keys(marks).map(id => [id, normal(payments[0]).time + marks[id] * minute])) });
+let lone = unknown(10);
+rows = night([lone], credit({ p3: 2 }, [lone]));
+assert.deepEqual([rows[0].state, rows[0].reason, rows[0].playerIds, rows[0].likely], ['matched', 'credit', ['p3'], 'p3'], 'the one payment and the one Credit at that amount, minutes apart: matched by itself');
+rows = night([lone], credit({ p3: 20 }, [lone]));
+assert.deepEqual([rows[0].state, rows[0].likely, rows[0].suggestions[0]], ['unmatched', 'p3', 'p3'], 'more than 15 minutes apart: suggested and ticked, never matched by itself');
+rows = night([lone], { ...credit({ p3: 2 }, [lone]), held: { [normal(lone).id]: true } });
+assert.equal(rows[0].state, 'unmatched', 'a payment the organizer undid never matches by itself again');
+assert.equal(rows[0].likely, 'p3');
+assert.equal(night([lone], { hand: { p3: 'credit' } })[0].state, 'unmatched', 'without handAt (the report), no Credit clue');
+assert.equal(night([lone], { hand: { p3: 'credit' } })[0].likely, undefined);
+// Two payments and two Credits at $10: each paired with the nearest in time, none matched by itself.
+const early = unknown(10);
+const late = unknown(10, { createdTime: normal(early).time + 30 * minute });
+rows = night([early, late], credit({ p1: 31, p3: 1 }, [early]));
+assert.deepEqual(rows.map(row => [row.state, row.likely]), [['unmatched', 'p3'], ['unmatched', 'p1']]);
+assert.deepEqual(rows[1].suggestions.slice(0, 2), ['p1', 'p3'], 'Credit players first, nearest first');
+// A Credit already covered by a Clover payment, or by a card the desk knows, is not a clue.
+rows = night([early], { ...credit({ p3: 1 }, [early]), claimed: { p3: 'OTHER' } });
+assert.equal(rows[0].likely, undefined);
+// $20 that no single fee fits: pairs whose fees add up, those marked Credit by hand (or linked) first.
+const twenty = unknown(20);
+rows = night([twenty], credit({ p1: 1, p3: 2 }, [twenty]));
+assert.equal(rows[0].state, 'unmatched');
+assert.deepEqual(rows[0].pairs[0], ['p1', 'p3'], 'both marked Credit');
+rows = night([twenty], { ...credit({}, [twenty]), paysFor: { p4: ['p1'] } });
+assert.deepEqual(rows[0].pairs[0].slice().sort(), ['p1', 'p4'], 'a pays-for link ranks first');
+rows = night([twenty], credit({}, [twenty]));
+assert.ok(rows[0].pairs.length <= 3);
+
+// What the same card paid for on earlier nights, and who usually pays by card (cloverHistory_), from rows the desk
+// already reads. Only nights before this one count; refunded, undone and set-aside payments say nothing.
+const past = context.cloverHistory_('2026-10-07', [
+  { session_id: 'session-2026-09-30', player_id: 'p3', how: 'hand', card: 'VISA \u2022\u20221234' },
+  { session_id: 'session-2026-10-02', player_id: 'p3', how: 'card', card: 'VISA \u2022\u20221234' },
+  { session_id: 'session-2026-10-02-equalizer', player_id: 'p3', how: 'card', card: 'VISA \u2022\u20221234' },
+  { session_id: 'session-2026-10-03', player_id: 'p4', how: 'refunded', card: 'VISA \u2022\u20221234' },
+  { session_id: 'session-2026-10-07', player_id: 'p4', how: 'hand', card: 'VISA \u2022\u20221234' },
+  { session_id: 'session-2026-10-01', player_id: '', how: 'held', card: 'VISA \u2022\u20221234' }
+], ['2026-09-21', '2026-09-23', '2026-09-28', '2026-09-30'].map(date => ({ session_id: 'session-' + date, player_id: 'p4', method: 'credit' }))
+  .concat([{ session_id: 'session-2026-09-30', player_id: 'p1', method: 'credit' }, { session_id: 'session-2026-09-28', player_id: 'p1', method: 'cash' }, { session_id: 'session-2026-09-23', player_id: 'p1', method: 'cash' }])
+  .concat([{ session_id: 'session-2026-10-07', player_id: 'p3', method: 'credit' }]));
+assert.deepEqual(plain(past.cardHistory), { 'VISA \u2022\u20221234': { p3: ['2026-09-30', '2026-10-02'] } }, 'once per night; not tonight, not a refund');
+assert.deepEqual(plain(past.usualCard), { p4: true }, 'four nights of four by card; Avery one of three; tonight never counts');
+const loneCard = context.cloverCardLabel_(normal(unknown(10)));
+const before = { cardHistory: { [loneCard]: { p3: ['2026-09-30', '2026-10-02'] } } };
+lone = unknown(10);
+rows = night([lone], { ...credit({}, [lone]), ...before });
+assert.deepEqual([rows[0].state, rows[0].likely, rows[0].likelyWhy, rows[0].suggestions[0]], ['unmatched', 'p3', 'history', 'p3'], 'the one player this card paid for before is ticked, never matched by itself');
+assert.deepEqual(rows[0].history, [{ playerId: 'p3', dates: ['2026-09-30', '2026-10-02'] }]);
+rows = night([lone], { ...credit({ p1: 20 }, [lone]), ...before });
+assert.deepEqual([rows[0].likely, rows[0].likelyWhy, rows[0].suggestions.slice(0, 2)], ['p1', 'credit', ['p1', 'p3']], 'a Credit mark tonight comes first, then the card\'s history');
+rows = night([lone], { ...credit({}, [lone]), cardShare: { p4: 1, p3: 0.5 } });
+assert.deepEqual(rows[0].suggestions.slice(0, 3), ['p4', 'p3', 'p1'], 'without other clues, those who usually pay by card first');
+assert.equal(rows[0].likely, undefined, 'paying by card usually never ticks anyone');
 
 // Comparing a night with the record by hand.
 const ctx7 = { index, links: {}, paysFor: {}, statuses: context.getMemberStatuses().statuses, covered: {}, roster: { p1: true, p3: true, p4: true, p6: true }, hand: { p1: 'credit', p3: 'credit', p4: 'venmo' } };

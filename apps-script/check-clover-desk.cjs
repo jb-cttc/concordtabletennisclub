@@ -218,7 +218,97 @@ assert.throws(() => context.saveCloverCards([]), /Choose the cards/);
 context.saveCloverCards([{ key: 'card:VISA|411111|9999', playerId: 'p1' }]);
 assert.equal(plain(context.cloverLinkRows_())['card:VISA|411111|9999'], null, 'saved for a second player, the card stops matching');
 
+// ---- The organizer's Credit marks, whose card, and learning who pays for whom ----
+const THIRD = '2026-11-09';
+const FOURTH = '2026-11-11';
+const FIFTH = '2026-11-16';
+[[THIRD, ['p1', 'p2', 'p4', 'p5']], [FOURTH, ['p1', 'p4']], [FIFTH, ['p1', 'p4']]].forEach(([day, ids]) => ids.forEach(id => tables.SessionPlayers.push({ session_id: 'session-' + day, player_id: id })));
+const markCredit = (day, playerId, minute) => tables.SessionPayments.push({ session_id: 'session-' + day, player_id: playerId, method: 'credit', updated_at: new Date(at(day, minute)) });
+clock = at(THIRD, 40);
+// A $10 payment no card fits, and Blake marked Credit a minute later: the only one of each, so matched by itself. No
+// card is learned from it: only the organizer's own match teaches the desk a card.
+clover.payments = [payment('P0', THIRD, 5, 10, { last4: '8888' }), payment('P1', THIRD, 20, 20, { last4: '7777' })];
+markCredit(THIRD, 'p2', 6);
+state = desk(THIRD);
+assert.deepEqual([item(state, 'P0').state, item(state, 'P0').reason, item(state, 'P0').playerIds, item(state, 'P0').recorded], ['matched', 'credit', ['p2'], true]);
+assert.ok(!tables.CloverLinks.some(row => row.link_key === 'card:VISA|411111|8888'));
+// $20 from an unknown card: pairs whose fees add up; once Avery and Drew are marked Credit, they come first.
+assert.equal(item(state, 'P1').state, 'unmatched');
+assert.deepEqual(item(state, 'P1').pairs, [['p1', 'p4']], 'the one $20 pair still unpaid: Blake is matched to the $10, and Emery is a $15 visitor');
+markCredit(THIRD, 'p1', 21);
+markCredit(THIRD, 'p4', 21);
+state = desk(THIRD);
+assert.deepEqual(item(state, 'P1').pairs[0].slice().sort(), ['p1', 'p4']);
+assert.equal(item(state, 'P1').likely, '', 'no single fee is $20');
+// Matched by hand to both, with whose card it is: the card is remembered as Drew's.
+assert.throws(() => context.matchCloverPayment(THIRD, 'P1', ['p4', 'p1'], true, 'nobody'), /Unknown or inactive player/);
+state = plain(context.matchCloverPayment(THIRD, 'P1', ['p4', 'p1'], true, 'p4'));
+assert.ok(tables.CloverLinks.some(row => row.link_key === 'card:VISA|411111|7777' && row.player_id === 'p4' && row.source === 'hand'));
+assert.equal(item(state, 'P1').offer, undefined, 'once is not a habit');
+// Another night: Drew's card pays $20 again. The desk knows the card, asks who else it covers, and after the second
+// time offers to save that Drew pays for Avery.
+clock = at(FOURTH, 40);
+clover.payments = [payment('P2', FOURTH, 3, 20, { last4: '7777' })];
+state = desk(FOURTH);
+assert.deepEqual([item(state, 'P2').state, item(state, 'P2').payerId], ['needs-action', 'p4']);
+state = plain(context.matchCloverPayment(FOURTH, 'P2', ['p4', 'p1'], true, 'p4'));
+assert.deepEqual(item(state, 'P2').offer, { payerId: 'p4', playerIds: ['p1'], times: 2 });
+assert.equal(state.names.p1, 'Avery Park');
+// Saved after the organizer confirms: a pays_for row, checked like the pencil window's, and recorded.
+assert.deepEqual(plain(context.addCloverPaysFor('p4', ['p1'])), { added: 1 });
+assert.ok(tables.NameLinks.some(row => row.kind === 'pays_for' && row.name === 'Drew Lane' && row.linked_name === 'Avery Park'));
+assert.equal(audits.filter(entry => entry.action === 'player_updated').pop().details.linksAdded, 1);
+assert.deepEqual(plain(context.addCloverPaysFor('p4', ['p1'])), { added: 0 }, 'saving twice adds nothing');
+assert.throws(() => context.addCloverPaysFor('p4', ['p4']), /cannot be linked to themselves/);
+state = desk(FOURTH);
+assert.equal(item(state, 'P2').offer, undefined, 'already saved');
+// From then on, Drew's $20 matches both by itself.
+clock = at(FIFTH, 40);
+clover.payments = [payment('P3', FIFTH, 2, 20, { last4: '7777' })];
+state = desk(FIFTH);
+assert.deepEqual([item(state, 'P3').state, item(state, 'P3').reason, item(state, 'P3').playerIds.slice().sort()], ['matched', 'pays-for', ['p1', 'p4']]);
+
+// A Zeffy pass holder's card paying for someone else (Gray holds a pass; Emery is a $15 visitor). The desk shows whose
+// card it is but never ticks them, the card is remembered as Gray's, and after the second time Gray pays for Emery.
+const NIGHTS = ['2026-11-18', '2026-11-23', '2026-11-25'];
+NIGHTS.forEach(day => ['p5', 'p6'].forEach(id => tables.SessionPlayers.push({ session_id: 'session-' + day, player_id: id })));
+clock = at(NIGHTS[0], 40);
+clover.payments = [payment('Q1', NIGHTS[0], 3, 15, { cardholderName: 'GRAY ITO', last4: '9191' })];
+state = desk(NIGHTS[0]);
+assert.deepEqual([item(state, 'Q1').state, item(state, 'Q1').payerId, item(state, 'Q1').payerCovered, item(state, 'Q1').playerIds], ['needs-action', 'p6', true, []]);
+assert.equal(item(state, 'Q1').note, '{player} has a Zeffy play pass, so their card paid for someone else. Who?');
+assert.deepEqual(item(state, 'Q1').suggestions, ['p5'], 'checked-in players at that amount');
+assert.throws(() => context.matchCloverPayment(NIGHTS[0], 'Q1', ['p6'], true), /Zeffy play pass covers/, 'Gray himself still cannot be given Credit');
+context.matchCloverPayment(NIGHTS[0], 'Q1', ['p5'], true, 'p6');
+assert.equal(method(NIGHTS[0], 'p5'), 'credit');
+assert.equal(plain(context.cloverLinkRows_())['card:VISA|411111|9191'], 'p6', 'remembered as Gray\'s card, not Emery\'s');
+clock = at(NIGHTS[1], 40);
+clover.payments = [payment('Q2', NIGHTS[1], 3, 15, { last4: '9191' })];
+state = desk(NIGHTS[1]);
+assert.deepEqual([item(state, 'Q2').state, item(state, 'Q2').payerId, item(state, 'Q2').payerCovered], ['needs-action', 'p6', true], 'known by the card now');
+state = plain(context.matchCloverPayment(NIGHTS[1], 'Q2', ['p5'], true, 'p6'));
+assert.equal(plain(context.cloverLinkRows_())['card:VISA|411111|9191'], 'p6', 'still Gray\'s: never "paid for two players"');
+assert.deepEqual(item(state, 'Q2').offer, { payerId: 'p6', playerIds: ['p5'], times: 2 });
+context.addCloverPaysFor('p6', ['p5']);
+clock = at(NIGHTS[2], 40);
+clover.payments = [payment('Q3', NIGHTS[2], 3, 15, { last4: '9191' })];
+state = desk(NIGHTS[2]);
+assert.deepEqual([item(state, 'Q3').state, item(state, 'Q3').reason, item(state, 'Q3').playerIds], ['matched', 'pays-for', ['p5']], 'Gray\'s own fee never counts: his pass covers him');
+
+// Earlier nights at the desk: the card Blake's Credit was matched to on 11/9 pays again with nothing else to go on, so
+// Blake is ticked (never matched by itself); who pays for whom goes with the answer, for Whose card?.
+const LATER = '2026-11-30';
+['p1', 'p2', 'p4'].forEach(id => tables.SessionPlayers.push({ session_id: 'session-' + LATER, player_id: id }));
+clock = at(LATER, 40);
+clover.payments = [payment('R1', LATER, 3, 10, { last4: '8888' })];
+state = desk(LATER);
+assert.deepEqual([item(state, 'R1').state, item(state, 'R1').likely, item(state, 'R1').likelyWhy], ['unmatched', 'p2', 'history']);
+assert.deepEqual(item(state, 'R1').history, [{ playerId: 'p2', dates: ['2026-11-09'] }]);
+assert.deepEqual(state.payersOf.p3, ['p2'], 'Casey is Blake\'s junior');
+assert.deepEqual(state.payersOf.p5, ['p6'], 'Gray pays for Emery');
+assert.ok(Array.isArray(state.usualCard));
+
 // The desk log only keeps codes and numbers from these audit entries.
-assert.ok(audits.every(entry => Object.keys(entry.details).every(key => ['playerId', 'players', 'how', 'remember', 'cards'].indexOf(key) >= 0)));
+assert.ok(audits.filter(entry => /^clover_/.test(entry.action)).every(entry => Object.keys(entry.details).every(key => ['playerId', 'players', 'how', 'remember', 'cards'].indexOf(key) >= 0)));
 
 console.log('Clover desk checks passed');

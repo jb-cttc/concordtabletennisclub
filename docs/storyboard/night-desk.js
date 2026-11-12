@@ -23,7 +23,7 @@ const phases = [
         X('Someone opened the /dev link by mistake', 'It works, on the real Sheet, with untested code. The header pill and tab title say DEV.', 'Close it and open the /exec bookmark. Changes already made are in the real Sheet either way.', 'partial', 'apps-script/Code.js:166')],
       screen: { kind: 'desk', highlight: ['header-date'], status: 'Loading player directory...', note: 'The header, with the /exec pill and the date picker.' },
       tech: {
-        entry: [E('apps-script/Code.js', 146, 'doGet', 'Routes ?view=cash|clover|volunteers, otherwise the desk.'), E('apps-script/Code.js', 153, 'deskPage_', 'Builds the page from Index.html, passing initialDate, deskMode and deskBuild.'), E('apps-script/Code.js', 174, 'deskBuild_', 'MD5 of Index.html plus every included file, 12 hex characters.'), E(I, 2483, 'DESK_BUILD', 'The page keeps its own fingerprint for Refresh projector.')],
+        entry: [E('apps-script/Code.js', 146, 'doGet', 'Routes ?view=cash|clover|volunteers, otherwise the desk.'), E('apps-script/Code.js', 153, 'deskPage_', 'Builds the page from Index.html, passing initialDate, deskMode and deskBuild.'), E('apps-script/Code.js', 174, 'deskBuild_', 'MD5 of Index.html plus every included file, 12 hex characters.'), E(I, 2489, 'DESK_BUILD', 'The page keeps its own fingerprint for Refresh projector.')],
         state: ['deskMode: dev | live | unknown', 'DESK_BUILD (this page\'s code fingerprint)'], writes: ['None.'], reads: ['ScriptApp.getService().getUrl() to tell /dev from /exec'],
         invariants: ['The main desk on a night runs /exec.', 'A page\'s DESK_BUILD equals deskBuild_ of the code that served it; it never changes without a reload.'],
         limits: ['Google web app: executes as the club account, access MYSELF.'],
@@ -88,7 +88,7 @@ const phases = [
         X('The projector laptop opened before the main desk started the night', 'The board waits and starts following once the main desk saves.', 'Nothing to do.', 'handled', 'apps-script/check-player-board.cjs:473')],
       screen: { kind: 'board', highlight: ['chooser'], note: 'The one-time question on a new computer.' },
       tech: {
-        entry: [E(B, 1787, 'open', 'Opens or reuses the named window and writes the board page when its fingerprint differs.'), E(I, 2498, 'startFollow', 'Follow mode on the projector\'s desk.')],
+        entry: [E(B, 1787, 'open', 'Opens or reuses the named window and writes the board page when its fingerprint differs.'), E(I, 2504, 'startFollow', 'Follow mode on the projector\'s desk.')],
         state: ['board settings in localStorage (cttc-player-board-settings-v1): concept, follow, asked'], writes: ['None (following is read-only).'], reads: ['getDeskStamps every 10 s, getFollowState when a stamp moves'],
         invariants: ['A following desk never writes the session.', 'The board window\'s code matches its desk page after a Player board click.'],
         limits: ['Follow checks every 10 s, once a minute after 20 quiet minutes, end at finalize or after 6 hours (docs/round-robin-operations.md).'],
@@ -152,20 +152,22 @@ const phases = [
         limits: [], tests: [T('apps-script/check-player-edits.cjs', '', 'Adding and editing players.')], untested: ['Near-duplicate names (no warning exists).'],
         simulate: 'desk-sim world.server.run("addPlayer", "Ana Reyes", 1200).' } },
     { id: 'signin-4-pay', title: 'Take payment', who: 'Desk volunteer', when: 'At sign-in',
-      summary: 'Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button.',
+      summary: 'Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button. Choosing **Credit** on the button is a clue too: a card payment the desk cannot place is ticked for whoever was marked Credit at about that time ("Likely Drew: marked Credit at 7:03 PM"), and one person paying for two gets pairs whose fees add up, then **Whose card?**. With no Credit mark, what the same card paid for on earlier nights is the next clue, and players who usually pay by card come first.',
       subtext: 'Payments are kept per player per night. The Clover list checks every minute while tonight is open.',
-      caveats: ['A card name that does not match a player waits under "Cards to check" on the Clover page; once linked, that card is remembered.', 'Free spots and volunteer play follow the night\'s fee rules.'],
+      caveats: ['A card name that does not match a player waits under "Cards to check" on the Clover page; once linked, that card is remembered.', 'Free spots and volunteer play follow the night\'s fee rules.', 'Juniors (and their member account) and who pays for whom are set in the player\'s pencil window, under **Links**. A member\'s card covering their junior then matches by itself.'],
       exceptions: [
-        X('A player pays on someone else\'s card', 'The payment matches the cardholder, not the player.', 'Link it on the Clover page (?view=clover) to the right player.', 'partial', 'apps-script/CloverPayments.js:267'),
+        X('A player pays on someone else\'s card', 'Marked Credit at the desk, the player is ticked for the payment no card fits ("Likely ..."). A card the desk knows (the cardholder\'s) is asked about instead, with the cardholder ticked.', 'Tick the right player and Match. When the same card has paid for them twice, save the offered "pays for" link.', 'handled', 'apps-script/CloverPayments.js:392'),
+        X('A Zeffy pass holder pays for someone else (their junior, a friend)', 'The holder\'s fee never counts. With a junior or pays-for link that adds up, the other player is matched by itself. Otherwise: "{holder} has a Zeffy play pass, so their card paid for someone else. Who?", with the holder shown as whose card it is, never ticked.', 'Tick who it was for and Match: the card is remembered as the holder\'s. After a second time, save the offered "pays for" link.', 'handled', 'apps-script/CloverPayments.js:294'),
+        X('One person pays for two', 'A $20 payment from a card the desk does not know: **For two?** offers pairs whose fees add up, those marked Credit (or linked) first. Ticking two asks **Whose card?**.', 'Press the pair, choose whose card, Match. The card is remembered as theirs; after a second time the desk offers to save that they pay for the other.', 'handled', 'apps-script/CloverPayments.js:937'),
         X('A paid player is removed or moves to Open Play', 'unconfirmed: the payment stays recorded for the player and night.', 'Check the payment still shows where they now are.', 'partial', '')],
       screen: { kind: 'desk', highlight: ['clover', 'zeffy', 'group-row'], note: 'A row\'s Payment button beside the Clover and Zeffy lists.' },
       tech: {
-        entry: [E('apps-script/CloverPayments.js', 317, 'cloverMatchNight_', 'Matches the night\'s card payments to players.'), E('apps-script/CloverPayments.js', 249, 'cloverByName_', 'Name match, with learned card links first.'), E('apps-script/NightFees.js', 1, '', 'Night fees and the Friday/Saturday special.'), E(I, 3732, 'arrivalsOf', 'Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open.')],
-        state: ['window.cttcPayments.status(id)'], writes: ['Payment rows (PrivatePayments.js); CloverLinks'], reads: ['Clover API through the desk (token in Script Properties)'],
-        invariants: ['A payment belongs to a player id and a date, not to a group or a position.', 'Adding a card payer from Clover only puts them in this device\'s draft or Open Play, as the directory\'s buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.'],
+        entry: [E('apps-script/CloverPayments.js', 319, 'cloverMatchNight_', 'Matches the night\'s card payments to players.'), E('apps-script/CloverPayments.js', 249, 'cloverByName_', 'Name match, with learned card links first.'), E('apps-script/NightFees.js', 1, '', 'Night fees and the Friday/Saturday special.'), E(I, 3850, 'arrivalsOf', 'Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open.'), E('apps-script/CloverPayments.js', 392, 'cloverCreditClues_', 'Credit marked by hand as the clue for payments no card fits: likely player, pairs, and the one case matched by itself.'), E('apps-script/CloverPayments.js', 937, 'cloverPaysForOffers_', 'Offers to save "X pays for Y" once a card has covered the same player twice.'), E('apps-script/CloverPayments.js', 970, 'addCloverPaysFor', 'Saves the offer after Confirm, with the pencil window\'s link checks.'), E('apps-script/LinkedNames.js', 115, 'linkPlan_', 'Junior and pays-for links from the pencil window: one active player per name, a junior on one account.')],
+        state: ['window.cttcPayments.status(id)'], writes: ['Payment rows (PrivatePayments.js); CloverLinks', 'NameLinks pays_for rows (the offer, or the pencil window)'], reads: ['Clover API through the desk (token in Script Properties)'],
+        invariants: ['A payment belongs to a player id and a date, not to a group or a position.', 'Adding a card payer from Clover only puts them in this device\'s draft or Open Play, as the directory\'s buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.', 'A Credit marked by hand matches a card payment by itself only when each is the only one at that amount, within 15 minutes, on a payment the organizer never undid; no card is learned from it.', 'A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?).', 'A card\'s history and who usually pays by card only order and tick suggestions; neither matches a payment by itself.'],
         limits: ['Clover requests: at most 3 at once, 4 retries.'],
-        tests: [T('apps-script/check-clover-desk.cjs', '', 'Clover on the desk.'), T('apps-script/check-clover-section.cjs', '', 'The Clover section, including card payers offered with RR and Open.'), T('apps-script/check-night-fees.cjs', '', 'Fees.'), T('apps-script/check-free-night-passes.cjs', '', 'Free spots and passes.')],
-        untested: ['A player removed after paying.'],
+        tests: [T('apps-script/check-clover-desk.cjs', '', 'Clover on the desk.'), T('apps-script/check-clover-section.cjs', '', 'The Clover section: card payers offered with RR and Open, Credit clues, pairs, Whose card?, the pays-for offer.'), T('apps-script/check-clover-payments.cjs', '', 'Matching rules, including Credit clues and juniors as paid for.'), T('apps-script/check-player-links.cjs', '', 'Junior and pays-for links in the pencil window.'), T('apps-script/check-night-fees.cjs', '', 'Fees.'), T('apps-script/check-free-night-passes.cjs', '', 'Free spots and passes.')],
+        untested: ['A player removed after paying.', 'Credit marked on two desks at once: each desk\'s check sees the other\'s Credit only once Google has it.'],
         simulate: 'Clover paths are covered offline by the check-clover-* fixtures; the real list only through `npm run desk:google -- --view clover` (read-only).' } },
     { id: 'signin-5-move', title: 'Move players between groups by hand', who: 'Desk volunteer', when: 'Before printing',
       summary: 'The ↑ and ↓ arrows move a player up or down one group. Moving up marks them with ▲ on the board. Once anyone is moved by hand, new sign-ins slot in without reshuffling, and **Rebuild by rating** asks before undoing the moves.',
@@ -192,7 +194,7 @@ const phases = [
       subtext: 'Printing makes the **print mark**: who was in which group, and the match order on each sheet. Everything after the print is placed relative to it.',
       caveats: ['Records that take longer than 8 seconds print as --/--. The sheet is still correct for play.', 'A group of 7 (21 matches) uses tighter rows to fit one page.'],
       exceptions: [
-        X('The save before printing fails', 'The print waits for a save; offline, the device copy is used.', 'Reconnect and print again if the sheets must carry records.', 'partial', 'apps-script/Index.html:1975'),
+        X('The save before printing fails', 'The print waits for a save; offline, the device copy is used.', 'Reconnect and print again if the sheets must carry records.', 'partial', 'apps-script/Index.html:1979'),
         X('The print dialog is cancelled', 'unconfirmed: whether the mark is made before or after the dialog.', 'If no sheets came out, use **Undo the print** in Print labels.', 'partial', 'apps-script/Print.html:294')],
       screen: { kind: 'sheet', highlight: ['register', 'schedule'], note: 'One table\'s sheet: players on the left, the match schedule on the right.' },
       tech: {
@@ -302,7 +304,7 @@ const phases = [
         X('The projector\'s desk tab is closed or reloaded', '**Not connected to the desk. Click Player board on the desk to reconnect.**', 'Reopen the desk tab and click Player board.', 'handled', 'apps-script/PlayerBoard.html:977')],
       screen: { kind: 'board', highlight: ['stage-pill', 'panels'], status: 'Sheets printed · live scores', note: 'Live standings on the projector.' },
       tech: {
-        entry: [E(I, 2520, 'followCheck', 'Reads getDeskStamps, then only the changed areas.'), E(ID, 94, 'getDeskStamps', 'Stamps s, p, e, d plus ev, screen, refresh.'), E(ID, 77, 'touchDeskSession_', 'Bumped on every session save.')],
+        entry: [E(I, 2526, 'followCheck', 'Reads getDeskStamps, then only the changed areas.'), E(ID, 94, 'getDeskStamps', 'Stamps s, p, e, d plus ev, screen, refresh.'), E(ID, 77, 'touchDeskSession_', 'Bumped on every session save.')],
         state: ['follow { on, lastOk, lastCheck, refreshAt, screenAt }'], writes: ['logFollowMode stats'], reads: ['getDeskStamps every 10 s', 'getFollowState / getAppState on change'],
         invariants: ['The projector never shows a state the main desk has not saved.', 'Worst case lag ≈ autosave delay + 10 s beat + one read.'],
         limits: ['10 s beat; 60 s after 20 quiet minutes; ends at finalize or 6 h.'],
@@ -312,10 +314,10 @@ const phases = [
       summary: '**Refresh projector** on the main desk makes the projector read the night again; if its code is older it says **This laptop is running an older version of the desk than the main desk. Reload this page on this laptop...** Someone must reload the desk page on the projector laptop, then click **Player board**: the open board window is rewritten with the new code.',
       subtext: 'Nothing on the main desk can reload the projector laptop. Until Monday\'s fix, a board window left open kept its old code even after that reload.',
       caveats: ['Avoid releasing during play. If you must, reload every open desk afterwards: main, projector, phones.'],
-      exceptions: [X('The release changes what the desk saves (a new field)', 'Older pages keep running until reloaded and may not carry the new field when they save.', 'Reload every device right after a release.', 'partial', 'apps-script/Index.html:2483')],
+      exceptions: [X('The release changes what the desk saves (a new field)', 'Older pages keep running until reloaded and may not carry the new field when they save.', 'Reload every device right after a release.', 'partial', 'apps-script/Index.html:2489')],
       screen: { kind: 'board', highlight: ['notice'], status: 'This laptop is running an older version of the desk than the main desk. Reload this page on this laptop, then click Player board.', note: 'The older-code notice on the projector.' },
       tech: {
-        entry: [E(ID, 61, 'requestFollowRefresh', 'Stores { at, build }.'), E(I, 2483, 'DESK_BUILD', 'Compared with refresh.build.'), E(B, 1753, 'VERSION', 'Fingerprint of the board page; open() rewrites a window with another.')],
+        entry: [E(ID, 61, 'requestFollowRefresh', 'Stores { at, build }.'), E(I, 2489, 'DESK_BUILD', 'Compared with refresh.build.'), E(B, 1753, 'VERSION', 'Fingerprint of the board page; open() rewrites a window with another.')],
         state: ['follow.oldCode'], writes: ['desk-stamp:<date>:refresh'], reads: [],
         invariants: ['After a reload and a Player board click, the board window runs the same code as its desk page.'],
         limits: [], tests: [T(PB, 'followRefresh', 'Refresh and the older-code message.'), T(PB, 'boardLeftOpenAcrossRelease', 'A board window is rewritten on new code.')], untested: ['Old and new code saving the same night at once.'],
@@ -334,22 +336,22 @@ const phases = [
       subtext: 'Each score saves within seconds, first to the laptop, then to Google.',
       caveats: ['A match cut short (best of 3 when time runs out) is entered as 2 games to the winner.', 'Check the player on the left of the screen is the player on the top line of the paper.'],
       exceptions: [
-        X('A score is entered on the wrong line', 'Tap the right numbers on both lines; the last value wins.', 'Watch the standings change as you enter.', 'handled', 'apps-script/Index.html:2121'),
+        X('A score is entered on the wrong line', 'Tap the right numbers on both lines; the last value wins.', 'Watch the standings change as you enter.', 'handled', 'apps-script/Index.html:2127'),
         X('A player did not play a match', 'Choose **Forfeit** for that player, or for both if the match was never played.', '', 'handled', 'apps-script/Organizer.html:168')],
       screen: { kind: 'desk', highlight: ['scoring'], note: 'The scoring section: games-won balls for each player.' },
       tech: {
-        entry: [E(I, 1373, 'data-score', 'Each ball carries the match\'s index in state.matches.'), E(I, 2121, '(click handler)', 'Reads state.matches[Number(dataset.score)].'), E(O, 138, 'matchWinner', 'Winner from games, forfeit or wonBy.'), E(O, 168, 'applyForfeit', 'A player id or both.')],
+        entry: [E(I, 1373, 'data-score', 'Each ball carries the match\'s index in state.matches.'), E(I, 2127, '(click handler)', 'Reads state.matches[Number(dataset.score)].'), E(O, 138, 'matchWinner', 'Winner from games, forfeit or wonBy.'), E(O, 168, 'applyForfeit', 'A player id or both.')],
         state: ['state.matches'], writes: ['autosave'], reads: [],
         invariants: ['A tap changes the match drawn under the finger: every rebuild of state.matches re-renders before the next tap.'],
         limits: [], tests: [T('apps-script/check-forfeit.cjs', '', 'Forfeits.'), T('apps-script/check-best-of-3.cjs', '', 'Short matches.')],
         untested: ['A refresh from another device landing between render and tap (the index addressing).'],
         simulate: 'desk-sim: tab.scoreMatch(index, "one", 1) while a second device adds a late player; assert the score lands on the right pair.' } },
     { id: 'finish-2-finalize', title: 'Finalize the night', who: 'Owner', when: 'After the last match',
-      summary: 'Click **Finalize RR Results**. The desk checks every match is complete and that the latest save reached Google, then Google computes every rating change, writes them, and locks the night: **Session finalized. Ratings are now authoritative.**',
+      summary: 'Click **Finalize RR Results**. The desk checks every match is complete and that the latest save reached Google, then Google computes every rating change, writes them, and locks the night: **Session finalized. Ratings are now authoritative.** The confirmation also says how many Clover payments are still to match and how many players are marked Credit with no Clover payment; those can be matched after finalizing too.',
       subtext: 'Finalize is the one step that changes ratings. Later nights start from them.',
       caveats: ['Finalize in date order. The desk does not stop you finalizing an earlier night after a later one (see findings).'],
       exceptions: [
-        X('The latest changes are not confirmed on Google', '**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**', 'Reconnect, wait for "Changes saved to Google Sheets", then finalize.', 'handled', 'apps-script/Index.html:3338'),
+        X('The latest changes are not confirmed on Google', '**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**', 'Reconnect, wait for "Changes saved to Google Sheets", then finalize.', 'handled', 'apps-script/Index.html:3346'),
         X('Finalize stopped partway (Google timed out)', 'On the next load: **An earlier finalize or reopen of this session did not finish. Check the scores, then click Finalize RR Results: it repairs the earlier attempt, so no rating change counts twice.**', 'Do as it says.', 'handled', 'apps-script/SessionService.js:447'),
         X('An earlier night is finalized after a later one', 'Allowed. Its rating changes are applied on top of the later night\'s ratings.', 'Do not do it; reopen the later night first.', 'gap', 'apps-script/SessionService.js:378')],
       screen: { kind: 'desk', highlight: ['finalize-button'], status: 'Session finalized. Ratings are now authoritative.', note: 'The Finalize RR Results button.' },
@@ -430,7 +432,7 @@ const phases = [
       exceptions: [X('Finalized elsewhere while this page had edits', '**This session was finalized in Google Sheets (on another device or tab) before these edits were saved. Nothing was overwritten...**', 'Reload and check; reopen only if the edits matter and the site does not list the night yet.', 'handled', 'apps-script/Index.html')],
       screen: { kind: 'devices', highlight: ['main-desk', 'phone', 'google'], note: 'Two desks saving to the same night.' },
       tech: {
-        entry: [E(I, 2434, 'quietForRefresh', 'The once-a-minute refresh.'), E(I, 869, 'applyCopy', 'Applies Google\'s version.')],
+        entry: [E(I, 2440, 'quietForRefresh', 'The once-a-minute refresh.'), E(I, 869, 'applyCopy', 'Applies Google\'s version.')],
         state: ['syncConflict', 'saveNeedsReload'], writes: [], reads: ['getAppState'],
         invariants: ['No device\'s confirmed change is silently reverted by another\'s save.'],
         limits: ['Refresh about once a minute.'], tests: [T('scripts/check-desk-nights.js', '', 'Second tab scenarios.')], untested: ['The print mark changed on one device while the other has unsaved group changes.'],
@@ -489,7 +491,7 @@ const phases = [
 ];
 
 const meta = {
-  commit: 'fbc58ad7511f23e6049f0c81515eaa830aaf97e6',
+  commit: '968f14045b8deb9076c5b517cdb47c5902126a8d',
   intro: 'A round robin night at the club, from opening the desk to results on the site: what each person does, what the screen shows, what can go wrong at each step, and the code underneath.',
   source: 'Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
   findingsNote: 'Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement.'

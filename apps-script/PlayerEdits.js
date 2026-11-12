@@ -38,15 +38,22 @@ function playerEmail_(playerId) {
   return row ? String(row.email || '') : '';
 }
 
-function playerDetails_(player, email, aliases) {
+function playerDetails_(player, email, aliases, links) {
   return {
     playerId: String(player.player_id),
     name: String(player.display_name),
     currentRating: Number(player.current_rating) || 0,
     email: email,
     active: asBoolean_(player.active),
-    aliases: aliases || []
+    aliases: aliases || [],
+    links: links || null
   };
+}
+
+// Junior and pays-for links (LinkedNames.js), for an active player only: links go by directory name.
+function playerLinksFor_(player) {
+  if (!asBoolean_(player.active)) return null;
+  return playerLinks_(String(player.player_id), listPlayers(), nameLinkRows_());
 }
 
 // What the edit window starts from. The email address is fetched only here, never with the directory. Each other name
@@ -55,7 +62,7 @@ function getPlayerDetails(playerId) {
   var player = findRow_('Players', 'player_id', String(playerId || ''));
   if (!player) throw new Error('Unknown player');
   var names = playerAliasNames_(rows_('Aliases'), player.player_id);
-  return playerDetails_(player, playerEmail_(player.player_id), aliasUses_(names));
+  return playerDetails_(player, playerEmail_(player.player_id), aliasUses_(names), playerLinksFor_(player));
 }
 
 // ---- Other names (the Aliases tab) ----
@@ -158,9 +165,9 @@ function applyAliasPlan_(playerId, plan, now) {
   appendObjects_('Aliases', plan.adds.map(function (name) { return { alias: name, player_id: playerId, created_at: now }; }));
 }
 
-// changes: { name, rating, email, aliases }, every field as the window shows it (aliases: [{from, name}], or left out
-// to keep them as they are). before: what the window loaded, so a change made on another device in between is not
-// overwritten unseen.
+// changes: { name, rating, email, aliases, links }, every field as the window shows it (aliases: [{from, name}], links:
+// { junior, memberId, juniors, paysFor }; either left out to keep it as it is). before: what the window loaded, so a
+// change made on another device in between is not overwritten unseen.
 function updatePlayer(playerId, changes, before) {
   playerId = String(playerId || '');
   changes = changes || {};
@@ -169,6 +176,8 @@ function updatePlayer(playerId, changes, before) {
   var rating = Number(changes.rating);
   var email = String(changes.email == null ? '' : changes.email).trim();
   var wanted = changes.aliases == null ? null : changes.aliases;
+  var wantedLinks = changes.links == null ? null : changes.links;
+  if (wantedLinks && typeof wantedLinks !== 'object') throw new Error('Links must be sent as the window shows them.');
   if (!name || name.length > 80) throw new Error('Player name must be 1 through 80 characters.');
   if (changes.rating === '' || changes.rating == null || !Number.isInteger(rating) || rating < 0 || rating > 4000) throw new Error('Rating must be a whole number from 0 through 4000.');
   if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) throw new Error('Enter a valid email address, or leave it blank.');
@@ -191,10 +200,14 @@ function updatePlayer(playerId, changes, before) {
     var aliasRows = rows_('Aliases');
     var oldAliases = playerAliasNames_(aliasRows, playerId);
     var sameNames = function (left, right) { return left.slice().sort().join('\n') === right.map(normalizeName_).sort().join('\n'); };
+    var linkRows = wantedLinks || before.links ? nameLinkRows_() : null;
+    var activePlayers = linkRows ? listPlayers(players) : null;
+    var oldLinks = linkRows ? playerLinks_(playerId, activePlayers, linkRows) : null;
     if ((before.name !== undefined && normalizeName_(before.name) !== normalizeName_(oldName)) ||
         (before.rating !== undefined && Number(before.rating) !== oldRating) ||
         (before.email !== undefined && String(before.email) !== oldEmail) ||
-        (before.aliases !== undefined && !sameNames(oldAliases, before.aliases || []))) {
+        (before.aliases !== undefined && !sameNames(oldAliases, before.aliases || [])) ||
+        (before.links && oldLinks && !sameLinks_(oldLinks, before.links))) {
       throw new Error(oldName + ' was changed on another device after this window opened. Close it, then open the pencil again to see the current details.');
     }
     var nameChanges = rows_('NameChanges');
@@ -213,12 +226,18 @@ function updatePlayer(playerId, changes, before) {
     }
     var plan = wanted ? aliasPlan_(playerId, name, wanted, aliasRows, players, nameChanges) : { edits: [], adds: [], removes: [] };
     var aliasesChanged = plan.edits.length + plan.adds.length + plan.removes.length > 0;
+    // Links are planned before anything is written, so a link that cannot be made changes nothing. They go by name, so a
+    // renamed player's links are planned under the new name after renameNameLinks_ below has moved their rows.
+    if (wantedLinks && renamed && oldLinks && sameLinks_(oldLinks, wantedLinks)) wantedLinks = null;
+    if (wantedLinks && renamed) throw new Error('Save the new name first, then change the links.');
+    var linkPlan = wantedLinks ? linkPlan_(playerId, wantedLinks, activePlayers, rows_('NameLinks')) : { removes: [], adds: [], moved: [] };
+    var linksChanged = linkPlan.removes.length + linkPlan.adds.length > 0;
     var now = new Date();
     var playerChanges = {};
     if (renamed) playerChanges.display_name = name;
     if (rating !== oldRating) playerChanges.current_rating = rating;
     var emailChanged = email !== oldEmail;
-    if (!renamed && rating === oldRating && !emailChanged && !aliasesChanged) return playerDetails_(player, oldEmail, oldAliases);
+    if (!renamed && rating === oldRating && !emailChanged && !aliasesChanged && !linksChanged) return playerDetails_(player, oldEmail, oldAliases, oldLinks || playerLinksFor_(player));
     if (renamed || rating !== oldRating) {
       playerChanges.updated_at = now;
       updateRow_('Players', player.__row, playerChanges);
@@ -232,6 +251,7 @@ function updatePlayer(playerId, changes, before) {
       else appendObjects_('PlayerEmails', [{ player_id: playerId, email: email, updated_at: now }]);
     }
     if (aliasesChanged) applyAliasPlan_(playerId, plan, now);
+    if (linksChanged) applyLinkPlan_(linkPlan, now);
     // Text, not numbers, so the public desk log (DeskLog.js) shows only which fields changed, and how many other names.
     var details = { nameChanged: renamed, ratingChanged: rating !== oldRating, emailChanged: emailChanged };
     if (renamed) { details.name_from = oldName; details.name_to = name; }
@@ -242,9 +262,15 @@ function updatePlayer(playerId, changes, before) {
       details.aliasesRemoved = plan.removes.length;
       details.aliases = { added: plan.adds, changed: plan.edits.map(function (edit) { return [edit.from, edit.to]; }), removed: plan.removes.map(function (remove) { return remove.name; }) };
     }
+    if (linksChanged) {
+      details.linksAdded = linkPlan.adds.length;
+      details.linksRemoved = linkPlan.removes.length;
+      details.links = { added: linkPlan.adds.map(function (row) { return [row.kind, row.name, row.linked]; }), removed: linkPlan.removes.map(function (row) { return [row.kind, row.name, row.linked]; }) };
+    }
     appendAudit_('player_updated', 'player', playerId, details);
     touchDesk_('d');
-    return playerDetails_(Object.assign({}, player, playerChanges), email, playerAliasNames_(rows_('Aliases'), playerId));
+    var saved = Object.assign({}, player, playerChanges);
+    return playerDetails_(saved, email, playerAliasNames_(rows_('Aliases'), playerId), playerLinksFor_(saved));
   });
 }
 
