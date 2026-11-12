@@ -289,10 +289,12 @@ function cloverFee_(playerId, context) {
 }
 
 // The players one payment covers: the payer alone, or with (or only) the players their 'pays_for' links name, when
-// exactly one such group's fees add up to the amount. Several fitting groups narrow to those all checked in.
+// exactly one such group's fees add up to the amount. Several fitting groups narrow to those all checked in. A payer
+// whose Zeffy play pass covers the night owes nothing, so their card can only be paying for someone else.
 function cloverCoveredGroup_(payerId, dollars, context) {
   var others = (context.paysFor[payerId] || []).filter(function (id) { return id !== payerId && context.index.active[id]; });
-  var people = [payerId].concat(others);
+  var people = (context.covered[payerId] ? [] : [payerId]).concat(others);
+  if (!people.length) return null;
   var fits = [];
   for (var mask = 1; mask < (1 << people.length); mask += 1) {
     var group = people.filter(function (id, bit) { return mask & (1 << bit); });
@@ -332,6 +334,11 @@ function cloverMatchNight_(payments, context) {
     row.payerId = who.playerId;
     row.reason = who.reason;
     var group = cloverCoveredGroup_(who.playerId, dollars, context);
+    // A Zeffy pass holder's own card, with no link that adds up: it paid for someone else. The card's owner is shown, never
+    // ticked (Credit cannot be recorded for them), and the organizer chooses who it was for.
+    if (!group && context.covered[who.playerId]) {
+      return Object.assign(row, { state: 'needs-action', payerCovered: true, note: '{player} has a Zeffy play pass, so their card paid for someone else. Who?', notePlayerId: who.playerId });
+    }
     if (!group) {
       var fee = cloverFee_(who.playerId, context);
       row.state = 'needs-action';
@@ -358,9 +365,10 @@ function cloverMatchNight_(payments, context) {
   // For payments no single player fits, suggest checked-in players still without a payment whose fee is the amount.
   var open = Object.keys(context.roster).filter(function (id) { return !claimed[id] && !context.hand[id] && !context.covered[id]; });
   rows.forEach(function (row) {
-    if (row.state !== 'unmatched') return;
+    if (row.state !== 'unmatched' && !row.payerCovered) return;
     var dollars = row.payment.net / 100;
     var fits = open.filter(function (id) { return cloverFee_(id, context) === dollars; });
+    if (row.payerCovered) row.suggestions = (context.paysFor[row.payerId] || []).filter(function (id) { return context.roster[id] && !claimed[id]; });
     row.suggestions = row.suggestions.filter(function (id) { return context.roster[id]; }).concat(fits.filter(function (id) { return row.suggestions.indexOf(id) < 0; })).slice(0, 6);
   });
   if (context.handAt) cloverCreditClues_(rows, context, claimed, open);
@@ -385,7 +393,7 @@ function cloverCreditClues_(rows, context, claimed, open) {
   var waiting = Object.keys(context.hand).filter(function (id) { return context.hand[id] === 'credit' && !claimed[id] && !context.covered[id] && context.roster[id]; });
   var gap = function (id, row) { return context.handAt[id] ? Math.abs(context.handAt[id] - row.payment.time) : Infinity; };
   var fits = function (row) { var dollars = row.payment.net / 100; return waiting.filter(function (id) { return cloverFee_(id, context) === dollars; }); };
-  var unplaced = rows.filter(function (row) { return row.state === 'unmatched'; });
+  var unplaced = rows.filter(function (row) { return row.state === 'unmatched' || row.payerCovered; });
   // One-to-one, nearest in time first.
   var options = [];
   unplaced.forEach(function (row) { fits(row).forEach(function (id) { options.push({ row: row, id: id, gap: gap(id, row) }); }); });
@@ -399,7 +407,7 @@ function cloverCreditClues_(rows, context, claimed, open) {
   });
   // Matched by itself: one waiting payment and one waiting Credit at that amount, close in time.
   unplaced.forEach(function (row) {
-    if (!row.likely || held[row.payment.id]) return;
+    if (!row.likely || held[row.payment.id] || row.state !== 'unmatched') return;
     var dollars = row.payment.net / 100;
     var sameAmount = unplaced.filter(function (other) { return other.payment.net / 100 === dollars; });
     if (sameAmount.length !== 1 || fits(row).length !== 1 || gap(row.likely, row) > CLOVER_CREDIT_MINUTES_ * 60000) return;
@@ -409,7 +417,7 @@ function cloverCreditClues_(rows, context, claimed, open) {
   waiting = waiting.filter(function (id) { return !claimed[id]; });
   var unpaid = open.concat(waiting).filter(function (id, index, all) { return all.indexOf(id) === index && !claimed[id]; });
   var linked = function (one, two) { return (context.paysFor[one] || []).indexOf(two) >= 0 || (context.paysFor[two] || []).indexOf(one) >= 0; };
-  unplaced.filter(function (row) { return row.state === 'unmatched'; }).forEach(function (row) {
+  unplaced.filter(function (row) { return row.state === 'unmatched' || row.payerCovered; }).forEach(function (row) {
     var dollars = row.payment.net / 100;
     var credit = fits(row).sort(function (left, right) { return gap(left, row) - gap(right, row); });
     row.suggestions = credit.concat(row.suggestions.filter(function (id) { return credit.indexOf(id) < 0 && !claimed[id]; })).slice(0, 6);
@@ -853,38 +861,37 @@ function getCloverDesk(sessionDate) {
   return cloverDeskState_(sessionDate, cloverDayPayments_(config, sessionDate), config);
 }
 
-// A matched payment that covers several players, from a card the desk knows (CloverLinks) as one of theirs: when that card
-// has covered the same other player on another payment before, the desk offers to save that its owner pays for them, so
+// A matched payment from a card the desk knows (CloverLinks) as someone's, covering anyone else (with or without its owner,
+// who may hold a Zeffy pass): when that card has covered the same other player on another payment before, the desk offers to save that its owner pays for them, so
 // the next one matches by itself. item.offer: { payerId, playerIds, times }. Reads CloverMatches only when needed.
 function cloverPaysForOffers_(items, payments, night) {
-  var shared = items.filter(function (item) { return item.state === 'matched' && item.playerIds.length > 1; });
-  if (!shared.length) return;
   var byPaymentId = {};
   payments.forEach(function (payment) { byPaymentId[payment.id] = payment; });
+  // The card's owner, for matched payments that covered someone other than them.
+  var candidates = items.filter(function (item) { return item.state === 'matched' && item.playerIds.length && item.card && byPaymentId[item.id]; }).map(function (item) {
+    var payerId = '';
+    cloverPaymentKeys_(byPaymentId[item.id]).some(function (key) { if (night.links[key]) payerId = night.links[key]; return !!payerId; });
+    var already = payerId ? night.paysFor[payerId] || [] : [];
+    var others = item.playerIds.filter(function (id) { return id !== payerId && already.indexOf(id) < 0; });
+    return payerId && others.length ? { item: item, payerId: payerId, others: others } : null;
+  }).filter(Boolean);
+  if (!candidates.length) return;
   var history = {};
   rows_('CloverMatches').forEach(function (row) {
     if (!String(row.player_id) || row.how === 'refunded' || row.how === 'held' || row.how === 'ignored') return;
     var entry = history[row.payment_id] || (history[row.payment_id] = { card: String(row.card || ''), players: [] });
     entry.players.push(String(row.player_id));
   });
-  shared.forEach(function (item) {
-    var payment = byPaymentId[item.id];
-    var payerId = '';
-    (payment ? cloverPaymentKeys_(payment) : []).some(function (key) {
-      var linked = night.links[key];
-      if (linked && item.playerIds.indexOf(linked) >= 0) payerId = linked;
-      return !!payerId;
-    });
-    if (!payerId || !item.card) return;
-    var already = night.paysFor[payerId] || [];
+  candidates.forEach(function (candidate) {
+    // Payments on this card (the same card label) for anyone but its owner: the owner paying for them.
     var times = {};
     Object.keys(history).forEach(function (paymentId) {
       var entry = history[paymentId];
-      if (entry.card !== item.card || entry.players.indexOf(payerId) < 0) return;
-      entry.players.forEach(function (id) { if (id !== payerId) times[id] = (times[id] || 0) + 1; });
+      if (entry.card !== candidate.item.card) return;
+      entry.players.forEach(function (id) { if (id !== candidate.payerId) times[id] = (times[id] || 0) + 1; });
     });
-    var others = item.playerIds.filter(function (id) { return id !== payerId && already.indexOf(id) < 0 && (times[id] || 0) >= 2; });
-    if (others.length) item.offer = { payerId: payerId, playerIds: others, times: Math.min.apply(null, others.map(function (id) { return times[id]; })) };
+    var others = candidate.others.filter(function (id) { return (times[id] || 0) >= 2; });
+    if (others.length) candidate.item.offer = { payerId: candidate.payerId, playerIds: others, times: Math.min.apply(null, others.map(function (id) { return times[id]; })) };
   });
 }
 
@@ -923,14 +930,15 @@ function cloverPaymentFor_(config, sessionDate, paymentId) {
 
 // The organizer's match: the payment is for these players (several when one person paid for others). Recorded as Credit
 // for each, replacing any method chosen by hand, and with remember the card (or Clover customer) is linked to whose card
-// it is (the one player, or payerId among several) so it matches by itself next time.
+// it is (payerId: one of them, or someone else whose card paid, such as a Zeffy pass holder; else the one player ticked)
+// so it matches by itself next time.
 function matchCloverPayment(sessionDate, paymentId, playerIds, remember, payerId) {
   validateSessionDate_(sessionDate);
   paymentId = String(paymentId || '');
   playerIds = (Array.isArray(playerIds) ? playerIds : []).map(String).filter(function (id, index, all) { return id && all.indexOf(id) === index; });
   payerId = String(payerId || '');
   if (!paymentId || !playerIds.length || playerIds.length > 6) throw new Error('Choose who this Clover payment is for.');
-  if (payerId && playerIds.indexOf(payerId) < 0) throw new Error('Choose whose card it is from the players ticked.');
+
   var config = cloverLive_();
   var found = cloverPaymentFor_(config, sessionDate, paymentId);
   if (found.payment.kind !== 'card' || found.payment.state !== 'paid') throw new Error('Not a completed card payment on Clover.');
@@ -951,6 +959,8 @@ function matchCloverPayment(sessionDate, paymentId, playerIds, remember, payerId
       if (!player || !asBoolean_(player.active)) throw new Error('Unknown or inactive player');
       if (covered.indexOf(id) >= 0) throw new Error('Zeffy play pass covers this session');
     });
+    // Whose card it is may be someone not ticked: a Zeffy pass holder paying for someone else gets no Credit.
+    if (payerId && !players.some(function (row) { return String(row.player_id) === payerId && asBoolean_(row.active); })) throw new Error('Unknown or inactive player');
     cloverClearPayment_(sessionId, paymentId);
     var now = new Date();
     var payment = found.payment;
@@ -964,7 +974,7 @@ function matchCloverPayment(sessionDate, paymentId, playerIds, remember, payerId
       if (existing.length) updateRow_('SessionPayments', existing[0].__row, { method: 'credit', updated_at: now });
       else appendObjects_('SessionPayments', [{ session_id: sessionId, player_id: id, method: 'credit', updated_at: now }]);
     });
-    var cardOwner = playerIds.length === 1 ? playerIds[0] : payerId;
+    var cardOwner = payerId || (playerIds.length === 1 ? playerIds[0] : '');
     if (remember === true && cardOwner) cloverLearnKeys_(cloverPaymentKeys_(payment), cardOwner, 'hand');
     appendAudit_('clover_payment_matched', 'session', sessionId, { playerId: cardOwner || playerIds[0], players: playerIds.length, how: 'hand', remember: remember === true && !!cardOwner });
   } finally {
@@ -1251,6 +1261,7 @@ function cloverReportRow_(row) {
     notePlayerId: row.notePlayerId || '',
     suggestions: row.suggestions,
     likely: row.likely || '',
+    payerCovered: !!row.payerCovered,
     likelyAt: row.likelyAt || 0,
     pairs: row.pairs || [],
     notCheckedIn: row.notCheckedIn,

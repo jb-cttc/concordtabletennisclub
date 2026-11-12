@@ -58,7 +58,8 @@ payer, and of the people they pay for, add up to the amount.
 
 Everything else waits for the organizer, with the likely player shown:
 - a wrong amount (an overpayment covering someone else, for example);
-- a Zeffy play pass holder paying;
+- a Zeffy play pass holder's card that no link adds up for: it paid for
+  someone else, so the holder is shown as whose card it is and never ticked;
 - a second payment for the same player;
 - a method already chosen by hand (paid twice?);
 - a name that fits more than one player;
@@ -75,7 +76,9 @@ and the organizer never undid that payment. No card is learned from it. The
 Clover page's comparison with the records does not use this clue.
 
 A member's juniors count as players they pay for, so a parent's $15 for
-themselves and their junior matches by itself.
+themselves and their junior matches by itself. A payer whose Zeffy play pass
+covers the night owes nothing, so their own fee never counts: a pass holder's
+$5 for their junior matches the junior by itself, on a $5 special night too.
 
 A refund, a void, a decline, or cash typed into Clover is never matched.
 

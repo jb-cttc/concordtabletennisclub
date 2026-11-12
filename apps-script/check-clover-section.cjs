@@ -278,6 +278,38 @@ function boot(desk) {
   await tick();
   assert.equal(page.$('.clover-offers').hidden, true);
 
+  // A Zeffy pass holder's card paying for someone else: whose card it is is shown and kept, never ticked; the card is
+  // remembered as theirs, not as the player's it paid for.
+  const passCard = tonight(true);
+  passCard.items = [item('Z', { net: 5, amount: 5, state: 'needs-action', payerCovered: true, payerId: 'p2', reason: 'card', note: '{player} has a Zeffy play pass, so their card paid for someone else. Who?', notePlayerId: 'p2', suggestions: ['p3'] })];
+  page = boot(passCard);
+  await tick();
+  const zeffyCard = () => page.$('li[data-clover-payment="Z"]');
+  assert.match(zeffyCard().textContent, /Blake Stone has a Zeffy play pass, so their card paid for someone else\. Who\?/);
+  assert.equal(zeffyCard().querySelector('input[data-player="p2"]'), null, 'the pass holder is not a box to tick');
+  assert.deepEqual(plain(ticked(zeffyCard())), [], 'nobody ticked until the organizer says who');
+  zeffyCard().querySelector('input[data-player="p3"]').click();
+  assert.deepEqual(plain(Array.from(zeffyCard().querySelectorAll('[data-clover-payer] option')).map(option => option.textContent)), ['Not sure', 'Blake Stone (Zeffy pass)', 'Casey Stone']);
+  assert.equal(zeffyCard().querySelector('[data-clover-payer]').value, 'p2');
+  assert.equal(zeffyCard().querySelector('.clover-actions label').textContent, 'Remember as Blake Stone\u2019s card');
+  zeffyCard().querySelector('.clover-actions button.small:not(.clover-aside)').click();
+  await tick();
+  assert.deepEqual(plain(page.server.filter(call => call.name === 'matchCloverPayment').pop().args), [DATE, 'Z', ['p3'], true, 'p2']);
+  const passDry = JSON.parse(JSON.stringify(passCard));
+  passDry.enabled = false;
+  page = boot(passDry);
+  await tick();
+  assert.match(page.$('li[data-clover-payment="Z"]').textContent, /Blake Stone\u2019s card \(card used before\), paying for someone else/);
+  // A card known as Blake's, with only someone else ticked: still remembered as Blake's.
+  page = boot(tonight(true));
+  await tick();
+  const blakes = () => page.$('li[data-clover-payment="B"]');
+  blakes().querySelector('input[data-player="p2"]').click();
+  assert.deepEqual(plain(ticked(blakes())), [], 'Blake unticked');
+  blakes().querySelector('input[data-player="p3"]').click();
+  assert.equal(blakes().querySelector('[data-clover-payer]').value, 'p2');
+  assert.equal(blakes().querySelector('.clover-actions label').textContent, 'Remember as Blake Stone\u2019s card');
+
   // What the finalize confirmation says: payments still waiting, and Credit marks no Clover payment covers.
   const counted = tonight(true);
   counted.handMethods = { p4: 'credit', p1: 'credit' };

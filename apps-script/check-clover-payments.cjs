@@ -186,6 +186,16 @@ sheets.NameLinks = [{ kind: 'junior', name: 'Kai Park', linked_name: 'Avery Park
 assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), { p1: ['p6'] });
 sheets.NameLinks = [];
 
+// A Zeffy pass holder's card pays only for others: their own fee never counts, and with no link that adds up, the
+// organizer chooses who it was for (the holder is never ticked).
+rows = night([payment('2026-10-07', 5, { cardholderName: 'AVERY PARK' })], { covered: { p1: true }, paysFor: { p1: ['p6'] } });
+assert.deepEqual([rows[0].state, rows[0].reason, rows[0].playerIds], ['matched', 'pays-for', ['p6']], 'Avery\'s card pays their junior Kai\'s $5');
+rows = night([payment('2026-10-07', 5, { cardholderName: 'AVERY PARK' })], { covered: { p1: true }, paysFor: { p1: ['p6'] }, date: '2026-11-13' });
+assert.deepEqual([rows[0].state, rows[0].playerIds], ['matched', ['p6']], 'on a $5 special night too: Avery\'s own $5 is not a second fit');
+rows = night([payment('2026-10-07', 10, { cardholderName: 'AVERY PARK' })], { covered: { p1: true }, paysFor: { p1: ['p6'] } });
+assert.deepEqual([rows[0].state, rows[0].payerCovered, rows[0].playerIds, rows[0].notePlayerId], ['needs-action', true, [], 'p1']);
+assert.deepEqual(rows[0].suggestions.slice(0, 1), ['p6'], 'the players they pay for come first');
+
 // Credit marked by hand is the best clue for a payment no card or name fits (cloverCreditClues_). Only the desk passes
 // handAt; the Clover page's report does not, and works as before.
 const minute = 60000;
