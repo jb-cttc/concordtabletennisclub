@@ -112,6 +112,7 @@ function cloverPreview(date) {
       item('cv4', 14, 10, 'AMEX \u2022\u20223005', { state: 'ignored', note: 'Refunded' }),
       item('cv7', 20, 20, 'VISA \u2022\u20225150', { state: 'matched', reason: 'hand', playerIds: [ids[7], ids[8]], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN, offer: { payerId: ids[7], playerIds: [ids[8]], times: 2 } }),
       item('cv6', 18, 20, 'MC \u2022\u20223391', { note: 'No player found', pairs: [[ids[4], ids[5]], [ids[5], ids[6]]] }),
+      item('cv8', 19, 10, 'VISA \u2022\u20220427', { note: 'No player found', likely: ids[9], likelyWhy: 'history', suggestions: [ids[9], ids[4]], history: [{ playerId: ids[9], dates: ['2026-09-14', '2026-09-21'] }, { playerId: ids[10], dates: ['2026-09-07'] }] }),
       item('cv3', 9, 10, 'VISA \u2022\u20227702', { note: 'No player found', suggestions: [ids[3], ids[4]], likely: ids[3], likelyAt: seven + 10 * 60000 }),
       item('cv2', 6, 15, 'MC \u2022\u20221190', { state: 'needs-action', payerId: ids[1], playerIds: [ids[1]], reason: 'card', note: 'Paid $15, fee is $10: $5 more. Who else does it cover?', suggestions: [ids[2]] }),
       item('cv1', 2, 10, 'VISA \u2022\u20224821', { cardholder: 'SAMPLE/AVERY', state: 'matched', reason: 'card', playerIds: [ids[0]], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN })
@@ -123,7 +124,7 @@ function cloverPreview(date) {
   const names = {};
   const fees = {};
   players.forEach(function (player) { names[player.playerId] = player.name; fees[player.playerId] = 10; });
-  return { connected: true, enabled: !process.env.PREVIEW_CLOVER_DRY_RUN, date: date, checkedAt: Date.now(), items: cloverNights[date], names: names, fees: fees, onNight: roster.concat(openPlay[date] || []), pageUrl: '' };
+  return { connected: true, enabled: !process.env.PREVIEW_CLOVER_DRY_RUN, date: date, checkedAt: Date.now(), items: cloverNights[date], names: names, fees: fees, onNight: roster.concat(openPlay[date] || []), usualCard: ids.slice(4, 5), payersOf: {}, pageUrl: '' };
 }
 function cloverPreviewItem(date, id) {
   const item = cloverPreview(date).items.find(function (entry) { return entry.id === id; });
