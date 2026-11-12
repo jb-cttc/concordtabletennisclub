@@ -179,7 +179,46 @@ assert.equal(rows[0].state, 'needs-action', 'an amount no group fits waits for t
 
 sheets.NameLinks = [{ kind: 'pays_for', name: 'Avery Park', linked_name: 'Kai Park' }, { kind: 'pays_for', name: 'Avery Park', linked_name: 'Nobody Here' }];
 assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), paysFor, 'NameLinks pays_for rows, by name; an unknown name is skipped');
+// A member's juniors count as players they pay for: a parent's card covering their child.
+sheets.NameLinks = [{ kind: 'junior', name: 'Kai Park', linked_name: 'Avery Park' }, { kind: 'pays_for', name: 'Avery Park', linked_name: 'Kai Park' }];
+assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), { p1: ['p6'] }, 'a junior link, once, even when also a pays_for row');
+sheets.NameLinks = [{ kind: 'junior', name: 'Kai Park', linked_name: 'Avery Park' }];
+assert.deepEqual(plain(context.cloverPaysFor_(players, context.nameLinkRows_())), { p1: ['p6'] });
 sheets.NameLinks = [];
+
+// Credit marked by hand is the best clue for a payment no card or name fits (cloverCreditClues_). Only the desk passes
+// handAt; the Clover page's report does not, and works as before.
+const minute = 60000;
+const unknown = (dollars, extra) => payment('2026-10-07', dollars, { cardholderName: '' }, extra);
+const credit = (marks, payments) => ({ hand: Object.fromEntries(Object.keys(marks).map(id => [id, 'credit'])), handAt: Object.fromEntries(Object.keys(marks).map(id => [id, normal(payments[0]).time + marks[id] * minute])) });
+let lone = unknown(10);
+rows = night([lone], credit({ p3: 2 }, [lone]));
+assert.deepEqual([rows[0].state, rows[0].reason, rows[0].playerIds, rows[0].likely], ['matched', 'credit', ['p3'], 'p3'], 'the one payment and the one Credit at that amount, minutes apart: matched by itself');
+rows = night([lone], credit({ p3: 20 }, [lone]));
+assert.deepEqual([rows[0].state, rows[0].likely, rows[0].suggestions[0]], ['unmatched', 'p3', 'p3'], 'more than 15 minutes apart: suggested and ticked, never matched by itself');
+rows = night([lone], { ...credit({ p3: 2 }, [lone]), held: { [normal(lone).id]: true } });
+assert.equal(rows[0].state, 'unmatched', 'a payment the organizer undid never matches by itself again');
+assert.equal(rows[0].likely, 'p3');
+assert.equal(night([lone], { hand: { p3: 'credit' } })[0].state, 'unmatched', 'without handAt (the report), no Credit clue');
+assert.equal(night([lone], { hand: { p3: 'credit' } })[0].likely, undefined);
+// Two payments and two Credits at $10: each paired with the nearest in time, none matched by itself.
+const early = unknown(10);
+const late = unknown(10, { createdTime: normal(early).time + 30 * minute });
+rows = night([early, late], credit({ p1: 31, p3: 1 }, [early]));
+assert.deepEqual(rows.map(row => [row.state, row.likely]), [['unmatched', 'p3'], ['unmatched', 'p1']]);
+assert.deepEqual(rows[1].suggestions.slice(0, 2), ['p1', 'p3'], 'Credit players first, nearest first');
+// A Credit already covered by a Clover payment, or by a card the desk knows, is not a clue.
+rows = night([early], { ...credit({ p3: 1 }, [early]), claimed: { p3: 'OTHER' } });
+assert.equal(rows[0].likely, undefined);
+// $20 that no single fee fits: pairs whose fees add up, those marked Credit by hand (or linked) first.
+const twenty = unknown(20);
+rows = night([twenty], credit({ p1: 1, p3: 2 }, [twenty]));
+assert.equal(rows[0].state, 'unmatched');
+assert.deepEqual(rows[0].pairs[0], ['p1', 'p3'], 'both marked Credit');
+rows = night([twenty], { ...credit({}, [twenty]), paysFor: { p4: ['p1'] } });
+assert.deepEqual(rows[0].pairs[0].slice().sort(), ['p1', 'p4'], 'a pays-for link ranks first');
+rows = night([twenty], credit({}, [twenty]));
+assert.ok(rows[0].pairs.length <= 3);
 
 // Comparing a night with the record by hand.
 const ctx7 = { index, links: {}, paysFor: {}, statuses: context.getMemberStatuses().statuses, covered: {}, roster: { p1: true, p3: true, p4: true, p6: true }, hand: { p1: 'credit', p3: 'credit', p4: 'venmo' } };

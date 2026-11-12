@@ -39,6 +39,7 @@ function boot(desk) {
   const names = desk.names || night(true, []).names;
   const reads = [];
   const server = [];
+  const saved = [];
   const dom = new JSDOM('<!doctype html><body><input id="date" value="' + DATE + '"><button id="load"></button><div id="status"></div><span id="network-activity"></span>' +
     '<aside class="sidebar"><section class="section zeffy-passes"><h2>Zeffy</h2></section></aside>' +
     '<div id="groups"><ul class="group-list">' + ['p1', 'p2', 'p3', 'p4'].map(id => '<li><div class="identity"><strong>' + names[id] + '</strong></div><div class="move"><button data-move="' + id + '"></button></div></li>').join('') + '</ul></div>' +
@@ -57,8 +58,9 @@ function boot(desk) {
   window.cttcOpenPlay = { add(id) { added.push(['open', id]); window.document.getElementById('open-roster').appendChild(row(id, '<button data-open-remove="' + id + '"></button>')); return true; } };
   window.cttcRequest = (name, ...args) => {
     reads.push(name);
-    if (name === 'getPrivatePaymentOverview') return Promise.resolve({ methods: {}, coveredIds: [], passes: [] });
+    if (name === 'getPrivatePaymentOverview') return Promise.resolve({ methods: Object.assign({}, desk.handMethods || {}), coveredIds: [], passes: [] });
     if (name === 'getCloverDesk') return Promise.resolve(JSON.parse(JSON.stringify(desk)));
+    if (name === 'addCloverPaysFor') { saved.push(args); return Promise.resolve({ added: args[1].length }); }
     return Promise.reject(new Error('unexpected ' + name));
   };
   window.google = { script: { run: { withSuccessHandler: ok => ({ withFailureHandler: bad => new Proxy({}, { get: (_, name) => (...args) => server.push({ name, args, ok, bad }) }) }) } } };
@@ -69,7 +71,7 @@ function boot(desk) {
   window.eval(cloverCode);
   const $ = selector => window.document.querySelector(selector);
   const $$ = selector => Array.from(window.document.querySelectorAll(selector));
-  return { window, reads, server, added, $, $$, button: id => $('[data-payment-player="' + id + '"] .payment-trigger') };
+  return { window, reads, server, added, saved, $, $$, button: id => $('[data-payment-player="' + id + '"] .payment-trigger') };
 }
 
 (async () => {
@@ -102,8 +104,11 @@ function boot(desk) {
   assert.equal(overpaid().querySelector('.clover-sum').textContent, 'Fees $15 of $15');
   assert.ok(!overpaid().querySelector('.clover-sum').classList.contains('off'));
   assert.equal(page.window.document.activeElement.getAttribute('data-player'), 'p3', 'focus stays on the box just ticked');
-  assert.equal(overpaid().querySelector('.clover-actions label'), null, 'no card to remember for a payment covering two');
-  assert.deepEqual(plain(Array.from(overpaid().querySelectorAll('select option')).map(option => option.textContent)), ['Someone else checked in\u2026', 'Drew Lane'],
+  // One payment for two: whose card it is, starting with the card's known owner, and the card remembered as theirs.
+  assert.equal(overpaid().querySelector('[data-clover-payer]').value, 'p2');
+  assert.deepEqual(plain(Array.from(overpaid().querySelectorAll('[data-clover-payer] option')).map(option => option.textContent)), ['Not sure', 'Blake Stone', 'Casey Stone']);
+  assert.equal(overpaid().querySelector('.clover-actions label').textContent, 'Remember as Blake Stone\u2019s card');
+  assert.deepEqual(plain(Array.from(overpaid().querySelectorAll('select[aria-label="Someone else checked in tonight"] option')).map(option => option.textContent)), ['Someone else checked in\u2026', 'Drew Lane'],
     'everyone else checked in and unpaid can be chosen (Avery already paid)');
 
   // Matching sends one queued change; the players' buttons show Credit ✓ while it is on its way.
@@ -111,7 +116,7 @@ function boot(desk) {
   await tick();
   const sent = page.server.filter(call => call.name === 'matchCloverPayment');
   assert.equal(sent.length, 1);
-  assert.deepEqual(plain(sent[0].args), [DATE, 'B', ['p2', 'p3'], false]);
+  assert.deepEqual(plain(sent[0].args), [DATE, 'B', ['p2', 'p3'], true, 'p2']);
   assert.match(page.$('.clover-matched-group li.saving').textContent, /Matching Blake Stone \+ Casey Stone/);
   assert.equal(page.button('p2').textContent, 'Credit \u2713');
   assert.ok(page.$('[data-payment-player="p2"]').classList.contains('unsynced'), 'not yet confirmed by Google');
@@ -220,6 +225,70 @@ function boot(desk) {
   page.window.cttcOutbox.enqueue('clover:' + DATE + ':E', 'setAsideCloverPayment', [DATE, 'E']);
   await tick();
   assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p6']);
+
+  // The organizer's Credit marks. A payment no card fits is ticked for the person marked Credit at about that time, with
+  // why; a $20 one offers pairs whose fees add up; players marked Credit by hand come first among everyone else.
+  const clues = tonight(true);
+  clues.handMethods = { p4: 'credit' };
+  clues.items = [
+    item('L', { note: 'No player found', likely: 'p4', likelyAt: Date.parse('2026-09-29T02:03:00Z'), suggestions: ['p4'] }),
+    item('W', { net: 20, amount: 20, note: 'No player found', pairs: [['p3', 'p1'], ['p1', 'p2']] }),
+    item('O', { state: 'matched', reason: 'hand', playerIds: ['p2', 'p3'], recorded: true, offer: { payerId: 'p2', playerIds: ['p3'], times: 2 } })
+  ];
+  page = boot(clues);
+  await tick();
+  const likely = page.$('li[data-clover-payment="L"]');
+  assert.deepEqual(plain(ticked(likely)), ['p4'], 'ticked to start with');
+  assert.equal(likely.querySelector('.clover-likely').textContent, 'Likely Drew Lane: marked Credit at 7:03 PM, with no card payment yet');
+  const twenty = () => page.$('li[data-clover-payment="W"]');
+  assert.deepEqual(plain(Array.from(twenty().querySelectorAll('select[aria-label="Someone else checked in tonight"] optgroup')).map(group => [group.label, Array.from(group.children).map(option => option.textContent)])),
+    [['Marked Credit by hand', ['Drew Lane']], ['Not paid yet', ['Avery Park']]], 'Blake and Casey are paid by payment O');
+  assert.deepEqual(plain(Array.from(twenty().querySelectorAll('[data-clover-pair]')).map(choice => choice.textContent)), ['Casey Stone + Avery Park', 'Avery Park + Blake Stone']);
+  twenty().querySelector('[data-clover-pair="p3,p1"]').click();
+  assert.deepEqual(plain(ticked(twenty())), ['p3', 'p1'], 'one press ticks both');
+  assert.equal(twenty().querySelector('[data-clover-payer]').value, '', 'whose card: not known yet');
+  assert.equal(twenty().querySelector('.clover-actions label'), null, 'no card to remember until whose it is is chosen');
+  twenty().querySelector('[data-clover-payer]').value = 'p3';
+  twenty().querySelector('[data-clover-payer]').dispatchEvent(new page.window.Event('change'));
+  assert.equal(twenty().querySelector('.clover-actions label').textContent, 'Remember as Casey Stone\u2019s card');
+  twenty().querySelector('.clover-actions button.small:not(.clover-aside)').click();
+  await tick();
+  assert.deepEqual(plain(page.server.filter(call => call.name === 'matchCloverPayment').pop().args), [DATE, 'W', ['p3', 'p1'], true, 'p3']);
+  // When a card has covered the same people before: offered at the top, saved only after Review and Confirm.
+  const offer = () => page.$('.clover-offers .clover-offer');
+  assert.equal(page.$('.clover-offers').previousElementSibling.className, 'clover-arrivals', 'at the top, under who paid but is not checked in');
+  assert.equal(offer().querySelector('p').textContent, 'Blake Stone\u2019s card has paid for Casey Stone 2 times. Save that Blake Stone pays for them?');
+  Array.from(offer().querySelectorAll('button')).find(node => node.textContent === 'Review').click();
+  assert.match(offer().textContent, /Save \u201cBlake Stone pays for Casey Stone\u201d\? From the next check/);
+  assert.equal(page.saved.length, 0, 'nothing saved before Confirm');
+  Array.from(offer().querySelectorAll('button')).find(node => node.textContent === 'Confirm and save').click();
+  await tick();
+  assert.deepEqual(plain(page.saved), [['p2', ['p3']]]);
+  assert.match(offer().textContent, /^Saved: Blake Stone pays for Casey Stone/);
+  // Not now hides it on this device for the night.
+  page = boot(clues);
+  await tick();
+  Array.from(offer().querySelectorAll('button')).find(node => node.textContent === 'Not now').click();
+  assert.equal(page.$('.clover-offers').hidden, true);
+  assert.deepEqual(JSON.parse(page.window.localStorage.getItem('cttc-clover-offers-v1')), { [DATE]: { 'p2>p3': true } }, 'kept for this date on this device, so a reload keeps it hidden');
+  // In the dry run nothing is offered: saving a link changes what the desk records.
+  const dry = JSON.parse(JSON.stringify(clues));
+  dry.enabled = false;
+  page = boot(dry);
+  await tick();
+  assert.equal(page.$('.clover-offers').hidden, true);
+
+  // Credit chosen on a payment button: once Google has it, the section checks Clover again instead of waiting a minute.
+  page = boot(tonight(true));
+  await tick();
+  const checks = () => page.reads.filter(name => name === 'getCloverDesk').length;
+  const before = checks();
+  page.window.cttcPayments.choose('p4', 'credit');
+  await tick();
+  assert.equal(checks(), before, 'not while the change is still on its way');
+  page.server.filter(call => call.name === 'setSessionPayment').pop().ok('credit');
+  await new Promise(resolve => setTimeout(resolve, 1700));
+  assert.equal(checks(), before + 1, 'checked again once saved');
 
   // Not connected: says what to set.
   page = boot({ connected: false, enabled: false, date: DATE, problem: 'Add CLOVER_API_TOKEN in the script\'s Project Settings > Script Properties.' });

@@ -2971,7 +2971,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // status: what the Player board shows, a payment recorded (any method, or a Zeffy pass) and a first visit; never how.
   // free: a volunteer playing free tonight, who owes nothing.
   function paymentStatus(playerId) { return { paid: !!methods[playerId] || !!covered[playerId] || !!freeVolunteers[playerId], first: !!firstVisits[playerId], free: !!freeVolunteers[playerId] }; }
-  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function (options) { refreshPayments(options); }, status: paymentStatus };
+  window.cttcPayments = { choose: choose, recorded: recorded, describe: describe, refresh: function (options) { refreshPayments(options); }, status: paymentStatus,
+    // The method on the player's button ('' when none), for the Clover section's Credit-by-hand clue.
+    method: function (playerId) { return methods[playerId] || ''; } };
   var initialPayment = window.cttcRequest('getPrivatePaymentOverview', dateField.value);
   window.cttcInitialPaymentOverview = initialPayment;
   function decorateRoster() {
@@ -3358,6 +3360,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .clover-payments h2 .count[hidden]{display:none}
 .clover-arrivals{margin:6px 0 10px;padding:7px 9px;border-left:3px solid var(--green);background:#eef6f1}
 .clover-arrivals[hidden]{display:none}
+.clover-offers{margin:6px 0 10px}
+.clover-offers[hidden]{display:none}
+.clover-offer{margin:0 0 6px;padding:7px 9px;border-left:3px solid var(--gold);background:#fff7e3;font:13px Arial,sans-serif}
+.clover-offer p{margin:0 0 5px}
+.clover-offer .clover-actions{margin-top:0}
+.clover-likely{margin:3px 0 0;font:12px Arial,sans-serif;color:var(--green2)}
+.clover-pairs{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:4px 0 2px;font:12px Arial,sans-serif;color:var(--muted)}
+.clover-pairs .small{padding:2px 7px;font:12px Arial,sans-serif}
+.clover-payer{display:flex;align-items:center;gap:6px;margin:4px 0 0;font:12px Arial,sans-serif;color:var(--muted)}
+.clover-payer select{width:auto;flex:1;margin:0}
 .clover-arrivals .clover-arrivals-title{margin:0;font:700 13px Arial,sans-serif;color:var(--green2)}
 .clover-payments .clover-arrivals ul{margin:4px 0 0}
 .clover-payments .clover-arrivals li{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:5px 0;border-bottom:1px solid #d3e3d9;font:13px Arial,sans-serif}
@@ -3459,13 +3471,17 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   arrivalsTitle.className = 'clover-arrivals-title';
   var arrivalsList = document.createElement('ul');
   arrivals.append(arrivalsTitle, arrivalsList);
-  section.append(heading, arrivals, message, list, matched.details, aside.details, footer);
+  // Offers to save "X pays for Y" when a card has covered the same people before (CloverPayments.js, cloverPaysForOffers_).
+  var offers = document.createElement('div');
+  offers.className = 'clover-offers';
+  offers.hidden = true;
+  section.append(heading, arrivals, offers, message, list, matched.details, aside.details, footer);
   var sidebar = document.querySelector('.sidebar');
   sidebar.insertBefore(section, document.querySelector('.zeffy-passes'));
 
   var POLL_MS = 60000;
   var REASONS = {
-    card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
+    credit: 'Credit marked at the same time', card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
     name: 'name on card', initial: 'initial and last name on card', 'customer-name': 'Clover customer name',
     'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays for', hand: 'matched at the desk'
   };
@@ -3477,6 +3493,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // Matched players already put on their payment buttons, so a new match is shown there once.
   var shown = {};
 
+  function clockOf(ms) { return new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }); }
   function money(dollars) { return '$' + (dollars % 1 ? dollars.toFixed(2) : String(dollars)); }
   function nameOf(id) { return state && state.names[id] || rosterName(id) || 'a player'; }
   function feeOf(id) { return state && state.fees[id] != null ? state.fees[id] : null; }
@@ -3558,14 +3575,15 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   // organizer added from the list of tonight's players.
   function offered(item) {
     var ids = [];
-    [item.payerId].concat(item.playerIds, item.suggestions, (picks[item.id] || {}).ids || []).forEach(function (id) {
+    [item.payerId, item.likely].concat(item.playerIds, item.suggestions, (picks[item.id] || {}).ids || []).forEach(function (id) {
       if (id && ids.indexOf(id) < 0) ids.push(id);
     });
     return ids;
   }
   function pickFor(item) {
     // Waiting with a likely answer: that payer (or the players they paid for) is ticked to start with.
-    if (!picks[item.id]) picks[item.id] = { ids: item.state !== 'needs-action' ? [] : item.playerIds.length ? item.playerIds.slice() : item.payerId ? [item.payerId] : [], remember: true };
+    // A payment no card fits, with one person marked Credit by hand at about that time: that person.
+    if (!picks[item.id]) picks[item.id] = { ids: item.state !== 'needs-action' ? item.likely ? [item.likely] : [] : item.playerIds.length ? item.playerIds.slice() : item.payerId ? [item.payerId] : [], remember: true, payer: item.payerId || '' };
     return picks[item.id];
   }
 
@@ -3603,19 +3621,27 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       }
       box.appendChild(label);
     });
+    var credit = creditByHand().filter(function (row) { return offered(item).indexOf(row.id) < 0; });
     var others = rosterRows().filter(function (row) { return !row.paid && offered(item).indexOf(row.id) < 0; });
-    if (others.length) {
+    if (others.length || credit.length) {
       var choose = document.createElement('select');
       choose.setAttribute('aria-label', 'Someone else checked in tonight');
       var prompt = document.createElement('option');
       prompt.value = '';
       prompt.textContent = item.payerId || offered(item).length ? 'Someone else checked in\u2026' : 'Who paid? Tonight\u2019s players\u2026';
       choose.appendChild(prompt);
-      others.forEach(function (row) {
-        var option = document.createElement('option');
-        option.value = row.id;
-        option.textContent = row.name;
-        choose.appendChild(option);
+      // Marked Credit on their button, with no Clover payment yet: the likeliest, so listed first.
+      [['Marked Credit by hand', credit], ['Not paid yet', others]].forEach(function (part) {
+        if (!part[1].length) return;
+        var group = document.createElement('optgroup');
+        group.label = part[0];
+        part[1].forEach(function (row) {
+          var option = document.createElement('option');
+          option.value = row.id;
+          option.textContent = row.name;
+          group.appendChild(option);
+        });
+        choose.appendChild(group);
       });
       choose.addEventListener('change', function () {
         if (!choose.value) return;
@@ -3626,7 +3652,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     }
     var actions = document.createElement('div');
     actions.className = 'clover-actions';
-    var match = button('Match', 'small', '', function () { send('matchCloverPayment', item, pick.ids.slice(), pick.remember && pick.ids.length === 1); });
+    var payer = pick.ids.length === 1 ? pick.ids[0] : pick.ids.indexOf(pick.payer) >= 0 ? pick.payer : '';
+    var match = button('Match', 'small', '', function () { send('matchCloverPayment', item, pick.ids.slice(), pick.remember && !!payer, pick.ids.length > 1 ? payer : ''); });
     match.disabled = !pick.ids.length;
     match.title = pick.ids.length ? 'Record Credit for ' + pick.ids.map(nameOf).join(' and ') : 'Tick who this payment is for';
     actions.appendChild(match);
@@ -3639,19 +3666,64 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       sum.textContent = 'Fees ' + money(total) + ' of ' + money(item.net);
       actions.appendChild(sum);
     }
-    if (pick.ids.length === 1 && item.card) {
+    // One payment for several: whose card it was, so the card is remembered for them (and the desk can learn who they
+    // pay for). Not sure leaves the card unremembered.
+    if (pick.ids.length > 1 && item.card) {
+      var whose = document.createElement('label');
+      whose.className = 'clover-payer';
+      var chooser = document.createElement('select');
+      chooser.setAttribute('data-clover-payer', item.id);
+      [''].concat(pick.ids).forEach(function (id) {
+        var option = document.createElement('option');
+        option.value = id;
+        option.textContent = id ? nameOf(id) : 'Not sure';
+        option.selected = id === payer;
+        chooser.appendChild(option);
+      });
+      chooser.addEventListener('change', function () { pick.payer = chooser.value; redraw(''); });
+      whose.append(document.createTextNode('Whose card?'), chooser);
+      box.appendChild(whose);
+    }
+    if (payer && item.card) {
       var remember = document.createElement('label');
       var tick = document.createElement('input');
       tick.type = 'checkbox';
       tick.checked = pick.remember;
       tick.addEventListener('change', function () { pick.remember = tick.checked; });
-      remember.append(tick, document.createTextNode('Remember this card'));
-      remember.title = 'Next time this card pays, ' + nameOf(pick.ids[0]) + ' is marked Credit without asking';
+      remember.append(tick, document.createTextNode(pick.ids.length > 1 ? 'Remember as ' + nameOf(payer) + '\u2019s card' : 'Remember this card'));
+      remember.title = pick.ids.length > 1 ? 'Next time this card pays, the desk knows it is ' + nameOf(payer) + '\u2019s' : 'Next time this card pays, ' + nameOf(pick.ids[0]) + ' is marked Credit without asking';
       actions.appendChild(remember);
     }
     actions.appendChild(button('Not a desk fee', 'small clover-aside', 'Set this payment aside: it is not for a night at the club', function () { send('setAsideCloverPayment', item); }));
     box.appendChild(actions);
     return box;
+  }
+
+  // Players whose button shows Credit chosen by hand, with no Clover payment matched to them yet tonight.
+  function creditByHand() {
+    var claimed = {};
+    (state ? state.items : []).forEach(function (item) { if (item.state === 'matched') item.playerIds.forEach(function (id) { claimed[id] = true; }); });
+    outbox.entries('matchCloverPayment').forEach(function (entry) { if (entry.args[0] === date.value) entry.args[2].forEach(function (id) { claimed[id] = true; }); });
+    var method = window.cttcPayments && window.cttcPayments.method;
+    return method ? rosterRows().filter(function (row) { return method(row.id) === 'credit' && !claimed[row.id]; }) : [];
+  }
+
+  // A payment for two people no card fits: pairs whose fees add up, one press ticks both.
+  function pairChoices(item, pick) {
+    if (!item.pairs || !item.pairs.length || item.state !== 'unmatched') return null;
+    var row = document.createElement('div');
+    row.className = 'clover-pairs';
+    row.appendChild(document.createTextNode('For two?'));
+    item.pairs.forEach(function (pair) {
+      var choice = button(pair.map(nameOf).join(' + '), 'small', 'Tick ' + pair.map(nameOf).join(' and '), function () {
+        pick.ids = pair.slice();
+        pick.payer = '';
+        render();
+      });
+      choice.setAttribute('data-clover-pair', pair.join(','));
+      row.appendChild(choice);
+    });
+    return row;
   }
 
   function waitingItem(item) {
@@ -3666,6 +3738,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       return li;
     }
     if (item.note) li.appendChild(small('clover-note', item.note.replace('{player}', nameOf(item.notePlayerId))));
+    if (item.likely && item.state === 'unmatched') li.appendChild(small('clover-likely', 'Likely ' + nameOf(item.likely) + ': marked Credit' + (item.likelyAt ? ' at ' + clockOf(item.likelyAt) : '') + ', with no card payment yet'));
+    if (live()) {
+      var pairs = pairChoices(item, pickFor(item));
+      if (pairs) li.appendChild(pairs);
+    }
     if (live()) li.appendChild(picker(item));
     else if (item.payerId) li.appendChild(small('clover-who', 'Likely ' + nameOf(item.payerId) + ' (' + (REASONS[item.reason] || item.reason) + ')'));
     else if (item.suggestions.length) li.appendChild(small('clover-who', 'Checked in at this amount: ' + item.suggestions.map(nameOf).join(', ')));
@@ -3781,9 +3858,70 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     render();
   }
 
+  // Offers dismissed on this device tonight: { 'date': { 'payer>ids': true } }.
+  var OFFERS_KEY = 'cttc-clover-offers-v1';
+  function dismissed() {
+    try { return (JSON.parse(localStorage.getItem(OFFERS_KEY) || '{}') || {})[date.value] || {}; } catch (error) { return {}; }
+  }
+  function dismiss(key) {
+    var all = {};
+    try { all = JSON.parse(localStorage.getItem(OFFERS_KEY) || '{}') || {}; } catch (error) { all = {}; }
+    var kept = {};
+    kept[date.value] = Object.assign({}, all[date.value] || {});
+    kept[date.value][key] = true;
+    try { localStorage.setItem(OFFERS_KEY, JSON.stringify(kept)); } catch (error) { /* lasts until the page reloads */ }
+    offerState[key] = 'dismissed';
+  }
+  // key -> 'confirm' (asking), 'saving', 'saved', 'dismissed', or an error message.
+  var offerState = {};
+  function renderOffers() {
+    var seen = dismissed();
+    var shown = (state && state.connected && live() ? state.items : []).filter(function (item) { return item.offer; }).map(function (item) {
+      var offer = item.offer;
+      var key = offer.payerId + '>' + offer.playerIds.join(',');
+      if (seen[key] || offerState[key] === 'dismissed') return null;
+      var box = document.createElement('div');
+      box.className = 'clover-offer';
+      box.setAttribute('data-clover-offer', key);
+      var who = nameOf(offer.payerId);
+      var whom = offer.playerIds.map(nameOf).join(' and ');
+      var text = document.createElement('p');
+      var actions = document.createElement('div');
+      actions.className = 'clover-actions';
+      var now = offerState[key];
+      if (now === 'saved') {
+        text.textContent = 'Saved: ' + who + ' pays for ' + whom + '. Change it any time in ' + who + '\u2019s pencil window.';
+      } else if (now === 'confirm' || now === 'saving') {
+        text.textContent = 'Save \u201c' + who + ' pays for ' + whom + '\u201d? From the next check, one payment from ' + who + '\u2019s card that adds up to their fees is matched to them by itself. It shows under Pays for in ' + who + '\u2019s pencil window.';
+        var yes = button(now === 'saving' ? 'Saving\u2026' : 'Confirm and save', 'small', '', function () { saveOffer(key, offer); });
+        yes.disabled = now === 'saving';
+        actions.append(yes, button('Back', 'small', '', function () { delete offerState[key]; render(); }));
+      } else {
+        text.textContent = who + '\u2019s card has paid for ' + whom + (offer.times > 1 ? ' ' + offer.times + ' times' : '') + '. Save that ' + who + ' pays for them?' + (typeof now === 'string' && now ? ' ' + now : '');
+        actions.append(button('Review', 'small', 'See what saving it does', function () { offerState[key] = 'confirm'; render(); }), button('Not now', 'small', 'Hide this on this device tonight', function () { dismiss(key); render(); }));
+      }
+      box.append(text, actions);
+      return box;
+    }).filter(Boolean);
+    offers.replaceChildren.apply(offers, shown);
+    offers.hidden = !shown.length;
+  }
+  function saveOffer(key, offer) {
+    offerState[key] = 'saving';
+    render();
+    window.cttcRequest('addCloverPaysFor', offer.payerId, offer.playerIds).then(function () {
+      offerState[key] = 'saved';
+      render();
+    }).catch(function (failure) {
+      offerState[key] = 'Not saved: ' + (failure && failure.message || failure) + '.';
+      render();
+    });
+  }
+
   function render() {
     if (!state) return;
     renderArrivals();
+    renderOffers();
     allNights.hidden = !state.pageUrl;
     if (state.pageUrl) allNights.href = state.pageUrl;
     if (!state.connected) {
@@ -3844,6 +3982,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     if (!result || result.date !== date.value) return;
     state = result;
     render();
+    creditSeen = creditByHand().map(function (row) { return row.id; }).sort().join(',');
   }
 
   // quiet: the minute's check, keeping the list as it is while Google answers.
@@ -3872,8 +4011,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     });
   }
 
-  function send(fn, item, ids, remember) {
-    var args = fn === 'matchCloverPayment' ? [date.value, item.id, ids, remember] : [date.value, item.id];
+  function send(fn, item, ids, remember, payer) {
+    var args = fn === 'matchCloverPayment' ? [date.value, item.id, ids, remember].concat(payer ? [payer] : []) : [date.value, item.id];
     if (fn === 'unmatchCloverPayment') item.playerIds.forEach(function (id) { if (!item.changed.some(function (change) { return change.playerId === id; })) window.cttcPayments.recorded(date.value, id, '', true); });
     delete picks[item.id];
     outbox.enqueue(actionKey(item.id), fn, args);
@@ -3896,6 +4035,23 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     });
   });
   outbox.onChange(function () { if (state) render(); });
+  // Credit chosen on a payment button changes who a payment is likely for: once Google has the change, check again
+  // rather than waiting for the minute.
+  var creditSeen = '';
+  var creditCheck = 0;
+  function creditChanged() {
+    if (!state || !state.connected) return;
+    // Only what Google already has: a change still being sent, here or by a Clover match, is waited for.
+    if (outbox.entries().some(function (entry) { return /^(setSessionPayment|matchCloverPayment|unmatchCloverPayment|setAsideCloverPayment)$/.test(entry.fn) && entry.args[0] === date.value; })) return;
+    var now = creditByHand().map(function (row) { return row.id; }).sort().join(',');
+    if (now === creditSeen) return;
+    creditSeen = now;
+    clearTimeout(creditCheck);
+    creditCheck = setTimeout(function () { if (!section.contains(document.activeElement)) load(true); }, 1500);
+  }
+  outbox.onChange(creditChanged);
+  // Credit chosen on another device reaches this one with the payments' own refresh.
+  document.addEventListener('cttc:payment-overview', function () { setTimeout(creditChanged, 0); });
   // The payments' own refresh shows Google's saved methods; a match still being sent goes back on top of them.
   document.addEventListener('cttc:payment-overview', function () { setTimeout(function () { if (state) render(); }, 0); });
   // Players checked in or removed change who can be chosen; redrawn at most once a frame.
