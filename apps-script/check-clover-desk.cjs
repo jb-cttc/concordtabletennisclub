@@ -193,6 +193,8 @@ clover.payments = [payment('F', NEXT, 1, 10, { last4: '4444' }), payment('G', NE
 tables.SessionPlayers = tables.SessionPlayers.filter(row => !(row.session_id === 'session-' + NEXT && row.player_id === 'p4'));
 state = desk(NEXT);
 assert.deepEqual([item(state, 'F').state, item(state, 'F').reason, item(state, 'F').playerIds, item(state, 'F').notCheckedIn], ['matched', 'card', ['p4'], ['p4']]);
+assert.ok(!state.onNight.includes('p4'), 'not on the night, so the section offers RR and Open for them');
+assert.ok(state.onNight.includes('p1'), 'the night\'s saved lists go with the answer');
 assert.equal(method(NEXT, 'p4'), 'credit', 'paid before checking in: Credit is waiting when they arrive');
 assert.equal(item(state, 'G').state, 'unmatched');
 assert.deepEqual(item(state, 'G').suggestions, ['p1'], 'checked-in players without a payment whose fee is $10 (Emery is a $15 visitor)');

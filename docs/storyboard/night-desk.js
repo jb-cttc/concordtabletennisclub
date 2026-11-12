@@ -19,7 +19,7 @@ const phases = [
       subtext: 'Both /dev and /exec use the same real Sheet. Only /exec is the released code; /dev is whatever was last pushed from a branch.',
       caveats: ['A tab titled "DEV - CTTC Desk" with an amber /dev pill is the test copy. Do not run a night from it.', 'Each page carries a fingerprint of its code, made when Google serves it. A page stays on the code it opened with until it is reloaded.'],
       exceptions: [
-        X('The laptop is not signed in to the club Google account', 'After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.', 'Click the button, sign in with the club account, then reopen /desk.', 'handled', 'README.md:352'),
+        X('The laptop is not signed in to the club Google account', 'After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.', 'Click the button, sign in with the club account, then reopen /desk.', 'handled', 'README.md:357'),
         X('Someone opened the /dev link by mistake', 'It works, on the real Sheet, with untested code. The header pill and tab title say DEV.', 'Close it and open the /exec bookmark. Changes already made are in the real Sheet either way.', 'partial', 'apps-script/Code.js:166')],
       screen: { kind: 'desk', highlight: ['header-date'], status: 'Loading player directory...', note: 'The header, with the /exec pill and the date picker.' },
       tech: {
@@ -152,7 +152,7 @@ const phases = [
         limits: [], tests: [T('apps-script/check-player-edits.cjs', '', 'Adding and editing players.')], untested: ['Near-duplicate names (no warning exists).'],
         simulate: 'desk-sim world.server.run("addPlayer", "Ana Reyes", 1200).' } },
     { id: 'signin-4-pay', title: 'Take payment', who: 'Desk volunteer', when: 'At sign-in',
-      summary: 'Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Cash, Venmo and Zelle are chosen on the button.',
+      summary: 'Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button.',
       subtext: 'Payments are kept per player per night. The Clover list checks every minute while tonight is open.',
       caveats: ['A card name that does not match a player waits under "Cards to check" on the Clover page; once linked, that card is remembered.', 'Free spots and volunteer play follow the night\'s fee rules.'],
       exceptions: [
@@ -160,11 +160,11 @@ const phases = [
         X('A paid player is removed or moves to Open Play', 'unconfirmed: the payment stays recorded for the player and night.', 'Check the payment still shows where they now are.', 'partial', '')],
       screen: { kind: 'desk', highlight: ['clover', 'zeffy', 'group-row'], note: 'A row\'s Payment button beside the Clover and Zeffy lists.' },
       tech: {
-        entry: [E('apps-script/CloverPayments.js', 317, 'cloverMatchNight_', 'Matches the night\'s card payments to players.'), E('apps-script/CloverPayments.js', 249, 'cloverByName_', 'Name match, with learned card links first.'), E('apps-script/NightFees.js', 1, '', 'Night fees and the Friday/Saturday special.')],
+        entry: [E('apps-script/CloverPayments.js', 317, 'cloverMatchNight_', 'Matches the night\'s card payments to players.'), E('apps-script/CloverPayments.js', 249, 'cloverByName_', 'Name match, with learned card links first.'), E('apps-script/NightFees.js', 1, '', 'Night fees and the Friday/Saturday special.'), E(I, 3732, 'arrivalsOf', 'Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open.')],
         state: ['window.cttcPayments.status(id)'], writes: ['Payment rows (PrivatePayments.js); CloverLinks'], reads: ['Clover API through the desk (token in Script Properties)'],
-        invariants: ['A payment belongs to a player id and a date, not to a group or a position.'],
+        invariants: ['A payment belongs to a player id and a date, not to a group or a position.', 'Adding a card payer from Clover only puts them in this device\'s draft or Open Play, as the directory\'s buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.'],
         limits: ['Clover requests: at most 3 at once, 4 retries.'],
-        tests: [T('apps-script/check-clover-desk.cjs', '', 'Clover on the desk.'), T('apps-script/check-night-fees.cjs', '', 'Fees.'), T('apps-script/check-free-night-passes.cjs', '', 'Free spots and passes.')],
+        tests: [T('apps-script/check-clover-desk.cjs', '', 'Clover on the desk.'), T('apps-script/check-clover-section.cjs', '', 'The Clover section, including card payers offered with RR and Open.'), T('apps-script/check-night-fees.cjs', '', 'Fees.'), T('apps-script/check-free-night-passes.cjs', '', 'Free spots and passes.')],
         untested: ['A player removed after paying.'],
         simulate: 'Clover paths are covered offline by the check-clover-* fixtures; the real list only through `npm run desk:google -- --view clover` (read-only).' } },
     { id: 'signin-5-move', title: 'Move players between groups by hand', who: 'Desk volunteer', when: 'Before printing',
@@ -489,7 +489,7 @@ const phases = [
 ];
 
 const meta = {
-  commit: 'e735829d849eeedc713a9ec5666622fcffd79ab7',
+  commit: 'fbc58ad7511f23e6049f0c81515eaa830aaf97e6',
   intro: 'A round robin night at the club, from opening the desk to results on the site: what each person does, what the screen shows, what can go wrong at each step, and the code underneath.',
   source: 'Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
   findingsNote: 'Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement.'

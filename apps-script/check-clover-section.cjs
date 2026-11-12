@@ -46,6 +46,15 @@ function boot(desk) {
   const window = dom.window;
   opened.push(window);
   window.cttcTab = { retired: () => false, onRetire() {}, onResume() {} };
+  // The desk's RR and Open Play lists, as far as the section uses them: each add puts the player's row on the page.
+  const added = [];
+  const row = (id, html) => { const node = window.document.createElement(html ? 'div' : 'li'); if (html) node.className = 'roster-row'; node.innerHTML = '<div class="identity"><strong>' + names[id] + '</strong></div>' + (html || '<div class="move"><button data-move="' + id + '"></button></div>'); return node; };
+  window.cttcDesk = {
+    has: id => !!window.document.querySelector('#groups [data-move="' + id + '"]'),
+    event: () => ({ short: 'RR', placed: 'In RR', target: 'the RR draft' }),
+    add(id, source) { added.push(['rr', id, source]); window.document.querySelector('#groups .group-list').appendChild(row(id)); return true; }
+  };
+  window.cttcOpenPlay = { add(id) { added.push(['open', id]); window.document.getElementById('open-roster').appendChild(row(id, '<button data-open-remove="' + id + '"></button>')); return true; } };
   window.cttcRequest = (name, ...args) => {
     reads.push(name);
     if (name === 'getPrivatePaymentOverview') return Promise.resolve({ methods: {}, coveredIds: [], passes: [] });
@@ -60,7 +69,7 @@ function boot(desk) {
   window.eval(cloverCode);
   const $ = selector => window.document.querySelector(selector);
   const $$ = selector => Array.from(window.document.querySelectorAll(selector));
-  return { window, reads, server, $, $$, button: id => $('[data-payment-player="' + id + '"] .payment-trigger') };
+  return { window, reads, server, added, $, $$, button: id => $('[data-payment-player="' + id + '"] .payment-trigger') };
 }
 
 (async () => {
@@ -165,6 +174,52 @@ function boot(desk) {
   await tick();
   assert.match(page.$('li[data-clover-payment="A"]').textContent, /Avery Park was matched to this payment, then marked Venmo by hand/);
   assert.ok(page.$('li[data-clover-payment="A"] .clover-undo'));
+
+  // Paid by a known card but not on tonight's lists: offered at the top of the section with RR and Open, as Voice signups
+  // are. A match (made or, in the dry run, would be) and a payer whose amount needs a look count; a payment no single player
+  // fits does not.
+  const arriving = enabled => {
+    const desk = tonight(enabled);
+    Object.assign(desk.names, { p5: 'Emery Fox', p6: 'Finley Reyes', p7: 'Gray Moss' });
+    Object.assign(desk.fees, { p5: 10, p6: 15, p7: 10 });
+    desk.items.unshift(
+      item('E', { state: 'matched', reason: 'card', playerIds: ['p5'], notCheckedIn: ['p5'], recorded: enabled, clock: '7:10 PM' }),
+      item('F', { state: 'needs-action', reason: 'name', payerId: 'p6', playerIds: ['p6'], note: 'Paid $10, fee is $15', clock: '7:08 PM' }),
+      item('G', { note: 'No player found', suggestions: ['p7'], clock: '7:06 PM' }));
+    return desk;
+  };
+  page = boot(arriving(true));
+  await tick();
+  const arrivals = page.$('.clover-arrivals');
+  assert.equal(arrivals.previousElementSibling.tagName, 'H2', 'at the top of the section');
+  assert.equal(arrivals.hidden, false);
+  assert.equal(arrivals.querySelector('.clover-arrivals-title').textContent, 'Paid by card, not checked in (2)');
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5', 'p6']);
+  assert.match(page.$('[data-clover-arrival="p5"]').textContent, /Emery Fox.*Paid \$10 by card at 7:10 PM/);
+  assert.equal(page.$('[data-clover-rr="p5"]').title, 'Add Emery Fox to the RR draft');
+  page.$('[data-clover-rr="p5"]').click();
+  assert.deepEqual(plain(page.added), [['rr', 'p5', 'Clover payment']]);
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p6'], 'gone once in RR');
+  page.$('[data-clover-open="p6"]').click();
+  assert.deepEqual(plain(page.added[1]), ['open', 'p6']);
+  assert.equal(page.$('.clover-arrivals').hidden, true, 'everyone who paid is on a list');
+  assert.equal(page.server.length, 0, 'adding someone changes no Clover payment');
+  // The dry run offers them too: adding a player records nothing on Clover.
+  page = boot(arriving(false));
+  await tick();
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5', 'p6']);
+  // Someone already saved on the night is never offered, even before the desk has drawn its lists.
+  const saved = arriving(true);
+  saved.onNight = ['p1', 'p2', 'p3', 'p4', 'p6'];
+  page = boot(saved);
+  await tick();
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5']);
+  page = boot(arriving(false));
+  await tick();
+  // A payment being set aside is not anyone's.
+  page.window.cttcOutbox.enqueue('clover:' + DATE + ':E', 'setAsideCloverPayment', [DATE, 'E']);
+  await tick();
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p6']);
 
   // Not connected: says what to set.
   page = boot({ connected: false, enabled: false, date: DATE, problem: 'Add CLOVER_API_TOKEN in the script\'s Project Settings > Script Properties.' });

@@ -89,7 +89,8 @@ function publishPayload() {
 const payments = {};
 const cloverNights = {};
 // A night's made-up Clover payments: one matched by a card used before, one overpaid (a member covering a second
-// player), one with no name to go on, and a refund. Players are the saved roster's, when the date has one.
+// player), one with no name to go on, a refund, and a card used before by a player not checked in yet (offered at the top
+// with RR and Open). Players are the saved roster's, when the date has one.
 function cloverPreview(date) {
   const session = sessions['session-' + date];
   const roster = session ? [].concat.apply([], session.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); })) : [];
@@ -102,7 +103,10 @@ function cloverPreview(date) {
       return Object.assign({ id: id, time: time, clock: clock, amount: net, net: net, kind: 'card', card: card, cardholder: '', customer: '', state: 'unmatched', reason: '', payerId: '',
         playerIds: [], note: '', notePlayerId: '', suggestions: [], notCheckedIn: [], verdicts: [], recorded: false, changed: [] }, extra);
     };
+    // Not on the roster, and not the preview's coach (players[0]).
+    const away = players.slice(1).find(function (player) { return ids.indexOf(player.playerId) < 0; });
     cloverNights[date] = [
+      item('cv5', 16, 10, 'VISA \u2022\u20226610', { state: 'matched', reason: 'card', playerIds: [away.playerId], notCheckedIn: [away.playerId], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN }),
       item('cv4', 14, 10, 'AMEX \u2022\u20223005', { state: 'ignored', note: 'Refunded' }),
       item('cv3', 9, 10, 'VISA \u2022\u20227702', { note: 'No player found', suggestions: [ids[3], ids[4]] }),
       item('cv2', 6, 15, 'MC \u2022\u20221190', { state: 'needs-action', payerId: ids[1], playerIds: [ids[1]], reason: 'card', note: 'Paid $15, fee is $10: $5 more. Who else does it cover?', suggestions: [ids[2]] }),
@@ -113,7 +117,7 @@ function cloverPreview(date) {
   const names = {};
   const fees = {};
   players.forEach(function (player) { names[player.playerId] = player.name; fees[player.playerId] = 10; });
-  return { connected: true, enabled: !process.env.PREVIEW_CLOVER_DRY_RUN, date: date, checkedAt: Date.now(), items: cloverNights[date], names: names, fees: fees, pageUrl: '' };
+  return { connected: true, enabled: !process.env.PREVIEW_CLOVER_DRY_RUN, date: date, checkedAt: Date.now(), items: cloverNights[date], names: names, fees: fees, onNight: roster.concat(openPlay[date] || []), pageUrl: '' };
 }
 function cloverPreviewItem(date, id) {
   const item = cloverPreview(date).items.find(function (entry) { return entry.id === id; });
