@@ -237,21 +237,30 @@ payments.
 
 Name links are kept in the private `NameLinks` sheet of the round-robin
 Google Sheet (columns `kind`, `name`, `linked_name`, `updated_at`), never in
-code, because this repository is public. Edit the sheet directly; the desk
-reads it on every load. `LinkedNames.js` rejects any other `kind`.
+code, because this repository is public. The desk reads it on every load.
+`LinkedNames.js` rejects any other `kind`. Never type into the sheet: junior
+and pays-for links are set in the desk, in the player's pencil window
+(**Links**), with Review and Confirm and a record in the desk log.
 
 - `same_person`: the same person under two directory names; `name` is the
   record they play under. Linked names share membership status and Zeffy
   coverage; toggling either badge updates both. Player IDs, ratings, and
   attendance are never merged. Old spellings of a single record belong in the
-  `Aliases` sheet instead.
+  `Aliases` sheet instead. There is no desk control for this kind yet: it is
+  a form still to be built (club account only, Review and Confirm, a record in
+  the desk log), not a reason to edit the sheet.
 - `junior` with a `linked_name`: a junior and the member account they belong
-  to. Juniors show a **J** badge whose tooltip names the member.
+  to. Juniors show a **J** badge whose tooltip names the member. In the
+  pencil window, tick **Junior** and choose the **Member account**, or add
+  the junior under **Juniors on this account** in the member's window. A
+  junior is on one account at most: adding them to another moves them.
 - `junior` with a blank `linked_name`: a junior member with no linked adult
-  account (J badge, "Junior member").
+  account (J badge, "Junior member"): **Junior** ticked, no member account.
 - `pays_for`: `name` regularly pays `linked_name`'s fee on the same Clover
   card payment. The desk then matches one payment to both when their fees add
-  up to it (see [Clover card payments](clover-payments.md)).
+  up to it (see [Clover card payments](clover-payments.md)). Set it under
+  **Pays for** in the payer's pencil window; the window of the player paid
+  for shows who pays for them.
 
 A link applies only when each name matches exactly one active player;
 otherwise it is listed as needing a directory match. Other players default to

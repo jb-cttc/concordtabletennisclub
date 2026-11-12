@@ -51,10 +51,10 @@ The amount must then be that player's fee for the night: Junior $5, Member
 $10, Visitor $15, or $10 on a first visit; $5 for everyone, and $0 for a volunteer playing free, on a Friday or Saturday
 from November 13 to December 31, 2026 (see
 [Session fees](round-robin-operations.md#session-fees-and-zeffy)). A payer can also cover someone else
-on the same payment when a `NameLinks` row says so. Use `kind` = `pays_for`,
-with the payer in `name` and the player they pay for in `linked_name`. The
-payment then matches when the fees of the payer, and of the people they pay
-for, add up to the amount.
+on the same payment when they are linked under **Pays for** in the payer's
+pencil window on the desk (a `pays_for` row in the private `NameLinks` tab;
+never typed into the Sheet). The payment then matches when the fees of the
+payer, and of the people they pay for, add up to the amount.
 
 Everything else waits for the organizer, with the likely player shown:
 - a wrong amount (an overpayment covering someone else, for example);

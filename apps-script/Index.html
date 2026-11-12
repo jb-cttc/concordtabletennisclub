@@ -1977,6 +1977,8 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     playerEdited: playerEdited,
     remove: removeFromRoster,
     has: function (id) { return state.roster.indexOf(id) >= 0; },
+    // The active directory, { playerId, name }, for pickers such as the edit window's links.
+    players: function () { return state.players.map(function (p) { return { playerId: p.playerId, name: p.name }; }); },
     // What the sidebar calls the event the roster feeds: the round robin or the Equalizer.
     event: function () { return state.event === 'equalizer' ? { short: 'EQ', placed: 'In EQ', target: 'the Equalizer' } : { short: 'RR', placed: 'In RR', target: 'the RR draft' }; },
     print: function () { return { date: date.value, groups: state.groups, matches: state.matches, player: player, siteJson: siteJson }; },
@@ -4981,6 +4983,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .player-editor-card label.player-editor-keep[hidden]{display:none}
 .player-editor-card .player-editor-keep input{display:inline-block;width:auto;margin:0}
 .player-editor-notes .player-editor-warning{color:#6f241f}
+.player-editor-links .player-editor-sub{margin:8px 0 4px;font-size:12px;color:var(--ink);font-weight:700}
+.player-editor-links .hint{margin:0 0 6px}
+.player-editor-card .player-editor-links label.player-editor-member{margin:4px 0 8px 24px}
+.player-editor-card .player-editor-links label.player-editor-member[hidden]{display:none}
+.player-editor-links [data-paid-by]:empty{display:none}
 .player-editor-card footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--line);padding-top:13px}
 .player-editor-card footer .secondary{padding:9px 13px}
 .new-player-choice{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;padding:12px;background:rgba(10,19,17,.6)}
@@ -5012,6 +5019,18 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         '<ul data-aliases></ul>' +
         '<button type="button" class="secondary small" data-alias-add>+ Add another name</button>' +
       '</fieldset>' +
+      '<fieldset class="player-editor-aliases player-editor-links" hidden><legend>Links</legend>' +
+        '<label class="player-editor-keep"><input type="checkbox" name="junior"> Junior (pays the junior fee)</label>' +
+        '<label class="player-editor-member" hidden>Member account<input name="member" list="player-editor-directory" maxlength="80" autocomplete="off" spellcheck="false" placeholder="None: a junior member on their own"></label>' +
+        '<div data-juniors-box><p class="player-editor-sub">Juniors on this account</p><ul data-link-list="juniors"></ul>' +
+        '<button type="button" class="secondary small" data-link-add="juniors">+ Add a junior</button></div>' +
+        '<p class="player-editor-sub">Pays for</p>' +
+        '<p class="hint">Players whose fee this player often pays on the same card payment, so one Clover payment can match them together.</p>' +
+        '<ul data-link-list="paysFor"></ul>' +
+        '<button type="button" class="secondary small" data-link-add="paysFor">+ Add a player</button>' +
+        '<p class="hint" data-paid-by></p>' +
+      '</fieldset>' +
+      '<datalist id="player-editor-directory"></datalist>' +
       '<p class="player-editor-error" role="alert"></p>' +
       '<footer><button type="button" class="secondary" data-editor-cancel>Cancel</button><button type="submit" class="primary" data-editor-review>Review changes</button></footer>' +
     '</div>' +
@@ -5031,6 +5050,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var fields = { name: form.elements.name, rating: form.elements.rating, email: form.elements.email };
   var aliasList = editor.querySelector('[data-aliases]');
   var keepOld = editor.querySelector('.player-editor-keep');
+  // Links (LinkedNames.js): junior and member account, juniors on this account, and who this player pays for. Each
+  // player is typed or picked from the directory; the window sends player ids.
+  var linksBox = editor.querySelector('.player-editor-links');
+  var juniorTick = form.elements.junior;
+  var memberLabel = editor.querySelector('.player-editor-member');
+  var juniorsBox = editor.querySelector('[data-juniors-box]');
+  var linkLists = { juniors: editor.querySelector('[data-link-list="juniors"]'), paysFor: editor.querySelector('[data-link-list="paysFor"]') };
+  var paidBy = editor.querySelector('[data-paid-by]');
+  var datalist = editor.querySelector('#player-editor-directory');
+  var directory = [];
   var current = null;
   var loaded = null;
   var opener = null;
@@ -5041,6 +5070,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function setFieldsDisabled(disabled) {
     Object.keys(fields).forEach(function (key) { fields[key].disabled = disabled; });
     aliasList.querySelectorAll('input,button').forEach(function (control) { control.disabled = disabled; });
+    linksBox.querySelectorAll('input,button').forEach(function (control) { control.disabled = disabled; });
     editor.querySelector('[data-alias-add]').disabled = disabled;
     editor.querySelector('[data-editor-review]').disabled = disabled;
   }
@@ -5070,6 +5100,56 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     aliasList.appendChild(li);
     return input;
   }
+  function linkName(id) {
+    var player = directory.filter(function (entry) { return entry.playerId === id; })[0];
+    return player ? player.name : loaded && loaded.links && loaded.links.names[id] || '';
+  }
+  // The one directory player a typed name is, or ''.
+  function idForName(name) {
+    var key = nameKey(name);
+    var found = key ? directory.filter(function (entry) { return nameKey(entry.name) === key; }) : [];
+    return found.length === 1 ? found[0].playerId : '';
+  }
+  function linkRow(kind, name) {
+    var li = document.createElement('li');
+    var input = document.createElement('input');
+    input.maxLength = 80;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('list', 'player-editor-directory');
+    input.value = name;
+    input.setAttribute('aria-label', name || (kind === 'juniors' ? 'New junior on this account' : 'New player this player pays for'));
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon';
+    remove.setAttribute('data-link-remove', '');
+    remove.setAttribute('aria-label', name ? 'Remove ' + name : 'Remove this player');
+    remove.textContent = '\u00d7';
+    li.append(input, remove);
+    linkLists[kind].appendChild(li);
+    showJunior();
+    return input;
+  }
+  function showJunior() {
+    memberLabel.hidden = !juniorTick.checked;
+    juniorsBox.hidden = juniorTick.checked && !linkLists.juniors.children.length;
+  }
+  function fillLinks(links) {
+    linksBox.hidden = !links;
+    linkLists.juniors.replaceChildren();
+    linkLists.paysFor.replaceChildren();
+    juniorTick.checked = !!(links && links.junior);
+    form.elements.member.value = links && links.memberId ? linkName(links.memberId) : '';
+    paidBy.textContent = links && links.paidBy.length ? 'Paid for by ' + links.paidBy.map(linkName).join(', ') + ' (change it in their window).' : '';
+    if (links) {
+      links.juniors.forEach(function (id) { linkRow('juniors', linkName(id)); });
+      links.paysFor.forEach(function (id) { linkRow('paysFor', linkName(id)); });
+    }
+    showJunior();
+  }
+  function linkNames(kind) {
+    return [].map.call(linkLists[kind].querySelectorAll('input'), function (input) { return input.value.trim().replace(/\s+/g, ' '); }).filter(Boolean);
+  }
   function showKeepOld() {
     keepOld.hidden = !loaded || fields.name.value.trim().replace(/\s+/g, ' ') === loaded.name;
   }
@@ -5093,6 +5173,9 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     fields.email.value = '';
     fields.email.placeholder = 'Loading...';
     aliasList.replaceChildren();
+    directory = window.cttcDesk && window.cttcDesk.players ? window.cttcDesk.players() : [];
+    datalist.replaceChildren.apply(datalist, directory.map(function (entry) { var option = document.createElement('option'); option.value = entry.name; return option; }));
+    fillLinks(null);
     form.elements.keepOld.checked = true;
     keepOld.hidden = true;
     error(editStep, '');
@@ -5110,6 +5193,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       fields.email.value = details.email || '';
       fields.email.placeholder = 'No email on file';
       (details.aliases || []).forEach(function (alias) { aliasRow(alias.name); });
+      fillLinks(details.links);
       setFieldsDisabled(false);
       fields.name.focus();
     }).catch(function (failure) {
@@ -5138,7 +5222,36 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     if (loaded && name !== loaded.name && form.elements.keepOld.checked && !aliases.some(function (alias) { return nameKey(alias.name) === nameKey(loaded.name); })) {
       aliases.push({ from: '', name: loaded.name });
     }
-    return { name: name, rating: fields.rating.value.trim(), email: fields.email.value.trim(), aliases: aliases };
+    var links = loaded && loaded.links ? { junior: juniorTick.checked, member: juniorTick.checked ? form.elements.member.value.trim().replace(/\s+/g, ' ') : '', juniors: linkNames('juniors'), paysFor: linkNames('paysFor') } : null;
+    return { name: name, rating: fields.rating.value.trim(), email: fields.email.value.trim(), aliases: aliases, links: links };
+  }
+  // The links as player ids, or { problem } when a name is not one directory player.
+  function linkIds(next) {
+    var links = next.links;
+    var out = { junior: links.junior, memberId: '', juniors: [], paysFor: [] };
+    var me = loaded.playerId;
+    var lookup = function (name) {
+      var id = idForName(name);
+      if (!id) throw new Error(name + ' is not one player in the directory. Choose a name from the list.');
+      if (id === me) throw new Error(loaded.name + ' cannot be linked to themselves.');
+      return id;
+    };
+    try {
+      if (links.junior && links.member) out.memberId = lookup(links.member);
+      ['juniors', 'paysFor'].forEach(function (kind) {
+        links[kind].forEach(function (name) {
+          var id = lookup(name);
+          if (out[kind].indexOf(id) >= 0) throw new Error(name + ' is listed twice. Remove one of them.');
+          out[kind].push(id);
+        });
+      });
+      if (out.junior && out.juniors.length) throw new Error('A junior cannot have juniors on their account. Untick Junior, or remove the juniors.');
+      if (out.memberId && out.juniors.indexOf(out.memberId) >= 0) throw new Error(linkName(out.memberId) + ' cannot be both the member account and a junior on it.');
+      if (out.juniors.length > 10 || out.paysFor.length > 10) throw new Error('Up to 10 players in each list.');
+    } catch (failure) {
+      return { problem: failure.message };
+    }
+    return out;
   }
   function problem(next) {
     if (!next.name || next.name.length > 80) return 'Enter a name of 1 to 80 characters.';
@@ -5153,7 +5266,24 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       seen[nameKey(alias.name)] = alias.name;
     }
     if (next.aliases.length > 20) return 'A player can have up to 20 other names.';
+    if (next.links) {
+      var ids = linkIds(next);
+      if (ids.problem) return ids.problem;
+      if (next.name !== loaded.name && linkChanges(ids).length) return 'Save the new name first, then change the links.';
+    }
     return '';
+  }
+  function linkChanges(ids) {
+    var before = loaded.links;
+    var list = [];
+    if (!before) return list;
+    if (ids.junior !== !!before.junior) list.push({ label: 'Junior', from: before.junior ? 'Yes' : 'No', to: ids.junior ? 'Yes' : 'No', link: 'junior' });
+    if (ids.junior && (ids.memberId || '') !== (before.memberId || '')) list.push({ label: 'Member account', from: before.memberId ? linkName(before.memberId) : '(none)', to: ids.memberId ? linkName(ids.memberId) : '(none)', link: 'member' });
+    [['juniors', 'Junior added to this account', 'Junior removed from this account'], ['paysFor', 'Now pays for', 'No longer pays for']].forEach(function (kind) {
+      ids[kind[0]].forEach(function (id) { if (before[kind[0]].indexOf(id) < 0) list.push({ label: kind[1], from: null, to: linkName(id), link: kind[0] }); });
+      before[kind[0]].forEach(function (id) { if (ids[kind[0]].indexOf(id) < 0) list.push({ label: kind[2], from: linkName(id), to: null, link: kind[0] }); });
+    });
+    return list;
   }
   function changes(next) {
     var list = [];
@@ -5169,6 +5299,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     (loaded.aliases || []).forEach(function (alias) {
       if (!kept[alias.name]) list.push({ label: 'Other name removed', from: alias.name, to: null, alias: alias.name });
     });
+    if (next.links) list = list.concat(linkChanges(linkIds(next)));
     return list;
   }
   function item(parent, build) {
@@ -5221,6 +5352,10 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         li.textContent = counts.join(' and ') + ' under ' + uses.name + ' will no longer count for ' + loaded.name + ' unless another of their names matches.';
       });
     });
+    var links = list.filter(function (change) { return change.link; }).map(function (change) { return change.link; });
+    if (links.indexOf('junior') >= 0) item(notes, function (li) { li.textContent = next.links.junior ? loaded.name + ' pays the junior fee from now on, and their badge shows J.' : loaded.name + ' is no longer a junior: their fee follows their Member or Visitor badge.'; });
+    if (list.some(function (change) { return change.label === 'Junior added to this account'; })) item(notes, function (li) { li.textContent = 'A junior added here pays the junior fee, and leaves any other account they were on.'; });
+    if (links.indexOf('paysFor') >= 0) item(notes, function (li) { li.textContent = 'From the next Clover check, one payment from ' + loaded.name + '\u2019s card can match the players they pay for when it adds up to their fees.'; });
     if (list.some(function (change) { return /^Other name/.test(change.label); })) {
       item(notes, function (li) { li.textContent = 'Other names count for Voice signups, Zeffy passes, Clover payments and the cash page from their next check.'; });
     }
@@ -5238,8 +5373,15 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     backButton.disabled = true;
     confirmButton.textContent = 'Saving...';
     error(confirmStep, '');
-    window.cttcRequest('updatePlayer', playerId, { name: next.name, rating: Number(next.rating), email: next.email, aliases: next.aliases },
-      { name: loaded.name, rating: loaded.currentRating, email: loaded.email || '', aliases: (loaded.aliases || []).map(function (alias) { return alias.name; }) }).then(function (saved) {
+    var sentChanges = { name: next.name, rating: Number(next.rating), email: next.email, aliases: next.aliases };
+    var sentBefore = { name: loaded.name, rating: loaded.currentRating, email: loaded.email || '', aliases: (loaded.aliases || []).map(function (alias) { return alias.name; }) };
+    // Links only when they changed, with what the window loaded so a change on another device is not overwritten.
+    var ids = next.links ? linkIds(next) : null;
+    if (ids && !ids.problem && linkChanges(ids).length) {
+      sentChanges.links = ids;
+      sentBefore.links = { junior: !!loaded.links.junior, memberId: loaded.links.memberId || '', juniors: loaded.links.juniors, paysFor: loaded.links.paysFor };
+    }
+    window.cttcRequest('updatePlayer', playerId, sentChanges, sentBefore).then(function (saved) {
       saving = false;
       close();
       window.cttcDesk.playerEdited(saved);
@@ -5268,6 +5410,19 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   });
   editor.querySelector('[data-editor-cancel]').addEventListener('click', close);
   editor.querySelector('[data-alias-add]').addEventListener('click', function () { aliasRow('').focus(); });
+  linksBox.addEventListener('click', function (event) {
+    var add = event.target.closest('[data-link-add]');
+    if (add && !add.disabled) { linkRow(add.getAttribute('data-link-add'), '').focus(); return; }
+    var remove = event.target.closest('[data-link-remove]');
+    if (!remove || remove.disabled) return;
+    var row = remove.closest('li');
+    var list = row.parentNode;
+    var next = row.nextElementSibling || row.previousElementSibling;
+    row.remove();
+    showJunior();
+    (next ? next.querySelector('input') : linksBox.querySelector('[data-link-add="' + (list === linkLists.juniors ? 'juniors' : 'paysFor') + '"]')).focus();
+  });
+  juniorTick.addEventListener('change', showJunior);
   aliasList.addEventListener('click', function (event) {
     var remove = event.target.closest('[data-alias-remove]');
     if (!remove || remove.disabled) return;

@@ -117,12 +117,12 @@ tr.conflict td{background:#fdf5f3}
 </section>
 <section id="almost" class="panel" hidden aria-labelledby="almost-title">
   <div class="summary-head"><h2 id="almost-title">Cards to check in your records</h2></div>
-  <p class="diagnostics">These cards are not learned. Some point to one player on every night they paid but one: either that night's record is off (fix the payment at the desk and the card can be learned), or the card paid for someone else that night (a shared card, or a payer covering someone, which a NameLinks pays_for row handles). Others point only to a player that another card paying the same night also points to: the records cannot say which is theirs, so match the right one at the desk.</p>
+  <p class="diagnostics">These cards are not learned. Some point to one player on every night they paid but one: either that night's record is off (fix the payment at the desk and the card can be learned), or the card paid for someone else that night (a shared card, or a payer covering someone: set that under Pays for in the payer's pencil window on the desk). Others point only to a player that another card paying the same night also points to: the records cannot say which is theirs, so match the right one at the desk.</p>
   <div id="almost-list"></div>
 </section>
 <div id="nights" class="nights"></div>
 <div class="footnote">
-  <p>Each completed card payment on Clover is matched to a player only when the evidence points to exactly one: a card or Clover customer matched before, the name on the card (or Clover customer) exactly matching one player or saved alias, or the same last name with a first name or initial only one active player fits. The amount must then be that player's fee (Junior $5, Member $10, Visitor $15), or the fees of a payer and the players a NameLinks "pays_for" row says they pay for.</p>
+  <p>Each completed card payment on Clover is matched to a player only when the evidence points to exactly one: a card or Clover customer matched before, the name on the card (or Clover customer) exactly matching one player or saved alias, or the same last name with a first name or initial only one active player fits. The amount must then be that player's fee (Junior $5, Member $10, Visitor $15), or the fees of a payer and the players they are linked to pay for (Pays for, in the payer's pencil window on the desk).</p>
   <p>Clover rarely has a name for a tap-to-pay card, so the desk learns cards from your records (see "Cards learned from your records") and, once switched on, from each payment you match by hand at the desk. The nights below show what the desk would do with the cards learned so far; "Your record" compares that with the method chosen by hand that night.</p>
   <p>Refunds, voids, declines and cash entered on Clover are listed but never matched. Card details are the brand and last four digits only.</p>
 </div>
@@ -153,7 +153,7 @@ tr.conflict td{background:#fdf5f3}
   var REASONS = {
     card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
     name: 'name on card', initial: 'initial and last name on card', 'customer-name': 'Clover customer name',
-    'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays_for link'
+    'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays-for link'
   };
   var STATES = { matched: 'Credit ✓', 'needs-action': 'Needs you', unmatched: 'Unmatched', ignored: 'Ignored' };
   var VERDICTS = { agrees: 'Agrees', conflict: 'Differs', missing: 'Nothing recorded', 'not-checked-in': 'Not on the roster' };
