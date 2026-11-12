@@ -88,6 +88,8 @@ function publishPayload() {
 
 const payments = {};
 const cloverNights = {};
+// Junior and pays-for links by player id, as the pencil window shows them (made up; LinkedNames.js keeps real ones).
+const playerLinks = {};
 // A night's made-up Clover payments: one matched by a card used before, one overpaid (a member covering a second
 // player), one with no name to go on, a refund, and a card used before by a player not checked in yet (offered at the top
 // with RR and Open). Players are the saved roster's, when the date has one.
@@ -108,11 +110,15 @@ function cloverPreview(date) {
     cloverNights[date] = [
       item('cv5', 16, 10, 'VISA \u2022\u20226610', { state: 'matched', reason: 'card', playerIds: [away.playerId], notCheckedIn: [away.playerId], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN }),
       item('cv4', 14, 10, 'AMEX \u2022\u20223005', { state: 'ignored', note: 'Refunded' }),
-      item('cv3', 9, 10, 'VISA \u2022\u20227702', { note: 'No player found', suggestions: [ids[3], ids[4]] }),
+      item('cv7', 20, 20, 'VISA \u2022\u20225150', { state: 'matched', reason: 'hand', playerIds: [ids[7], ids[8]], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN, offer: { payerId: ids[7], playerIds: [ids[8]], times: 2 } }),
+      item('cv6', 18, 20, 'MC \u2022\u20223391', { note: 'No player found', pairs: [[ids[4], ids[5]], [ids[5], ids[6]]] }),
+      item('cv3', 9, 10, 'VISA \u2022\u20227702', { note: 'No player found', suggestions: [ids[3], ids[4]], likely: ids[3], likelyAt: seven + 10 * 60000 }),
       item('cv2', 6, 15, 'MC \u2022\u20221190', { state: 'needs-action', payerId: ids[1], playerIds: [ids[1]], reason: 'card', note: 'Paid $15, fee is $10: $5 more. Who else does it cover?', suggestions: [ids[2]] }),
       item('cv1', 2, 10, 'VISA \u2022\u20224821', { cardholder: 'SAMPLE/AVERY', state: 'matched', reason: 'card', playerIds: [ids[0]], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN })
     ];
     if (!process.env.PREVIEW_CLOVER_DRY_RUN) (payments[date] = payments[date] || {})[ids[0]] = 'credit';
+    // Marked Credit by hand at the desk, with no card payment matched yet: the likely payer of cv3.
+    (payments[date] = payments[date] || {})[ids[3]] = 'credit';
   }
   const names = {};
   const fees = {};
@@ -240,7 +246,11 @@ const rpc = {
   getPlayerDetails: function (id) {
     const player = players.find(function (item) { return item.playerId === id; });
     if (!player) throw new Error('Unknown player');
-    return Object.assign({ email: emails[id] || '', active: true }, player);
+    const mine = playerLinks[id] || { junior: false, memberId: '', juniors: [], paysFor: [] };
+    const paidBy = Object.keys(playerLinks).filter(function (other) { return playerLinks[other].paysFor.indexOf(id) >= 0; });
+    const names = {};
+    [mine.memberId].concat(mine.juniors, mine.paysFor, paidBy).filter(Boolean).forEach(function (other) { names[other] = (players.find(function (item) { return item.playerId === other; }) || {}).name; });
+    return Object.assign({ email: emails[id] || '', active: true, links: Object.assign({}, mine, { paidBy: paidBy, names: names }) }, player);
   },
   updatePlayer: function (id, changes) {
     const player = players.find(function (item) { return item.playerId === id; });
@@ -248,7 +258,14 @@ const rpc = {
     player.name = changes.name;
     player.currentRating = changes.rating;
     emails[id] = changes.email;
+    if (changes.links) playerLinks[id] = { junior: changes.links.junior, memberId: changes.links.memberId, juniors: changes.links.juniors, paysFor: changes.links.paysFor };
     return rpc.getPlayerDetails(id);
+  },
+  // The Clover section's "pays for" offer; apps-script/CloverPayments.js has the real checks.
+  addCloverPaysFor: function (payerId, playerIds) {
+    const mine = playerLinks[payerId] || (playerLinks[payerId] = { junior: false, memberId: '', juniors: [], paysFor: [] });
+    playerIds.forEach(function (id) { if (mine.paysFor.indexOf(id) < 0) mine.paysFor.push(id); });
+    return { added: playerIds.length };
   },
   getMemberStatuses: function () {
     const statuses = {};
