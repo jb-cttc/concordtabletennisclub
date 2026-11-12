@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "7790cbf3bd97b8a932d0f9baf12641c575efc887",
+  "commit": "bd627275a93b83b3525dba31927c68d51cbb4a92",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -996,7 +996,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4384,
+        "line": 4391,
         "symbol": "POLL_DAYS",
         "note": "When the list refreshes by itself."
        }
@@ -1046,7 +1046,7 @@
      "evidence": [
       "turnout.js:30",
       "apps-script/VoiceAutoReply.js:24",
-      "apps-script/Index.html:4384"
+      "apps-script/Index.html:4391"
      ],
      "confirmed": "read code only",
      "suggest": "One shared schedule file, or a check comparing the three."
@@ -1268,14 +1268,14 @@
        "happens": "The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**",
        "handling": "Add them under Add a player.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:4202"
+       "evidence": "apps-script/Index.html:4209"
       },
       {
        "when": "The coaching Sheet cannot be read",
        "happens": "The status bar is overwritten with **Coaching lessons unavailable:** and the error.",
        "handling": "Reload; check with the owner if it persists.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:4235"
+       "evidence": "apps-script/Index.html:4242"
       }
      ],
      "screen": {
@@ -1301,7 +1301,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4182,
+        "line": 4189,
         "symbol": "renderOpen",
         "note": "Lists lessons first, then players added with Open."
        }
@@ -1408,7 +1408,7 @@
      "title": "\"Coaching lessons unavailable\" writes over the status bar",
      "detail": "If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.",
      "evidence": [
-      "apps-script/Index.html:4235"
+      "apps-script/Index.html:4242"
      ],
      "confirmed": "read code only",
      "suggest": "Use the page's setStatus, or show it inside the Open Play / Coaching section."
@@ -1478,7 +1478,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2488,
+        "line": 2489,
         "symbol": "DESK_BUILD",
         "note": "The page keeps its own fingerprint for Refresh projector."
        }
@@ -1843,7 +1843,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2503,
+        "line": 2504,
         "symbol": "startFollow",
         "note": "Follow mode on the projector's desk."
        }
@@ -2184,14 +2184,21 @@
        "happens": "Marked Credit at the desk, the player is ticked for the payment no card fits (\"Likely ...\"). A card the desk knows (the cardholder's) is asked about instead, with the cardholder ticked.",
        "handling": "Tick the right player and Match. When the same card has paid for them twice, save the offered \"pays for\" link.",
        "status": "handled",
-       "evidence": "apps-script/CloverPayments.js:383"
+       "evidence": "apps-script/CloverPayments.js:391"
+      },
+      {
+       "when": "A Zeffy pass holder pays for someone else (their junior, a friend)",
+       "happens": "The holder's fee never counts. With a junior or pays-for link that adds up, the other player is matched by itself. Otherwise: \"{holder} has a Zeffy play pass, so their card paid for someone else. Who?\", with the holder shown as whose card it is, never ticked.",
+       "handling": "Tick who it was for and Match: the card is remembered as the holder's. After a second time, save the offered \"pays for\" link.",
+       "status": "handled",
+       "evidence": "apps-script/CloverPayments.js:294"
       },
       {
        "when": "One person pays for two",
        "happens": "A $20 payment from a card the desk does not know: **For two?** offers pairs whose fees add up, those marked Credit (or linked) first. Ticking two asks **Whose card?**.",
        "handling": "Press the pair, choose whose card, Match. The card is remembered as theirs; after a second time the desk offers to save that they pay for the other.",
        "status": "handled",
-       "evidence": "apps-script/CloverPayments.js:859"
+       "evidence": "apps-script/CloverPayments.js:867"
       },
       {
        "when": "A paid player is removed or moves to Open Play",
@@ -2214,7 +2221,7 @@
       "entry": [
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 317,
+        "line": 319,
         "symbol": "cloverMatchNight_",
         "note": "Matches the night's card payments to players."
        },
@@ -2232,25 +2239,25 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 3815,
+        "line": 3822,
         "symbol": "arrivalsOf",
         "note": "Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 383,
+        "line": 391,
         "symbol": "cloverCreditClues_",
         "note": "Credit marked by hand as the clue for payments no card fits: likely player, pairs, and the one case matched by itself."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 859,
+        "line": 867,
         "symbol": "cloverPaysForOffers_",
         "note": "Offers to save \"X pays for Y\" once a card has covered the same player twice."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 893,
+        "line": 900,
         "symbol": "addCloverPaysFor",
         "note": "Saves the offer after Confirm, with the pencil window's link checks."
        },
@@ -2409,7 +2416,7 @@
        "happens": "The print waits for a save; offline, the device copy is used.",
        "handling": "Reconnect and print again if the sheets must carry records.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1978"
+       "evidence": "apps-script/Index.html:1979"
       },
       {
        "when": "The print dialog is cancelled",
@@ -3004,7 +3011,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2525,
+        "line": 2526,
         "symbol": "followCheck",
         "note": "Reads getDeskStamps, then only the changed areas."
        },
@@ -3070,7 +3077,7 @@
        "happens": "Older pages keep running until reloaded and may not carry the new field when they save.",
        "handling": "Reload every device right after a release.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:2488"
+       "evidence": "apps-script/Index.html:2489"
       }
      ],
      "screen": {
@@ -3091,7 +3098,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2488,
+        "line": 2489,
         "symbol": "DESK_BUILD",
         "note": "Compared with refresh.build."
        },
@@ -3170,7 +3177,7 @@
        "happens": "Tap the right numbers on both lines; the last value wins.",
        "handling": "Watch the standings change as you enter.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:2126"
+       "evidence": "apps-script/Index.html:2127"
       },
       {
        "when": "A player did not play a match",
@@ -3197,7 +3204,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2126,
+        "line": 2127,
         "symbol": "(click handler)",
         "note": "Reads state.matches[Number(dataset.score)]."
        },
@@ -3259,7 +3266,7 @@
        "happens": "**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**",
        "handling": "Reconnect, wait for \"Changes saved to Google Sheets\", then finalize.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:3345"
+       "evidence": "apps-script/Index.html:3346"
       },
       {
        "when": "Finalize stopped partway (Google timed out)",
@@ -3733,7 +3740,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2439,
+        "line": 2440,
         "symbol": "quietForRefresh",
         "note": "The once-a-minute refresh."
        },
