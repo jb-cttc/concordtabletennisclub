@@ -64,6 +64,19 @@ Everything else waits for the organizer, with the likely player shown:
 - a name that fits more than one player;
 - a card that has paid for two different people.
 
+**Credit marked by hand.** A payment no card or name fits is paired with
+whoever the organizer marked **Credit** on their payment button and no Clover
+payment covers yet, at that payment's amount, nearest in time first, each
+person once. The section ticks that person and says why ("Likely Drew: marked
+Credit at 7:03 PM"). It is matched by itself (as *Credit marked at the same
+time*) only when it is the only such payment at that amount, that person is
+the only Credit waiting at that fee, they are within 15 minutes of each other,
+and the organizer never undid that payment. No card is learned from it. The
+Clover page's comparison with the records does not use this clue.
+
+A member's juniors count as players they pay for, so a parent's $15 for
+themselves and their junior matches by itself.
+
 A refund, a void, a decline, or cash typed into Clover is never matched.
 
 ## 3. At the desk
@@ -78,6 +91,21 @@ passes. Its count is the number of payments waiting for the organizer.
   payment. **Match** records Credit for each of them, replacing a method
   chosen by hand. With one player ticked, **Remember this card** (on by
   default) links the card to them, so it matches by itself next time.
+- **One payment for two.** An amount no single fee fits offers **For two?**
+  pairs whose fees add up, those marked Credit or linked first; one press
+  ticks both. With two or more ticked, **Whose card?** (the card's known owner
+  to start with, or *Not sure*) decides whom the card is remembered for.
+- **Someone else checked in** lists players marked Credit by hand first.
+  Choosing Credit on a payment button makes the section check Clover again
+  once Google has it, rather than at the next minute.
+- **Pays for.** When a card the desk knows has covered the same player on two
+  payments, the top of the section offers to save that its owner pays for
+  them. **Review** says what it does; **Confirm and save** adds the link (the
+  same as **Pays for** in the payer's pencil window), and their payments then
+  match by themselves. **Not now** hides it on this device for the night.
+- **Before finalizing**, the confirmation says how many Clover payments are
+  still to match and how many players are marked Credit with no Clover
+  payment. They can be matched after finalizing too.
 - **Not a desk fee** sets a payment aside (something other than a night at the
   club). It is never matched.
 - **Matched** (folded) lists tonight's matches. **Undo** puts the players back

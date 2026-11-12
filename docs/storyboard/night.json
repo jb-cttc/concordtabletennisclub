@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "fbc58ad7511f23e6049f0c81515eaa830aaf97e6",
+  "commit": "7790cbf3bd97b8a932d0f9baf12641c575efc887",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -266,7 +266,7 @@
        "happens": "Replies wait for the hourly sweep; the desk log records `app_wake_failed`.",
        "handling": "Nothing urgent; confirmations arrive within the hour.",
        "status": "partial",
-       "evidence": "docs/round-robin-operations.md:423"
+       "evidence": "docs/round-robin-operations.md:432"
       }
      ],
      "screen": {
@@ -498,7 +498,7 @@
        "happens": "The row says so.",
        "handling": "Find them under Show archived players, or add them under Add a player.",
        "status": "handled",
-       "evidence": "docs/round-robin-operations.md:483"
+       "evidence": "docs/round-robin-operations.md:492"
       }
      ],
      "screen": {
@@ -970,7 +970,7 @@
        "happens": "They are placed once; the RR button gives way to In RR.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "docs/round-robin-operations.md:456"
+       "evidence": "docs/round-robin-operations.md:465"
       }
      ],
      "screen": {
@@ -996,7 +996,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4213,
+        "line": 4384,
         "symbol": "POLL_DAYS",
         "note": "When the list refreshes by itself."
        }
@@ -1032,8 +1032,8 @@
      "detail": "The Tonight page guide (\"Add an Aliases row in the desk Sheet\") and the automatic answers section (\"or add an Aliases row\") send people to edit the Sheet by hand, against the club's rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.",
      "evidence": [
       "docs/turnout-flow.md:200",
-      "docs/round-robin-operations.md:528",
-      "apps-script/PlayerEdits.js:61"
+      "docs/round-robin-operations.md:537",
+      "apps-script/PlayerEdits.js:68"
      ],
      "confirmed": "read docs and code",
      "suggest": "Change both lines to point to the directory pencil's Other names."
@@ -1046,7 +1046,7 @@
      "evidence": [
       "turnout.js:30",
       "apps-script/VoiceAutoReply.js:24",
-      "apps-script/Index.html:4213"
+      "apps-script/Index.html:4384"
      ],
      "confirmed": "read code only",
      "suggest": "One shared schedule file, or a check comparing the three."
@@ -1268,14 +1268,14 @@
        "happens": "The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**",
        "handling": "Add them under Add a player.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:4031"
+       "evidence": "apps-script/Index.html:4202"
       },
       {
        "when": "The coaching Sheet cannot be read",
        "happens": "The status bar is overwritten with **Coaching lessons unavailable:** and the error.",
        "handling": "Reload; check with the owner if it persists.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:4064"
+       "evidence": "apps-script/Index.html:4235"
       }
      ],
      "screen": {
@@ -1301,7 +1301,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4011,
+        "line": 4182,
         "symbol": "renderOpen",
         "note": "Lists lessons first, then players added with Open."
        }
@@ -1408,7 +1408,7 @@
      "title": "\"Coaching lessons unavailable\" writes over the status bar",
      "detail": "If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.",
      "evidence": [
-      "apps-script/Index.html:4064"
+      "apps-script/Index.html:4235"
      ],
      "confirmed": "read code only",
      "suggest": "Use the page's setStatus, or show it inside the Open Play / Coaching section."
@@ -1478,7 +1478,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2483,
+        "line": 2488,
         "symbol": "DESK_BUILD",
         "note": "The page keeps its own fingerprint for Refresh projector."
        }
@@ -1843,7 +1843,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2498,
+        "line": 2503,
         "symbol": "startFollow",
         "note": "Follow mode on the projector's desk."
        }
@@ -2171,19 +2171,27 @@
      "title": "Take payment",
      "who": "Desk volunteer",
      "when": "At sign-in",
-     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button.",
+     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button. Choosing **Credit** on the button is a clue too: a card payment the desk cannot place is ticked for whoever was marked Credit at about that time (\"Likely Drew: marked Credit at 7:03 PM\"), and one person paying for two gets pairs whose fees add up, then **Whose card?**.",
      "subtext": "Payments are kept per player per night. The Clover list checks every minute while tonight is open.",
      "caveats": [
       "A card name that does not match a player waits under \"Cards to check\" on the Clover page; once linked, that card is remembered.",
-      "Free spots and volunteer play follow the night's fee rules."
+      "Free spots and volunteer play follow the night's fee rules.",
+      "Juniors (and their member account) and who pays for whom are set in the player's pencil window, under **Links**. A member's card covering their junior then matches by itself."
      ],
      "exceptions": [
       {
        "when": "A player pays on someone else's card",
-       "happens": "The payment matches the cardholder, not the player.",
-       "handling": "Link it on the Clover page (?view=clover) to the right player.",
-       "status": "partial",
-       "evidence": "apps-script/CloverPayments.js:267"
+       "happens": "Marked Credit at the desk, the player is ticked for the payment no card fits (\"Likely ...\"). A card the desk knows (the cardholder's) is asked about instead, with the cardholder ticked.",
+       "handling": "Tick the right player and Match. When the same card has paid for them twice, save the offered \"pays for\" link.",
+       "status": "handled",
+       "evidence": "apps-script/CloverPayments.js:383"
+      },
+      {
+       "when": "One person pays for two",
+       "happens": "A $20 payment from a card the desk does not know: **For two?** offers pairs whose fees add up, those marked Credit (or linked) first. Ticking two asks **Whose card?**.",
+       "handling": "Press the pair, choose whose card, Match. The card is remembered as theirs; after a second time the desk offers to save that they pay for the other.",
+       "status": "handled",
+       "evidence": "apps-script/CloverPayments.js:859"
       },
       {
        "when": "A paid player is removed or moves to Open Play",
@@ -2224,23 +2232,50 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 3732,
+        "line": 3815,
         "symbol": "arrivalsOf",
         "note": "Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open."
+       },
+       {
+        "file": "apps-script/CloverPayments.js",
+        "line": 383,
+        "symbol": "cloverCreditClues_",
+        "note": "Credit marked by hand as the clue for payments no card fits: likely player, pairs, and the one case matched by itself."
+       },
+       {
+        "file": "apps-script/CloverPayments.js",
+        "line": 859,
+        "symbol": "cloverPaysForOffers_",
+        "note": "Offers to save \"X pays for Y\" once a card has covered the same player twice."
+       },
+       {
+        "file": "apps-script/CloverPayments.js",
+        "line": 893,
+        "symbol": "addCloverPaysFor",
+        "note": "Saves the offer after Confirm, with the pencil window's link checks."
+       },
+       {
+        "file": "apps-script/LinkedNames.js",
+        "line": 115,
+        "symbol": "linkPlan_",
+        "note": "Junior and pays-for links from the pencil window: one active player per name, a junior on one account."
        }
       ],
       "state": [
        "window.cttcPayments.status(id)"
       ],
       "writes": [
-       "Payment rows (PrivatePayments.js); CloverLinks"
+       "Payment rows (PrivatePayments.js); CloverLinks",
+       "NameLinks pays_for rows (the offer, or the pencil window)"
       ],
       "reads": [
        "Clover API through the desk (token in Script Properties)"
       ],
       "invariants": [
        "A payment belongs to a player id and a date, not to a group or a position.",
-       "Adding a card payer from Clover only puts them in this device's draft or Open Play, as the directory's buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone."
+       "Adding a card payer from Clover only puts them in this device's draft or Open Play, as the directory's buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.",
+       "A Credit marked by hand matches a card payment by itself only when each is the only one at that amount, within 15 minutes, on a payment the organizer never undid; no card is learned from it.",
+       "A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?)."
       ],
       "limits": [
        "Clover requests: at most 3 at once, 4 retries."
@@ -2254,7 +2289,17 @@
        {
         "file": "apps-script/check-clover-section.cjs",
         "case": "",
-        "covers": "The Clover section, including card payers offered with RR and Open."
+        "covers": "The Clover section: card payers offered with RR and Open, Credit clues, pairs, Whose card?, the pays-for offer."
+       },
+       {
+        "file": "apps-script/check-clover-payments.cjs",
+        "case": "",
+        "covers": "Matching rules, including Credit clues and juniors as paid for."
+       },
+       {
+        "file": "apps-script/check-player-links.cjs",
+        "case": "",
+        "covers": "Junior and pays-for links in the pencil window."
        },
        {
         "file": "apps-script/check-night-fees.cjs",
@@ -2268,7 +2313,8 @@
        }
       ],
       "untested": [
-       "A player removed after paying."
+       "A player removed after paying.",
+       "Credit marked on two desks at once: each desk's check sees the other's Credit only once Google has it."
       ],
       "simulate": "Clover paths are covered offline by the check-clover-* fixtures; the real list only through `npm run desk:google -- --view clover` (read-only)."
      }
@@ -2363,7 +2409,7 @@
        "happens": "The print waits for a save; offline, the device copy is used.",
        "handling": "Reconnect and print again if the sheets must carry records.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1975"
+       "evidence": "apps-script/Index.html:1978"
       },
       {
        "when": "The print dialog is cancelled",
@@ -2958,7 +3004,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2520,
+        "line": 2525,
         "symbol": "followCheck",
         "note": "Reads getDeskStamps, then only the changed areas."
        },
@@ -3024,7 +3070,7 @@
        "happens": "Older pages keep running until reloaded and may not carry the new field when they save.",
        "handling": "Reload every device right after a release.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:2483"
+       "evidence": "apps-script/Index.html:2488"
       }
      ],
      "screen": {
@@ -3045,7 +3091,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2483,
+        "line": 2488,
         "symbol": "DESK_BUILD",
         "note": "Compared with refresh.build."
        },
@@ -3124,7 +3170,7 @@
        "happens": "Tap the right numbers on both lines; the last value wins.",
        "handling": "Watch the standings change as you enter.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:2121"
+       "evidence": "apps-script/Index.html:2126"
       },
       {
        "when": "A player did not play a match",
@@ -3151,7 +3197,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2121,
+        "line": 2126,
         "symbol": "(click handler)",
         "note": "Reads state.matches[Number(dataset.score)]."
        },
@@ -3202,7 +3248,7 @@
      "title": "Finalize the night",
      "who": "Owner",
      "when": "After the last match",
-     "summary": "Click **Finalize RR Results**. The desk checks every match is complete and that the latest save reached Google, then Google computes every rating change, writes them, and locks the night: **Session finalized. Ratings are now authoritative.**",
+     "summary": "Click **Finalize RR Results**. The desk checks every match is complete and that the latest save reached Google, then Google computes every rating change, writes them, and locks the night: **Session finalized. Ratings are now authoritative.** The confirmation also says how many Clover payments are still to match and how many players are marked Credit with no Clover payment; those can be matched after finalizing too.",
      "subtext": "Finalize is the one step that changes ratings. Later nights start from them.",
      "caveats": [
       "Finalize in date order. The desk does not stop you finalizing an earlier night after a later one (see findings)."
@@ -3213,7 +3259,7 @@
        "happens": "**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**",
        "handling": "Reconnect, wait for \"Changes saved to Google Sheets\", then finalize.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:3338"
+       "evidence": "apps-script/Index.html:3345"
       },
       {
        "when": "Finalize stopped partway (Google timed out)",
@@ -3687,7 +3733,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2434,
+        "line": 2439,
         "symbol": "quietForRefresh",
         "note": "The once-a-minute refresh."
        },
