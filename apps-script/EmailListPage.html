@@ -39,6 +39,8 @@
   th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   td.when { color: var(--muted); white-space: nowrap; width: 1%; }
   td.addr { word-break: break-all; }
+  #footer { min-height: 56px; margin-top: 6px; }
+  @media (max-width: 560px) { #footer { min-height: 120px; } #bcc { min-height: 120px; } }
 </style>
 </head>
 <body>
@@ -51,7 +53,7 @@
   <section id="list" class="panel" hidden>
     <h2><span id="count" class="count">0</span><span id="countLabel">addresses</span></h2>
     <p>Everyone who pressed Subscribe on the club site and has not unsubscribed. They get the automated round robin results emails and the executive committee&rsquo;s updates. Unsubscribing removes an address from this list right away.</p>
-    <label for="bcc" class="secondary-label"><strong style="font:700 13px Arial,sans-serif">Addresses for Bcc</strong></label>
+    <label for="bcc"><strong style="font:700 13px Arial,sans-serif">Addresses for Bcc</strong></label>
     <textarea id="bcc" readonly spellcheck="false"></textarea>
     <div class="row">
       <button id="copyBcc" class="primary" type="button">Copy all for Bcc</button>
@@ -66,7 +68,7 @@
       <li>Press <strong>Copy all for Bcc</strong> and paste into <strong>Bcc</strong>. Never To or Cc: everyone would see everyone else&rsquo;s address.</li>
       <li>Copy the list fresh each time you send. An old copy would still email people who have since unsubscribed.</li>
       <li>End the email with this line, so anyone can stop the emails:
-        <textarea id="footer" readonly spellcheck="false" style="min-height:52px;margin-top:6px"></textarea>
+        <textarea id="footer" readonly spellcheck="false"></textarea>
         <div class="row"><button id="copyFooter" class="secondary" type="button">Copy this line</button><span id="copiedFooter" class="copied" role="status"></span></div>
       </li>
     </ol>

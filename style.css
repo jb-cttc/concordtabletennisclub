@@ -1081,7 +1081,7 @@ h2.announcement-tag {
   inset: 0;
   margin: auto;
   width: min(440px, calc(100vw - 24px));
-  height: min(380px, calc(100vh - 24px));
+  height: min(430px, calc(100vh - 24px));
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
