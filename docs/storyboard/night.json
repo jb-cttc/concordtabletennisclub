@@ -1338,7 +1338,7 @@
      "title": "Keep the lesson tables free",
      "who": "Desk volunteer",
      "when": "During play",
-     "summary": "Lessons are booked on table 1, 2 or 3. On a Friday the floor is open play around them; on a Saturday the round robin pilot runs in the same 3–6 PM window. The desk organizer has to keep those tables free when lessons start.",
+     "summary": "Lessons are booked on table 1, 2 or 3. On a Friday the floor is open play around them; on a Saturday the round robin runs in the same 3–6 PM window. The desk organizer has to keep those tables free when lessons start.",
      "subtext": "Today the table number lives only in the coaching app and the coach's confirmation email; the desk and the round robin sheets do not know which tables are booked.",
      "caveats": [
       "On Saturdays, count lesson tables out before assigning round robin tables."
@@ -1394,7 +1394,7 @@
      "severity": "medium",
      "kind": "design-gap",
      "title": "The desk does not show which table a lesson is booked on",
-     "detail": "A lesson is booked on table 1, 2 or 3 (Availability.table), but the desk's lesson rows carry only the coach and time. On a Saturday the round robin pilot and lessons share the 3–6 PM window: the organizer can print groups onto a table a coach expects at 3:30.",
+     "detail": "A lesson is booked on table 1, 2 or 3 (Availability.table), but the desk's lesson rows carry only the coach and time. On a Saturday the round robin and lessons share the 3–6 PM window: the organizer can print groups onto a table a coach expects at 3:30.",
      "evidence": [
       "apps-script/Coaching.js:29",
       "coaching-app/Code.js:113"
