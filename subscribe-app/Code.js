@@ -1,4 +1,5 @@
-// Public sign-up for the results email. This is a separate Apps Script project from the owner-only desk
+// Public sign-up for the club email list: the automated round robin results emails and the executive committee's
+// updates (sent by hand from Gmail; the desk's Email list page, apps-script/EmailList.js, gives the club the list). This is a separate Apps Script project from the owner-only desk
 // on purpose: a public web app exposes every function in its project, so the desk's code must never live here.
 // The only thing this project can do is add one validated address to the Subscribers tab of the club database.
 // The Sheet id is the script property DATABASE_ID (set in Project Settings), never committed.
@@ -47,7 +48,7 @@ function doGet(event) {
     template.email = address;
     return output_(template.evaluate(), 'CTTC unsubscribe');
   }
-  return page_('Index', 'CTTC results email');
+  return page_('Index', 'CTTC email list');
 }
 
 function subscribersSheet_() {
@@ -128,11 +129,11 @@ function requestUnsubscribe(email, website) {
   }
   var link = UNSUBSCRIBE_PAGE + '?t=' + makeToken_(address);
   try {
-    sendMail_(address, 'Confirm: unsubscribe from CTTC results emails',
-      'Someone (hopefully you) asked to stop the Concord Table Tennis Club results emails for this address.\n\n' +
+    sendMail_(address, 'Confirm: unsubscribe from CTTC emails',
+      'Someone (hopefully you) asked to stop the Concord Table Tennis Club emails (round robin results and club updates) for this address.\n\n' +
       'To confirm, open this link and press the button on the page (it works for 24 hours):\n' + link + '\n\n' +
       'If you did not ask for this, ignore this email. You stay subscribed and nothing changes.',
-      '<p>Someone (hopefully you) asked to stop the Concord Table Tennis Club results emails for this address.</p>' +
+      '<p>Someone (hopefully you) asked to stop the Concord Table Tennis Club emails (round robin results and club updates) for this address.</p>' +
       '<p>To confirm, <a href="' + link + '">open this link</a> and press the button on the page. It works for 24 hours.</p>' +
       '<p style="color:#666">If you did not ask for this, ignore this email. You stay subscribed and nothing changes.</p>');
   } catch (error) {
@@ -162,10 +163,10 @@ function confirmUnsubscribe(token) {
   }
   if (removed) {
     try {
-      sendMail_(address, 'You are unsubscribed from CTTC results emails',
-        'You are unsubscribed. We will not send any more Concord Table Tennis Club results emails to this address.\n\n' +
+      sendMail_(address, 'You are unsubscribed from CTTC emails',
+        'You are unsubscribed. We will not send any more Concord Table Tennis Club emails (round robin results and club updates) to this address.\n\n' +
         'Changed your mind? You can join again any time with the Subscribe button at ' + SITE_URL + '/roundrobins.html',
-        '<p>You are unsubscribed. We will not send any more Concord Table Tennis Club results emails to this address.</p>' +
+        '<p>You are unsubscribed. We will not send any more Concord Table Tennis Club emails (round robin results and club updates) to this address.</p>' +
         '<p>Changed your mind? You can join again any time with the Subscribe button on the <a href="' + SITE_URL + '/roundrobins.html">Round Robins page</a>.</p>');
     } catch (error) {
       console.error('Could not send the unsubscribed notice: ' + error);
@@ -281,12 +282,12 @@ function sendWelcome_(address) {
     var latest = null;
     try { latest = latestResults_(); } catch (error) { console.error('Could not load the latest results: ' + error); }
     var intro = latest
-      ? "You're subscribed! You'll get an email that looks similar to this after each Round Robin Session. We've included the most recent CTTC Round Robin results below."
-      : "You're subscribed! You'll get an email with the results after each Round Robin Session.";
+      ? "You're subscribed! After each Round Robin Session you'll get an automated summary that looks similar to this, plus any important updates from the CTTC executive committee as they come up. We've included the most recent CTTC Round Robin results below."
+      : "You're subscribed! You'll get an automated summary of the results after each Round Robin Session, plus any important updates from the CTTC executive committee as they come up.";
     var personal = UNSUBSCRIBE_PAGE + '?t=' + makeToken_(address, EMAIL_LINK_TTL_MS);
-    var footerText = 'You are receiving this because this address was signed up for CTTC results. To stop, open ' + personal;
-    var footerHtml = '<p style="font-family:Georgia,serif;font-size:0.72rem;color:#999;max-width:560px;margin:8px auto 0;">You are receiving this because this address was signed up for CTTC results. <a href="' + personal + '" style="color:#999;">Unsubscribe</a></p>';
-    sendMail_(address, "You're subscribed to CTTC results",
+    var footerText = 'You are receiving this because this address was signed up for CTTC emails. To stop, open ' + personal;
+    var footerHtml = '<p style="font-family:Georgia,serif;font-size:0.72rem;color:#999;max-width:560px;margin:8px auto 0;">You are receiving this because this address was signed up for CTTC emails. <a href="' + personal + '" style="color:#999;">Unsubscribe</a></p>';
+    sendMail_(address, "You're subscribed to CTTC emails",
       intro + (latest ? '\n\n' + latest.text : '') + '\n\n' + footerText,
       '<p style="font-family:Georgia,serif;max-width:560px;margin:0 auto 20px;color:#1a1a1a;"><strong>' + intro + '</strong></p>' + (latest ? latest.html : '') + footerHtml);
   } catch (error) {

@@ -1041,8 +1041,14 @@ h2.announcement-tag {
 
 .title-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
+}
+
+.title-actions > * {
+  white-space: nowrap;
 }
 
 .subscribe-launch {

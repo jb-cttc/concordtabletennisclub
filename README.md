@@ -217,6 +217,16 @@ New subscribers get a welcome email that includes the most recent results
 can still delete a row in the private `Subscribers` tab. Never put
 addresses in an issue, commit, or the published `data/` directory.
 
+**Email list and club updates:** subscribing also signs people up for the
+executive committee's occasional updates, which the club sends by hand from its
+Gmail. The **Email list** lock button on the Membership page opens
+`email-list.html`, which frames the released desk with `?view=subscribers`
+(`apps-script/EmailList.js`), so it opens only for the club's Google account.
+The page is read-only: it shows the current list with **Copy all for Bcc**, a
+ready-made unsubscribe line to end each update with, and how much of the
+club's daily Gmail allowance an update uses ([Google limits](docs/google-limits.md)).
+Copy it fresh for each update, so people who unsubscribed are left out.
+
 ## Backlog and roadmap
 
 Use [GitHub Issues](https://github.com/jb-cttc/concordtabletennisclub/issues)

@@ -56,26 +56,26 @@
     </div>
   </div>
 
-  <p class="subscribe-explain"><strong>Subscribe</strong> to get the results by email after every round robin, usually within minutes of the night&rsquo;s last match. You&rsquo;ll also get club updates, announcements, and important reminders. <button id="email-preview-launch" class="link-button" type="button" aria-haspopup="dialog">See what the email looks like</button></p>
+  <p class="subscribe-explain"><strong>Subscribe</strong> to get an automated round robin summary by email after every round robin, usually within minutes of the night&rsquo;s last match, plus any important updates from the club&rsquo;s executive committee as they come up. <button id="email-preview-launch" class="link-button" type="button" aria-haspopup="dialog">See what the email looks like</button></p>
 
   <!-- What subscribing means, with the real latest results email (data/latest-session-email.json, the same file the
        sign-up app's welcome email uses). Timing follows apps-script/PublishTimer.js and .github/workflows/update-data.yml. -->
   <dialog id="email-preview-dialog" class="email-preview-dialog" aria-labelledby="email-preview-title">
     <button id="email-preview-close" class="subscribe-close" type="button" aria-label="Close">&times;</button>
-    <h2 id="email-preview-title">What you&rsquo;ll get by email</h2>
+    <h2 id="email-preview-title">What subscribing gets you</h2>
     <dl class="email-facts">
-      <dt>Round robin results</dt>
-      <dd>One email after each Monday, Wednesday, and Saturday round robin: the winner of every group, the night&rsquo;s biggest rating movers, the totals, and a link to the full results. Special events such as the Equalizer get one too.</dd>
+      <dt>Round robin summaries</dt>
+      <dd>One automated email after each Monday, Wednesday, and Saturday round robin: the winner of every group, the night&rsquo;s biggest rating movers, the totals, and a link to the full results. Special events such as the Equalizer get one too.</dd>
       <dt>When it arrives</dt>
       <dd>A few minutes after the organizers finalize the night&rsquo;s results: usually around <strong>10&nbsp;PM on Mondays and Wednesdays</strong> and around <strong>6&nbsp;PM on Saturdays</strong>. If something holds it up, it arrives later that night or the next morning.</dd>
-      <dt>Club news</dt>
-      <dd>Your address is also on the list for club updates and announcements, and important reminders such as closures and schedule changes.</dd>
+      <dt>Committee updates</dt>
+      <dd>Subscribing also puts your address on the list the club&rsquo;s executive committee uses for important updates, such as closures, schedule changes and announcements. These go out only when there is something to tell you.</dd>
       <dt>Right away</dt>
       <dd>When you sign up, we send a welcome email with the latest results, so you can see it in your inbox.</dd>
       <dt>Your address</dt>
       <dd>Kept private: never shown on this site or shared. Every email ends with an unsubscribe link, or you can <a href="unsubscribe.html">unsubscribe here</a> any time.</dd>
     </dl>
-    <h3 class="email-sample-heading">Sample: the latest results email</h3>
+    <h3 class="email-sample-heading">Sample: the latest round robin summary</h3>
     <div class="email-mock">
       <div class="email-mock-head">
         <div><span>From</span> Concord Table Tennis Club</div>
@@ -89,9 +89,9 @@
     </div>
   </dialog>
 
-  <dialog id="subscribe-dialog" class="subscribe-dialog" aria-label="Get results by email">
+  <dialog id="subscribe-dialog" class="subscribe-dialog" aria-label="Join the club email list">
     <button id="subscribe-close" class="subscribe-close" type="button" aria-label="Close">&times;</button>
-    <iframe id="subscribe-frame" title="Get results by email"></iframe>
+    <iframe id="subscribe-frame" title="Join the club email list"></iframe>
   </dialog>
 
   <div class="tonight-teaser">

@@ -38,8 +38,8 @@ environment gains a new kind of access, add it here and to
 `.claude/hooks/session-start.sh`, not as a separate note.
 
 - **The real Google desk** (`/dev`, `/exec`, and the `?view=cash`,
-  `?view=clover` and `?view=volunteers` pages):
-  `npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers] [--selector CSS] [--width 390] --out <scratchpad dir>`,
+  `?view=clover`, `?view=volunteers` and `?view=subscribers` pages):
+  `npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers|subscribers] [--selector CSS] [--width 390] --out <scratchpad dir>`,
   then Read the screenshots it prints (`scripts/desk-google-view.js`). It only
   looks, never clicks or saves; keep any extra checks read-only too. Uses the
   clasp sign-in `~/.clasprc.json`, written at session start from

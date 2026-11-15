@@ -146,7 +146,7 @@ function appendAudit_(action, entityType, entityId, details) {
 function doGet(event) {
   return guardDesk_('page_load', function () {
     var view = event && event.parameter && event.parameter.view;
-    return view === 'cash' ? cashPage_(event) : view === 'clover' ? cloverPage_(event) : view === 'volunteers' ? volunteerAdminPage_() : deskPage_(event);
+    return view === 'cash' ? cashPage_(event) : view === 'clover' ? cloverPage_(event) : view === 'volunteers' ? volunteerAdminPage_() : view === 'subscribers' ? emailListPage_() : deskPage_(event);
   });
 }
 
