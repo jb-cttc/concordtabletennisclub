@@ -1,5 +1,820 @@
 [
   {
+    "date": "2026-11-14",
+    "sessionId": "session-2026-11-14",
+    "source": "app",
+    "revision": 65,
+    "finalizedAt": "11/14/2026",
+    "groups": [
+      {
+        "name": "Group 1",
+        "players": [
+          {
+            "name": "Olaf Surmann",
+            "wins": 5,
+            "losses": 0,
+            "gamesWon": 15,
+            "gamesLost": 1,
+            "ratingBefore": 2053,
+            "ratingAfter": 2053,
+            "ratingAdj": 0,
+            "matches": [
+              {
+                "opponent": "Ray T",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Ngai-Chi Chung",
+            "wins": 3,
+            "losses": 2,
+            "gamesWon": 12,
+            "gamesLost": 9,
+            "ratingBefore": 1772,
+            "ratingAfter": 1760,
+            "ratingAdj": -12,
+            "matches": [
+              {
+                "opponent": "Ray T",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -16,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Olaf Surmann",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Kyint Ng",
+            "wins": 2,
+            "losses": 3,
+            "gamesWon": 8,
+            "gamesLost": 11,
+            "ratingBefore": 1691,
+            "ratingAfter": 1667,
+            "ratingAdj": -24,
+            "matches": [
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -20,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 16,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ray T",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -20,
+                "forfeit": false
+              },
+              {
+                "opponent": "Olaf Surmann",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Eric Aki",
+            "wins": 2,
+            "losses": 3,
+            "gamesWon": 6,
+            "gamesLost": 13,
+            "ratingBefore": 1434,
+            "ratingAfter": 1504,
+            "ratingAdj": 70,
+            "matches": [
+              {
+                "opponent": "Olaf Surmann",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 35,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ray T",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 35,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Jafar Fatemi",
+            "wins": 1,
+            "losses": 3,
+            "gamesWon": 7,
+            "gamesLost": 10,
+            "ratingBefore": 1600,
+            "ratingAfter": 1583,
+            "ratingAdj": -17,
+            "matches": [
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 20,
+                "forfeit": false
+              },
+              {
+                "opponent": "Olaf Surmann",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ray T",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "both"
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -35,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Ray T",
+            "wins": 1,
+            "losses": 3,
+            "gamesWon": 6,
+            "gamesLost": 10,
+            "ratingBefore": 1600,
+            "ratingAfter": 1583,
+            "ratingAdj": -17,
+            "matches": [
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Olaf Surmann",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 20,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "both"
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -35,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          }
+        ]
+      },
+      {
+        "name": "Group 2",
+        "players": [
+          {
+            "name": "Victor Lee",
+            "wins": 4,
+            "losses": 0,
+            "gamesWon": 12,
+            "gamesLost": 2,
+            "ratingBefore": 1408,
+            "ratingAfter": 1408,
+            "ratingAdj": 0,
+            "matches": [
+              {
+                "opponent": "Alex Hwang",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Bryan O",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Anil Kumar Jannu",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "both"
+              },
+              {
+                "opponent": "Amar Solanke",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Bryan O",
+            "wins": 3,
+            "losses": 2,
+            "gamesWon": 11,
+            "gamesLost": 6,
+            "ratingBefore": 1122,
+            "ratingAfter": 1108,
+            "ratingAdj": -14,
+            "matches": [
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 5,
+                "forfeit": false
+              },
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Hwang",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -20,
+                "forfeit": false
+              },
+              {
+                "opponent": "Anil Kumar Jannu",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Amar Solanke",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Anil Kumar Jannu",
+            "wins": 2,
+            "losses": 3,
+            "gamesWon": 5,
+            "gamesLost": 10,
+            "ratingBefore": 897,
+            "ratingAfter": 896,
+            "ratingAdj": -1,
+            "matches": [
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Hwang",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Alex Hwang"
+              },
+              {
+                "opponent": "Bryan O",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Amar Solanke",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 2,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Amar Solanke",
+            "wins": 2,
+            "losses": 3,
+            "gamesWon": 5,
+            "gamesLost": 11,
+            "ratingBefore": 750,
+            "ratingAfter": 798,
+            "ratingAdj": 48,
+            "matches": [
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Hwang",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Alex Hwang"
+              },
+              {
+                "opponent": "Bryan O",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Anil Kumar Jannu",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 50,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Alex Hwang",
+            "wins": 2,
+            "losses": 3,
+            "gamesWon": 6,
+            "gamesLost": 5,
+            "ratingBefore": 1030,
+            "ratingAfter": 1060,
+            "ratingAdj": 30,
+            "matches": [
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Bryan O",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 20,
+                "forfeit": false
+              },
+              {
+                "opponent": "Anil Kumar Jannu",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Alex Hwang"
+              },
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 10,
+                "forfeit": false
+              },
+              {
+                "opponent": "Amar Solanke",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Alex Hwang"
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Barry Tesar",
+            "wins": 1,
+            "losses": 3,
+            "gamesWon": 6,
+            "gamesLost": 11,
+            "ratingBefore": 1044,
+            "ratingAfter": 981,
+            "ratingAdj": -63,
+            "matches": [
+              {
+                "opponent": "Bryan O",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -5,
+                "forfeit": false
+              },
+              {
+                "opponent": "Anil Kumar Jannu",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "both"
+              },
+              {
+                "opponent": "Alex Hwang",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -10,
+                "forfeit": false
+              },
+              {
+                "opponent": "Amar Solanke",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -50,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          }
+        ]
+      },
+      {
+        "name": "Group 3",
+        "players": [
+          {
+            "name": "Alex Ignatov",
+            "wins": 4,
+            "losses": 0,
+            "gamesWon": 12,
+            "gamesLost": 4,
+            "ratingBefore": 300,
+            "ratingAfter": 436,
+            "ratingAdj": 136,
+            "matches": [
+              {
+                "opponent": "Lorin Brambila",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 50,
+                "forfeit": false
+              },
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 20,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 50,
+                "forfeit": false
+              },
+              {
+                "opponent": "Reyan Mukherjee",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 16,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Simon He",
+            "wins": 3,
+            "losses": 1,
+            "gamesWon": 8,
+            "gamesLost": 4,
+            "ratingBefore": 618,
+            "ratingAfter": 579,
+            "ratingAdj": -39,
+            "matches": [
+              {
+                "opponent": "Lorin Brambila",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 10,
+                "forfeit": false
+              },
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Reyan Mukherjee",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Reyan Mukherjee"
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -50,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Lorin Brambila",
+            "wins": 2,
+            "losses": 2,
+            "gamesWon": 8,
+            "gamesLost": 7,
+            "ratingBefore": 646,
+            "ratingAfter": 586,
+            "ratingAdj": -60,
+            "matches": [
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -10,
+                "forfeit": false
+              },
+              {
+                "opponent": "Reyan Mukherjee",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -50,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Miles Rafe",
+            "wins": 1,
+            "losses": 3,
+            "gamesWon": 4,
+            "gamesLost": 9,
+            "ratingBefore": 400,
+            "ratingAfter": 386,
+            "ratingAdj": -14,
+            "matches": [
+              {
+                "opponent": "Lorin Brambila",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Reyan Mukherjee",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 7,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -20,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Reyan Mukherjee",
+            "wins": 0,
+            "losses": 4,
+            "gamesWon": 1,
+            "gamesLost": 9,
+            "ratingBefore": 383,
+            "ratingAfter": 360,
+            "ratingAdj": -23,
+            "matches": [
+              {
+                "opponent": "Lorin Brambila",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -7,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Reyan Mukherjee"
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -16,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          }
+        ]
+      }
+    ]
+  },
+  {
     "date": "2026-11-11",
     "sessionId": "session-2026-11-11",
     "source": "app",
