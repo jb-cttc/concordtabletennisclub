@@ -207,7 +207,7 @@ const phases = [
         limits: [], tests: [T('apps-script/check-open-play.cjs', '', 'Open Play and the coaching list.')],
         untested: ['A lesson\'s table reaching the desk (it does not today).'], simulate: 'check-open-play.cjs.' } },
     { id: 'coach-4-tables', title: 'Keep the lesson tables free', who: 'Desk volunteer', when: 'During play',
-      summary: 'Lessons are booked on table 1, 2 or 3. On a Friday the floor is open play around them; on a Saturday the round robin pilot runs in the same 3–6 PM window. The desk organizer has to keep those tables free when lessons start.',
+      summary: 'Lessons are booked on table 1, 2 or 3. On a Friday the floor is open play around them; on a Saturday the round robin runs in the same 3–6 PM window. The desk organizer has to keep those tables free when lessons start.',
       subtext: 'Today the table number lives only in the coaching app and the coach\'s confirmation email; the desk and the round robin sheets do not know which tables are booked.',
       caveats: ['On Saturdays, count lesson tables out before assigning round robin tables.'],
       exceptions: [X('Round robin groups need every table on a Saturday', 'Nothing warns that a lesson table is in use.', 'Check the coaching board for the day before printing.', 'gap', 'apps-script/Coaching.js:29')],
@@ -219,7 +219,7 @@ const phases = [
         simulate: 'Add table to coachingLessons_ and assert it reaches renderOpen.' } }
   ],
   findings: [
-    { severity: 'medium', kind: 'design-gap', title: 'The desk does not show which table a lesson is booked on', detail: 'A lesson is booked on table 1, 2 or 3 (Availability.table), but the desk\'s lesson rows carry only the coach and time. On a Saturday the round robin pilot and lessons share the 3–6 PM window: the organizer can print groups onto a table a coach expects at 3:30.', evidence: ['apps-script/Coaching.js:29', CA + ':113'], confirmed: 'read code only', suggest: 'Carry the table into coachingLessons_ and show "Table 2, 3:30–4:30 PM" on the desk; on Saturdays, note lesson tables beside Print RR Sheets.' },
+    { severity: 'medium', kind: 'design-gap', title: 'The desk does not show which table a lesson is booked on', detail: 'A lesson is booked on table 1, 2 or 3 (Availability.table), but the desk\'s lesson rows carry only the coach and time. On a Saturday the round robin and lessons share the 3–6 PM window: the organizer can print groups onto a table a coach expects at 3:30.', evidence: ['apps-script/Coaching.js:29', CA + ':113'], confirmed: 'read code only', suggest: 'Carry the table into coachingLessons_ and show "Table 2, 3:30–4:30 PM" on the desk; on Saturdays, note lesson tables beside Print RR Sheets.' },
     { severity: 'low', kind: 'fragile', title: '"Coaching lessons unavailable" writes over the status bar', detail: 'If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.', evidence: ['apps-script/Index.html:4270'], confirmed: 'read code only', suggest: 'Use the page\'s setStatus, or show it inside the Open Play / Coaching section.' }
   ]
 }

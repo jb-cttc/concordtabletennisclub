@@ -649,6 +649,69 @@ td {
   background: #2f5f8f;
 }
 
+/* Which nights have the round robin, beside each day under When. */
+.schedule-list li {
+  margin-bottom: 4px;
+}
+
+.day-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 7px;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.6;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.day-tag.rr {
+  background: var(--red);
+  color: #fff;
+}
+
+.day-tag.open {
+  border: 1px solid #9bb3cc;
+  background: #fff;
+  color: #2f5f8f;
+}
+
+/* The WhatsApp group, across the foot of the logistics box. */
+.whatsapp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #c5d7ea;
+}
+
+.announcement.logistics a.whatsapp-join {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 4px;
+  background: #1f7a4a;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.announcement.logistics a.whatsapp-join:hover {
+  background: #17603a;
+  color: #fff;
+}
+
+.whatsapp-row span {
+  font-size: 0.9rem;
+}
+
 h2.announcement-tag {
   margin: 0 0 14px;
   padding: 2px 8px;
@@ -978,8 +1041,14 @@ h2.announcement-tag {
 
 .title-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
+}
+
+.title-actions > * {
+  white-space: nowrap;
 }
 
 .subscribe-launch {
@@ -1012,7 +1081,7 @@ h2.announcement-tag {
   inset: 0;
   margin: auto;
   width: min(440px, calc(100vw - 24px));
-  height: min(380px, calc(100vh - 24px));
+  height: min(430px, calc(100vh - 24px));
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1081,6 +1150,128 @@ h2.announcement-tag {
   cursor: pointer;
   font-size: 1.6rem;
   line-height: 1;
+}
+
+/* What subscribing means, under the Subscribe button, and the email preview it opens. */
+.subscribe-explain {
+  margin: -14px 0 22px;
+  padding: 8px 12px;
+  border: 1px solid #b9d6bf;
+  border-radius: 4px;
+  background: #f0f7f1;
+  font-size: 0.92rem;
+}
+
+.link-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #1f5a2e;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: #14401f;
+}
+
+.email-preview-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(640px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 22px 20px 20px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.email-preview-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.email-preview-dialog h2 {
+  margin: 0 28px 12px 0;
+  font-size: 1.2rem;
+}
+
+.email-facts {
+  display: grid;
+  grid-template-columns: 9.5em 1fr;
+  gap: 8px 14px;
+  margin: 0 0 18px;
+  font-size: 0.92rem;
+}
+
+.email-facts dt {
+  font-weight: 700;
+  color: #1f5a2e;
+}
+
+.email-facts dd {
+  margin: 0;
+}
+
+.email-sample-heading {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.email-mock {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.email-mock-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #f6f4ef;
+  font-size: 0.85rem;
+}
+
+.email-mock-head span:first-child {
+  display: inline-block;
+  min-width: 4.5em;
+  color: var(--muted);
+}
+
+.email-mock iframe {
+  display: block;
+  width: 100%;
+  height: 420px;
+  border: 0;
+}
+
+.email-preview-status {
+  margin: 0;
+  padding: 24px 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.email-preview-actions {
+  margin-top: 16px;
+  text-align: right;
+}
+
+@media (max-width: 560px) {
+  .email-facts {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .email-facts dd {
+    margin-bottom: 8px;
+  }
 }
 
 /* ---- Player profile ---- */
@@ -1586,11 +1777,15 @@ footer {
   margin: 16px 0;
 }
 
-/* Recent results on the Round Robins page: one collapsible panel per round robin day. */
-.pilot-note {
-  border-left: 3px solid var(--red);
+/* The round robin days and their sign-up times, under the Round Robins intro. */
+.rr-schedule {
+  margin: -6px 0 22px;
   padding-left: 12px;
+  border-left: 3px solid var(--red);
+  list-style: none;
 }
+
+/* Recent results on the Round Robins page: one collapsible panel per round robin day. */
 
 .recent-day {
   border-bottom: 1px solid var(--border);

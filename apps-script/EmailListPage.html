@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CTTC Email list</title>
+<style>
+  /* The desk's look (VolunteerAdminPage.html): green bar with a gold rule, white panels, Georgia headings, Arial small print. */
+  :root { --ink: #17211b; --muted: #657069; --line: #d8ddd9; --green: #176b45; --gold: #c99934; --red: #a43831; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: linear-gradient(135deg, #eef2ed, #f8f7f1 48%, #edf2f3); color: var(--ink); font-family: Georgia, "Times New Roman", serif; }
+  button, textarea { font: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+  .top { background: #123f2b; color: #fff; border-bottom: 5px solid var(--gold); }
+  .top-inner { max-width: 900px; margin: auto; padding: 14px 20px; }
+  .brand { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .brand small { display: block; margin-top: 2px; color: #dce9e1; font: 12px Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  .lock { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 4px; background: #8b1a1a; font-size: 17px; }
+  .shell { max-width: 900px; margin: auto; padding: 18px 20px 60px; }
+  .statusbar { padding: 10px 14px; background: #e7eee9; border-left: 4px solid var(--green); font: 14px Arial, sans-serif; margin-bottom: 14px; }
+  .statusbar.error { background: #f6e8e6; border-color: var(--red); color: #6f241f; }
+  .panel { background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--green); border-radius: 6px; padding: 14px 16px; margin-bottom: 14px; }
+  .panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .panel p, .panel li { font: 14px/1.55 Arial, sans-serif; }
+  .panel p { margin: 0 0 10px; }
+  .count { font-size: 30px; font-weight: 700; color: var(--green); margin-right: 6px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  .primary { border: 0; border-radius: 4px; background: var(--green); color: #fff; padding: 9px 14px; font: 700 14px Arial, sans-serif; }
+  .secondary { border: 1px solid #aeb7b1; border-radius: 4px; background: #fff; color: var(--ink); padding: 8px 12px; font: 700 13px Arial, sans-serif; }
+  .copied { font: 700 13px Arial, sans-serif; color: var(--green); }
+  textarea { width: 100%; min-height: 76px; border: 1px solid #aeb7b1; border-radius: 4px; padding: 8px 10px; font: 13px/1.5 Menlo, Consolas, monospace; color: var(--ink); background: #fbfcfb; resize: vertical; }
+  .steps { margin: 0; padding-left: 20px; }
+  .steps li { margin-bottom: 8px; }
+  .warn { padding: 8px 12px; border-left: 4px solid #c25e00; background: #fff0dc; color: #5c2b00; }
+  table { width: 100%; border-collapse: collapse; font: 14px Arial, sans-serif; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #edf0ed; }
+  th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  td.when { color: var(--muted); white-space: nowrap; width: 1%; }
+  td.addr { word-break: break-all; }
+  #footer { min-height: 56px; margin-top: 6px; }
+  @media (max-width: 560px) { #footer { min-height: 120px; } #bcc { min-height: 120px; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="top-inner">
+  <div class="brand"><span class="lock" aria-hidden="true">&#128274;</span><div>Email list<small>Club account only &middot; read-only</small></div></div>
+</div></header>
+<main class="shell">
+  <div id="status" class="statusbar busy" role="status">Loading the email list&hellip;</div>
+
+  <section id="list" class="panel" hidden>
+    <h2><span id="count" class="count">0</span><span id="countLabel">addresses</span></h2>
+    <p>Everyone who pressed Subscribe on the club site and has not unsubscribed. They get the automated round robin results emails and the executive committee&rsquo;s updates. Unsubscribing removes an address from this list right away.</p>
+    <label for="bcc"><strong style="font:700 13px Arial,sans-serif">Addresses for Bcc</strong></label>
+    <textarea id="bcc" readonly spellcheck="false"></textarea>
+    <div class="row">
+      <button id="copyBcc" class="primary" type="button">Copy all for Bcc</button>
+      <span id="copiedBcc" class="copied" role="status"></span>
+    </div>
+  </section>
+
+  <section id="howto" class="panel" hidden>
+    <h2>Sending a club update</h2>
+    <ol class="steps">
+      <li>In Gmail, address the email <strong>To</strong> the club&rsquo;s own address.</li>
+      <li>Press <strong>Copy all for Bcc</strong> and paste into <strong>Bcc</strong>. Never To or Cc: everyone would see everyone else&rsquo;s address.</li>
+      <li>Copy the list fresh each time you send. An old copy would still email people who have since unsubscribed.</li>
+      <li>End the email with this line, so anyone can stop the emails:
+        <textarea id="footer" readonly spellcheck="false"></textarea>
+        <div class="row"><button id="copyFooter" class="secondary" type="button">Copy this line</button><span id="copiedFooter" class="copied" role="status"></span></div>
+      </li>
+    </ol>
+    <p id="allowance"></p>
+  </section>
+
+  <section id="people" class="panel" hidden>
+    <h2>On the list</h2>
+    <table>
+      <thead><tr><th>Email</th><th>Signed up</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+</main>
+<script>
+(function () {
+  var statusBox = document.getElementById('status');
+  var bcc = document.getElementById('bcc');
+  var footer = document.getElementById('footer');
+
+  function show(text, kind) {
+    statusBox.textContent = text;
+    statusBox.className = 'statusbar' + (kind ? ' ' + kind : '');
+  }
+
+  // Copies a text box: the clipboard API where the frame allows it, otherwise selecting the box and copying. The text
+  // stays selected either way, so a manual copy also works.
+  function copyBox(box, note) {
+    box.focus();
+    box.select();
+    function done(ok) {
+      note.textContent = ok ? 'Copied' : 'Selected: press Ctrl+C (or Cmd+C) to copy';
+      setTimeout(function () { note.textContent = ''; }, 4000);
+    }
+    function fallback() {
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (error) { ok = false; }
+      done(ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(box.value).then(function () { done(true); }, fallback);
+    else fallback();
+  }
+
+  function render(result) {
+    if (!result || !result.ok) { show((result && result.message) || 'The email list could not be loaded.', 'error'); return; }
+    var addresses = result.addresses || [];
+    var n = addresses.length;
+    document.getElementById('count').textContent = String(n);
+    document.getElementById('countLabel').textContent = n === 1 ? 'address' : 'addresses';
+    bcc.value = addresses.map(function (entry) { return entry.email; }).join(', ');
+    footer.value = 'You are receiving this because you subscribed at concordtabletennisclub.com. To stop these emails: ' + result.unsubscribeUrl;
+    var rows = document.getElementById('rows');
+    rows.textContent = '';
+    addresses.slice().reverse().forEach(function (entry) {
+      var tr = document.createElement('tr');
+      var email = document.createElement('td');
+      email.className = 'addr';
+      email.textContent = entry.email;
+      var when = document.createElement('td');
+      when.className = 'when';
+      when.textContent = entry.added || '';
+      tr.appendChild(email);
+      tr.appendChild(when);
+      rows.appendChild(tr);
+    });
+    // The club's Gmail allowance is shared with the results email, which goes to everyone on this list each round robin night.
+    var limit = result.dailyLimit;
+    var allowance = document.getElementById('allowance');
+    allowance.className = 2 * n > limit * 0.8 ? 'warn' : '';
+    allowance.textContent = 'The club’s Gmail sends to about ' + limit + ' recipients a day, shared with the results emails. An update to this list uses ' + n +
+      (2 * n > limit * 0.8 ? ', and a round robin night’s results use as many again: send updates on a day with no round robin.' : ', and a round robin night’s results use ' + n + ' more, so there is plenty of room.');
+    ['list', 'howto', 'people'].forEach(function (id) { document.getElementById(id).hidden = false; });
+    document.getElementById('people').hidden = n === 0;
+    show(n ? 'Loaded the current list.' : 'Nobody is on the list yet.');
+  }
+
+  document.getElementById('copyBcc').addEventListener('click', function () { copyBox(bcc, document.getElementById('copiedBcc')); });
+  document.getElementById('copyFooter').addEventListener('click', function () { copyBox(footer, document.getElementById('copiedFooter')); });
+
+  google.script.run
+    .withSuccessHandler(render)
+    .withFailureHandler(function (error) { show('The email list could not be loaded: ' + (error && error.message || error), 'error'); })
+    .getEmailList();
+})();
+</script>
+</body>
+</html>
