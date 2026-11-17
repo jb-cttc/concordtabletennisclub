@@ -318,6 +318,26 @@
     var frame = document.getElementById("volunteer-frame");
     var loading = document.getElementById("volunteer-loading");
     var calendar = [document.getElementById("closure-calendar"), document.getElementById("closure-legend")];
+    // Google takes two to four seconds to send the volunteer calendar, so the page asks for it once it has loaded, while the
+    // visitor reads, and the app's page picks the answer up from window.cttcStaffBoard when it opens (firstBoard in
+    // staffing-app/Index.html). An answer asked for more than BOARD_FRESH_MS ago is asked for again on opening. The same
+    // read-only call the app makes, to the address it uses (a check keeps the two the same), with no cookies.
+    var BOARD_URL = "https://script.google.com/macros/s/AKfycbx_ApmyAF8Yk6DCuzeD_3JR9HOo_QCbI5hGLyBLWMl8feuoTI969BYAWba268Er4_1h3g/exec";
+    var BOARD_FRESH_MS = 2 * 60 * 1000;
+    function prefetchBoard() {
+      var early = window.cttcStaffBoard;
+      if (early && Date.now() - early.at < BOARD_FRESH_MS) return;
+      if (!window.fetch || !window.Promise) return;
+      var text = fetch(BOARD_URL, { method: "POST", body: JSON.stringify({ fn: "staffBoard", args: [] }), credentials: "omit", redirect: "follow", headers: { "Content-Type": "text/plain;charset=utf-8" } })
+        .then(function (response) { if (!response.ok) throw new Error("HTTP " + response.status); return response.text(); });
+      text.catch(function () {});
+      window.cttcStaffBoard = { at: Date.now(), text: text };
+    }
+    // Not on a phone saving data: the app asks for it itself when opened.
+    if (!(navigator.connection && navigator.connection.saveData)) {
+      if (document.readyState === "complete") prefetchBoard();
+      else window.addEventListener("load", prefetchBoard);
+    }
     function ready() { loading.hidden = true; }
     // The app says when it is drawn and how tall it is, so the page grows with it instead of scrolling inside a frame.
     window.addEventListener("message", function (event) {
@@ -338,7 +358,10 @@
     launch.hidden = false;
     launch.addEventListener("click", function () {
       var open = app.hidden;
-      if (open && !frame.getAttribute("src")) frame.setAttribute("src", APP_PAGE + (mine ? "?mine=" + mine.toUpperCase() : ""));
+      if (open && !frame.getAttribute("src")) {
+        prefetchBoard();
+        frame.setAttribute("src", APP_PAGE + (mine ? "?mine=" + mine.toUpperCase() : ""));
+      }
       app.hidden = !open;
       calendar.forEach(function (el) { el.hidden = open; });
       launch.setAttribute("aria-expanded", String(open));

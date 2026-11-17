@@ -107,6 +107,33 @@ that address (with `google.script.run`). A change to `Index.html` reaches the
 website with the next site deploy (any push to `main`), and a change to
 `Code.js` with the usual `/exec` release.
 
+**How it opens fast (November 2026).** Every request to Google takes 1.5 to 2
+seconds before our code even starts, and now and then one sits for 20 seconds
+or more while the next answers in two. Opening the calendar used to take 3 to
+5 seconds after the tap, sometimes over 30. Three things now hide that:
+
+- **Asked for early.** The home page asks for the calendar (`staffBoard`) as
+  soon as it has loaded, while the visitor reads, and keeps the answer in
+  `window.cttcStaffBoard`. The app's page, on the same site, picks it up when
+  it opens (`firstBoard` in `Index.html`), so the calendar is usually there on
+  the tap. An answer asked for more than 2 minutes before the tap is asked for
+  again. A phone in data-saver mode is not asked early. The home page uses the
+  same `/exec` address as `API_URL` (`BOARD_URL` in `index.html`; a check keeps
+  them the same).
+- **A second try.** If the calendar has not arrived 6 seconds after the page
+  opened, the page sends a second request and draws whichever answer comes
+  first (at most two requests of its own).
+- **One shared calendar.** The calendar is the same for every visitor, so the
+  app keeps one built copy in the script cache (`cachedBoard_`) and skips
+  opening the Sheet, about a second per request. Every write to `Signups` goes
+  through `save_`, which starts a new copy (`boardChanged_`), so a sign-up, a
+  YES, a drop or a Volunteer Admin change shows on the very next load. The copy
+  also lapses by itself when the clock changes the calendar (`boardLapse_`):
+  tonight's sign-ups closing an hour before opening, a pending pick's deadline,
+  midnight. Otherwise it is kept for at most 10 minutes, so a closure or a Zeffy
+  pass can take that long to show (both were already cached for that long or
+  longer). Every pick is still checked against the Sheet when it is sent.
+
 ## 2. Setup (owner, once)
 
 The project exists: *CTTC Volunteer Signups* in the club account, linked by

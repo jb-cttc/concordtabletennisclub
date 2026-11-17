@@ -19,7 +19,7 @@ const phases = [
       subtext: 'Both /dev and /exec use the same real Sheet. Only /exec is the released code; /dev is whatever was last pushed from a branch.',
       caveats: ['A tab titled "DEV - CTTC Desk" with an amber /dev pill is the test copy. Do not run a night from it.', 'Each page carries a fingerprint of its code, made when Google serves it. A page stays on the code it opened with until it is reloaded.'],
       exceptions: [
-        X('The laptop is not signed in to the club Google account', 'After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.', 'Click the button, sign in with the club account, then reopen /desk.', 'handled', 'README.md:357'),
+        X('The laptop is not signed in to the club Google account', 'After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.', 'Click the button, sign in with the club account, then reopen /desk.', 'handled', 'README.md:368'),
         X('Someone opened the /dev link by mistake', 'It works, on the real Sheet, with untested code. The header pill and tab title say DEV.', 'Close it and open the /exec bookmark. Changes already made are in the real Sheet either way.', 'partial', 'apps-script/Code.js:166')],
       screen: { kind: 'desk', highlight: ['header-date'], status: 'Loading player directory...', note: 'The header, with the /exec pill and the date picker.' },
       tech: {
@@ -491,7 +491,7 @@ const phases = [
 ];
 
 const meta = {
-  commit: '968f14045b8deb9076c5b517cdb47c5902126a8d',
+  commit: '78bb55952eeaf6163d2cad4a261e9c1fdec4a404',
   intro: 'A round robin night at the club, from opening the desk to results on the site: what each person does, what the screen shows, what can go wrong at each step, and the code underneath.',
   source: 'Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
   findingsNote: 'Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement.'

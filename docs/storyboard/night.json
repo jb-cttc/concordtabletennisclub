@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "968f14045b8deb9076c5b517cdb47c5902126a8d",
+  "commit": "78bb55952eeaf6163d2cad4a261e9c1fdec4a404",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -171,14 +171,14 @@
        "happens": "They ask the club to approve an address once; the club gets an *Approve an email* message.",
        "handling": "Approve it from the email. After 7 days it is declined.",
        "status": "handled",
-       "evidence": "docs/staffing-flow.md:342"
+       "evidence": "docs/staffing-flow.md:370"
       },
       {
        "when": "Two people pick the last spot at once",
        "happens": "The server checks capacity; a submission is all or nothing, and the page marks the pick that failed and why.",
        "handling": "Pick another night or position.",
        "status": "handled",
-       "evidence": "docs/staffing-flow.md:246"
+       "evidence": "docs/staffing-flow.md:274"
       }
      ],
      "screen": {
@@ -198,13 +198,13 @@
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 911,
+        "line": 914,
         "symbol": "canTake_",
         "note": "Directory, training and sign-up mode."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 1364,
+        "line": 1426,
         "symbol": "(submit)",
         "note": "Validates every pick; all or nothing."
        },
@@ -259,7 +259,7 @@
        "happens": "Nothing changes; the volunteer is told once, with their nights and My nights link.",
        "handling": "They use My nights, or the club uses **Correct a volunteer's answer** on the setup page.",
        "status": "handled",
-       "evidence": "docs/staffing-flow.md:237"
+       "evidence": "docs/staffing-flow.md:265"
       },
       {
        "when": "The mail reader stops waking the app",
@@ -278,7 +278,7 @@
       "entry": [
        {
         "file": "staffing-app/Code.js",
-        "line": 3795,
+        "line": 3857,
         "symbol": "sweep",
         "note": "Hourly: expiries, retries, free spots, closures."
        },
@@ -327,7 +327,8 @@
      "summary": "Each night is marked **Needs people** (!), **Minimum crew** (+), **Fully staffed** (✓) or **Closed** (×), counted from confirmed sign-ups only. **Share to WhatsApp** on a night types a message for the club group saying what is still needed.",
      "subtext": "A night marked Needs people the day before is the club's real risk: no one with the key, or no one to lock up.",
      "caveats": [
-      "Closed nights come from data/closures.json on the site; the app re-reads it at most hourly and keeps the last good copy."
+      "Closed nights come from data/closures.json on the site; the app re-reads it at most hourly and keeps the last good copy.",
+      "The home page asks for the calendar as soon as it loads, so it is usually there on the tap. Every visitor gets one shared copy, rebuilt after any sign-up change and kept at most 10 minutes."
      ],
      "exceptions": [
       {
@@ -335,14 +336,14 @@
        "happens": "The hourly sweep cancels their shifts, emails each person once, and sends the club one summary.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "docs/staffing-flow.md:461"
+       "evidence": "docs/staffing-flow.md:489"
       },
       {
        "when": "Nobody signs up for lock-up or the desk",
        "happens": "The night stays at Needs people; the owner's daily summary lists it.",
        "handling": "Share to WhatsApp, or ask someone trained directly.",
        "status": "partial",
-       "evidence": "docs/staffing-flow.md:331"
+       "evidence": "docs/staffing-flow.md:359"
       }
      ],
      "screen": {
@@ -356,8 +357,32 @@
      "tech": {
       "entry": [
        {
+        "file": "index.html",
+        "line": 327,
+        "symbol": "prefetchBoard",
+        "note": "Asks for the calendar once the home page has loaded; the app's page picks it up."
+       },
+       {
+        "file": "staffing-app/Index.html",
+        "line": 900,
+        "symbol": "firstBoard",
+        "note": "Draws the early answer, or asks itself; a second request after 6 seconds."
+       },
+       {
         "file": "staffing-app/Code.js",
-        "line": 635,
+        "line": 1151,
+        "symbol": "cachedBoard_",
+        "note": "One shared calendar in the script cache; save_ starts a new one on every Signups write."
+       },
+       {
+        "file": "staffing-app/Code.js",
+        "line": 1189,
+        "symbol": "boardLapse_",
+        "note": "When the clock alone changes the calendar: tonight's cutoff, a pending deadline, midnight."
+       },
+       {
+        "file": "staffing-app/Code.js",
+        "line": 638,
         "symbol": "closures_",
         "note": "Reads closures.json hourly, keeps the last good copy."
        },
@@ -375,14 +400,27 @@
       ],
       "invariants": [
        "A night's status counts only confirmed sign-ups.",
-       "A closed night asks for nobody and sends no reminders."
+       "A closed night asks for nobody and sends no reminders.",
+       "A sign-up, YES, drop or Volunteer Admin change shows on the next calendar load; a night never shows as open for sign-ups after its cutoff."
       ],
-      "limits": [],
+      "limits": [
+       "One page call per home page visit; no daily allowance (see docs/google-limits.md)."
+      ],
       "tests": [
        {
         "file": "scripts/check-closures.js",
         "case": "",
         "covers": "Closures read by the site and the app."
+       },
+       {
+        "file": "staffing-app/check-staffing.cjs",
+        "case": "",
+        "covers": "The shared calendar: rebuilt after a write, lapses at the cutoff; the page's early answer and second request."
+       },
+       {
+        "file": "scripts/check-volunteer-signups.js",
+        "case": "",
+        "covers": "The home page asks early, once, with no cookies."
        }
       ],
       "untested": [],
@@ -407,7 +445,7 @@
        "happens": "The next person moves up; the hourly sweep emails them *Good news: you play free*.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "staffing-app/Code.js:1102"
+       "evidence": "staffing-app/Code.js:1105"
       }
      ],
      "screen": {
@@ -433,13 +471,13 @@
        },
        {
         "file": "index.html",
-        "line": 72,
+        "line": 81,
         "symbol": "data-until",
         "note": "The same end date on the home page."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 1010,
+        "line": 1013,
         "symbol": "freeSpots_",
         "note": "Who plays free."
        },
@@ -578,7 +616,7 @@
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 4355,
+        "line": 4417,
         "symbol": "adminApply_",
         "note": "Applies a reviewed change."
        }
@@ -618,7 +656,7 @@
      "evidence": [
       "staffing-app/Code.js:85",
       "apps-script/NightFees.js:21",
-      "index.html:72",
+      "index.html:81",
       "firstvisit.html:53"
      ],
      "confirmed": "read code only; checked the three values agree today and that no check compares them.",
@@ -1438,7 +1476,7 @@
        "happens": "After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.",
        "handling": "Click the button, sign in with the club account, then reopen /desk.",
        "status": "handled",
-       "evidence": "README.md:357"
+       "evidence": "README.md:368"
       },
       {
        "when": "Someone opened the /dev link by mistake",

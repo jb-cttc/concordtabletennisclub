@@ -27,6 +27,19 @@ Limits from [Google's quota page](https://developers.google.com/apps-script/guid
 Run time is measured from when our code starts, so Google's start-up time for each
 run is not included: the real total is somewhat higher than `JobRuntime` shows.
 
+**Page calls from the home page (November 2026).** The home page asks the
+volunteer app for its calendar once per visit, as soon as it has loaded, so the
+calendar is ready when someone taps Volunteer signups (see
+[staffing-flow.md](staffing-flow.md#1-what-it-does), *How it opens fast*); the
+page itself makes a second request only when the first has not answered in 6
+seconds. A page call counts against none of the daily allowances above (not timer
+run time, Gmail, email or web requests: the closures file it reads stays cached
+for an hour). It is answered from one shared copy in the script cache, so it
+opens the Sheet only after a sign-up changes or the copy lapses (at most every 10
+minutes). Guard: more than 120 calendar requests in a minute get *The calendar
+is busy right now* (`MAX_READS_PER_MINUTE`). Where to see it: the volunteer
+app's Executions page.
+
 The Equalizer ([operations](equalizer-operations.md)) adds no timers, Gmail reads,
 emails or web requests: each change at the desk (the setup, a result, the Round
 robin | Equalizer switch) is one page call, like a round robin save, and a page call
