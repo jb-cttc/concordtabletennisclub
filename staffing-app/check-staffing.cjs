@@ -44,6 +44,7 @@ const properties = {};
 const sent = [];
 let quota = 100;
 let cache = {};
+const cacheSeconds = {};
 let held = 0;
 let userHeld = false;
 let activeEmail = '';
@@ -203,7 +204,7 @@ const context = {
     getScriptLock: () => ({ waitLock: () => { assert.equal(held, 0, 'locks are never nested'); held += 1; }, releaseLock: () => { held -= 1; } }),
     getUserLock: () => ({ tryLock: () => (userHeld ? false : (userHeld = true)), releaseLock: () => { userHeld = false; } })
   },
-  CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = value; }, remove: key => { delete cache[key]; } }) },
+  CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value, seconds) => { cache[key] = value; cacheSeconds[key] = seconds; }, remove: key => { delete cache[key]; } }) },
   MailApp: { getRemainingDailyQuota: () => quota, sendEmail: message => { assert.equal(held <= 1, true); sent.push(message); } },
   GmailApp: {
     getInboxUnreadCount: () => 0,
@@ -267,7 +268,9 @@ const cell = (tab, line, name) => line[column(tab, name)];
 const signupRows = () => grids.Signups.slice(1);
 const signupsOf = email => signupRows().filter(line => cell('Signups', line, 'email') === email);
 const mailTo = (address, from = 0) => sent.slice(from).filter(message => message.to === address);
-const resetLimits = () => { Object.keys(cache).filter(key => key.startsWith('rate:')).forEach(key => { delete cache[key]; }); };
+// These checks also move the clock and edit the grids directly, where the app writes through save_ (which starts a new calendar
+// generation): so each starts one too, and the shared calendar copy is only tested where it is meant to be.
+const resetLimits = () => { Object.keys(cache).filter(key => key.startsWith('rate:') || key === 'board-gen').forEach(key => { delete cache[key]; }); };
 const board = () => { resetLimits(); return run('staffBoard'); };
 const night = date => board().nights.find(entry => entry.date === date);
 // The minute-by-minute trigger, without its 20 second and 5 minute throttles.
@@ -1491,6 +1494,67 @@ seedCheck();
   assert.deepEqual(JSON.parse(context.doPost(undefined).getContent()), { ok: false, message: 'Unknown request.' });
 }
 
+// ---- One built calendar is shared by every visitor until a sign-up changes or the clock would change it ----
+{
+  const was = clock;
+  const realRows = context.rows_;
+  let reads = 0;
+  context.rows_ = name => { if (name === 'Signups') reads += 1; return realRows(name); };
+  const load = () => { Object.keys(cache).filter(key => key.startsWith('rate:')).forEach(key => { delete cache[key]; }); return run('staffBoard'); };
+  clock = pacificAt('2026-10-21', '10:00');
+  delete cache['board-gen'];
+  const first = load();
+  assert.equal(reads, 1);
+  assert.deepEqual(load(), first, 'the next visitor gets the same calendar');
+  assert.equal(reads, 1, 'without reading the Sheet again');
+  assert.equal(cacheSeconds['board:' + cache['board-gen']], 600, 'kept for at most ten minutes');
+  const viaPage = JSON.parse(/var INITIAL = (.*);\n/.exec(context.doGet().getContent())[1]).staffBoard;
+  assert.deepEqual(viaPage, first, 'Google\'s copy of the page comes with the same calendar');
+  assert.equal(reads, 1);
+
+  // A sign-up (any write to Signups goes through save_) shows on the very next load.
+  const date = '2026-12-02';
+  Object.keys(cache).filter(key => key.startsWith('rate:')).forEach(key => { delete cache[key]; });
+  const result = run('signUp', { playerId: idOf('Ada Park'), email: emailOf('Ada Park'), picks: [{ date, position: 'close', finalize: false }] });
+  assert.equal(result.ok, true, result.message);
+  const after = load();
+  assert.equal(reads >= 2, true, 'the write started a new calendar');
+  const slots = night => after.nights.find(entry => entry.date === night).slots.close;
+  assert.equal(slots(date).some(slot => slot.pending && /^Ada/.test(slot.name)), true, 'the new pick is on it at once');
+
+  // A write landing while a load reads the Sheet: that load's copy is never served afterwards.
+  context.boardChanged_();
+  const counted = reads;
+  context.rows_ = name => { const rows = realRows(name); if (name === 'Signups') { reads += 1; context.boardChanged_(); } return rows; };
+  load();
+  context.rows_ = name => { if (name === 'Signups') reads += 1; return realRows(name); };
+  load();
+  assert.equal(reads, counted + 2, 'the copy made from rows read before the write is filed where nobody looks');
+
+  // When the clock alone changes the calendar, the copy lapses first.
+  const lapse = (at, signups = []) => { clock = at; return (context.boardLapse_(signups, at) - at) / 60000; };
+  assert.equal(lapse(pacificAt('2026-10-21', '17:30')), 30, 'Wednesday\'s sign-ups close an hour before 7 PM (from 6:01 PM, read to the minute)');
+  assert.equal(lapse(pacificAt('2026-10-21', '18:30')), 329, 'after the cutoff: midnight');
+  assert.equal(lapse(pacificAt('2026-10-20', '23:00')), 59, 'a Tuesday: midnight, when today moves on');
+  assert.equal(lapse(pacificAt('2026-10-24', '13:00')), 60, 'Saturday opens at 3 PM: sign-ups close from 2:01 PM');
+  const at = pacificAt('2026-10-21', '10:00');
+  assert.equal(lapse(at, [{ status: 'pending', expires_at: String(at + 90000) }, { status: 'confirmed', expires_at: String(at + 30000) },
+    { status: 'pending', expires_at: String(at - 1000) }]), 1.5, 'a pending pick\'s deadline, not a confirmed or already lapsed one');
+  clock = pacificAt('2026-10-21', '17:55');
+  delete cache['board-gen'];
+  load();
+  assert.equal(cacheSeconds['board:' + cache['board-gen']], 300, 'kept only until the cutoff');
+  clock = pacificAt('2026-10-21', '18:00');
+  delete cache['board-gen'];
+  load();
+  assert.equal(cache['board:' + cache['board-gen']], undefined, 'not kept at all in the last minute before it');
+
+  context.rows_ = realRows;
+  signupRows().filter(row => cell('Signups', row, 'date') === date && cell('Signups', row, 'player_id') === idOf('Ada Park')).forEach(row => { row[column('Signups', 'status')] = 'dropped'; });
+  delete cache['board-gen'];
+  clock = was;
+}
+
 // ---- A failing step of the minute check: logged at once, emailed to the club after 30 minutes without a break, and a
 // follow-up email when it works again ----
 {
@@ -2342,6 +2406,43 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
     assert.equal(page.querySelectorAll('.month').length, 3, 'the calendar is drawn');
     assert.equal(page.querySelector('#mine h2').textContent, 'Your nights, Sage', 'and the My nights link works from the site\'s address');
     site.window.close();
+  }
+
+  // Inside the home page, the calendar the home page asked for early is drawn (cttcStaffBoard in index.html), the page asks
+  // itself when that answer is no good, and a request still unanswered after 6 seconds (counted from the home page's ask)
+  // gets a twin at once.
+  {
+    const boardText = JSON.stringify(board());
+    const framed = async early => {
+      const requests = [];
+      const site = new JSDOM(fs.readFileSync(__dirname + '/Index.html', 'utf8'), {
+        url: 'https://concordtabletennisclub.com/volunteer-app.html', runScripts: 'dangerously', pretendToBeVisual: true,
+        beforeParse(window) {
+          window.HTMLElement.prototype.scrollIntoView = () => {};
+          Object.defineProperty(window, 'parent', { value: { cttcStaffBoard: early, postMessage: () => {} } });
+          window.fetch = (url, options) => {
+            requests.push(JSON.parse(options.body).fn);
+            resetLimits();
+            const text = context.doPost({ postData: { contents: options.body } }).getContent();
+            return Promise.resolve({ json: () => Promise.resolve(JSON.parse(text)) });
+          };
+        }
+      });
+      await wait(50);
+      const drawn = site.window.document.querySelectorAll('.month').length;
+      site.window.close();
+      return { requests, drawn };
+    };
+    let seen = await framed({ at: Date.now(), text: Promise.resolve(boardText) });
+    assert.deepEqual(seen, { requests: [], drawn: 3 }, 'the home page\'s answer is drawn, with no request of the page\'s own');
+    seen = await framed({ at: Date.now(), text: Promise.reject(new Error('offline')) });
+    assert.deepEqual(seen, { requests: ['staffBoard'], drawn: 3 }, 'a failed early ask: the page asks itself');
+    seen = await framed({ at: Date.now(), text: Promise.resolve('{"ok":false,"message":"The calendar is busy right now."}') });
+    assert.deepEqual(seen, { requests: ['staffBoard'], drawn: 3 }, 'so does an answer that is no good');
+    seen = await framed({ at: Date.now() - 7000, text: new Promise(() => {}) });
+    assert.deepEqual(seen, { requests: ['staffBoard'], drawn: 3 }, 'an early ask stuck for over 6 seconds gets a twin at once');
+    seen = await framed({ at: Date.now(), text: new Promise(() => {}) });
+    assert.deepEqual(seen, { requests: [], drawn: 0 }, 'but not before');
   }
   assert.ok(textReads > 0, 'texts come from the desk Sheet');
   // ---- When the check runs (90 minutes a day of timer run time are shared by every club app) ----

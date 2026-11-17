@@ -883,10 +883,47 @@
     redraw();
   }
   function reload() { call('staffBoard', [], start); }
+  // The calendar on opening. The home page asks for it while the visitor reads (cttcStaffBoard in index.html, the same site),
+  // so its answer is usually here already. Otherwise, or when that answer is no good, the page asks itself. Google now and
+  // then sits 20 seconds or more on one request while the next takes two, so a request still unanswered after HEDGE_MS gets a
+  // twin: the first good answer is drawn and the other ignored. At most two requests of the page's own. The wait counts from
+  // when the home page asked.
+  var HEDGE_MS = 6000;
+  function earlyBoard() {
+    try {
+      var early = window.parent !== window && window.parent.cttcStaffBoard;
+      return early && early.text && typeof early.text.then === 'function' ? { text: early.text, at: Number(early.at) || Date.now() } : null;
+    } catch (error) {
+      return null; // Google's copy sits in a frame from another site.
+    }
+  }
+  function firstBoard() {
+    var settled = false;
+    var waiting = 0;
+    var asked = 0;
+    function answer(result) {
+      waiting -= 1;
+      if (settled) return;
+      if (result && result.ok) { settled = true; start(result); return; }
+      if (asked < 2) ask();
+      else if (!waiting) { settled = true; start(result || { ok: false, message: 'Something went wrong. Please try again.' }); }
+    }
+    function ask() { asked += 1; waiting += 1; call('staffBoard', [], answer); }
+    var early = earlyBoard();
+    if (early) {
+      waiting += 1;
+      // The home page hands over the answer's text, so nothing from another window's objects is kept here.
+      early.text.then(function (text) { var result = null; try { result = JSON.parse(text); } catch (error) {} answer(result); }, function () { answer(null); });
+    } else {
+      ask();
+    }
+    var waited = early ? Math.min(HEDGE_MS, Math.max(0, Date.now() - early.at)) : 0;
+    setTimeout(function () { if (!settled && asked < 2) ask(); }, HEDGE_MS - waited);
+  }
 
   // A returning volunteer who ticked "Remember me" is known from the start, so restricted spots are greyed out at once.
   (function () { var me = saved('cttc-staff'); if (me && me.player && me.player.playerId) who = { playerId: me.player.playerId, name: me.player.name }; })();
-  if (INITIAL && INITIAL.staffBoard) start(INITIAL.staffBoard); else reload();
+  if (INITIAL && INITIAL.staffBoard) start(INITIAL.staffBoard); else firstBoard();
   if (INITIAL && INITIAL.mine) drawMine(INITIAL.mine); else if (mineCode) call('myNights', [mineCode], drawMine);
   if (who) access(who);
   // The club page shows its own loading note until this arrives. The message carries no data.

@@ -15,7 +15,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const block = /\n  \/\/ Volunteer signups:[\s\S]*?\n  \}\)\(\);\n/.exec(html);
 assert.ok(block, 'the volunteer script was found');
 assert.match(block[0], /var APP_PAGE = "volunteer-app\.html";/, 'the site\'s own copy of the page, never a Google address');
-assert.doesNotMatch(block[0], /script\.google\.com/);
+assert.equal(block[0].match(/script\.google\.com/g).length, 1, 'Google\'s address appears once: the calendar asked for early, never the frame');
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/update-data.yml'), 'utf8');
 assert.match(workflow, /cp staffing-app\/Index\.html _site\/volunteer-app\.html/, 'the site publishes the page');
 assert.match(fs.readFileSync(path.join(root, 'staffing-app', 'Index.html'), 'utf8'), /<meta name="viewport" content="width=device-width, initial-scale=1">/, 'phone width if the copy is opened on its own');
@@ -26,13 +26,23 @@ assert.doesNotMatch(phoneCss[0], /flex-wrap: nowrap/, 'the phone legend may wrap
 const apiUrl = /var API_URL = '([^']+)';/.exec(fs.readFileSync(path.join(root, 'staffing-app/Index.html'), 'utf8'));
 assert.ok(apiUrl && /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(apiUrl[1]), 'the page calls a released /exec address, never /dev');
 assert.match(fs.readFileSync(path.join(root, 'docs/staffing-flow.md'), 'utf8'), new RegExp(apiUrl[1].replace(/[.?]/g, '\\$&')), 'the address is written down for maintainers');
+assert.equal(/var BOARD_URL = "([^"]+)";/.exec(block[0])[1], apiUrl[1], 'the home page asks the same released app the page calls');
 assert.ok(html.indexOf('id="volunteer-launch"') < html.indexOf('id="closure-calendar"'), 'the button sits above the calendar');
 assert.doesNotMatch(html, /<iframe[^>]*id="volunteer-frame"[^>]*\ssrc=/, 'nothing loads until the button is pressed');
 
 const body = /<body>([\s\S]*)<\/body>/.exec(html)[1].replace(/<script[\s\S]*?<\/script>/g, '');
-function page(address = 'https://concordtabletennisclub.com/') {
+// Every page gets a fetch that records the calendar requests (jsdom has none); saveData plays a phone saving data.
+function page(address = 'https://concordtabletennisclub.com/', { saveData = false, loaded = true } = {}) {
   const dom = new JSDOM('<!doctype html><body>' + body + '</body>', { runScripts: 'outside-only', url: address });
+  const asked = [];
+  dom.window.fetch = (url, options) => {
+    asked.push({ url, options });
+    return Promise.resolve({ ok: true, text: () => Promise.resolve('{"ok":true,"nights":[]}') });
+  };
+  if (saveData) Object.defineProperty(dom.window.navigator, 'connection', { value: { saveData: true } });
+  Object.defineProperty(dom.window.document, 'readyState', { value: loaded ? 'complete' : 'loading', configurable: true });
   dom.window.eval(block[0]);
+  dom.window.asked = asked;
   return dom.window;
 }
 const byId = (window, id) => window.document.getElementById(id);
@@ -79,4 +89,33 @@ const odd = page('https://concordtabletennisclub.com/?mine=<script>');
 assert.equal(byId(odd, 'volunteer-app').hidden, true, 'anything but a code opens nothing');
 assert.equal(odd.location.search, '', 'and is cleared too');
 
-console.log('Volunteer signups checks passed');
+// The calendar is asked for once the home page has loaded, while the visitor reads, and handed to the app's page.
+(async () => {
+  const early = page();
+  assert.equal(early.asked.length, 1, 'asked for once the page has loaded');
+  assert.equal(early.asked[0].url, apiUrl[1]);
+  assert.deepEqual(JSON.parse(early.asked[0].options.body), { fn: 'staffBoard', args: [] }, 'only the public calendar');
+  assert.equal(early.asked[0].options.credentials, 'omit', 'with no cookies, like the app');
+  assert.equal(await early.cttcStaffBoard.text, '{"ok":true,"nights":[]}', 'the answer\'s text waits for the app\'s page');
+  byId(early, 'volunteer-launch').click();
+  assert.equal(early.asked.length, 1, 'a fresh answer is not asked for again on opening');
+
+  const later = page();
+  later.cttcStaffBoard.at -= 3 * 60 * 1000;
+  byId(later, 'volunteer-launch').click();
+  assert.equal(later.asked.length, 2, 'an answer older than two minutes is asked for again on opening');
+
+  const loading = page(undefined, { loaded: false });
+  assert.equal(loading.asked.length, 0, 'nothing is asked before the page has loaded');
+  loading.dispatchEvent(new loading.Event('load'));
+  assert.equal(loading.asked.length, 1);
+
+  const saving = page(undefined, { saveData: true });
+  assert.equal(saving.asked.length, 0, 'a phone saving data is not asked to fetch it early');
+  byId(saving, 'volunteer-launch').click();
+  assert.equal(saving.asked.length, 1, 'but opening the app still starts it at once');
+
+  assert.equal(page('https://concordtabletennisclub.com/?mine=' + code).asked.length, 1, 'a My nights link opens the app at once and asks once, not twice');
+
+  console.log('Volunteer signups checks passed');
+})().catch(error => { console.error(error); process.exit(1); });

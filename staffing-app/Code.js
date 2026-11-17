@@ -234,9 +234,11 @@ function initialData_(mine) {
   var code = String(mine || '').trim().toUpperCase();
   var initial = {};
   try {
-    var signups = rows_('Signups');
-    initial.staffBoard = board_(signups, closures_(), Date.now());
-    if (mine) {
+    if (!mine) {
+      initial.staffBoard = cachedBoard_();
+    } else {
+      var signups = rows_('Signups');
+      initial.staffBoard = board_(signups, closures_(), Date.now());
       var emails = rows_('Emails');
       var owner = mineOwner_(code, signups, emails);
       initial.mine = owner ? mineView_(owner, signups, emails, Date.now()) : fail_(MINE_GONE);
@@ -616,6 +618,7 @@ function save_(name, entry) {
   range.setNumberFormat('@');
   range.setValues([headers.map(function (key) { return entry[key] == null ? '' : String(entry[key]); })]);
   entry._row = row;
+  if (name === 'Signups') boardChanged_();
 }
 
 // Columns added in a later version get their header names on the next sweep, so nobody has to run setup() again.
@@ -1134,7 +1137,66 @@ function awardFree_(signups, emails, now) {
 // "This is me" can ask to drop it; nothing else identifies anyone.
 function staffBoard() {
   if (tooBusy_('read', MAX_READS_PER_MINUTE)) return fail_('The calendar is busy right now. Please try again in a minute.');
-  return board_(rows_('Signups'), closures_(), Date.now());
+  return cachedBoard_();
+}
+
+// The calendar is the same for every visitor, so one built copy is shared from the script cache: opening the page then skips
+// opening the Sheet, the slowest part of a request (about a second). The copy is filed under a generation that every write to
+// Signups replaces (save_ calls boardChanged_), so a sign-up, a YES, a drop or a Volunteer Admin change shows on the very next
+// load. It also lapses on its own when the calendar would change with the clock (boardLapse_): a night closing for sign-ups an
+// hour before opening, a pending pick's deadline, midnight. What remains can lag by up to BOARD_CACHE_SECONDS: the closures
+// (already cached for an hour) and the Zeffy pass list (10 minutes). signUp checks every pick against the Sheet regardless.
+var BOARD_CACHE_SECONDS = 600;
+var BOARD_GENERATION_SECONDS = 21600;
+function cachedBoard_() {
+  var now = Date.now();
+  var cache = null;
+  var key = '';
+  try {
+    cache = CacheService.getScriptCache();
+    var generation = cache.get('board-gen');
+    if (!generation) {
+      generation = id_();
+      cache.put('board-gen', generation, BOARD_GENERATION_SECONDS);
+    }
+    key = 'board:' + generation;
+    var kept = cache.get(key);
+    if (kept) return JSON.parse(kept);
+  } catch (error) {
+    cache = null;
+  }
+  var signups = rows_('Signups');
+  var board = board_(signups, closures_(), now);
+  var seconds = Math.min(BOARD_CACHE_SECONDS, Math.floor((boardLapse_(signups, now) - now) / 1000));
+  if (cache && seconds >= 5) {
+    try {
+      var text = JSON.stringify(board);
+      if (text.length < 90000) cache.put(key, text, seconds);
+    } catch (error) { /* only a cache */ }
+  }
+  return board;
+}
+
+// Every write to Signups goes through save_, which calls this: later loads build the calendar afresh. A load already reading the
+// Sheet files its copy under the old generation, where nobody looks for it.
+function boardChanged_() {
+  try { CacheService.getScriptCache().put('board-gen', id_(), BOARD_GENERATION_SECONDS); } catch (error) { /* lapses within BOARD_CACHE_SECONDS */ }
+}
+
+// The next moment (ms) the calendar changes with the clock alone: Pacific midnight (the day moves on), a club night today
+// passing its sign-up cutoff, or a pending pick reaching its deadline. Pacific time is read to the minute, so a minute is
+// taken off the wall-clock moments.
+function boardLapse_(signups, now) {
+  var today = pacificNow_().date;
+  var minutes = nowMinutes_();
+  var wall = [wallMinutes_(addDays_(today, 1), '00:00')];
+  if (NIGHTS[weekday_(today)]) wall.push(wallMinutes_(today, NIGHTS[weekday_(today)].start) - CUTOFF_MINUTES + 1);
+  var lapse = now + (Math.min.apply(null, wall.filter(function (at) { return at > minutes; })) - minutes - 1) * 60000;
+  signups.forEach(function (entry) {
+    var deadline = Number(entry.expires_at);
+    if (entry.status === 'pending' && deadline > now && deadline < lapse) lapse = deadline;
+  });
+  return lapse;
 }
 
 function board_(signups, closures, now) {
