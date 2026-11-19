@@ -5187,6 +5187,16 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
 .player-editor-notes .player-editor-warning{color:#6f241f}
 .player-editor-card .player-editor-links .player-editor-keep input{flex:none}
 .player-editor-links .player-editor-sub{margin:8px 0 4px;font-size:12px;color:var(--ink);font-weight:700}
+.player-editor-aliases.player-editor-clover li{display:block;border-top:1px solid var(--line);padding-top:6px}
+.player-editor-aliases.player-editor-clover li:first-child{border-top:0;padding-top:0}
+.player-editor-clover-card{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.player-editor-clover-card span{min-width:0}.player-editor-clover-card small{display:block;color:var(--muted);font-size:12px}
+.player-editor-clover-review{margin:8px 0 4px;padding:8px 10px;border-left:4px solid var(--gold,#c99934);background:#fff7e3}
+.player-editor-clover-review .player-editor-sub{margin:0 0 6px;font-size:13px;font-weight:700}
+.player-editor-clover-review ul{margin:0 0 8px}.player-editor-clover-review li{border:0!important;padding:0!important;margin:0 0 4px}
+.player-editor-card .player-editor-clover-review .player-editor-keep{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.player-editor-card .player-editor-clover-review input{flex:none;margin-top:2px;width:auto}
+.player-editor-clover-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .player-editor-links .hint{margin:0 0 6px}
 .player-editor-card .player-editor-links label.player-editor-member{margin:4px 0 8px 24px}
 .player-editor-card .player-editor-links label.player-editor-member[hidden]{display:none}
@@ -5233,6 +5243,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
         '<button type="button" class="secondary small" data-link-add="paysFor">+ Add a player</button>' +
         '<p class="hint" data-paid-by></p>' +
       '</fieldset>' +
+      '<fieldset class="player-editor-aliases player-editor-clover" hidden><legend>Clover cards</legend>' +
+        '<p class="hint">When one of these cards pays, the desk marks this player Credit by itself. Unlink a card that is not theirs.</p>' +
+        '<ul data-clover-cards></ul>' +
+        '<p class="hint" data-clover-note role="status" aria-live="polite"></p>' +
+      '</fieldset>' +
       '<datalist id="player-editor-directory"></datalist>' +
       '<p class="player-editor-error" role="alert"></p>' +
       '<footer><button type="button" class="secondary" data-editor-cancel>Cancel</button><button type="submit" class="primary" data-editor-review>Review changes</button></footer>' +
@@ -5261,6 +5276,11 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var juniorsBox = editor.querySelector('[data-juniors-box]');
   var linkLists = { juniors: editor.querySelector('[data-link-list="juniors"]'), paysFor: editor.querySelector('[data-link-list="paysFor"]') };
   var paidBy = editor.querySelector('[data-paid-by]');
+  // Clover cards (CloverPayments.js): shown only for a player the desk has linked a card to. Unlink has its own Review
+  // and Confirm, the same as on the Clover page, and is saved apart from the rest of the window.
+  var cloverBox = editor.querySelector('.player-editor-clover');
+  var cloverList = editor.querySelector('[data-clover-cards]');
+  var cloverNote = editor.querySelector('[data-clover-note]');
   var datalist = editor.querySelector('#player-editor-directory');
   var directory = [];
   var current = null;
@@ -5350,6 +5370,92 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     }
     showJunior();
   }
+  var CLOVER_SOURCES = { hand: 'Matched by hand', name: 'Name on the card', records: 'Saved from your records' };
+  var CLOVER_HOW = { hand: 'matched by hand', card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before', name: 'name on card',
+    initial: 'initial and last name on card', 'customer-name': 'Clover customer name', 'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays-for link', credit: 'a Credit mark' };
+  function cloverDay(value) {
+    var parts = String(value || '').split('-').map(Number);
+    if (parts.length !== 3) return '';
+    var day = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day.getUTCDay()] + ', ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parts[1] - 1] + ' ' + parts[2];
+  }
+  function cloverMoney(value) { var amount = Number(value) || 0; return '$' + (amount % 1 ? amount.toFixed(2) : String(amount)); }
+  function cloverLabel(link) { return link.card ? link.card + (link.parts.length ? ' and its Clover customer' : '') : link.parts.join(', '); }
+  function tag(name, className, text) { var node = document.createElement(name); if (className) node.className = className; if (text != null) node.textContent = text; return node; }
+  function fillClover(clover, reviewing) {
+    cloverList.replaceChildren();
+    var links = clover ? clover.links.filter(function (link) { return loaded && link.playerId === loaded.playerId; }) : [];
+    cloverBox.hidden = !links.length && !cloverNote.textContent;
+    links.forEach(function (link) {
+      var li = tag('li');
+      var id = link.keys.join(' ');
+      var head = tag('div', 'player-editor-clover-card');
+      var about = tag('span');
+      about.append(tag('strong', '', cloverLabel(link)), tag('small', '', (CLOVER_SOURCES[link.source] || 'Linked') + (link.linkedAt ? ', ' + cloverDay(link.linkedAt) : '') + ' \u00b7 ' +
+        (link.matches.length ? link.matches.length + (link.matches.length === 1 ? ' payment matched' : ' payments matched') : 'no payments matched yet')));
+      var unlink = tag('button', 'secondary small', reviewing === id ? 'Cancel' : 'Unlink\u2026');
+      unlink.type = 'button';
+      unlink.setAttribute('data-clover-unlink', id);
+      unlink.setAttribute('aria-expanded', reviewing === id ? 'true' : 'false');
+      unlink.addEventListener('click', function () { cloverNote.textContent = ''; fillClover(clover, reviewing === id ? '' : id); });
+      head.append(about, unlink);
+      li.appendChild(head);
+      if (reviewing === id) li.appendChild(cloverReview(clover, link));
+      cloverList.appendChild(li);
+    });
+  }
+  // Review and Confirm: what unlinking changes, and the matches recorded through the card, each ticked to be undone.
+  function cloverReview(clover, link) {
+    var name = function (id) { return clover.names[id] || linkName(id) || 'Unknown player'; };
+    var player = name(link.playerId);
+    var box = tag('div', 'player-editor-clover-review');
+    box.setAttribute('data-clover-review', link.keys.join(' '));
+    box.append(tag('p', 'player-editor-sub', 'Unlink ' + cloverLabel(link) + ' from ' + player + '?'),
+      tag('p', 'hint', 'When this card pays again, the desk will not mark ' + player + ' Credit. The payment waits in the Clover section for you to choose who it is for (Remember this card then teaches the desk the right person).'));
+    var ticks = [];
+    if (link.matches.length) {
+      box.appendChild(tag('p', 'hint', 'Matches recorded through it. Ticked ones are undone too: Credit goes back to unpaid (unless the method was changed by hand since), and the payment waits on that night\u2019s desk for you to match.'));
+      var list = tag('ul');
+      link.matches.slice().reverse().forEach(function (entry) {
+        var label = tag('label', 'player-editor-keep');
+        var tick = tag('input');
+        tick.type = 'checkbox';
+        tick.checked = true;
+        tick.entry = entry;
+        ticks.push(tick);
+        label.append(tick, document.createTextNode(cloverDay(entry.date) + (entry.clock ? ', ' + entry.clock : '') + ', ' + cloverMoney(entry.amount) + ': ' + entry.players.map(name).join(' + ') + ' (' + (CLOVER_HOW[entry.how] || entry.how) + ')'));
+        var li = tag('li');
+        li.appendChild(label);
+        list.appendChild(li);
+      });
+      box.appendChild(list);
+    } else {
+      box.appendChild(tag('p', 'hint', 'No matches were recorded through it, so nothing else changes.'));
+    }
+    var actions = tag('div', 'player-editor-clover-actions');
+    var confirm = tag('button', 'primary small', 'Confirm and unlink');
+    confirm.type = 'button';
+    confirm.disabled = !clover.enabled;
+    var note = tag('span', 'hint', clover.enabled ? '' : 'Unlinking turns on with CLOVER_ENABLED.');
+    confirm.addEventListener('click', function () {
+      var undo = ticks.filter(function (tick) { return tick.checked; }).map(function (tick) { return { date: tick.entry.date, paymentId: tick.entry.paymentId }; });
+      var playerId = loaded.playerId;
+      confirm.disabled = true;
+      note.textContent = 'Unlinking\u2026';
+      window.cttcRequest('unlinkCloverCard', playerId, link.keys, undo).then(function (fresh) {
+        if (!loaded || loaded.playerId !== playerId) return;
+        loaded.clover = fresh;
+        cloverNote.textContent = 'Unlinked ' + cloverLabel(link) + '.' + (undo.length ? ' ' + undo.length + (undo.length === 1 ? ' match undone: open that night' : ' matches undone: open those nights') + ' on the desk and match ' + (undo.length === 1 ? 'the payment' : 'the payments') + ' in the Clover section.' : '');
+        fillClover(fresh, '');
+      }).catch(function (failure) {
+        confirm.disabled = !clover.enabled;
+        note.textContent = 'Not unlinked: ' + (failure && failure.message || failure);
+      });
+    });
+    actions.append(confirm, note);
+    box.appendChild(actions);
+    return box;
+  }
   function linkNames(kind) {
     return [].map.call(linkLists[kind].querySelectorAll('input'), function (input) { return input.value.trim().replace(/\s+/g, ' '); }).filter(Boolean);
   }
@@ -5379,6 +5485,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     directory = window.cttcDesk && window.cttcDesk.players ? window.cttcDesk.players() : [];
     datalist.replaceChildren.apply(datalist, directory.map(function (entry) { var option = document.createElement('option'); option.value = entry.name; return option; }));
     fillLinks(null);
+    cloverNote.textContent = '';
+    fillClover(null, '');
     form.elements.keepOld.checked = true;
     keepOld.hidden = true;
     error(editStep, '');
@@ -5397,6 +5505,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       fields.email.placeholder = 'No email on file';
       (details.aliases || []).forEach(function (alias) { aliasRow(alias.name); });
       fillLinks(details.links);
+      fillClover(details.clover, '');
       setFieldsDisabled(false);
       fields.name.focus();
     }).catch(function (failure) {

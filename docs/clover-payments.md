@@ -126,7 +126,14 @@ passes. Its count is the number of payments waiting for the organizer.
 - **Matched** (folded) lists tonight's matches. **Undo** puts the players back
   to unpaid, unless their method was changed by hand since. It also makes the
   card forget them, and the payment then waits for the organizer: it never
-  matches by itself again.
+  matches by itself again. To unlink a card matched to the wrong person on an
+  earlier night, or matched by itself on several nights since, use **Unlink**
+  in the player's pencil window (below) or on the Clover page (section 4).
+- **Clover cards in the pencil window.** The pencil beside a player in the
+  directory shows a **Clover cards** section when the desk has linked a card
+  to them, and none otherwise. **Unlink…** there opens the same review as on
+  the Clover page, and **Confirm and unlink** saves it at once, apart from the
+  window's other changes.
 - A match whose player was later marked another way by hand (Cash, say) comes
   back to the waiting list, so the organizer can see it and undo it.
 - If Clover refunds or voids a payment after it was matched, the desk takes the
@@ -146,6 +153,32 @@ until Google confirms them, and sent when the connection returns.
 **Every night** at the foot of the desk section opens `?view=clover`. It shows
 every night in a date range: each Clover payment, what the desk does with it,
 and how that compares with the method chosen by hand.
+
+**Cards linked to players** comes first. It lists every card the desk matches
+by itself, whom it marks Credit, how it was learned (matched by hand, the name
+on the card, or saved from your records) and the payments matched through it.
+A card and the Clover customer remembered with it in the same match are one
+entry. **Find a player** narrows the list. When a card points to the wrong
+person:
+
+1. Press **Unlink…** beside it. The review says what changes: when the card
+   pays again the desk no longer marks that player Credit, and the payment
+   waits at the desk for the organizer to choose who it is for.
+2. It also lists every match recorded through the card, each ticked to be
+   undone. Untick any that were right. An undone match is the same as **Undo**
+   at the desk: Credit goes back to unpaid unless the method was changed by
+   hand since, and the payment waits on that night's desk, never matching by
+   itself again.
+3. **Confirm and unlink** does both. Then open each undone night on the desk
+   and match its payment to the right person (with **Remember this card**, so
+   the desk learns the right owner).
+
+The same **Unlink…** is in the player's pencil window on the desk, under
+**Clover cards** (shown only when they have a linked card). Unlinking needs
+`CLOVER_ENABLED`, like every change. If someone else changed
+the card or one of the matches since the page opened, nothing changes and the
+page asks you to show the list again. Only the club account can open this
+page.
 
 **Cards learned from your records** proposes cards from the hand records made
 before Clover matching started. Clover sends no name for a tapped card, so
@@ -175,9 +208,12 @@ themselves from then on. On a phone, each card is shown as its own block.
 | --- | --- |
 | `SessionPayments` | A match is the usual `credit` row, so the cash flow page and payment totals count it as Credit. |
 | `CloverMatches` | One row per payment and player matched: `how` is the rule that matched it, or `hand`. A row with no player is a payment waiting for the organizer after an undo (`held`) or set aside (`ignored`). A matched payment Clover later refunded or voided keeps its rows as `refunded`. |
-| `CloverLinks` | What the desk has learned: `link_key` (a card, `customer:`, `phone:` or `email:`), `player_id`, and `source` (`hand`, `name`, `records`). An empty `player_id` means the key paid for two different players and no longer matches. Delete a row to make the desk forget it. |
+| `CloverLinks` | What the desk has learned: `link_key` (a card, `customer:`, `phone:` or `email:`), `player_id`, and `source` (`hand`, `name`, `records`). An empty `player_id` means the key paid for two different players and no longer matches. To make the desk forget a card, use **Undo** at the desk or **Unlink** on the Clover page (section 4), never the Sheet. |
 
-Both tabs are made by the first match; reading never adds them. Names, phones,
+Both tabs are made by the first match; reading never adds them. The audit log
+also records each **Unlink** (`clover_card_unlinked`): the player, which card
+and Clover customer entries were removed, how and when each was learned, and
+how many matches were undone with it. Names, phones,
 emails and the last four digits of cards stay in the private Sheet and the
 owner-only desk. The audit log records each match, undo and set-aside with
 the player and how many players; the public desk log gets only codes and

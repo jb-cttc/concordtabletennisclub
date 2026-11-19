@@ -159,6 +159,11 @@ function touchStamp(name, args) {
   stamps[date][area] = String(Date.now());
   if (name === 'switchDayEvent') stamps[date].s = String(Date.now());
 }
+
+// A made-up card linked to the first player, for the pencil window's Clover cards section.
+let cloverCards = players.length ? [{ playerId: players[0].playerId, keys: ['card:MC|511111|7777', 'customer:C7'], card: 'MC \u2022\u20227777', parts: ['Clover customer'], source: 'hand', linkedAt: '2026-11-09',
+  matches: [{ date: '2026-11-09', paymentId: 'P1', clock: '7:20 PM', amount: 10, players: [players[0].playerId], how: 'hand' }, { date: '2026-11-16', paymentId: 'P2', clock: '7:02 PM', amount: 10, players: [players[0].playerId], how: 'card' }] }] : [];
+
 const rpc = {
   getAppState: function (date) {
     return { players, session: sessions['session-' + date] || null, ratingsSyncedThrough: '2026-09-28', ratingsCheckedAt: new Date().toISOString(), printed: prints['session-' + date] || null, printedEq: prints['session-' + date + '-equalizer'] || null, movedUp: movesBySession['session-' + date] || null };
@@ -251,7 +256,14 @@ const rpc = {
     const paidBy = Object.keys(playerLinks).filter(function (other) { return playerLinks[other].paysFor.indexOf(id) >= 0; });
     const names = {};
     [mine.memberId].concat(mine.juniors, mine.paysFor, paidBy).filter(Boolean).forEach(function (other) { names[other] = (players.find(function (item) { return item.playerId === other; }) || {}).name; });
-    return Object.assign({ email: emails[id] || '', active: true, links: Object.assign({}, mine, { paidBy: paidBy, names: names }) }, player);
+    // Clover cards: the first player has a made-up card the desk remembered for them (the real read is cloverLinksFor_).
+    const cards = cloverCards.filter(function (link) { return link.playerId === id; });
+    const clover = cards.length ? { enabled: true, names: { [id]: player.name }, links: cards } : null;
+    return Object.assign({ email: emails[id] || '', active: true, links: Object.assign({}, mine, { paidBy: paidBy, names: names }), clover: clover }, player);
+  },
+  unlinkCloverCard: function (playerId, keys) {
+    cloverCards = cloverCards.filter(function (link) { return !(link.playerId === playerId && link.keys.join(' ') === keys.join(' ')); });
+    return { enabled: true, names: {}, links: cloverCards };
   },
   updatePlayer: function (id, changes) {
     const player = players.find(function (item) { return item.playerId === id; });
@@ -384,6 +396,8 @@ const cashPreview = (function () {
   ['Code.js', 'SessionService.js', 'LinkedNames.js', 'MemberStatus.js', 'PrivatePayments.js', 'ZeffyTracking.js', 'OpenPlay.js', 'CashFlow.js', 'NightFees.js', 'SessionIds.js'].forEach(function (file) {
     vm.runInContext(fs.readFileSync(path.join(DESK, file), 'utf8'), context, { filename: file });
   });
+  // Volunteers playing free on a special night come from the staffing app (Volunteers.js); nobody does in this preview.
+  context.freeVolunteerFinder_ = () => () => ({});
   // A plain table stand-in: rows are objects, written and read as they are.
   context.rows_ = name => {
     if (!tables[name]) throw new Error('Missing database table: ' + name);

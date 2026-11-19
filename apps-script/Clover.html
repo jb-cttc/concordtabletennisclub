@@ -73,6 +73,12 @@ tr.conflict td{background:#fdf5f3}
 .empty{padding:40px 20px;text-align:center;border:1px dashed #aab5ae;background:rgba(255,255,255,.6);color:var(--muted);font:15px Arial,sans-serif}
 .footnote{font:12px/1.5 Arial,sans-serif;color:var(--muted);margin-top:22px}
 .footnote p{margin:0 0 6px}
+.find{display:block;font:12px Arial,sans-serif;color:var(--muted);margin:0 0 10px}.find input{display:block;margin-top:4px;width:min(320px,100%);border:1px solid #aeb7b1;background:#fff;color:var(--ink);padding:8px 10px;border-radius:4px}
+.links-scroll{max-height:440px;overflow-y:auto}
+@media(max-width:640px){.links-scroll{max-height:none;overflow:visible}}
+.secondary{border:1px solid #aeb7b1;background:#fff;color:var(--ink);border-radius:4px;padding:6px 12px;font:13px Arial,sans-serif}.secondary:hover{border-color:var(--green)}
+.review{border-left:4px solid var(--gold);background:#fff7e3;padding:10px 14px;margin:4px 0 10px;font:14px/1.5 Arial,sans-serif}
+.review p{margin:0 0 8px}.review ul{list-style:none;margin:0 0 8px;padding:0}.review li{margin:0 0 4px}.review label{display:flex;gap:8px;align-items:flex-start}.review input{margin-top:3px}
 [hidden]{display:none!important}
 @media(max-width:640px){table.payments thead{display:none}table.payments tr{display:grid;grid-template-columns:auto 1fr auto;gap:2px 10px;padding:9px 0;border-bottom:1px solid var(--line)}table.payments td{border:0;padding:0}table.payments td.when{grid-row:1;grid-column:1}table.payments td.card{grid-row:1;grid-column:2;color:var(--muted)}table.payments td.num{grid-row:1;grid-column:3}table.payments td.who,table.payments td.would,table.payments td.record{grid-column:1/-1}table.payments td.record:empty{display:none}table.payments tr.conflict{background:#fdf5f3}table.payments tr.conflict td{background:none}}
 @media(max-width:760px){.top-inner{flex-wrap:wrap;gap:10px;padding:12px 16px}.top-logo{width:42px;height:42px}.brand{font-size:20px;flex:1}.top-links{width:100%;margin-left:0;justify-content:space-between}.shell{padding:16px}.range label{flex:1 1 130px}.range input{width:100%}.tile strong{font-size:19px}.night-body{padding:6px 10px 12px}}
@@ -99,6 +105,13 @@ tr.conflict td{background:#fdf5f3}
 <header class="top"><div class="top-inner"><a class="top-logo" href="https://concordtabletennisclub.com/" target="_blank" rel="noopener" title="Concord Table Tennis Club homepage" aria-label="Concord Table Tennis Club homepage"><img src="https://concordtabletennisclub.com/assets/logo.png" alt=""></a><div class="brand">Clover payments<small>Concord Table Tennis Club</small></div><div class="top-links"><span id="mode-pill" class="mode-pill" data-mode="<?= deskMode ?>"></span><a id="desk-link" href="<?= deskUrl ?>">&larr; Back to the desk</a><a href="https://github.com/jb-cttc/concordtabletennisclub/issues/new" target="_blank" rel="noopener">Request a change</a></div></div></header>
 <main class="shell">
 <p id="mode-note" class="mode-note" hidden></p>
+<section id="links" class="panel" hidden aria-labelledby="links-title">
+  <div class="summary-head"><h2 id="links-title">Cards linked to players</h2></div>
+  <p class="diagnostics">When one of these cards pays, the desk marks its player Credit by itself. If a card points to the wrong person (a match made by mistake), use <b>Unlink</b>: you review what changes and confirm. Its next payment then waits for you at the desk, and the matches already recorded through it can be undone in the same step.</p>
+  <label class="find">Find a player<input id="links-find" type="search" autocomplete="off"></label>
+  <p id="links-note" class="save-note" role="status" aria-live="polite"></p>
+  <div id="links-list"></div>
+</section>
 <form id="range" class="panel range" novalidate>
   <label>From<input id="from" type="date" required></label>
   <label>To<input id="to" type="date" required></label>
@@ -411,6 +424,102 @@ tr.conflict td{background:#fdf5f3}
     ]);
   }
 
+  // Cards linked to players: read from the Sheet only, so they show before the Clover report finishes.
+  var SOURCES = { hand: 'Matched by hand', name: 'Name on the card', records: 'Saved from your records' };
+  var HOW = Object.assign({ hand: 'matched by hand', credit: 'by a Credit mark' }, REASONS);
+  var links = null;
+  var reviewing = '';
+  var reportShown = false;
+  var findField = document.getElementById('links-find');
+  var linksNote = document.getElementById('links-note');
+  function linkId(link) { return link.keys.join(' '); }
+  function linkLabel(link) { return link.card ? link.card + (link.parts.length ? ' and its Clover customer' : '') : link.parts.join(', '); }
+  function matchText(entry, name) {
+    return shortDate(entry.date) + (entry.clock ? ', ' + entry.clock : '') + ', ' + money(entry.amount) + ': ' + entry.players.map(name).join(' + ') + ' (' + (HOW[entry.how] || entry.how) + ')';
+  }
+  function loadLinks() {
+    request('getCloverLinks').then(function (data) { links = data; renderLinks(); }, function (error) {
+      document.getElementById('links').hidden = false;
+      linksNote.textContent = 'Could not read the linked cards: ' + message(error);
+    });
+  }
+  function renderLinks() {
+    var section = document.getElementById('links');
+    var body = document.getElementById('links-list');
+    body.textContent = '';
+    section.hidden = false;
+    var name = function (id) { return links.names[id] || 'Unknown player'; };
+    if (!links.links.length) { body.appendChild(el('p', { className: 'leftover', text: 'No cards are linked to players yet.' })); return; }
+    var find = findField.value.trim().toLowerCase();
+    var shown = links.links.filter(function (link) { return !find || name(link.playerId).toLowerCase().indexOf(find) >= 0 || linkLabel(link).toLowerCase().indexOf(find) >= 0; });
+    if (!shown.length) { body.appendChild(el('p', { className: 'leftover', text: 'No linked card for \u201c' + findField.value.trim() + '\u201d.' })); return; }
+    var table = el('table', { className: 'stack' }, [el('thead', {}, [el('tr', {}, ['Player', 'Card', 'Linked', 'Matched through it', ''].map(function (label) { return el('th', { text: label }); }))])]);
+    var tbody = el('tbody');
+    shown.forEach(function (link) {
+      var id = linkId(link);
+      var open = reviewing === id;
+      var action = el('button', { className: 'secondary', type: 'button', text: open ? 'Cancel' : 'Unlink\u2026', 'aria-expanded': open ? 'true' : 'false', 'data-unlink': id });
+      action.addEventListener('click', function () { reviewing = open ? '' : id; linksNote.textContent = ''; renderLinks(); });
+      tbody.appendChild(el('tr', {}, [
+        el('td', { className: 'who', text: name(link.playerId) }),
+        el('td', { className: 'card', text: linkLabel(link) }),
+        el('td', { 'data-label': 'Linked', text: (SOURCES[link.source] || link.source || 'Linked') + (link.linkedAt ? ', ' + shortDate(link.linkedAt) : '') }),
+        el('td', { 'data-label': 'Matched', text: link.matches.length ? link.matches.length + (link.matches.length === 1 ? ' payment, ' : ' payments, last ') + shortDate(link.matches[link.matches.length - 1].date) : 'None yet' }),
+        el('td', {}, [action])
+      ]));
+      if (open) tbody.appendChild(el('tr', { className: 'why-row' }, [el('td', { colspan: '5' }, [review(link, name)])]));
+    });
+    table.appendChild(tbody);
+    body.appendChild(el('div', { className: 'links-scroll' }, [table]));
+  }
+  // Review and Confirm: what unlinking changes, and which matches recorded through the card to undo with it.
+  function review(link, name) {
+    var player = name(link.playerId);
+    var box = el('div', { className: 'review', 'data-review': linkId(link) });
+    box.appendChild(el('p', {}, [el('b', { text: 'Unlink ' + linkLabel(link) + ' from ' + player + '?' })]));
+    box.appendChild(el('p', { text: 'When this card pays again, the desk will not mark ' + player + ' Credit. The payment waits for you at the desk to choose who it is for (Remember this card then teaches the desk the right person).' }));
+    var ticks = [];
+    if (link.matches.length) {
+      box.appendChild(el('p', { text: 'Matches recorded through it. Ticked ones are undone too: Credit goes back to unpaid (unless the method was changed by hand since), and the payment waits on that night\u2019s desk for you to match.' }));
+      var list = el('ul');
+      link.matches.slice().reverse().forEach(function (entry) {
+        var tick = el('input', { type: 'checkbox' });
+        tick.checked = true;
+        tick.entry = entry;
+        ticks.push(tick);
+        list.appendChild(el('li', {}, [el('label', {}, [tick, el('span', { text: matchText(entry, name) })])]));
+      });
+      box.appendChild(list);
+    } else {
+      box.appendChild(el('p', { text: 'No matches were recorded through it, so nothing else changes.' }));
+    }
+    var confirm = el('button', { className: 'primary', type: 'button', text: 'Confirm and unlink' });
+    var cancel = el('button', { className: 'secondary', type: 'button', text: 'Cancel' });
+    var note = el('span', { className: 'save-note', text: links.enabled ? '' : 'Unlinking turns on with CLOVER_ENABLED.' });
+    confirm.disabled = !links.enabled;
+    cancel.addEventListener('click', function () { reviewing = ''; renderLinks(); });
+    confirm.addEventListener('click', function () {
+      var undo = ticks.filter(function (tick) { return tick.checked; }).map(function (tick) { return { date: tick.entry.date, paymentId: tick.entry.paymentId }; });
+      confirm.disabled = cancel.disabled = true;
+      note.textContent = 'Unlinking\u2026';
+      request('unlinkCloverCard', link.playerId, link.keys, undo).then(function (data) {
+        links = data;
+        reviewing = '';
+        linksNote.textContent = 'Unlinked ' + linkLabel(link) + ' from ' + player + '.' + (undo.length
+          ? ' ' + undo.length + (undo.length === 1 ? ' match undone: open that night' : ' matches undone: open those nights') + ' on the desk to match ' + (undo.length === 1 ? 'the payment.' : 'the payments.') : '');
+        renderLinks();
+        if (reportShown) load();
+      }, function (error) {
+        confirm.disabled = !links.enabled;
+        cancel.disabled = false;
+        note.textContent = 'Not unlinked: ' + message(error);
+      });
+    });
+    box.appendChild(el('div', { className: 'card-actions' }, [confirm, cancel, note]));
+    return box;
+  }
+  findField.addEventListener('input', function () { if (links) renderLinks(); });
+
   function load() {
     var from = fromField.value;
     var to = toField.value;
@@ -421,7 +530,7 @@ tr.conflict td{background:#fdf5f3}
     document.body.classList.add('reloading');
     setStatus('Reading Clover payments and the desk records...', 'busy');
     request('getCloverReport', from, to).then(function (data) {
-      if (mine === requestNumber) render(data);
+      if (mine === requestNumber) { render(data); reportShown = true; }
     }, function (error) {
       if (mine === requestNumber) setStatus('Could not read Clover: ' + message(error), 'error');
     }).then(function () { if (mine === requestNumber) { showButton.disabled = false; document.body.classList.remove('reloading'); } });
@@ -432,6 +541,7 @@ tr.conflict td{background:#fdf5f3}
   var earliest = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (MAX_DAYS - 1));
   toField.value = iso(today);
   fromField.value = iso(earliest) > DESK_START ? iso(earliest) : DESK_START;
+  loadLinks();
   load();
 })();
 </script>
