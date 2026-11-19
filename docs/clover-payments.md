@@ -128,7 +128,12 @@ passes. Its count is the number of payments waiting for the organizer.
   card forget them, and the payment then waits for the organizer: it never
   matches by itself again. To unlink a card matched to the wrong person on an
   earlier night, or matched by itself on several nights since, use **Unlink**
-  on the Clover page (section 4).
+  in the player's pencil window (below) or on the Clover page (section 4).
+- **Clover cards in the pencil window.** The pencil beside a player in the
+  directory shows a **Clover cards** section when the desk has linked a card
+  to them, and none otherwise. **Unlink…** there opens the same review as on
+  the Clover page, and **Confirm and unlink** saves it at once, apart from the
+  window's other changes.
 - A match whose player was later marked another way by hand (Cash, say) comes
   back to the waiting list, so the organizer can see it and undo it.
 - If Clover refunds or voids a payment after it was matched, the desk takes the
@@ -168,7 +173,9 @@ person:
    and match its payment to the right person (with **Remember this card**, so
    the desk learns the right owner).
 
-Unlinking needs `CLOVER_ENABLED`, like every change. If someone else changed
+The same **Unlink…** is in the player's pencil window on the desk, under
+**Clover cards** (shown only when they have a linked card). Unlinking needs
+`CLOVER_ENABLED`, like every change. If someone else changed
 the card or one of the matches since the page opened, nothing changes and the
 page asks you to show the list again. Only the club account can open this
 page.

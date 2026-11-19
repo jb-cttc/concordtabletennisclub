@@ -62,7 +62,10 @@ function getPlayerDetails(playerId) {
   var player = findRow_('Players', 'player_id', String(playerId || ''));
   if (!player) throw new Error('Unknown player');
   var names = playerAliasNames_(rows_('Aliases'), player.player_id);
-  return playerDetails_(player, playerEmail_(player.player_id), aliasUses_(names), playerLinksFor_(player));
+  var details = playerDetails_(player, playerEmail_(player.player_id), aliasUses_(names), playerLinksFor_(player));
+  // Cards the desk matches to this player by themselves (CloverPayments.js), so a wrong one can be unlinked here.
+  details.clover = typeof cloverLinksFor_ === 'function' ? cloverLinksFor_(player.player_id) : null;
+  return details;
 }
 
 // ---- Other names (the Aliases tab) ----

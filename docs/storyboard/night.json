@@ -2241,7 +2241,7 @@
       {
        "when": "A card was remembered for the wrong person (a match made by mistake)",
        "happens": "Each time that card pays, the desk marks the wrong player **Credit ✓** by itself.",
-       "handling": "Tonight's match: **Undo** it under Matched (the card is forgotten). Any night, or to see every card the desk knows: **Every night** opens the Clover payments page, where **Cards linked to players** lists them; **Unlink…** shows what changes and the matches made through the card (ticked to undo too), and **Confirm and unlink** does it and records it.",
+       "handling": "Tonight's match: **Undo** it under Matched (the card is forgotten). Any night: the player's pencil window shows **Clover cards** when they have one, or **Every night** opens the Clover payments page, where **Cards linked to players** lists every card the desk knows. **Unlink…** shows what changes and the matches made through the card (ticked to undo too), and **Confirm and unlink** does it and records it.",
        "status": "handled",
        "evidence": "apps-script/CloverPayments.js:1397"
       },
@@ -2359,6 +2359,11 @@
         "file": "apps-script/check-clover-links.cjs",
         "case": "",
         "covers": "Unlink on the Clover page sends only the card and the matches left ticked."
+       },
+       {
+        "file": "apps-script/check-player-clover-cards.cjs",
+        "case": "",
+        "covers": "Clover cards in the pencil window: shown only with a linked card; Unlink undoes only the ticked matches."
        },
        {
         "file": "apps-script/check-player-links.cjs",

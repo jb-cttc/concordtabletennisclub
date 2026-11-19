@@ -1328,15 +1328,27 @@ function cloverLinkLabel_(key) {
 // Clover customer remembered with it in the same match are one entry. Only reads the Sheet. Keys pointing to nobody
 // (a card that paid for two players) are not listed: they match no one.
 function getCloverLinks() {
-  var config = cloverConfig_();
+  return Object.assign({ enabled: cloverConfig_().enabled }, cloverLinkGroups_(''));
+}
+
+// One player's linked cards, for the pencil window on the desk: { enabled, names, links }, or null when they have none,
+// so the window shows its Clover cards section only for a player with one. Reads only CloverLinks when there are none.
+function cloverLinksFor_(playerId) {
+  var found = cloverLinkGroups_(String(playerId || ''));
+  return found.links.length ? Object.assign({ enabled: cloverConfig_().enabled }, found) : null;
+}
+
+// { names, links } for every player, or for one (playerId).
+function cloverLinkGroups_(playerId) {
   var book = SpreadsheetApp.getActive();
-  if (!book.getSheetByName('CloverLinks')) return { enabled: config.enabled, names: {}, links: [] };
+  if (!book.getSheetByName('CloverLinks')) return { names: {}, links: [] };
   TABLES.CloverLinks = CLOVER_LINK_HEADERS;
   var timeZone = Session.getScriptTimeZone();
   var timeOf = function (value) { var time = value instanceof Date ? value.getTime() : Date.parse(value); return isFinite(time) ? time : 0; };
   var groups = [];
   var byStamp = {};
-  var rows = rows_('CloverLinks').filter(function (row) { return String(row.link_key || '').trim() && String(row.player_id || ''); });
+  var rows = rows_('CloverLinks').filter(function (row) { return String(row.link_key || '').trim() && String(row.player_id || '') && (!playerId || String(row.player_id) === playerId); });
+  if (!rows.length) return { names: {}, links: [] };
   // Cards first, so a Clover customer remembered in the same match joins its card.
   rows.sort(function (a, b) { return (String(b.link_key).indexOf('card:') === 0) - (String(a.link_key).indexOf('card:') === 0); }).forEach(function (row) {
     var key = String(row.link_key).trim();
@@ -1387,11 +1399,11 @@ function getCloverLinks() {
     ids.forEach(function (id) { names[id] = players[id] || 'Unknown player'; });
   });
   groups.sort(function (a, b) { return names[a.playerId].localeCompare(names[b.playerId]) || (a.linkedAt < b.linkedAt ? -1 : a.linkedAt > b.linkedAt ? 1 : 0); });
-  return { enabled: config.enabled, names: names, links: groups };
+  return { names: names, links: groups };
 }
 
-// Unlinks a card (and the Clover customer remembered with it) from a player, after the owner reviews it on the Clover
-// page: the desk stops matching it by itself, and its next payment waits for the organizer. undo: matches recorded
+// Unlinks a card (and the Clover customer remembered with it) from a player, after the organizer reviews it on the
+// Clover page or in the player's pencil window on the desk: the desk stops matching it by itself, and its next payment waits for the organizer. undo: matches recorded
 // through it, [{ date, paymentId }], each put back in the organizer's list as the desk's Undo does. Every key must still
 // point to the player, and every match still include them, or nothing changes. Recorded with what was unlinked.
 function unlinkCloverCard(playerId, keys, undo) {
