@@ -894,6 +894,43 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.deepEqual(both().map(entry => entry[0]), ['open', 'open'], 'declined, both reopen');
 }
 
+// ---- A request the coach has not answered yet is cancelled at once on the page, with no YES ----
+{
+  const picked = run('openSlots').slots.find(x => x.coach === 'Coach Ann');
+  book(form(picked, { name: 'Rhea Student', email: 'rhea@example.com' }));
+  assert.equal(statusOf('rhea@example.com'), 'pending');
+  const from = sent.length;
+  const texts = ann().length;
+  const answer = run('studentChange', { key: picked.key, action: 'cancel', contact: 'someone@example.com' });
+  assert.deepEqual([answer.ok, answer.withdrawn], [true, true]);
+  assert.equal(statusOf('rhea@example.com'), 'pending', 'someone else\'s address changes nothing');
+  assert.equal(sent.length, from, 'and sends nothing');
+  assert.deepEqual(run('studentChange', { key: picked.key, action: 'cancel', contact: 'rhea@example.com' }), answer, 'the owner gets the very same answer');
+  assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('rhea@example.com'), name)), ['cancelled', 'withdrawn'], 'cancelled straight away');
+  assert.ok(!sent.slice(from).some(message => /^Confirm: cancel/.test(message.subject)), 'no YES is asked for');
+  const toRhea = mailTo('rhea@example.com', from).map(message => message.subject);
+  assert.deepEqual(toRhea, ['Coaching request cancelled']);
+  assert.match(mailTo('rhea@example.com', from)[0].body, /your request for a lesson with Coach Ann on .* is cancelled\. You were not booked/);
+  const toAnn = mailTo('ann@example.com', from);
+  assert.deepEqual(toAnn.map(message => message.subject), ['Request withdrawn by Rhea Student']);
+  assert.match(toAnn[0].body, /cancelled their request for .* before you answered\. No need to reply to it\./);
+  assert.match(ann().slice(texts).join('\n'), /^CTTC: Student Rhea cancelled their request for .*\. No need to answer it\./);
+  assert.equal(run('openSlots').board.find(entry => entry.key === picked.key).status, 'open', 'the time is open again');
+  // The coach's YES to the old request, read afterwards, books nothing.
+  replyTo('ann@example.com', 'YES', /^Lesson request from Rhea Student/);
+  assert.equal(statusOf('rhea@example.com'), 'cancelled');
+  // A confirmed lesson still needs the student's emailed YES to cancel.
+  book(form(picked, { name: 'Rhea Student', email: 'rhea@example.com' }));
+  replyTo('ann@example.com', 'YES', /^Lesson request from Rhea Student/);
+  const before = sent.length;
+  const lesson = run('studentChange', { key: picked.key, action: 'cancel', contact: 'rhea@example.com' });
+  assert.equal(lesson.withdrawn, undefined);
+  assert.equal(statusOf('rhea@example.com'), 'confirmed', 'nothing changes until the YES');
+  assert.match(mailTo('rhea@example.com', before).pop().subject, /^Confirm: cancel your lesson/);
+  replyTo('rhea@example.com', 'YES', /^Confirm: cancel your lesson/);
+  assert.equal(statusOf('rhea@example.com'), 'cancelled');
+}
+
 // ---- One time (2026-11-04): a YES meant for everything waiting counts for the two cancellations asked just before it ----
 {
   const zoe = 'zoe@example.com';
@@ -2371,6 +2408,42 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
     Array.from($('#confirmRequest').querySelectorAll('button')).find(node => node.textContent === 'Confirm submission').click();
     const keys = run('openSlots').board.filter(entry => entry.coach === 'Coach Vic').map(entry => entry.key);
     assert.deepEqual([requested.length, requested[0].key, requested[0].length], [1, keys[0] + '+' + keys[1], 50], 'the page sends both times, as one 50 minute lesson');
+    dom.window.close();
+  }
+  // ---- Mine on a request the coach has not answered yet: Cancel my request, at once ----
+  {
+    const vicLate = run('openSlots').slots.find(entry => entry.coach === 'Coach Vic' && entry.start === '20:00');
+    assert.equal(run('requestSlot', form(vicLate, { name: 'Ray Student', email: 'ray@example.com' })).ok, true);
+    const dom = new JSDOM(page, {
+      url: SITE + '/coaching-app.html', runScripts: 'dangerously', pretendToBeVisual: true,
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+        window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+        window.top.postMessage = () => {};
+        window.fetch = (url, options) => viaDoPost(options);
+      }
+    });
+    await wait(50);
+    const doc = dom.window.document, $ = selector => doc.querySelector(selector);
+    const buttonIn = (root, text) => Array.from(root.querySelectorAll('button')).find(node => node.textContent === text);
+    const mineButton = Array.from(doc.querySelectorAll('button.mini')).find(node => /Student Ray/.test(node.getAttribute('aria-label')));
+    assert.ok(mineButton, 'Mine on the waiting request');
+    mineButton.click();
+    assert.match($('#changeWhat').textContent, /^Is Student Ray's request for .*, 8:00 PM to 8:25 PM with Coach Vic yours\? Coach Vic has not answered it yet\.$/);
+    buttonIn($('#change'), 'Cancel my request').click();
+    assert.equal($('#changeLegend').textContent, 'Your request is cancelled straight away, and the coach is told. No email reply is needed.');
+    $('#changeContact').value = 'ray@example.com';
+    const submit = $('#change button[type=submit]');
+    assert.equal(submit.textContent, 'Cancel my request', 'the button says what it does');
+    submit.click();
+    await wait(50);
+    assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('ray@example.com'), name)), ['cancelled', 'withdrawn']);
+    assert.match($('#message').textContent, /it is cancelled now and the time is open again/);
+    await wait(50);
+    $('.lengths [data-minutes="25"]').click();
+    assert.ok(Array.from(doc.querySelectorAll('button.tbl.free')).some(node => node.getAttribute('aria-label') === 'Table 3, Coach Vic, 8:00 PM to 8:25 PM, open'),
+      'the board is drawn again with the time open');
     dom.window.close();
   }
   // The app before this release answers a POST with Google's HTML error page: the copy goes to Google's page instead.

@@ -1193,6 +1193,8 @@ function studentChange(form) {
   if (!action) return fail_('Please choose to cancel or to move the lesson.');
   if (!email && !phone) return fail_('Please enter the email address or mobile number you booked with.', 'contact');
   var question = null;
+  var cancelled = null;
+  var withdrawn = { ok: true, withdrawn: true, message: 'If that request was made with this email address or mobile number, it is cancelled now and the time is open again. The coach is told, and we emailed you a note.' };
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -1212,6 +1214,21 @@ function studentChange(form) {
     var students = rows_('Students');
     var student = students.filter(function (candidate) { return candidate.email === request.student_email; })[0];
     var owner = email ? email === request.student_email : !!student && phoneDigits_(student.phone) === phone;
+    // A request the coach has not answered yet is cancelled at once, with no YES (cancelled_by 'withdrawn'): the student and
+    // the coach are told by the sweep below. The answer is the same whoever asks.
+    if (action === 'cancel' && effectiveStatus_(request, now) === 'pending') {
+      if (!owner) return withdrawn;
+      request.status = 'cancelled';
+      request.cancelled_by = 'withdrawn';
+      request.change = '';
+      request.change_at = '';
+      request.change_was = '';
+      request.updated_at = nowIso_();
+      save_('Requests', request);
+      logStep_(request, 'withdrawn on the page');
+      cancelled = request;
+      return withdrawn;
+    }
     var wanted = action === 'move' ? 'move:' + target.key : 'cancel';
     var waiting = !!request.change && holds_(request, now);
     // The same ask again within 10 minutes sends nothing more; a different one replaces the waiting one (shown in its email).
@@ -1224,6 +1241,10 @@ function studentChange(form) {
     question = { request: request, student: student, coach: coach, target: target };
   } finally {
     lock.releaseLock();
+    // Saved: the emails and texts go out now, and the hourly sweep retries any that fail.
+    if (cancelled) {
+      try { sweep_(); } catch (error) { logError_('tell about a withdrawn request', error, cancelled.request_id); }
+    }
   }
   if (question) askStudentChange_(question);
   return done;
@@ -2158,6 +2179,10 @@ function studentMail_(request, coach) {
   if (request.status === 'cancelled' && request.cancelled_by === 'student') {
     return { to: to, subject: 'Coaching lesson cancelled', lines: [who, 'As you asked, the lesson with ' + coachShown + ' on ' + when + ' is cancelled and the time was released.'] };
   }
+  if (request.status === 'cancelled' && request.cancelled_by === 'withdrawn') {
+    return { to: to, subject: 'Coaching request cancelled', lines: [who, 'As you asked, your request for a lesson with ' + coachShown + ' on ' + when +
+      ' is cancelled. You were not booked, ' + coachShown + ' has been told, and the time is open again. You can pick another time at ' + PAGE_URL] };
+  }
   if (request.status === 'cancelled' && request.cancelled_by === 'coach') {
     return { to: to, subject: 'Lesson cancelled by your coach', lines: [who,
       coachShown + ' had to cancel the lesson on ' + when + '. You can pick another time at ' + PAGE_URL] };
@@ -2196,6 +2221,10 @@ function coachMail_(request, coach, studentRow) {
       { callout: 'The request from ' + request.student_name + ' for **' + when + '** expired without your answer, so the time was released and the student was told.', tone: 'action' },
       'The club has been copied on this email. If something went wrong, please reply and let us know.'] };
   }
+  if (request.status === 'cancelled' && request.cancelled_by === 'withdrawn' && request.verified_at) {
+    return { to: to, subject: 'Request withdrawn by ' + request.student_name, lines: [request.student_name + ' cancelled their request for ' + when +
+      ' before you answered. **No need to reply** to it. The time is open again.'] };
+  }
   // Told only if the coach had already heard about the request.
   if (request.status === 'cancelled' && (request.cancelled_by === 'student' || request.cancelled_by === 'move') && request.verified_at) {
     return { to: to, subject: 'Lesson cancelled by ' + request.student_name, lines: [request.student_name + (request.cancelled_by === 'move' ? ' moved the lesson on ' + when + ' to another time' :
@@ -2225,6 +2254,9 @@ function coachText_(request, coach, student) {
   if (request.status === 'expired') {
     return { person: coach, text: 'CTTC: The request from ' + studentName_(request) + ' for ' + when + ' expired without an answer, so the time was released.' };
   }
+  if (request.status === 'cancelled' && request.cancelled_by === 'withdrawn') {
+    return { person: coach, text: 'CTTC: ' + studentName_(request) + ' cancelled their request for ' + when + '. No need to answer it. The time is open again.' };
+  }
   if (request.status === 'cancelled' && (request.cancelled_by === 'student' || request.cancelled_by === 'move')) {
     return { person: coach, text: 'CTTC: ' + studentName_(request) + (request.cancelled_by === 'move' ? ' moved the lesson on ' + when + ' to another time.' :
       ' cancelled the lesson on ' + when + '.') + ' The time is open again.' };
@@ -2244,7 +2276,7 @@ function studentText_(request, coach, student) {
   }[request.status];
   if (request.status === 'cancelled') {
     text = request.cancelled_by === 'coach' ? coachName_(coach) + ' cancelled your lesson on ' + when + '.' + again :
-      request.cancelled_by === 'move' ? null : 'your lesson on ' + when + ' is cancelled.';
+      request.cancelled_by === 'move' ? null : request.cancelled_by === 'withdrawn' ? 'your request for ' + when + ' is cancelled. You are not booked.' : 'your lesson on ' + when + ' is cancelled.';
   }
   return text ? { person: { name: student.name, phone: student.phone }, text: 'CTTC: ' + studentName_(request) + ', ' + text } : null;
 }

@@ -246,7 +246,7 @@
   // ----- Students: pick a time and ask -----
   function bookingView() {
     clear(); show('');
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table: any time that has not started yet can be requested. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: your request goes straight to the coach, and the lesson is booked once the coach accepts. We email you either way. To cancel or move a lesson, tap your time and reply YES to the email we send. Coaches and students appear by first name only (Coach Dominic, Student Sam). Your coach gets your name, email and mobile number (if given) with your request; you get your coach\'s once the lesson is confirmed.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table: any time that has not started yet can be requested. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: your request goes straight to the coach, and the lesson is booked once the coach accepts. We email you either way. To cancel or move a lesson, tap your time and reply YES to the email we send. A request the coach has not answered yet can be cancelled right there, with no email. Coaches and students appear by first name only (Coach Dominic, Student Sam). Your coach gets your name, email and mobile number (if given) with your request; you get your coach\'s once the lesson is confirmed.' }));
     var list = el('div', { id: 'slots' }, [el('p', { text: 'Loading open times...' })]);
     app.appendChild(list);
     load('openSlots', [], function (result) {
@@ -474,14 +474,21 @@
     choice.appendChild(move);
     var contact = el('input', { type: 'email', id: 'changeContact', name: 'email', maxlength: '254', autocomplete: 'email', inputmode: 'email' });
     var submit = el('button', { type: 'submit', text: 'Send me a confirmation' });
+    var legend = el('p', { 'class': 'legend', id: 'changeLegend' });
     var confirmBox = el('div', { hidden: 'hidden' }, field('The email address or mobile number you booked with', contact).concat([
-      el('p', { 'class': 'legend', text: 'We email that address (and text you, if you get our texts). Reply YES to confirm. Nothing changes until you do.' }),
-      el('div', { 'class': 'actions' }, [submit])]));
+      legend, el('div', { 'class': 'actions' }, [submit])]));
+    // A request the coach has not answered yet: cancelled at once on the server, with no YES email.
+    function waitingRequest() { return !!source && source.status === 'requested' && source.waiting === 'coach' && !source.change; }
     var form = el('form', { id: 'change', hidden: 'hidden', novalidate: 'novalidate' }, [
       el('h2', { text: 'Change your lesson' }), el('p', { id: 'changeWhat' }), choice, confirmBox,
       el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'changeWebsite', tabindex: '-1', autocomplete: 'off' })))]);
     function ask(text) {
       form.querySelector('#changeWhat').textContent = text;
+      var instant = !target && waitingRequest();
+      submit.textContent = instant ? 'Cancel my request' : 'Send me a confirmation';
+      submit.className = instant ? 'danger' : '';
+      legend.textContent = instant ? 'Your request is cancelled straight away, and the coach is told. No email reply is needed.' :
+        'We email that address (and text you, if you get our texts). Reply YES to confirm. Nothing changes until you do.';
       choice.hidden = true;
       confirmBox.hidden = false;
       // A phone number is allowed too, so the email check is the server's job.
@@ -492,7 +499,11 @@
       form.hidden = false;
       form.scrollIntoView({ block: 'nearest' });
     }
-    cancel.addEventListener('click', function () { target = null; ask('Cancel ' + source.student + '\'s lesson with ' + source.coach + ' on ' + source.day + ', ' + source.time + '.'); });
+    cancel.addEventListener('click', function () {
+      target = null;
+      ask(waitingRequest() ? 'Cancel ' + source.student + '\'s request for ' + source.day + ', ' + source.time + ' with ' + source.coach + '.' :
+        'Cancel ' + source.student + '\'s lesson with ' + source.coach + ' on ' + source.day + ', ' + source.time + '.');
+    });
     move.addEventListener('click', function () { form.hidden = true; startMove(source); });
     form.addEventListener('input', clearInvalid);
     form.open = function (entry, to) {
@@ -500,7 +511,10 @@
       target = to || null;
       resetStatus(form);
       if (target) { ask('Move ' + entry.student + '\'s lesson on ' + entry.day + ', ' + entry.time + ' to ' + to.day + ', ' + to.time + ' with ' + to.coach + ' at Table ' + to.table + '. The new time goes to the coach to accept.'); return; }
-      form.querySelector('#changeWhat').textContent = 'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
+      form.querySelector('#changeWhat').textContent = waitingRequest() ?
+        'Is ' + entry.student + '\'s request for ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' yours? ' + entry.coach + ' has not answered it yet.' :
+        'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
+      cancel.textContent = waitingRequest() ? 'Cancel my request' : 'Cancel this lesson';
       choice.hidden = false;
       confirmBox.hidden = true;
       form.hidden = false;
@@ -511,6 +525,8 @@
       if (!source) return;
       report(form, 'Sending...');
       guarded(submit, 'studentChange', [{ key: source.key, action: target ? 'move' : 'cancel', to: target ? target.key : '', contact: contact.value, website: form.querySelector('#changeWebsite').value }], function (result) {
+        // A withdrawn request has freed its time: draw the board again, with the answer above it.
+        if (result.ok && result.withdrawn) { bookingView(); show(result.message, 'ok'); return; }
         if (result.ok) form.hidden = true;
         report(form, result.message, result.ok ? 'ok' : 'error', result.field, { contact: '#changeContact' });
       });

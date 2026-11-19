@@ -42,6 +42,7 @@ Sheet:
 | `expired` with empty `verified_at` | (Before November 2026 only.) Student never replied YES. | Nobody | Student: *Coaching request expired: we did not get your YES*, with how to book now. Coach was never told. | n/a | time is open again |
 | `expired` with `verified_at` set | Coach never answered. | **Club** should follow up with the coach | Student and coach both, with the club cc'd (`ADMIN_EMAIL`): *…expired: the coach did not answer* / *Lesson request expired: no answer*. | n/a | time is open again |
 | `cancelled`, `cancelled_by = student` | Student confirmed a cancel (or, before November 2026, replied NO to the confirm email). | Nobody | Student: *Coaching lesson cancelled*. Coach: *Lesson cancelled by {student}*, only if the coach had been asked (`verified_at` set). | n/a | time is open again |
+| `cancelled`, `cancelled_by = withdrawn` | Student cancelled the request on the page before the coach answered (from November 2026; no YES needed). | Nobody | Student: *Coaching request cancelled*. Coach: *Request withdrawn by {student}*, and a text if registered. | n/a | time is open again |
 | `cancelled`, `cancelled_by = move` | Student moved to another time; look for the new row (status `pending`). | See the new row | Coach of the old time: *Lesson cancelled by {student}* ("moved"). | n/a | old time open; new time "requested" |
 | `cancelled`, `cancelled_by = coach` | Set by hand by the club after a coach asked to cancel (coaches reply to their confirmation email; the app does not do this itself). | Nobody | Student: *Lesson cancelled by your coach*. | n/a | time is open again |
 
@@ -187,9 +188,18 @@ stateDiagram-v2
 `pending` on the student's YES, `cancelled` on NO, or `expired` after 2
 hours.)
 
-A change (cancel or move) does **not** change `status` until the student
-confirms. While it waits, the row has `change = cancel` or
-`change = move:{avail_id}` and `change_at` (ms). The student is emailed
+**Cancelling a request the coach has not answered yet** (`pending`) is
+instant: the student taps **Mine** on the time, **Cancel my request**, and
+enters the email address or mobile number they requested with. The row becomes
+`cancelled` with `cancelled_by = withdrawn` at once, with no YES. The student
+gets *Coaching request cancelled*, and the coach *Request withdrawn by
+{student}* (and a text, if registered) saying there is no need to answer. A
+coach's YES read afterwards books nothing. The page gives the same answer
+whoever asks, so it never tells anyone whose request a time is.
+
+Any other change (cancelling a confirmed lesson, or a move) does **not**
+change `status` until the student confirms. While it waits, the row has
+`change = cancel` or `change = move:{avail_id}` and `change_at` (ms). The student is emailed
 *Confirm: cancel your lesson [CTTC ref …]* or *Confirm: move your lesson
 [CTTC ref …]*. A move is applied only if the new time is still open when they
 reply YES; the new row starts at `pending` (the coach is asked straight away).
