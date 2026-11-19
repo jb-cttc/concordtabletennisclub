@@ -191,7 +191,7 @@ if (open.length >= 6) {
   sign('Max Gold', waiting.date, 'desk');
   sign('Ned Fox', waiting.date, 'money', false);
   sign('Ola Berg', waiting.date, 'close');
-  // A closure the owner typed into the Closures tab.
+  // A night closed in the Closures tab before (still read; never added to by hand now).
   grids.Closures.push([closed.date, 'Gym closed for a school event']);
   // Needs people: only table setup so far.
   sign('Rae Holt', partial.date, 'tables');

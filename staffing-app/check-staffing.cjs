@@ -793,7 +793,8 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   context.sweep();
   assert.equal(mailTo('vic@example.com').length, 1, 'once');
 
-  // At most MAX_OPEN_REQUESTS open; the owner can decline (or approve) in the Emails tab.
+  // At most MAX_OPEN_REQUESTS open. A decision already stored on an Emails row (rows typed in before the club stopped editing
+  // the Sheet) is still applied.
   ['Cy', 'Di', 'Ed', 'Flo', 'Gil', 'Hap', 'Ike', 'Jud', 'Kip', 'Lars'].forEach(first => {
     const result = signUp(first + ' Queue', [['2026-12-04', 'tables']], { email: first.toLowerCase() + '@example.com' });
     assert.equal(result.ok, true, result.message);
@@ -888,7 +889,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
 
 // ---- Texts: STAFF opts in, CONFIRM answers, STOP opts out silently ----
 {
-  // The owner keeps the mobile in the Emails tab; the form takes none.
+  // The mobile on file is on the Emails row (from the imports); the form takes none.
   grids.Emails.find(line => line[0] === 'p15')[3] = '(925) 555-0142';
   assert.equal(signUp('Max Gold', [['2026-11-23', 'close']], { phone: '(925) 555-0199' }).ok, true);
   assert.equal(replies.length, 0, 'no texts before the person texts STAFF');
@@ -1582,7 +1583,7 @@ seedCheck();
   assert.deepEqual(club().map(message => message.subject), ['Action needed: the staffing app cannot apply the club\'s email decisions'], '30 minutes without a break');
   const alert = club()[0];
   assert.match(alert.body, new RegExp('^The staffing app has failed to apply the club\'s email decisions at every attempt since ' + context.momentLabel_(since) + '\\. It retries at least every hour, and whenever a text or an email reply comes in\\.'));
-  assert.match(alert.body, /Approvals and declines entered in the Emails tab are not being applied\./, 'what is affected');
+  assert.match(alert.body, /The club's email approvals and declines are not being applied\./, 'what is affected');
   assert.match(alert.body, /\n\nError: Exception: Service Spreadsheets failed while accessing document with id x/);
   assert.match(alert.body, /WHAT TO DO\n\n1\. Check https:\/\/www\.google\.com\/appsstatus\/dashboard\/ for a Google Sheets or Gmail outage\. If Google lists one, no action is needed: the app resumes by itself when Google recovers\.\n2\. If Google lists no outage, forward this email to JB\./);
   assert.match(alert.body, /The club gets a follow-up email when this step works again\.\n\nSent by the CTTC staff sign-up app to the club account\.$/, 'the club footer, not a volunteer\'s');

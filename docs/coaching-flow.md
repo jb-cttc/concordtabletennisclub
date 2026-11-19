@@ -27,8 +27,9 @@ Sheet:
    (`2026-10-16`) and `start` (`21:00`, 24-hour Pacific). A move creates a
    *new* row, so check every row for that student (`student_email`).
 2. Read `status`, then check `expires_at` against now. `expires_at` is
-   milliseconds since 1970 (UTC). In the Sheet, `=EPOCHTODATE(M2/1000)` gives
-   the time in UTC; subtract 7 hours for PDT or 8 for PST. A waiting status
+   milliseconds since 1970 (UTC). The booking's `?log=CODE` page shows its
+   deadline in Pacific time; never type a formula into the Sheet to convert
+   it. A waiting status
    whose `expires_at` has passed is already **expired** in the app, even
    before the hourly sweep writes it.
 3. Use the table below.
@@ -44,7 +45,7 @@ Sheet:
 | `cancelled`, `cancelled_by = student` | Student confirmed a cancel (or, before November 2026, replied NO to the confirm email). | Nobody | Student: *Coaching lesson cancelled*. Coach: *Lesson cancelled by {student}*, only if the coach had been asked (`verified_at` set). | n/a | time is open again |
 | `cancelled`, `cancelled_by = withdrawn` | Student cancelled the request on the page before the coach answered (from November 2026; no YES needed). | Nobody | Student: *Coaching request cancelled*. Coach: *Request withdrawn by {student}*, and a text if registered. | n/a | time is open again |
 | `cancelled`, `cancelled_by = move` | Student moved to another time; look for the new row (status `pending`). | See the new row | Coach of the old time: *Lesson cancelled by {student}* ("moved"). | n/a | old time open; new time "requested" |
-| `cancelled`, `cancelled_by = coach` | Set by hand by the club after a coach asked to cancel (coaches reply to their confirmation email; the app does not do this itself). | Nobody | Student: *Lesson cancelled by your coach*. | n/a | time is open again |
+| `cancelled`, `cancelled_by = coach` | No control sets this yet: the club cancelling a lesson for a coach is a missing control ([Changing the club's data](data-changes.md#missing-controls)). Until it is built, a coach who needs to cancel replies to their confirmation email, the club tells the student, and the lesson stays booked in the app. | Nobody | Student: *Lesson cancelled by your coach*. | n/a | time is open again |
 
 `proposed` appears in the code's status checks but is never set; ignore it.
 
@@ -485,7 +486,7 @@ screen, so a refused request looked like nothing happened.
 | Student says they replied YES to a cancel or move but nothing changed (or, before November 2026, a request is still `unverified`) | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or ask again from the page. |
 | Student never got any email about their request | The address was mistyped (the confirm box shows it large and points out likely typos, but it can still be wrong), or it went to spam. | `student_email` on the row; `student_emailed = pending` means it went out. | The coach has the address the student typed in their request email; correct it by cancelling and booking again. |
 | Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | `coach_emailed = pending`? `coach_texted = pending`? `Coaches.ask_ref` = this `request_id`? | Remind the coach to reply `YES` to the email or text. |
-| Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | `Coaches.registered_at` empty; `phone` column. | Have them text `COACH` to the club number. |
+| Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | `Coaches.registered_at` empty; `phone` column. | Have them text `COACH` to the club number. A missing or wrong mobile on the list has no control yet ([Missing controls](data-changes.md#missing-controls)). |
 | No emails at all for a while | Daily mail quota low (sending pauses at 10 left), or Gmail/MailApp errors. | Executions log; `student_emailed`/`coach_emailed` lagging behind `status`. | Wait for the quota reset; the sweep retries for 3 days. |
 | A time is missing from the board | It has started (Pacific time), so it no longer takes requests. Expected. ("Closed (less than a day ahead)" is only shown by an app released before November 2026.) | `date`/`start`. | None in the app. |
 | Public Sheet out of date | It is rebuilt only after changes and hourly; a failed rebuild is logged, never fatal. | Executions log for "Could not update the public schedule". | Run `sweep` from the editor. |

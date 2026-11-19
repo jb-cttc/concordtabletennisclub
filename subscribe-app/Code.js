@@ -1,7 +1,7 @@
 // Public sign-up for the club email list: the automated round robin results emails and the executive committee's
 // updates (sent by hand from Gmail; the desk's Email list page, apps-script/EmailList.js, gives the club the list). This is a separate Apps Script project from the owner-only desk
 // on purpose: a public web app exposes every function in its project, so the desk's code must never live here.
-// The only thing this project can do is add one validated address to the Subscribers tab of the club database.
+// The only thing this project can do is append one validated address, as a new row, to the club database's Subscribers list.
 // The Sheet id is the script property DATABASE_ID (set in Project Settings), never committed.
 // Deliberately strict: the first character must be a letter or digit, so nothing a spreadsheet would read as a formula
 // (= + - @) and no quotes, brackets, commas or spaces can get through.

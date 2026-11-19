@@ -534,7 +534,8 @@ make it", commands for the coaching and volunteer apps, and anyone with a
 coaching lesson that day are left for a person, as is everything after sign-up closes.
 A name sent back after the second answer is not read automatically: match
 the sender in **Voice signups** as usual, and save their name as the contact
-in Google Voice (or add an `Aliases` row) so their next text links. An
+in Google Voice (or add it under **Other names** in the player's pencil
+window) so their next text links. An
 automatic answer counts as a reply, so **Confirmed.** is not sent on top of
 it. Each answer is logged as `voice_auto_reply` with the player id when
 linked, never the number or the text.

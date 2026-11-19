@@ -197,6 +197,6 @@ minutes. The tab keeps the latest 2,000 rows.
 | Symptom | Likely cause |
 | --- | --- |
 | Page says "Live sign-ins are not showing right now" | `TURNOUT_URL` empty, the app not deployed for *Anyone*, `DESK_SHEET_ID` unset, or the site's JSON unreachable. Open the `/exec` URL directly; failures are logged in the project's **Executions**. |
-| Someone who texted is at the front desk, not their zone | Their Voice contact name does not match one desk player. Add an `Aliases` row in the desk Sheet, or fix the contact name in Google Voice. |
+| Someone who texted is at the front desk, not their zone | Their Voice contact name does not match one desk player. Add that name under **Other names** in the player's pencil window on the desk, or fix the contact name in Google Voice. |
 | Counts lag the desk by up to a minute | The 60-second cache, plus the desk's own save a moment after each change. |
 | "Likely" never appears | Expected: at a 90% bar only near-perfect regulars qualify. See section 2. |

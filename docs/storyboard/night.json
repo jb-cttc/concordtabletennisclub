@@ -596,7 +596,7 @@
      "summary": "The **Volunteer Admin** page (club account only) shows the season by night and position, records who is trained for the desk, front desk and keys, and lets the club add someone to an open spot or correct an answer, each with a review step before saving.",
      "subtext": "This is the desk's page talking to the volunteer app with the desk's admin key: no one edits the volunteer Sheet by hand.",
      "caveats": [
-      "Some older steps in docs/staffing-flow.md still describe editing the Emails and Closures tabs: treat them as forms still to build."
+      "Changing a volunteer's email on file has no control yet: it is a form still to build (docs/data-changes.md, Missing controls), never a Sheet edit."
      ],
      "exceptions": [],
      "screen": {
@@ -916,8 +916,8 @@
       {
        "when": "A texter shows at the front desk instead of their zone",
        "happens": "Their Voice contact name does not match one player.",
-       "handling": "Link the name with the directory pencil's **Other names**. (The guide still says to add an Aliases row in the Sheet: see findings.)",
-       "status": "partial",
+       "handling": "Link the name with the directory pencil's **Other names**. (Until November 2026 the guide pointed to the Sheet instead; `npm run check:sheet-edits` now fails on any such advice.)",
+       "status": "handled",
        "evidence": "docs/turnout-flow.md:200"
       }
      ],
@@ -974,6 +974,11 @@
        "60 s cache on Google; the page asks every minute."
       ],
       "tests": [
+       {
+        "file": "scripts/check-sheet-edits.js",
+        "case": "",
+        "covers": "No guide, page or message tells anyone to edit a Sheet by hand (the Aliases advice it replaced)."
+       },
        {
         "file": "scripts/check-turnout.js",
         "case": "",
@@ -1063,19 +1068,6 @@
     }
    ],
    "findings": [
-    {
-     "severity": "low",
-     "kind": "doc-mismatch",
-     "title": "Two guides tell people to add an Aliases row in the Sheet",
-     "detail": "The Tonight page guide (\"Add an Aliases row in the desk Sheet\") and the automatic answers section (\"or add an Aliases row\") send people to edit the Sheet by hand, against the club's rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.",
-     "evidence": [
-      "docs/turnout-flow.md:200",
-      "docs/round-robin-operations.md:537",
-      "apps-script/PlayerEdits.js:71"
-     ],
-     "confirmed": "read docs and code",
-     "suggest": "Change both lines to point to the directory pencil's Other names."
-    },
     {
      "severity": "low",
      "kind": "fragile",

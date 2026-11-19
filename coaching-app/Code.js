@@ -9,7 +9,7 @@
 //     student also has a label ("Coach D", "Student A"); coaches still pick their label on the page.
 // The public Sheet is a read-out, never an input: the app rebuilds it from the private records after every change and
 // every hour, and never reads it back. Whatever a visitor types there cannot change, create or cancel a booking.
-// Coaches are a list the owner types into the private Coaches tab (name, email, mobile); there is no self sign-up and no coach
+// Coaches come from CLUB_COACHES below (name, email); there is no self sign-up and no coach
 // sign-in. Anyone can pick a coach on the page and draft times, but only a YES from that coach publishes them: a reply to the
 // email sent to the address on the list, or to the text sent to the mobile number on the list. Coaches answer lesson requests
 // the same way. Students need no account either: a request, a cancellation or a move only happens once the student replies YES
@@ -84,7 +84,8 @@ var DEFAULT_GUIDELINES = 'Be on time, tell your coach about any injury, and trea
 // (showWhilePending). The desk copies the shown names from the site to the hidden CoachList tab of its Sheet every hour
 // (apps-script/CoachList.js). Every sweep (hourly) adds any coach missing from the Coaches tab, marks a coach not shown, or
 // no longer listed here, 'disabled', and switches a shown coach back on. To add or remove a coach, change this list and the
-// table on coaching.html. The owner adds each mobile number in the Sheet.
+// table on coaching.html. A coach's mobile number has no control yet (docs/data-changes.md, Missing controls); the Coaches
+// tab is never edited by hand.
 var CLUB_COACHES = [
   ['Dominic Chan', 'dominicchan@sbcglobal.net'],
   ['Fuqun (Bill) Xing', 'xfqslw@gmail.com'],
@@ -103,7 +104,8 @@ var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'A
 
 // Private Sheet. The label columns hold the public pseudonyms.
 var TABS = {
-  // The owner types name, email and mobile number (columns A to C); the rest is filled in by the app. The name must match the
+  // Name and email come from CLUB_COACHES (syncClubCoaches_); the mobile number has no control yet (docs/data-changes.md,
+  // Missing controls). The rest is filled in by the app. The name must match the
   // contact name saved in Google Voice, which is how a text from a coach is recognised. ask_ref is the one question last texted
   // ('slots' or a request id), so a YES or NO always answers it; ask_slots is the submitted list of times (JSON) until answered.
   Coaches: ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at'],
@@ -309,7 +311,7 @@ function cleanNote_(value) {
   return String(value || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/^[\s=+\-@]+/, '').trim().slice(0, 300);
 }
 
-// The 10 digit US number inside whatever the owner typed into the Sheet; '' when there is none.
+// The 10 digit US number inside a stored phone value (written in any format); '' when there is none.
 function phoneDigits_(value) {
   var digits = String(value == null ? '' : value).replace(/\D/g, '');
   if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
@@ -2214,7 +2216,7 @@ function coachMail_(request, coach, studentRow) {
       { heading: 'Reminders' },
       { rows: [['Arrival', property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL)], ['Payment', property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT)],
         ['Guidelines', property_('COACHING_GUIDELINES_TEXT', DEFAULT_GUIDELINES)]] },
-      'Need to cancel? Reply to this email and the club will cancel it and tell the student.'] };
+      'Need to cancel? Reply to this email and the club will tell the student.'] };
   }
   if (request.status === 'expired' && request.verified_at) {
     return { to: to, cc: adminEmail_(), subject: 'Lesson request expired: no answer', lines: [

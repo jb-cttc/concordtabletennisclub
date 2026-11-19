@@ -88,7 +88,7 @@ const phases = [
     { id: 'staff-6-admin', title: 'The club trains volunteers and fixes the schedule', who: 'Owner', when: 'As needed',
       summary: 'The **Volunteer Admin** page (club account only) shows the season by night and position, records who is trained for the desk, front desk and keys, and lets the club add someone to an open spot or correct an answer, each with a review step before saving.',
       subtext: 'This is the desk\'s page talking to the volunteer app with the desk\'s admin key: no one edits the volunteer Sheet by hand.',
-      caveats: ['Some older steps in docs/staffing-flow.md still describe editing the Emails and Closures tabs: treat them as forms still to build.'],
+      caveats: ['Changing a volunteer\'s email on file has no control yet: it is a form still to build (docs/data-changes.md, Missing controls), never a Sheet edit.'],
       exceptions: [], screen: { kind: 'calendar', highlight: ['night'], note: 'Volunteer Admin: nights by position.' },
       tech: {
         entry: [E('apps-script/VolunteerAdmin.js', 21, '(admin key)', 'A long random value in the desk\'s hidden AppWake tab.'), E(SA, 4417, 'adminApply_', 'Applies a reviewed change.')],
@@ -145,14 +145,14 @@ const phases = [
       caveats: ['Someone whose text could not be matched shows at the front desk ("New faces") and, after signing in, is counted twice until the next day.', 'After sign-up closes (7:15 PM, 3:15 PM Saturday) the forecast drops and only players are shown.'],
       exceptions: [
         X('The turnout app cannot be reached', '**Live sign-ins are not showing right now**, with the forecast from the site\'s own files.', 'Nothing at the desk is affected.', 'handled', TF + ':195'),
-        X('A texter shows at the front desk instead of their zone', 'Their Voice contact name does not match one player.', 'Link the name with the directory pencil\'s **Other names**. (The guide still says to add an Aliases row in the Sheet: see findings.)', 'partial', TF + ':200')],
+        X('A texter shows at the front desk instead of their zone', 'Their Voice contact name does not match one player.', 'Link the name with the directory pencil\'s **Other names**. (Until November 2026 the guide pointed to the Sheet instead; `npm run check:sheet-edits` now fails on any such advice.)', 'handled', TF + ':200')],
       screen: { kind: 'tonight', note: 'The gym floor: one court per rating zone, solid, ghost and chalk figures.' },
       tech: {
         entry: [E('tonight.html', 114, 'TURNOUT_URL', 'Asks the turnout app every 60 s.'), E('turnout-app/Code.js', 46, 'turnout', 'Counts by zone, cached 60 s; no names.'), E('turnout.js', 97, 'likelihood', 'Weighted attendance over the last 8 same-weekday nights.'), E('turnout.js', 126, 'expectedTotal', 'The usual turnout for the weekday.'), E('turnout.js', 30, 'NIGHTS', 'Which days and times count.')],
         state: [], writes: ['Turnout log'], reads: ['Desk Sheet: Sessions, SessionPlayers, VoiceTexts, Players, Aliases', 'site data/session-roster.json'],
         invariants: ['The page never shows a name, number, player id or text.', 'Each person counts once, at their firmest status: signed in, then texted, then likely.'],
         limits: ['60 s cache on Google; the page asks every minute.'],
-        tests: [T('scripts/check-turnout.js', '', 'Plays out a night: counts move from forecast to playing.'), T('turnout-app/check-turnout-app.cjs', '', 'Privacy and the answer\'s shape.')],
+        tests: [T('scripts/check-sheet-edits.js', '', 'No guide, page or message tells anyone to edit a Sheet by hand (the Aliases advice it replaced).'), T('scripts/check-turnout.js', '', 'Plays out a night: counts move from forecast to playing.'), T('turnout-app/check-turnout-app.cjs', '', 'Privacy and the answer\'s shape.')],
         untested: ['NIGHTS in turnout.js, VOICE_REPLY_DAYS and the desk\'s POLL_DAYS agreeing.'], simulate: '`npm run turnout:backtest` checks the forecast.' } },
     { id: 'text-5-desk', title: 'At the desk: Voice signups', who: 'Desk volunteer', when: 'From 6:45 PM',
       summary: 'The desk lists every text received today, grouped by sender, with likely directory matches. **✓** means the text says they are coming and the contact name is exactly one player; **?** means look first. **Add all ✓** signs in every ✓ sender not already placed; each sender also has **RR**.',
@@ -167,7 +167,6 @@ const phases = [
         tests: [T('apps-script/check-voice-service.cjs', '', 'Matching and marks.')], untested: [], simulate: 'check-voice-service.cjs.' } }
   ],
   findings: [
-    { severity: 'low', kind: 'doc-mismatch', title: 'Two guides tell people to add an Aliases row in the Sheet', detail: 'The Tonight page guide ("Add an Aliases row in the desk Sheet") and the automatic answers section ("or add an Aliases row") send people to edit the Sheet by hand, against the club\'s rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.', evidence: [TF + ':200', OPS + ':537', 'apps-script/PlayerEdits.js:71'], confirmed: 'read docs and code', suggest: 'Change both lines to point to the directory pencil\'s Other names.' },
     { severity: 'low', kind: 'fragile', title: 'The round robin schedule is copied in three places', detail: 'NIGHTS in turnout.js, VOICE_REPLY_DAYS in the desk\'s automatic answers and POLL_DAYS in the desk page each hold the days and sign-up times. The guide says to change all three together; nothing checks it. A new Friday round robin added to one would leave texts unanswered or the Tonight page on the wrong night.', evidence: ['turnout.js:30', 'apps-script/VoiceAutoReply.js:24', 'apps-script/Index.html:4419'], confirmed: 'read code only', suggest: 'One shared schedule file, or a check comparing the three.' }
   ]
 },

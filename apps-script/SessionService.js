@@ -401,7 +401,7 @@ function finalizeLocked_(sessionId, expectedRevision) {
       if (startingRating !== restored[playerId]) startFixes.push({ row: entry.__row, from: startingRating, to: restored[playerId] });
       startingRating = restored[playerId];
     } else if (Number(player.current_rating) !== startingRating) {
-      throw new Error(player.display_name + '\'s rating is ' + Number(player.current_rating) + ' now but was ' + startingRating + ' when this session was last saved (the club site sync or an edit in the Players sheet can change it). Click Save to Sheets to use the current rating, then finalize again.');
+      throw new Error(player.display_name + '\'s rating is ' + Number(player.current_rating) + ' now but was ' + startingRating + ' when this session was last saved (the club site sync, or a correction in the player\'s pencil window, can change it). Click Save to Sheets to use the current rating, then finalize again.');
     }
     starts[playerId] = startingRating;
     adjustments[playerId] = 0;

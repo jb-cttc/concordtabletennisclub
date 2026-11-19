@@ -35,6 +35,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins
 | `tonight.html`, `turnout.js`, `tonight-launch.js`, `turnout-app/`, `docs/turnout-flow.md` | The Tonight page: who to expect at the next round robin by rating, drawn as a gym floor; the forecast it shares with the public turnout app (its own Apps Script project), which counts desk sign-ins and today's Voice texts without ever returning names; and the guide to setting it up. |
 | `text.html`, `assets/text.webmanifest`, `assets/icons/text-*.png`, `scripts/make-text-icons.py`, `navtoggle.js` | Text CTTC: a second Home Screen icon beside CTTC's. The header's Add to Home Screen button asks which icon; this one opens Messages with "I'll join CTTC's RR today" filled in (or shows one big button, if the phone wants a tap). Its icon is drawn by `python3 scripts/make-text-icons.py [A|B|C]`. |
 | `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
+| `docs/data-changes.md`, `scripts/check-sheet-edits.js` | Changing the club's data: the control for each kind of data, and the forms still to build. The club's Sheets are never edited by hand, and `npm run check:sheet-edits` fails on any doc, page or message that says to. |
 | `apps-script/CloverPayments.js`, `docs/clover-payments.md` | Clover card payments: the desk reads the club's Clover payments and marks the player Credit ✓, with a sidebar list of the few it cannot match and the `?view=clover` page for checking every night and saving cards learned from the records. |
 
 ## Request an app or website change
@@ -213,9 +214,12 @@ already known (the link is signed, so it cannot be changed or forged), asks
 confirmation. Anyone without the email can still type their address there and
 we email a 24-hour link to that address only.
 New subscribers get a welcome email that includes the most recent results
-(`data/latest-session-email.json`, built by the data workflow). A maintainer
-can still delete a row in the private `Subscribers` tab. Never put
-addresses in an issue, commit, or the published `data/` directory.
+(`data/latest-session-email.json`, built by the data workflow). The club has
+no control yet to remove an address itself (see Missing controls in
+[Changing the club's data](docs/data-changes.md)); the subscriber's own
+Unsubscribe is the only way today, and the `Subscribers` tab is never edited
+by hand. Never put addresses in an issue, commit, or the published `data/`
+directory.
 
 **Email list and club updates:** subscribing also signs people up for the
 executive committee's occasional updates, which the club sends by hand from its

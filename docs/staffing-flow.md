@@ -153,8 +153,8 @@ runs the real import (`&import=seed`), and one tap for the membership email
 import. The preview's list also includes anyone **already emailed and still waiting
 for a YES** (marked "Re-send"), and the one **Send** button emails them again
 too: the current email, to their email on file after the import (a SeedLinks
-address replaces one found in Zeffy or coaching records; one the club typed
-in the Emails tab stays), with a fresh 72 hours. A YES to the earlier email
+address replaces one found in Zeffy or coaching records; one the club put on
+file stays), with a fresh 72 hours. A YES to the earlier email
 still counts. Someone emailed less than an hour ago is not re-sent, so a
 second tap on Send emails nobody twice (`&import=resend` re-sends without
 importing). A hold that
@@ -188,10 +188,11 @@ Or, from a computer:
    access* (section 12). The seed import also brought in the old open/close
    list's training (section 6).
 5. Put emails on file: run **`importMemberEmails`** (section 7) and
-   **`importSeedSheet`** (section 6), then type any missing ones into the
-   **Emails** tab yourself (`player_id`, `name`, `email`, optional `phone`,
-   `source` = `owner`, `status` = `approved`). Players still missing one can
-   ask from the page (section 5).
+   **`importSeedSheet`** (section 6). Players still missing one can ask from
+   the page (section 5), and **Volunteer Admin** puts one on file when it adds
+   someone to a shift (section 12). There is no control yet to add or change
+   an email on file directly ([Missing controls](data-changes.md#missing-controls)); the
+   `Emails` tab is never typed into.
 6. **Deploy > New deployment > Web app**, *Execute as: me*, *Who has access:
    Anyone*. Put the `/exec` URL into `APP_URL` in `index.html` (the
    "Volunteer signups" block); the button stays hidden until then. The app
@@ -217,11 +218,11 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | --- | --- | --- |
 | `Signups` | app | One row per pick: `date`, `position`, `status`, `expires_at`, `drop_at`, `reminded`, `seed_key`, `free_night` (section 11). |
 | `Batches` | app | One row per submission: the one email that asks YES or NO about all its picks. `emailed` / `texted` = the status last sent. |
-| `Emails` | owner, imports, app | The one approved email (and mobile) on file per player, plus requests waiting for the club (`status` `pending`) and old rows (`replaced`, `declined`). |
+| `Emails` | Volunteer Admin (`source` `owner`), imports, app | The one approved email (and mobile) on file per player, plus requests waiting for the club (`status` `pending`) and old rows (`replaced`, `declined`). Never typed into. |
 | `People` | app | Everyone who signed up, by email; the mobile on file and text opt-in (`texts`). |
 | `Training` | Volunteer Admin and the seed import | Who may take Desk organizer (`keys` and `open` = yes), Money collector (`front_desk` = yes) and Lock-up (`keys` = yes). Table setup and putting tables away need no training. |
-| `Closures` | owner | `date` (`2026-11-13` or `11/13/2026`) and a short public `note`. |
-| `SeedLinks`, `SeedReport` | owner / import | The seed import's fix-up loop (section 6). |
+| `Closures` | nobody now | Still read, so a night closed here before stays closed: `date` (`2026-11-13` or `11/13/2026`) and a short public `note`. Never added to: close a night in `data/closures.json` (section 8). |
+| `SeedLinks`, `SeedReport` | the one-time import (done) | The seed import's fix-up loop (section 6). Not used since. |
 | `MemberEmailReport` | import | What `importMemberEmails` added, kept and could not match (full names; private). |
 | `Log` | app | One row per email/text sent, reply read, step or error. Recipients are codes; never an address or number. |
 | `Bundles` | app | One row per email that listed everything waiting for someone's YES (section 4, *Everything waiting*): `trigger` and `items` (`b:{batch_id}`, `d:{signup_id}:{drop_at}`). Dropped by the sweep once nothing on it waits. |
@@ -311,8 +312,9 @@ account can open it, and a second tap changes nothing. The coaching app uses a d
 tag (`[CTTC ref …]`), so neither app reads the other's replies.
 
 **Texts (optional).** The public form takes no phone (it could be anyone's).
-A volunteer whose mobile is **on file** (`Emails.phone`: typed by the owner, or
-from the coaching app's Sheet during the seed import) **and** who texted
+A volunteer whose mobile is **on file** (`Emails.phone`: from the imports,
+such as the coaching app's Sheet during the seed import; there is no control
+yet to add one, see [Missing controls](data-changes.md#missing-controls)) **and** who texted
 `STAFF` to the club's Google Voice number from it also gets the question by text: "Reply CONFIRM
 to lock in … or RELEASE to cancel". The coaching app reads the same number and
 takes a bare YES or NO from its own people as an answer, so staffing texts use
@@ -375,9 +377,10 @@ owner's daily summary*). Names only, never an address.
   sends and writes **only** to the email on file. Picking someone else's name
   just sends them an email they can ignore.
 - At most one `approved` row per player: a newer approval marks the older row
-  `replaced` (the hourly sweep tidies rows the owner typed). Imports never
-  replace a row the owner typed; a SeedLinks fix replaces an earlier import;
-  otherwise the first email found stays.
+  `replaced` (the hourly sweep also tidies older rows that were typed in
+  before the club stopped editing the Sheet). Imports never replace a row the
+  club put on file (`source` `owner`); a SeedLinks fix replaces an earlier
+  import; otherwise the first email found stays.
 - Drops, reminders and closure notices go to the email on
   file **now**, so changing it later moves them to the new address.
 
@@ -389,17 +392,21 @@ request **holds nothing**. The club (`ADMIN_EMAIL`) gets one email, *Approve an
 email for staff sign-ups [CTTC shift …]*: "<full name> wants to use <email> …
 Reply YES to approve or NO to decline." Only a reply from `ADMIN_EMAIL` counts.
 
-- **YES** (or the owner sets that `Emails` row's `status` to `approved`; picked
-  up within the hour, at the next sweep): the address becomes the email on file (`source =
+- **YES**: the address becomes the email on file (`source =
   approved-request`), the picks still free become normal pending holds, and the
   person gets the normal confirmation email (their own YES is still needed),
   which lists any picks taken meanwhile. If none is free they are told so.
-- **NO** (or `status` set to `declined`, or no answer in 7 days): nothing was
+- **NO** (or no answer in 7 days): nothing was
   held; the typed address is told once that the club couldn't confirm it.
 - Limits: one open request per player and per email address, and at most 10
   open in all (then the page says "Please ask the club to add your email").
 
 ## 6. Importing the volunteer's open/close list (`importSeedSheet`)
+
+**Done, and kept here as a record.** Its fix-up loop below filled `SeedLinks`
+rows in the Sheet by hand, which the club no longer does. Reopening the import
+would first need a form for those fixes (club account only, Review and
+Confirm, a record), so do not delete `SEED_IMPORTED_AT` until one exists.
 
 **This is a one-time import.** The club's earlier open/close list is read once,
 when Send is tapped on the preview (or `importSeedSheet` is run), and never
@@ -414,7 +421,8 @@ person on the next club nights: their nights show as "waiting to confirm"
 (even a night that comes and goes meanwhile) until they answer. A re-send
 gives a fresh 72 hours. The
 `SeedLinks`, `SeedReport` and `SeedPlayers` tabs are not used after the
-import. A maintainer can delete `SEED_IMPORTED_AT` to allow one more import.
+import. Deleting `SEED_IMPORTED_AT` would allow one more import, but only once
+a form replaces the hand-filled fix-up loop (above).
 
 The volunteer's Sheet has a tab `Open/Close` with a roster block (header row
 with **Open** and **Front Desk**, one row per weekday holding first names; two
@@ -455,10 +463,10 @@ Run **`importSeedSheet`** from the editor (after `setup`). It:
    candidate players by full name) and adds a blank `SeedLinks` row for each
    such name, with a dropdown of active players in `player_name`.
 
-**Fix-up loop (before sending):** use Prepare SeedLinks, fill the matching
-`SeedLinks` rows (pick the player in `player_name`, a `player_id` also works,
-and/or type an `email`), and check the preview again until it is right, then
-Send. (If a maintainer reopens the import, a re-run works the same way.) Re-runs never hold or email the same
+**Fix-up loop (as it was run, before the one send):** Prepare SeedLinks made
+a `SeedLinks` row for each name to fix; each was completed with the player
+(`player_name`, or a `player_id`) and/or an `email`, and the preview was
+checked again until it was right, then Send. Not to be repeated by hand. (If a maintainer reopens the import, a re-run works the same way.) Re-runs never hold or email the same
 pick twice (`seed_key`), so only newly resolved people are emailed. The
 return value and execution log hold counts and the sheet's own first names
 (plus last initial) only.
@@ -498,8 +506,9 @@ broken file never reopens a closed night. Per date:
   short note: the home page notice that mentions that date, else "Reduced play
   area, 10 tables max" / "Open on holiday".
 
-The private **Closures** tab is an extra, owner-only way to close a night;
-both count. If a night that already has confirmed sign-ups becomes closed, the
+The private **Closures** tab is still read, so a night closed there before
+stays closed, but it is never added to: `data/closures.json` is the one way
+to close a night. If a night that already has confirmed sign-ups becomes closed, the
 hourly sweep cancels them (`status = cancelled`, `cancelled_by = closure`),
 emails each person once ("The gym is closed on …; your … shift is cancelled.
 Thank you!") and sends the club one summary. Pending picks on that night are
@@ -533,9 +542,9 @@ All of this lives in `canTake_`; tests cover both modes.
 | They replied YES but it is still pending | Reply came from a different address (they got a notice), or from an auto-reply, or after 3 days. The reply check has no timer of its own: the desk's mail reader wakes it when a text or an email reply comes in (within about 5 minutes by day), and the hourly `sweep` (Triggers page) runs it too. If the desk log shows `app_wake_failed`, replies wait for the sweep. |
 | A hold disappeared | It expired (`Signups.status = expired`); look at `Batches.expires_at` (ms since 1970, UTC). |
 | Desk, Money or Lock-up is greyed out for someone | Volunteer Admin, *Training & access*: Desk needs both Key access and Opening, Money needs Front Desk, Lock-up needs Key access. Table setup and putting tables away are never greyed out. |
-| Someone says the confirmation went to an old address | Their `Emails` row: type the new address as a new `approved` row (`source` owner); the old one becomes `replaced`. |
-| A new email request is stuck | `Emails` row `pending`: answer the *Approve an email* message from `ADMIN_EMAIL`, or set `status` to `approved` / `declined`. After 7 days it is declined. |
-| A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date) or add it to `Closures`. Changes show within an hour. |
+| Someone says the confirmation went to an old address | There is no control yet to change an email on file ([Missing controls](data-changes.md#missing-controls)). Until it is built, their emails keep going to the address on file; the `Emails` tab is never edited. |
+| A new email request is stuck | `Emails` row `pending`: answer the *Approve an email* message from `ADMIN_EMAIL` with YES or NO. After 7 days it is declined. |
+| A closed night still shows as open | Check `data/closures.json` on the live site (`full` for that date); to close it, change that file (a PR). Changes show within an hour. |
 | *Action needed: the staffing app cannot …* | A step of the reply check has failed at every attempt for 30 minutes (`ALERT_AFTER_MS`); the email names what is affected and what to do. Failures that clear sooner are in the `Log` tab, not emailed. When the step works again the club gets *Resolved: the staffing app can … again*. |
 | No texts | The person needs a mobile **on file** (`Emails.phone`) **and** `People.texts = yes` (they texted STAFF from that phone). |
 | Someone says they should be playing free | Section 11: only **confirmed** volunteers, in sign-up order; a waiting hold keeps the spot but is not free yet. The calendar's gold box on that night shows who holds each free spot. |

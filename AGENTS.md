@@ -22,11 +22,18 @@ for one-off fixes and "just this once" too.
   step, and a record of each change (who, when, before and after) where the
   desk log or a tab shows it. Build it on a branch like any other change.
 - **Reading is fine** (`npm run sheet:read`, read-only checks) for diagnosis.
-- Docs written before this rule still describe Sheet edits (for example the
-  staffing app's Emails and Closures tabs in `docs/staffing-flow.md`). Treat
-  each as a form still to be built, not as instructions; replace the step with
-  the form when it lands. Volunteer training is done on the desk's **Volunteer
-  Admin** page (`docs/staffing-flow.md`, section 12).
+- **Look it up first:** [Changing the club's data](docs/data-changes.md) names
+  the control for each kind of data. Its **Missing controls** list holds every
+  correction that has no control yet, with the form to build. When you find a
+  new one, add it there; never offer a Sheet edit as a stopgap.
+- **It is enforced:** `npm run check:sheet-edits` (part of `npm test`, so it
+  runs on every PR) fails when a doc, skill, PR template, storyboard step, site
+  page, or an app's message or code comment tells anyone to type into, fill,
+  add, delete or fix Sheet rows, cells or tabs, or to type a formula into one.
+  Do not weaken it to get a change through: reword the text to point to the
+  control, or to the missing-control entry. Code that still reads rows typed in
+  before this rule (the volunteer app's `Closures` tab, older `Emails` rows)
+  does so only so old data keeps working; it is never a way in.
 
 ## What this session can access
 

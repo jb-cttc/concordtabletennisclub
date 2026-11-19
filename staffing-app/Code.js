@@ -40,7 +40,8 @@ var MAX_PICKS = 40;
 var CLUB_WAIT_MS = 7 * 24 * 60 * 60 * 1000;
 var MAX_OPEN_REQUESTS = 10;
 // Where an email on file came from, and so which import may replace which: a higher rank is never replaced by a lower one,
-// and an equal rank only by a newer SeedLinks fix. A row the owner typed (any other source) ranks highest.
+// and an equal rank only by a newer SeedLinks fix. A row the club put on file (source owner: Volunteer Admin, or older rows
+// typed in before the club stopped editing the Sheet) ranks highest.
 var EMAIL_RANK = { owner: 3, seedlinks: 2, 'approved-request': 2, 'member-list': 1, zeffy: 1, coaching: 1 };
 var MAX_PENDING_PER_EMAIL = 3;
 var MAX_SIGNUPS = 20000;
@@ -185,7 +186,8 @@ var TABS = {
   SeedLinks: ['sheet_name', 'player_name', 'email'],
   // Rewritten by each importSeedSheet run: counts per reason, and each name to fix with up to 5 candidate players.
   SeedReport: ['at', 'kind', 'name', 'count', 'candidates'],
-  // Typed by the owner: one date per row (2026-11-13 or 11/13/2026) and a short public note. Those nights show as closed.
+  // Nights closed here before: one date per row (2026-11-13 or 11/13/2026) and a short public note. Still read, so they stay
+  // closed; never added to by hand: data/closures.json is the one way to close a night.
   Closures: ['date', 'note'],
   // One row per change made on the desk's Volunteer Admin page (adminApply_): change_id groups one submission; kind add,
   // remove, move or training; before and after in words; emailed 'yes' once the person was told ('-' for training).
@@ -317,7 +319,8 @@ function ownerSetup_(params) {
       var toFill = [].concat(prepared.unmatched, prepared.ambiguous, prepared.noEmail);
       lines.push('<p>&#10003; SeedLinks is ready: ' + (toFill.length ? esc_(toFill.length) + ' ' + (toFill.length === 1 ? 'name needs' : 'names need') + ' a player and/or an email (' +
         esc_(toFill.join(', ')) + '). The player dropdown is up to date.' : 'every name already has a player and an email.') + ' Nothing was held or sent.</p>');
-      lines.push('<p><a href="' + esc_(result.privateSheet) + '">Open the private staffing Sheet</a>, fill in the SeedLinks tab, then come back to the preview.</p>');
+      lines.push('<p>These names cannot be fixed here: the fix-up was done in the Sheet by hand, which the club no longer does. A form for it is ' +
+        'still to be built (docs/data-changes.md in the club repository, Missing controls).</p>');
       lines.push(button(base + '&import=preview', 'Back to the preview'));
     } else if (params['import'] === 'resend') {
       var resent = resendSeed_();
@@ -632,9 +635,9 @@ function ensureHeaders_() {
   properties.setProperty('HEADERS', version);
 }
 
-// Every closed night: {date: note}. A night is closed when the home page's closures.json says 'full', or the owner typed it
-// into the private Closures tab (an extra, owner-only way to close one). A typed date can arrive as a Date (if the cell was
-// not plain text) or as text.
+// Every closed night: {date: note}. A night is closed when the home page's closures.json says 'full', or it is in the private
+// Closures tab (still read so nights closed there before stay closed; never added to by hand: closures.json is the one way).
+// A stored date can arrive as a Date (if the cell was not plain text) or as text.
 function closures_() {
   var found = {};
   var site = siteClosures_();
@@ -1345,7 +1348,7 @@ function playerAccess(playerId) {
 
 // ---------- Emails on file ----------
 
-// The player's approved email row (the newest, if the owner typed more than one), or null.
+// The player's approved email row (the newest, if there is more than one), or null.
 function approvedEmail_(emails, playerId) {
   var found = null;
   emails.forEach(function (row) {
@@ -1391,8 +1394,8 @@ function upsertEmail_(emails, player, email, source, phone) {
   return 'added';
 }
 
-// Call while holding the lock. At most one approved email per player: when several are approved (the owner typed a new
-// one), the newest stays and the others are marked replaced.
+// Call while holding the lock. At most one approved email per player: when several are approved (a newer one was put on
+// file), the newest stays and the others are marked replaced.
 function tidyEmails_(emails) {
   var newest = {};
   emails.forEach(function (row) { if (String(row.status).trim().toLowerCase() === 'approved' && cleanEmail_(row.email)) newest[String(row.player_id).trim()] = row; });
@@ -1631,12 +1634,12 @@ function seedImportedAt_() { return property_('SEED_IMPORTED_AT', ''); }
 
 function seedClosedText_() {
   var at = Date.parse(seedImportedAt_());
-  return 'The open/close list was imported once' + (at ? ', on ' + momentLabel_(at) : '') + ', and is no longer read. Training and emails are kept in the ' +
-    'private staffing Sheet (Training and Emails tabs), and volunteers sign up on the calendar.';
+  return 'The open/close list was imported once' + (at ? ', on ' + momentLabel_(at) : '') + ', and is no longer read. Training is managed on ' +
+    'Volunteer Admin, and volunteers sign up on the calendar.';
 }
 
-// links (with preview): also rewrite SeedReport and add SeedLinks rows for every name to fix, so the owner can fill in emails
-// before anything is held or sent.
+// links (with preview): the links action also rewrites SeedReport and adds a SeedLinks row for every name to fix. They were completed by hand
+// before the one import; that is not done any more, so a reopened import needs a form for these fixes first.
 // preview: work out exactly what importSeedSheet would do and return it, but write nothing to any Sheet and send nothing.
 // report.preview lists each person who would be emailed: the seed Sheet's name for them, their email masked, how many
 // nights and which positions.
@@ -2078,7 +2081,7 @@ function seedReason_(reason) {
 // Run from the Apps Script editor by the owner. Does nothing from the web page. Reads the 2026 membership list (script property
 // MEMBER_LIST_ID: a Google Sheet, or a Google Doc with a table), links each member to ONE active desk player with the seed's
 // rules (exact full name, a desk alias, or a first name only one active player has when the list gives just a first name),
-// and puts their email on file (Emails, source member-list). It never replaces an email the owner typed or fixed in
+// and puts their email on file (Emails, source member-list). It never replaces an email the club put on file or fixed in
 // SeedLinks, or one already on file from another import. A household row with several names and several emails is paired
 // only when the counts match one to one. Safe to run again. MemberEmailReport (private) lists what it did and every name it
 // could not match, with full names; the return value and the execution log hold counts only.
@@ -2224,8 +2227,8 @@ function clubAnswer_(batchId, answer) {
   }
 }
 
-// Call while holding the lock. The owner may also decide in the Emails tab (status approved or declined); an unanswered
-// request is declined after CLUB_WAIT_MS. Run by the sweep, and by the check while a request is open.
+// Call while holding the lock. The club decides by its YES or NO reply; a decision already stored on the Emails row (rows typed
+// in before the club stopped editing the Sheet) is applied too, and an unanswered request is declined after CLUB_WAIT_MS. Run by the sweep, and by the check while a request is open.
 function settleRequests_(now) {
   var waiting = rows_('Batches').filter(function (batch) { return batch.status === 'awaiting_club'; });
   if (!waiting.length) return;
@@ -3045,7 +3048,7 @@ function checkNow_(wait) {
     step_(failing, 'read email answers', 'Volunteers\' YES and NO email replies, and the club\'s emailed approvals, are not being read.', checkMail_);
     step_(failing, 'read CONFIRM and RELEASE texts', 'Volunteers\' CONFIRM and RELEASE texts are not being read.', checkTextAnswers_);
     step_(failing, 'read STAFF and STOP texts', 'STAFF and STOP texts are not being read.', checkOptIns_);
-    step_(failing, 'apply the club\'s email decisions', 'Approvals and declines entered in the Emails tab are not being applied.', checkDecisions_);
+    step_(failing, 'apply the club\'s email decisions', 'The club\'s email approvals and declines are not being applied.', checkDecisions_);
     return true;
   } finally {
     running.releaseLock();
@@ -4193,7 +4196,7 @@ function batchMail_(batch, mine, now, bundle, signups) {
       'The club has no email on file for ' + batch.name + ', so this address needs the club\'s OK once. On YES it becomes their email on file and we email them to confirm these shifts (they still reply YES themselves). On NO, or no answer within 7 days, nothing is held and they are told to contact the club.',
       { heading: 'The shifts they picked (not held yet)' }, shiftRows_(mine),
       { choices: [['YES', 'Approve this address for ' + batch.name + '.'], ['NO', 'Decline it.']] },
-      'A reply from another address does not count. You can also decide in the private staffing Sheet: Emails tab, status approved or declined.'] };
+      'A reply from another address does not count.'] };
   }
   if (batch.status === 'declined') {
     return { subject: 'We could not confirm your email for CTTC staff sign-ups', lines: ['Hello,',
