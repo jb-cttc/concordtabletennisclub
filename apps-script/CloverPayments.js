@@ -1087,20 +1087,31 @@ function unmatchCloverPayment(sessionDate, paymentId) {
   try {
     ensurePrivatePaymentTables_();
     cloverTable_('CloverMatches', CLOVER_MATCH_HEADERS);
-    var rows = rows_('CloverMatches').filter(function (row) { return String(row.session_id) === sessionId && String(row.payment_id) === paymentId; });
-    var players = rows.map(function (row) { return String(row.player_id); }).filter(Boolean);
-    var now = new Date();
-    rows_('SessionPayments').forEach(function (row) {
-      if (String(row.session_id) === sessionId && players.indexOf(String(row.player_id)) >= 0 && String(row.method) === 'credit') updateRow_('SessionPayments', row.__row, { method: '', updated_at: now });
-    });
+    var players = rows_('CloverMatches').filter(function (row) { return String(row.session_id) === sessionId && String(row.payment_id) === paymentId; })
+    .map(function (row) { return String(row.player_id); }).filter(Boolean);
     cloverForgetKeys_(cloverPaymentKeys_(found.payment), players);
-    cloverClearPayment_(sessionId, paymentId);
-    appendObjects_('CloverMatches', [{ payment_id: paymentId, session_id: sessionId, player_id: '', how: 'held', amount: found.payment.net / 100, card: cloverCardLabel_(found.payment), paid_at: new Date(found.payment.time), updated_at: now }]);
-    appendAudit_('clover_payment_unmatched', 'session', sessionId, { playerId: players[0] || '', players: players.length });
+    cloverHold_(sessionId, paymentId, { amount: found.payment.net / 100, card: cloverCardLabel_(found.payment), paidAt: new Date(found.payment.time) }, new Date());
   } finally {
     lock.releaseLock();
   }
   return cloverDeskState_(sessionDate, found.payments, config);
+}
+
+// Puts a payment back in the organizer's list: the players it was matched to go back to unpaid unless their method was
+// changed by hand since, and it waits as 'held', never matching by itself again. info: { amount, card, paidAt }, from
+// Clover, or else from the payment's own rows. Records the undo and returns the players. Hold the script lock.
+function cloverHold_(sessionId, paymentId, info, now) {
+  var rows = rows_('CloverMatches').filter(function (row) { return String(row.session_id) === sessionId && String(row.payment_id) === paymentId; });
+  var players = rows.map(function (row) { return String(row.player_id); }).filter(Boolean);
+  var first = rows[0] || {};
+  info = info || { amount: first.amount, card: first.card, paidAt: first.paid_at };
+  rows_('SessionPayments').forEach(function (row) {
+    if (String(row.session_id) === sessionId && players.indexOf(String(row.player_id)) >= 0 && String(row.method) === 'credit') updateRow_('SessionPayments', row.__row, { method: '', updated_at: now });
+  });
+  cloverClearPayment_(sessionId, paymentId);
+  appendObjects_('CloverMatches', [{ payment_id: paymentId, session_id: sessionId, player_id: '', how: 'held', amount: info.amount, card: info.card, paid_at: info.paidAt, updated_at: now }]);
+  appendAudit_('clover_payment_unmatched', 'session', sessionId, { playerId: players[0] || '', players: players.length });
+  return players;
 }
 
 // Not a desk fee (a payment for something else): it leaves the list and is never matched.
@@ -1303,6 +1314,131 @@ function saveCloverCards(cards) {
     lock.releaseLock();
   }
   return cards.length;
+}
+
+// What a learned key is, for people: "VISA ••1234" for a card, else which part of a Clover customer record it is.
+function cloverLinkLabel_(key) {
+  var card = /^card:([^|]*)\|\d*\|(\d{4})$/.exec(key);
+  if (card) return cloverCardLabel_({ brand: card[1], last4: card[2] });
+  return { customer: 'Clover customer', phone: 'Clover customer phone', email: 'Clover customer email' }[key.split(':')[0]] || 'Clover record';
+}
+
+// The Clover page's "Cards linked to players": each card (or Clover customer) the desk matches by itself, whom it points
+// to, how it was learned, and the matches recorded through it, so a wrong link can be found and unlinked. A card and the
+// Clover customer remembered with it in the same match are one entry. Only reads the Sheet. Keys pointing to nobody
+// (a card that paid for two players) are not listed: they match no one.
+function getCloverLinks() {
+  var config = cloverConfig_();
+  var book = SpreadsheetApp.getActive();
+  if (!book.getSheetByName('CloverLinks')) return { enabled: config.enabled, names: {}, links: [] };
+  TABLES.CloverLinks = CLOVER_LINK_HEADERS;
+  var timeZone = Session.getScriptTimeZone();
+  var timeOf = function (value) { var time = value instanceof Date ? value.getTime() : Date.parse(value); return isFinite(time) ? time : 0; };
+  var groups = [];
+  var byStamp = {};
+  var rows = rows_('CloverLinks').filter(function (row) { return String(row.link_key || '').trim() && String(row.player_id || ''); });
+  // Cards first, so a Clover customer remembered in the same match joins its card.
+  rows.sort(function (a, b) { return (String(b.link_key).indexOf('card:') === 0) - (String(a.link_key).indexOf('card:') === 0); }).forEach(function (row) {
+    var key = String(row.link_key).trim();
+    var playerId = String(row.player_id);
+    var stamp = playerId + '|' + timeOf(row.updated_at);
+    var isCard = key.indexOf('card:') === 0;
+    var group = !isCard && byStamp[stamp];
+    if (!group) {
+      group = { playerId: playerId, keys: [], card: isCard ? cloverLinkLabel_(key) : '', parts: [], source: String(row.source || ''), linkedAt: timeOf(row.updated_at) ? Utilities.formatDate(new Date(timeOf(row.updated_at)), timeZone, 'yyyy-MM-dd') : '', matches: [] };
+      groups.push(group);
+      if (!byStamp[stamp]) byStamp[stamp] = group;
+    }
+    group.keys.push(key);
+    if (!isCard) group.parts.push(cloverLinkLabel_(key));
+  });
+
+  // The matches recorded for each entry's player: by the card's brand and last 4 digits, or (a Clover customer with no
+  // card) the matches made by that customer. Each payment once, with everyone it was matched to.
+  var payments = {};
+  var order = [];
+  if (book.getSheetByName('CloverMatches')) {
+    TABLES.CloverMatches = CLOVER_MATCH_HEADERS;
+    rows_('CloverMatches').forEach(function (row) {
+      var date = (/^session-(\d{4}-\d{2}-\d{2})$/.exec(String(row.session_id)) || [])[1];
+      if (!date || !String(row.player_id) || row.how === 'refunded') return;
+      var id = date + '|' + String(row.payment_id);
+      var entry = payments[id];
+      if (!entry) {
+        var paidAt = timeOf(row.paid_at);
+        entry = payments[id] = { date: date, paymentId: String(row.payment_id), clock: paidAt ? Utilities.formatDate(new Date(paidAt), timeZone, 'h:mm a') : '', amount: Number(row.amount) || 0, card: String(row.card || ''), players: [], how: String(row.how || ''), time: paidAt };
+        order.push(entry);
+      }
+      if (entry.players.indexOf(String(row.player_id)) < 0) entry.players.push(String(row.player_id));
+    });
+  }
+  order.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.time - b.time; });
+  var names = {};
+  var players = {};
+  rows_('Players').forEach(function (row) { players[String(row.player_id)] = String(row.display_name || ''); });
+  groups.forEach(function (group) {
+    var card = group.card.toUpperCase();
+    group.matches = order.filter(function (entry) {
+      if (entry.players.indexOf(group.playerId) < 0) return false;
+      return card ? entry.card.toUpperCase() === card : /^(customer|phone|email)$/.test(entry.how);
+    }).map(function (entry) { return { date: entry.date, paymentId: entry.paymentId, clock: entry.clock, amount: entry.amount, players: entry.players, how: entry.how }; });
+    var ids = [group.playerId];
+    group.matches.forEach(function (entry) { ids = ids.concat(entry.players); });
+    ids.forEach(function (id) { names[id] = players[id] || 'Unknown player'; });
+  });
+  groups.sort(function (a, b) { return names[a.playerId].localeCompare(names[b.playerId]) || (a.linkedAt < b.linkedAt ? -1 : a.linkedAt > b.linkedAt ? 1 : 0); });
+  return { enabled: config.enabled, names: names, links: groups };
+}
+
+// Unlinks a card (and the Clover customer remembered with it) from a player, after the owner reviews it on the Clover
+// page: the desk stops matching it by itself, and its next payment waits for the organizer. undo: matches recorded
+// through it, [{ date, paymentId }], each put back in the organizer's list as the desk's Undo does. Every key must still
+// point to the player, and every match still include them, or nothing changes. Recorded with what was unlinked.
+function unlinkCloverCard(playerId, keys, undo) {
+  playerId = String(playerId || '');
+  keys = (Array.isArray(keys) ? keys : []).map(String).filter(function (key, index, all) { return key && all.indexOf(key) === index; });
+  undo = (Array.isArray(undo) ? undo : []).map(function (entry) { return { date: String(entry && entry.date || ''), paymentId: String(entry && entry.paymentId || '') }; })
+  .filter(function (entry, index, all) { return all.findIndex(function (other) { return other.date === entry.date && other.paymentId === entry.paymentId; }) === index; });
+  if (!playerId || !keys.length || keys.length > 20 || undo.length > 100) throw new Error('Choose the card to unlink.');
+  undo.forEach(function (entry) {
+    validateSessionDate_(entry.date);
+    if (!entry.paymentId) throw new Error('Choose the matches to undo.');
+  });
+  cloverLive_();
+  var changed = 'This changed since the page opened: show the linked cards again.';
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = SpreadsheetApp.getActive().getSheetByName('CloverLinks');
+    if (!sheet) throw new Error(changed);
+    TABLES.CloverLinks = CLOVER_LINK_HEADERS;
+    var rows = rows_('CloverLinks');
+    var before = keys.map(function (key) {
+      var row = rows.filter(function (entry) { return String(entry.link_key).trim() === key; })[0];
+      if (!row || String(row.player_id) !== playerId) throw new Error(changed);
+      return row;
+    });
+    if (undo.length) {
+      cloverTable_('CloverMatches', CLOVER_MATCH_HEADERS);
+      ensurePrivatePaymentTables_();
+      var matches = rows_('CloverMatches');
+      undo.forEach(function (entry) {
+        var sessionId = 'session-' + entry.date;
+        if (!matches.some(function (row) { return String(row.session_id) === sessionId && String(row.payment_id) === entry.paymentId && String(row.player_id) === playerId && row.how !== 'refunded'; })) throw new Error(changed);
+      });
+    }
+    before.map(function (row) { return row.__row; }).sort(function (a, b) { return b - a; }).forEach(function (row) { sheet.deleteRow(row); });
+    var now = new Date();
+    undo.forEach(function (entry) { cloverHold_('session-' + entry.date, entry.paymentId, null, now); });
+    // The private audit log keeps what was unlinked; the public desk log gets only the player's code and the counts.
+    appendAudit_('clover_card_unlinked', 'player', playerId, { playerId: playerId, links: keys.length, undone: undo.length,
+      before: before.map(function (row) { return { link: cloverLinkLabel_(String(row.link_key).trim()), source: String(row.source || ''), linkedAt: row.updated_at }; }) });
+  } finally {
+    lock.releaseLock();
+  }
+  undo.map(function (entry) { return entry.date; }).filter(function (date, index, all) { return all.indexOf(date) === index; })
+  .forEach(function (date) { touchDesk_('p', date); });
+  return getCloverLinks();
 }
 
 function cloverCardLabel_(payment) {

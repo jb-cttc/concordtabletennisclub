@@ -308,7 +308,50 @@ assert.deepEqual(state.payersOf.p3, ['p2'], 'Casey is Blake\'s junior');
 assert.deepEqual(state.payersOf.p5, ['p6'], 'Gray pays for Emery');
 assert.ok(Array.isArray(state.usualCard));
 
-// The desk log only keeps codes and numbers from these audit entries.
-assert.ok(audits.filter(entry => /^clover_/.test(entry.action)).every(entry => Object.keys(entry.details).every(key => ['playerId', 'players', 'how', 'remember', 'cards'].indexOf(key) >= 0)));
+// ---- Unlinking a card from the Clover page: Drew's card 7777 turns out not to be Drew's ----
+let linked = plain(context.getCloverLinks());
+const drewCard = linked.links.find(link => link.playerId === 'p4' && link.card === 'VISA \u2022\u20227777');
+assert.ok(drewCard, 'the card matched by hand as Drew\'s is listed');
+assert.equal(drewCard.source, 'hand');
+assert.deepEqual(drewCard.matches.map(entry => [entry.date, entry.paymentId, entry.players.slice().sort()]),
+  [[THIRD, 'P1', ['p1', 'p4']], [FOURTH, 'P2', ['p1', 'p4']], [FIFTH, 'P3', ['p1', 'p4']]], 'every match recorded through it, oldest first');
+assert.equal(linked.names.p4, 'Drew Lane');
+assert.equal(linked.names.p1, 'Avery Park', 'names for everyone on those matches');
+assert.ok(!linked.links.some(link => link.keys.includes('card:VISA|411111|9999')), 'a card that paid for two players matches no one, so it is not listed');
+const unchanged = JSON.stringify([tables.CloverLinks, tables.CloverMatches, tables.SessionPayments]);
+assert.throws(() => context.unlinkCloverCard('p4', [], []), /Choose the card/);
+assert.throws(() => context.unlinkCloverCard('p1', drewCard.keys, []), /changed since the page opened/, 'the card must still point to that player');
+assert.throws(() => context.unlinkCloverCard('p4', drewCard.keys, [{ date: THIRD, paymentId: 'P0' }]), /changed since the page opened/, 'a match to undo must include them');
+assert.throws(() => context.unlinkCloverCard('p4', drewCard.keys, [{ date: 'Nov 9', paymentId: 'P1' }]), /YYYY-MM-DD/);
+properties.CLOVER_ENABLED = 'false';
+assert.throws(() => context.unlinkCloverCard('p4', drewCard.keys, []), /Clover matching is off/, 'unlinking waits for CLOVER_ENABLED, like saving');
+properties.CLOVER_ENABLED = 'true';
+assert.equal(JSON.stringify([tables.CloverLinks, tables.CloverMatches, tables.SessionPayments]), unchanged, 'a refused unlink changes nothing');
+
+// Confirmed with two of the three matches ticked: the card is forgotten, those two go back to unpaid and wait for the
+// organizer, and the untouched night keeps its Credit.
+const auditsBefore = audits.length;
+linked = plain(context.unlinkCloverCard('p4', drewCard.keys, [{ date: FOURTH, paymentId: 'P2' }, { date: FIFTH, paymentId: 'P3' }]));
+assert.ok(!tables.CloverLinks.some(row => row.link_key === 'card:VISA|411111|7777'), 'the card is forgotten');
+assert.ok(!linked.links.some(link => link.card === 'VISA \u2022\u20227777'), 'and no longer listed');
+assert.deepEqual([method(FOURTH, 'p4'), method(FOURTH, 'p1'), method(FIFTH, 'p4'), method(FIFTH, 'p1')], ['', '', '', ''], 'Credit taken back from everyone on the undone payments');
+assert.equal(method(THIRD, 'p4'), 'credit', 'an unticked match stays');
+assert.deepEqual(plain(tables.CloverMatches.filter(row => row.payment_id === 'P3').map(row => [row.player_id, row.how])), [['', 'held']]);
+const added = audits.slice(auditsBefore);
+assert.deepEqual(added.map(entry => entry.action), ['clover_payment_unmatched', 'clover_payment_unmatched', 'clover_card_unlinked']);
+const unlinked = plain(added[2].details);
+assert.deepEqual([unlinked.playerId, unlinked.links, unlinked.undone, unlinked.before.map(entry => [entry.link, entry.source])], ['p4', 1, 2, [['VISA \u2022\u20227777', 'hand']]], 'recorded with what was unlinked');
+clover.payments = [payment('P3', FIFTH, 2, 20, { last4: '7777' })];
+assert.equal(item(desk(FIFTH), 'P3').state, 'unmatched', 'an undone payment waits for the organizer');
+// The card pays again: the desk no longer marks Drew by itself.
+clover.payments = [payment('R2', LATER, 9, 10, { last4: '7777' })];
+state = desk(LATER);
+assert.equal(item(state, 'R2').state, 'unmatched');
+assert.equal(item(state, 'R2').payerId, '');
+
+// The desk log only keeps codes and numbers from these audit entries ('before' is a list, which the desk log leaves out:
+// the card stays in the private audit log).
+assert.ok(audits.filter(entry => /^clover_/.test(entry.action)).every(entry => Object.keys(entry.details).every(key => ['playerId', 'players', 'how', 'remember', 'cards', 'links', 'undone', 'before'].indexOf(key) >= 0)));
+assert.ok(audits.filter(entry => entry.details.before).every(entry => Array.isArray(entry.details.before)));
 
 console.log('Clover desk checks passed');

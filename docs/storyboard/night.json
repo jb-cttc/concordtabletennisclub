@@ -2239,6 +2239,13 @@
        "evidence": "apps-script/CloverPayments.js:937"
       },
       {
+       "when": "A card was remembered for the wrong person (a match made by mistake)",
+       "happens": "Each time that card pays, the desk marks the wrong player **Credit ✓** by itself.",
+       "handling": "Tonight's match: **Undo** it under Matched (the card is forgotten). Any night, or to see every card the desk knows: **Every night** opens the Clover payments page, where **Cards linked to players** lists them; **Unlink…** shows what changes and the matches made through the card (ticked to undo too), and **Confirm and unlink** does it and records it.",
+       "status": "handled",
+       "evidence": "apps-script/CloverPayments.js:1397"
+      },
+      {
        "when": "A paid player is removed or moves to Open Play",
        "happens": "unconfirmed: the payment stays recorded for the player and night.",
        "handling": "Check the payment still shows where they now are.",
@@ -2300,6 +2307,12 @@
         "note": "Saves the offer after Confirm, with the pencil window's link checks."
        },
        {
+        "file": "apps-script/CloverPayments.js",
+        "line": 1397,
+        "symbol": "unlinkCloverCard",
+        "note": "The Clover page's Unlink, after Review and Confirm: forgets a card and undoes the ticked matches made through it."
+       },
+       {
         "file": "apps-script/LinkedNames.js",
         "line": 115,
         "symbol": "linkPlan_",
@@ -2320,7 +2333,7 @@
        "A payment belongs to a player id and a date, not to a group or a position.",
        "Adding a card payer from Clover only puts them in this device's draft or Open Play, as the directory's buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.",
        "A Credit marked by hand matches a card payment by itself only when each is the only one at that amount, within 15 minutes, on a payment the organizer never undid; no card is learned from it.",
-       "A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?).",
+       "A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?), and forgotten only by Undo or by Unlink after Confirm.",
        "A card's history and who usually pays by card only order and tick suggestions; neither matches a payment by itself."
       ],
       "limits": [
@@ -2341,6 +2354,11 @@
         "file": "apps-script/check-clover-payments.cjs",
         "case": "",
         "covers": "Matching rules, including Credit clues and juniors as paid for."
+       },
+       {
+        "file": "apps-script/check-clover-links.cjs",
+        "case": "",
+        "covers": "Unlink on the Clover page sends only the card and the matches left ticked."
        },
        {
         "file": "apps-script/check-player-links.cjs",
