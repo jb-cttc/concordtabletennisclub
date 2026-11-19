@@ -846,6 +846,91 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.deepEqual(sides().map(entry => entry.status), ['open', 'open']);
 }
 
+// ---- Two 30 minute times in a row, booked together as one hour (a 50 minute lesson) ----
+{
+  const open = () => run('openSlots').slots;
+  const next = x => open().find(o => o.minutes === 25 && x.minutes === 25 && o.coach === x.coach && o.date === x.date && o.table === x.table && o.start === context.endOf_(x.start, 30));
+  const a = open().find(x => next(x));
+  const b = next(a);
+  assert.ok(a && b, 'two open half hours in a row');
+  const pair = { key: a.key + '+' + b.key };
+  const hour = context.rangeLabel_(a.start, 60);
+  const both = () => run('openSlots').board.filter(entry => [a.key, b.key].includes(entry.key)).map(entry => [entry.status, entry.time]);
+  const rows = grids.Availability.length;
+  assert.equal(run('requestSlot', form(pair, { name: 'Lu Student', email: 'lu@example.com', length: 25 })).ok, false, 'a pair is only ever a 50 minute lesson');
+  assert.equal(run('requestSlot', form({ key: b.key + '+' + a.key }, { name: 'Lu Student', email: 'lu@example.com', length: 50 })).ok, false, 'the first time first');
+  const far = open().find(x => !(x.date === a.date && x.coach === a.coach));
+  if (far) assert.equal(run('requestSlot', form({ key: a.key + '+' + far.key }, { name: 'Lu Student', email: 'lu@example.com', length: 50 })).ok, false, 'only back to back, one coach, one table');
+  assert.equal(grids.Availability.length, rows, 'a refused request changes no times');
+  book(form(pair, { name: 'Lu Student', email: 'lu@example.com', length: 50 }));
+  assert.equal(grids.Availability.length, rows, 'the two times stay as they are: the request covers both');
+  assert.deepEqual(['start', 'minutes'].map(name => String(cell('Requests', latestRequest('lu@example.com'), name))), [a.start, '60']);
+  assert.deepEqual(both(), [['requested', hour], ['requested', hour]], 'both show as held, each with the whole hour');
+  assert.ok(!open().some(x => x.key === a.key || x.key === b.key));
+  assert.match(ann()[ann().length - 1], /^CTTC: Lesson request from Lu Student: 50 min, /, 'the coach is asked for a 50 minute lesson');
+  replyTo('ann@example.com', 'YES', /^Lesson request from Lu Student/);
+  assert.equal(statusOf('lu@example.com'), 'confirmed');
+  assert.deepEqual(both().map(entry => entry[0]), ['booked', 'booked']);
+  // Mine on either half finds the lesson; cancelled, both reopen as 30 minute times.
+  assert.equal(run('studentChange', { key: b.key, action: 'cancel', contact: 'lu@example.com' }).ok, true);
+  replyTo('lu@example.com', 'YES', /^Confirm: cancel your lesson/);
+  assert.equal(statusOf('lu@example.com'), 'cancelled');
+  assert.deepEqual(both(), [['open', a.time], ['open', b.time]]);
+
+  // A lesson moved onto the pair becomes the hour.
+  const elsewhere = open().find(x => x.key !== a.key && x.key !== b.key && x.minutes === 25);
+  book(form(elsewhere, { name: 'Mo Student', email: 'mo@example.com', length: 25 }));
+  replyTo('ann@example.com', 'YES', /^Lesson request from Mo Student/);
+  const before = sent.length;
+  assert.equal(run('studentChange', { key: elsewhere.key, action: 'move', to: pair.key, contact: 'mo@example.com' }).ok, true);
+  const ask = mailTo('mo@example.com', before).pop();
+  assert.match(ask.subject, /^Confirm: move your lesson/);
+  assert.ok(ask.body.includes('New time: ' + context.dayLabel_(a.date) + ', ' + hour + ' Pacific Time'), 'the email names the whole hour');
+  replyTo('mo@example.com', 'YES', /^Confirm: move your lesson/);
+  const moved = latestRequest('mo@example.com');
+  assert.deepEqual(['status', 'start', 'minutes'].map(name => String(cell('Requests', moved, name))), ['pending', a.start, '60']);
+  assert.deepEqual(both().map(entry => entry[0]), ['requested', 'requested']);
+  replyTo('ann@example.com', 'NO', /^Lesson request from Mo Student/);
+  assert.deepEqual(both().map(entry => entry[0]), ['open', 'open'], 'declined, both reopen');
+}
+
+// ---- A request the coach has not answered yet is cancelled at once on the page, with no YES ----
+{
+  const picked = run('openSlots').slots.find(x => x.coach === 'Coach Ann');
+  book(form(picked, { name: 'Rhea Student', email: 'rhea@example.com' }));
+  assert.equal(statusOf('rhea@example.com'), 'pending');
+  const from = sent.length;
+  const texts = ann().length;
+  const answer = run('studentChange', { key: picked.key, action: 'cancel', contact: 'someone@example.com' });
+  assert.deepEqual([answer.ok, answer.withdrawn], [true, true]);
+  assert.equal(statusOf('rhea@example.com'), 'pending', 'someone else\'s address changes nothing');
+  assert.equal(sent.length, from, 'and sends nothing');
+  assert.deepEqual(run('studentChange', { key: picked.key, action: 'cancel', contact: 'rhea@example.com' }), answer, 'the owner gets the very same answer');
+  assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('rhea@example.com'), name)), ['cancelled', 'withdrawn'], 'cancelled straight away');
+  assert.ok(!sent.slice(from).some(message => /^Confirm: cancel/.test(message.subject)), 'no YES is asked for');
+  const toRhea = mailTo('rhea@example.com', from).map(message => message.subject);
+  assert.deepEqual(toRhea, ['Coaching request cancelled']);
+  assert.match(mailTo('rhea@example.com', from)[0].body, /your request for a lesson with Coach Ann on .* is cancelled\. You were not booked/);
+  const toAnn = mailTo('ann@example.com', from);
+  assert.deepEqual(toAnn.map(message => message.subject), ['Request withdrawn by Rhea Student']);
+  assert.match(toAnn[0].body, /cancelled their request for .* before you answered\. No need to reply to it\./);
+  assert.match(ann().slice(texts).join('\n'), /^CTTC: Student Rhea cancelled their request for .*\. No need to answer it\./);
+  assert.equal(run('openSlots').board.find(entry => entry.key === picked.key).status, 'open', 'the time is open again');
+  // The coach's YES to the old request, read afterwards, books nothing.
+  replyTo('ann@example.com', 'YES', /^Lesson request from Rhea Student/);
+  assert.equal(statusOf('rhea@example.com'), 'cancelled');
+  // A confirmed lesson still needs the student's emailed YES to cancel.
+  book(form(picked, { name: 'Rhea Student', email: 'rhea@example.com' }));
+  replyTo('ann@example.com', 'YES', /^Lesson request from Rhea Student/);
+  const before = sent.length;
+  const lesson = run('studentChange', { key: picked.key, action: 'cancel', contact: 'rhea@example.com' });
+  assert.equal(lesson.withdrawn, undefined);
+  assert.equal(statusOf('rhea@example.com'), 'confirmed', 'nothing changes until the YES');
+  assert.match(mailTo('rhea@example.com', before).pop().subject, /^Confirm: cancel your lesson/);
+  replyTo('rhea@example.com', 'YES', /^Confirm: cancel your lesson/);
+  assert.equal(statusOf('rhea@example.com'), 'cancelled');
+}
+
 // ---- One time (2026-11-04): a YES meant for everything waiting counts for the two cancellations asked just before it ----
 {
   const zoe = 'zoe@example.com';
@@ -2278,6 +2363,88 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
     assert.equal(requested.length, 1);
     assert.equal(requested[0].email, 'sam.lee@hotmial.com', 'what the student kept is what is sent');
     assert.equal(dialog.open, false);
+    dom.window.close();
+  }
+  // ---- Two 30 minute times in a row, offered as one 50 minute lesson ----
+  {
+    const requested = [];
+    const friday = new Date(clock + 10 * 86400000);
+    while (friday.getUTCDay() !== 5) friday.setUTCDate(friday.getUTCDate() + 1);
+    const day = friday.toISOString().slice(0, 10);
+    const vicId = addCoach('Vic Coach', 'vic@example.com', '(925) 555-0177');
+    publish(vicId, 'Vic Coach', [slot(day, '19:00', 30, 3), slot(day, '19:30', 30, 3), slot(day, '20:00', 30, 3)]);
+    const dom = new JSDOM(page, {
+      url: SITE + '/coaching-app.html', runScripts: 'dangerously', pretendToBeVisual: true,
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+        window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+        window.top.postMessage = () => {};
+        window.fetch = (url, options) => {
+          const body = JSON.parse(options.body);
+          if (body.fn === 'requestSlot') { requested.push(body.args[0]); return new Promise(() => {}); }
+          return viaDoPost(options);
+        };
+      }
+    });
+    await wait(50);
+    const doc = dom.window.document, $ = selector => doc.querySelector(selector);
+    const lengthButton = minutes => $('.lengths [data-minutes="' + minutes + '"]');
+    const vic = () => Array.from(doc.querySelectorAll('.tbl')).filter(node => /Coach Vic/.test(node.textContent + (node.getAttribute('aria-label') || '')));
+    lengthButton(25).click();
+    assert.equal(vic().filter(node => node.matches('button.tbl.free')).length, 3, 'for 25 minutes, each half hour on its own');
+    lengthButton(50).click();
+    const cells = vic();
+    assert.deepEqual(cells.map(node => node.matches('button.tbl.free') ? node.getAttribute('aria-label').replace(/^Table 3, Coach Vic, /, '') : 'not open: ' + node.textContent),
+      ['7:00 PM to 7:50 PM, open', 'not open: Coach Vic · 25 min only'], 'the first two make one hour; the third stays a 25 minute time');
+    assert.match(cells[0].getAttribute('style'), /grid-row: \d+ \/ span 2;/, 'the hour spans both rows');
+    cells[0].click();
+    assert.match($('#picked').textContent, /^Requesting a 50 minute lesson on .*, 7:00 PM to 7:50 PM with Coach Vic at Table 3\./);
+    const type = (input, value) => { input.value = value; input.dispatchEvent(new dom.window.Event('input', { bubbles: true })); };
+    type($('#name'), 'Pat Lee');
+    type($('#email'), 'pat.lee@gmail.com');
+    $('#request').requestSubmit();
+    assert.match($('#confirmWhat').textContent, /^A 50 minute lesson on .*, 7:00 PM to 7:50 PM, at Table 3\./);
+    Array.from($('#confirmRequest').querySelectorAll('button')).find(node => node.textContent === 'Confirm submission').click();
+    const keys = run('openSlots').board.filter(entry => entry.coach === 'Coach Vic').map(entry => entry.key);
+    assert.deepEqual([requested.length, requested[0].key, requested[0].length], [1, keys[0] + '+' + keys[1], 50], 'the page sends both times, as one 50 minute lesson');
+    dom.window.close();
+  }
+  // ---- Mine on a request the coach has not answered yet: Cancel my request, at once ----
+  {
+    const vicLate = run('openSlots').slots.find(entry => entry.coach === 'Coach Vic' && entry.start === '20:00');
+    assert.equal(run('requestSlot', form(vicLate, { name: 'Ray Student', email: 'ray@example.com' })).ok, true);
+    const dom = new JSDOM(page, {
+      url: SITE + '/coaching-app.html', runScripts: 'dangerously', pretendToBeVisual: true,
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+        window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+        window.top.postMessage = () => {};
+        window.fetch = (url, options) => viaDoPost(options);
+      }
+    });
+    await wait(50);
+    const doc = dom.window.document, $ = selector => doc.querySelector(selector);
+    const buttonIn = (root, text) => Array.from(root.querySelectorAll('button')).find(node => node.textContent === text);
+    const mineButton = Array.from(doc.querySelectorAll('button.mini')).find(node => /Student Ray/.test(node.getAttribute('aria-label')));
+    assert.ok(mineButton, 'Mine on the waiting request');
+    mineButton.click();
+    assert.match($('#changeWhat').textContent, /^Is Student Ray's request for .*, 8:00 PM to 8:25 PM with Coach Vic yours\? Coach Vic has not answered it yet\.$/);
+    assert.equal($('#changeTitle').textContent, 'Change your request');
+    buttonIn($('#change'), 'Cancel my request').click();
+    assert.equal($('#changeLegend').textContent, 'Your request is cancelled straight away, and the coach is told. No email reply is needed.');
+    $('#changeContact').value = 'ray@example.com';
+    const submit = $('#change button[type=submit]');
+    assert.equal(submit.textContent, 'Cancel my request', 'the button says what it does');
+    submit.click();
+    await wait(50);
+    assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('ray@example.com'), name)), ['cancelled', 'withdrawn']);
+    assert.match($('#message').textContent, /it is cancelled now and the time is open again/);
+    await wait(50);
+    $('.lengths [data-minutes="25"]').click();
+    assert.ok(Array.from(doc.querySelectorAll('button.tbl.free')).some(node => node.getAttribute('aria-label') === 'Table 3, Coach Vic, 8:00 PM to 8:25 PM, open'),
+      'the board is drawn again with the time open');
     dom.window.close();
   }
   // The app before this release answers a POST with Google's HTML error page: the copy goes to Google's page instead.

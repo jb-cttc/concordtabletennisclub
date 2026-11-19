@@ -115,7 +115,8 @@ var TABS = {
   Requests: ['request_id', 'coach_id', 'date', 'start', 'minutes', 'student_label', 'student_name', 'student_email', 'guardian_name', 'note',
     'status', 'created_at', 'expires_at', 'cancelled_by', 'student_emailed', 'coach_emailed', 'updated_at', 'coach_texted', 'student_texted', 'table',
     // verified_at is when the coach was asked: when the student pressed Confirm submission on the page (before November 2026,
-    // when they replied YES to the confirm email). change is 'cancel' or 'move:' and the new slot, waiting for the student's
+    // when they replied YES to the confirm email). change is 'cancel' or 'move:' and the new time's key (one Availability
+    // id, or two joined by '+' for an hour booked over two 30 minute times: see openTime_), waiting for the student's
     // YES since change_at.
     'verified_at', 'change', 'change_at',
     // reminded is the waiting status ('unverified' or 'pending') a reminder was sent for, so each step is reminded once.
@@ -537,6 +538,35 @@ function openSlots_(coaches, availability, requests, now) {
   }).sort(function (a, b) { return (a.date + a.start + a.coach).localeCompare(b.date + b.start + b.coach); });
 }
 
+// Two open 30 minute times of one coach, back to back at one table, can be booked together as one hour (a 50 minute lesson):
+// the page offers them as one time whose key is both keys joined by '+'. The two Availability rows stay as they are; the
+// request covers both, so both show as held, and both reopen as 30 minute times if it is cancelled.
+function pairs_(first, second) {
+  return !!first && !!second && Number(first.minutes) === 30 && Number(second.minutes) === 30 && first.coachId === second.coachId &&
+    first.date === second.date && first.table === second.table && second.start === endOf_(first.start, 30);
+}
+
+// The open time a key names, from openSlots_: one slot, or a pair ('A+B') as one 60 minute time. null when it is not open.
+function openTime_(slots, key) {
+  var keys = String(key || '').split('+');
+  var find = function (wanted) { return slots.filter(function (slot) { return slot.key === wanted; })[0] || null; };
+  if (keys.length === 1) return find(keys[0]);
+  if (keys.length !== 2) return null;
+  var first = find(keys[0]);
+  var second = find(keys[1]);
+  if (!pairs_(first, second)) return null;
+  return Object.assign({}, first, { key: first.key + '+' + second.key, minutes: 60, pair: true, time: rangeLabel_(first.start, 60), label: whenLabel_(first.date, first.start, 60) });
+}
+
+// The time a waiting move points to ('move:' and a key, as openTime_), whether or not it is still open: { date, start, minutes,
+// coach_id, table }, or null when its rows are gone.
+function moveTarget_(change, availability) {
+  var keys = String(change).slice(5).split('+');
+  var rows = keys.map(function (key) { return availability.filter(function (entry) { return entry.avail_id === key; })[0]; });
+  if (!rows.length || rows.some(function (row) { return !row; })) return null;
+  return { date: rows[0].date, start: rows[0].start, minutes: rows.length === 2 ? 60 : Number(rows[0].minutes), coach_id: rows[0].coach_id, table: rows[0].table };
+}
+
 function publicSlot_(slot) {
   return { key: slot.key, coach: slot.coach, table: slot.table, date: slot.date, start: slot.start, minutes: lessonMinutes_(slot.minutes), day: slot.day, time: slot.time, label: slot.label };
 }
@@ -554,7 +584,8 @@ function board_(coaches, availability, requests, now) {
     var holder = heldBy_(entry, requests, now);
     return {
       key: entry.avail_id, date: entry.date, day: dayLabel_(entry.date), start: entry.start, slot: Number(entry.minutes), minutes: lessonMinutes_(entry.minutes),
-      time: rangeLabel_(entry.start, entry.minutes), table: Number(entry.table) || 1, coach: coachName_(byId[entry.coach_id]), coachId: entry.coach_id,
+      // A held time shows the lesson on it: an hour booked over two 30 minute times shows the whole hour on both.
+      time: holder ? rangeLabel_(holder.start, holder.minutes) : rangeLabel_(entry.start, entry.minutes), table: Number(entry.table) || 1, coach: coachName_(byId[entry.coach_id]), coachId: entry.coach_id,
       status: holder ? (effectiveStatus_(holder, now) === 'confirmed' ? 'booked' : 'requested') : 'open',
       student: holder ? studentName_(holder) : '', waitlist: !!holder, waiting: holder ? waitingOn_(holder, now) : '',
       step: holder ? stepLabel_(holder, coachName_(byId[entry.coach_id]), now) : '', change: holder ? changeWaiting_(holder, now) : ''
@@ -682,10 +713,11 @@ function requestSlot(form) {
     var now = Date.now();
     var requests = rows_('Requests');
     if (requests.length >= MAX_REQUESTS) return fail_('Requests are closed for now. Please contact the club.');
-    var slot = openSlots_(rows_('Coaches'), rows_('Availability'), requests, now).filter(function (candidate) { return candidate.key === String(form.key); })[0];
+    var slot = openTime_(openSlots_(rows_('Coaches'), rows_('Availability'), requests, now), form.key);
     if (!slot) return fail_('That time is no longer available. Please pick another.');
     // A 25 minute lesson on a 60 minute time splits it for good into two 30 minute times; the request takes the half asked for.
-    var minutes = !form.length || Number(form.length) === lessonMinutes_(slot.minutes) ? slot.minutes : Number(form.length) === 25 && slot.minutes === 60 ? 30 : 0;
+    // Two 30 minute times booked as one hour (a pair) are only ever a 50 minute lesson: for 25 minutes, pick one of them.
+    var minutes = !form.length || Number(form.length) === lessonMinutes_(slot.minutes) ? slot.minutes : Number(form.length) === 25 && slot.minutes === 60 && !slot.pair ? 30 : 0;
     if (!minutes) return fail_('That time is a ' + lessonMinutes_(slot.minutes) + ' minute lesson. Please pick another.');
     var start = minutes === 30 && slot.minutes === 60 && String(form.start) === endOf_(slot.start, 30) ? endOf_(slot.start, 30) : slot.start;
     coachLabel = slot.coach;
@@ -1161,6 +1193,8 @@ function studentChange(form) {
   if (!action) return fail_('Please choose to cancel or to move the lesson.');
   if (!email && !phone) return fail_('Please enter the email address or mobile number you booked with.', 'contact');
   var question = null;
+  var cancelled = null;
+  var withdrawn = { ok: true, withdrawn: true, message: 'If that request was made with this email address or mobile number, it is cancelled now and the time is open again. The coach is told, and we emailed you a note.' };
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -1174,12 +1208,27 @@ function studentChange(form) {
     if (!request) return fail_('That time has no lesson on it any more. Please reload the page.');
     var target = null;
     if (action === 'move') {
-      target = openSlots_(coaches, availability, requests, now).filter(function (slot) { return slot.key === String(form.to); })[0];
+      target = openTime_(openSlots_(coaches, availability, requests, now), form.to);
       if (!target) return fail_('That new time is no longer open. Please pick another.');
     }
     var students = rows_('Students');
     var student = students.filter(function (candidate) { return candidate.email === request.student_email; })[0];
     var owner = email ? email === request.student_email : !!student && phoneDigits_(student.phone) === phone;
+    // A request the coach has not answered yet is cancelled at once, with no YES (cancelled_by 'withdrawn'): the student and
+    // the coach are told by the sweep below. The answer is the same whoever asks.
+    if (action === 'cancel' && effectiveStatus_(request, now) === 'pending') {
+      if (!owner) return withdrawn;
+      request.status = 'cancelled';
+      request.cancelled_by = 'withdrawn';
+      request.change = '';
+      request.change_at = '';
+      request.change_was = '';
+      request.updated_at = nowIso_();
+      save_('Requests', request);
+      logStep_(request, 'withdrawn on the page');
+      cancelled = request;
+      return withdrawn;
+    }
     var wanted = action === 'move' ? 'move:' + target.key : 'cancel';
     var waiting = !!request.change && holds_(request, now);
     // The same ask again within 10 minutes sends nothing more; a different one replaces the waiting one (shown in its email).
@@ -1192,6 +1241,10 @@ function studentChange(form) {
     question = { request: request, student: student, coach: coach, target: target };
   } finally {
     lock.releaseLock();
+    // Saved: the emails and texts go out now, and the hourly sweep retries any that fail.
+    if (cancelled) {
+      try { sweep_(); } catch (error) { logError_('tell about a withdrawn request', error, cancelled.request_id); }
+    }
   }
   if (question) askStudentChange_(question);
   return done;
@@ -1312,7 +1365,7 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt, quiet) {
         request.status = 'cancelled';
         request.cancelled_by = 'student';
       } else {
-        var slot = openSlots_(rows_('Coaches'), rows_('Availability'), requests, now).filter(function (candidate) { return candidate.key === change.slice(5); })[0];
+        var slot = openTime_(openSlots_(rows_('Coaches'), rows_('Availability'), requests, now), change.slice(5));
         if (!slot) {
           reply = 'That new time was taken before you replied, so nothing changed. Your lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ' stays as it is.';
           applied = false;
@@ -1390,10 +1443,10 @@ function bundleItems_(bundle) { return String(bundle.items || '').split(' ').fil
 // newer email shows the change as the desk shows a player edit, the old value struck through and the new one in bold, and
 // the older question stops counting: a reply to it is told it was replaced, and pointed at the newer one.
 
-// 'Cancel it' or 'Move it to Saturday, … with Coach Ann', for a change ('cancel' or 'move:' and an avail_id).
+// 'Cancel it' or 'Move it to Saturday, … with Coach Ann', for a change ('cancel' or 'move:' and a key, as openTime_).
 function changeWords_(change, coaches, availability) {
   if (change === 'cancel') return 'Cancel it';
-  var target = availability().filter(function (entry) { return entry.avail_id === String(change).slice(5); })[0];
+  var target = moveTarget_(change, availability());
   var coach = target && coaches.filter(function (entry) { return entry.coach_id === target.coach_id; })[0];
   return 'Move it to ' + (target ? dayLabel_(target.date) + ', ' + rangeLabel_(target.start, target.minutes) + (coach ? ' with ' + coachName_(coach) : '') : 'the new time you picked');
 }
@@ -1473,7 +1526,7 @@ function itemLine_(item, coaches, availability) {
   if (request.change === 'cancel') {
     return { mark: 'CANCEL', tone: 'cancel', text: 'Cancel ' + studentName_(request) + '\'s lesson with ' + coachShown + ': ' + when + '.', short: 'cancel that lesson', keep: 'keep that lesson' };
   }
-  var target = availability().filter(function (entry) { return entry.avail_id === request.change.slice(5); })[0];
+  var target = moveTarget_(request.change, availability());
   var targetCoach = target && coaches.filter(function (entry) { return entry.coach_id === target.coach_id; })[0];
   var to = target ? dayLabel_(target.date) + ', ' + rangeLabel_(target.start, target.minutes) + (targetCoach ? ' with ' + coachName_(targetCoach) : '') : 'the new time you picked';
   return { mark: 'MOVE', tone: 'move', text: 'Move ' + studentName_(request) + '\'s lesson with ' + coachShown + ' on ' + when + ' to ' + to + '.', short: 'move that lesson',
@@ -2126,6 +2179,10 @@ function studentMail_(request, coach) {
   if (request.status === 'cancelled' && request.cancelled_by === 'student') {
     return { to: to, subject: 'Coaching lesson cancelled', lines: [who, 'As you asked, the lesson with ' + coachShown + ' on ' + when + ' is cancelled and the time was released.'] };
   }
+  if (request.status === 'cancelled' && request.cancelled_by === 'withdrawn') {
+    return { to: to, subject: 'Coaching request cancelled', lines: [who, 'As you asked, your request for a lesson with ' + coachShown + ' on ' + when +
+      ' is cancelled. You were not booked, ' + coachShown + ' has been told, and the time is open again. You can pick another time at ' + PAGE_URL] };
+  }
   if (request.status === 'cancelled' && request.cancelled_by === 'coach') {
     return { to: to, subject: 'Lesson cancelled by your coach', lines: [who,
       coachShown + ' had to cancel the lesson on ' + when + '. You can pick another time at ' + PAGE_URL] };
@@ -2164,6 +2221,10 @@ function coachMail_(request, coach, studentRow) {
       { callout: 'The request from ' + request.student_name + ' for **' + when + '** expired without your answer, so the time was released and the student was told.', tone: 'action' },
       'The club has been copied on this email. If something went wrong, please reply and let us know.'] };
   }
+  if (request.status === 'cancelled' && request.cancelled_by === 'withdrawn' && request.verified_at) {
+    return { to: to, subject: 'Request withdrawn by ' + request.student_name, lines: [request.student_name + ' cancelled their request for ' + when +
+      ' before you answered. **No need to reply** to it. The time is open again.'] };
+  }
   // Told only if the coach had already heard about the request.
   if (request.status === 'cancelled' && (request.cancelled_by === 'student' || request.cancelled_by === 'move') && request.verified_at) {
     return { to: to, subject: 'Lesson cancelled by ' + request.student_name, lines: [request.student_name + (request.cancelled_by === 'move' ? ' moved the lesson on ' + when + ' to another time' :
@@ -2193,6 +2254,9 @@ function coachText_(request, coach, student) {
   if (request.status === 'expired') {
     return { person: coach, text: 'CTTC: The request from ' + studentName_(request) + ' for ' + when + ' expired without an answer, so the time was released.' };
   }
+  if (request.status === 'cancelled' && request.cancelled_by === 'withdrawn') {
+    return { person: coach, text: 'CTTC: ' + studentName_(request) + ' cancelled their request for ' + when + '. No need to answer it. The time is open again.' };
+  }
   if (request.status === 'cancelled' && (request.cancelled_by === 'student' || request.cancelled_by === 'move')) {
     return { person: coach, text: 'CTTC: ' + studentName_(request) + (request.cancelled_by === 'move' ? ' moved the lesson on ' + when + ' to another time.' :
       ' cancelled the lesson on ' + when + '.') + ' The time is open again.' };
@@ -2212,7 +2276,7 @@ function studentText_(request, coach, student) {
   }[request.status];
   if (request.status === 'cancelled') {
     text = request.cancelled_by === 'coach' ? coachName_(coach) + ' cancelled your lesson on ' + when + '.' + again :
-      request.cancelled_by === 'move' ? null : 'your lesson on ' + when + ' is cancelled.';
+      request.cancelled_by === 'move' ? null : request.cancelled_by === 'withdrawn' ? 'your request for ' + when + ' is cancelled. You are not booked.' : 'your lesson on ' + when + ' is cancelled.';
   }
   return text ? { person: { name: student.name, phone: student.phone }, text: 'CTTC: ' + studentName_(request) + ', ' + text } : null;
 }

@@ -246,14 +246,14 @@
   // ----- Students: pick a time and ask -----
   function bookingView() {
     clear(); show('');
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table: any time that has not started yet can be requested. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: your request goes straight to the coach, and the lesson is booked once the coach accepts. We email you either way. To cancel or move a lesson, tap your time and reply YES to the email we send. Coaches and students appear by first name only (Coach Dominic, Student Sam). Your coach gets your name, email and mobile number (if given) with your request; you get your coach\'s once the lesson is confirmed.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM (Pacific Time). Choose a 25 or 50 minute lesson, then pick an open table: any time that has not started yet can be requested. Each lesson ends 5 or 10 minutes before the next so everyone can pack up. No account is needed: your request goes straight to the coach, and the lesson is booked once the coach accepts. We email you either way. To cancel or move a lesson, tap your time and reply YES to the email we send. A request the coach has not answered yet can be cancelled right there, with no email. Coaches and students appear by first name only (Coach Dominic, Student Sam). Your coach gets your name, email and mobile number (if given) with your request; you get your coach\'s once the lesson is confirmed.' }));
     var list = el('div', { id: 'slots' }, [el('p', { text: 'Loading open times...' })]);
     app.appendChild(list);
     load('openSlots', [], function (result) {
       preload('coachList', []);
       clear2(list);
       if (!result.ok) { list.appendChild(el('p', { text: result.message })); return; }
-      var openOf = function (minutes) { return result.board.some(function (entry) { return entry.status === 'open' && fits(entry, minutes); }); };
+      var openOf = function (minutes) { return boardFor(result, minutes).some(function (entry) { return entry.status === 'open' && fits(entry, minutes); }); };
       var length = openOf(50) || !openOf(25) ? 50 : 25;
       var chosen = null;
       var moving = null;
@@ -282,7 +282,7 @@
           button.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
         clear2(grids);
-        var open = result.board.filter(function (entry) { return entry.status === 'open' && fits(entry, length); });
+        var open = boardFor(result, length).filter(function (entry) { return entry.status === 'open' && fits(entry, length); });
         if (!open.length) grids.appendChild(el('p', { text: 'No ' + length + ' minute lessons are open right now. Try the other length, join a waitlist below, or check back soon.' }));
         result.days.forEach(function (day) {
           grids.appendChild(el('div', { 'class': 'day', text: day.day }));
@@ -341,7 +341,7 @@
     for (var table = 1; table <= day.tables; table += 1) grid.appendChild(el('div', { 'class': 'thead', text: 'Table ' + table }));
     for (var row = 0; row < rows; row += 1) grid.appendChild(el('div', { 'class': 'gtime', style: 'grid-row: ' + (row + 2) + '; grid-column: 1;', text: time12(fromMinutes(begin + row * 30)) }));
     var used = {};
-    result.board.filter(function (entry) { return entry.date === day.date; }).forEach(function (entry) {
+    boardFor(result, length).filter(function (entry) { return entry.date === day.date; }).forEach(function (entry) {
       var first = (toMinutes(entry.start) - begin) / 30;
       var span = entry.slot / 30;
       for (var step = 0; step < span; step += 1) used[entry.table + ':' + (first + step)] = true;
@@ -357,6 +357,28 @@
       }
     }
     return grid;
+  }
+  // The board for one lesson length. For 50 minutes, two open 25 minute times of one coach, back to back at one table, are
+  // shown as one 50 minute time over both, so a student can book the hour (the server's openTime_ takes the joined key).
+  // Pairs are made from the earliest time on: three in a row give one hour and one 25 minute time.
+  function boardFor(result, length) {
+    if (length !== 50) return result.board;
+    var out = [];
+    var taken = {};
+    result.board.forEach(function (entry, index) {
+      if (taken[index]) return;
+      var pairable = function (other) { return other.status === 'open' && other.slot === 30 && other.date === entry.date && other.coachId === entry.coachId && other.table === entry.table; };
+      var next = -1;
+      if (pairable(entry)) {
+        var after = fromMinutes(toMinutes(entry.start) + 30);
+        result.board.forEach(function (other, at) { if (next < 0 && at !== index && !taken[at] && other.start === after && pairable(other)) next = at; });
+      }
+      if (next < 0) { out.push(entry); return; }
+      taken[next] = true;
+      out.push({ key: entry.key + '+' + result.board[next].key, date: entry.date, day: entry.day, start: entry.start, slot: 60, minutes: 50, table: entry.table,
+        coach: entry.coach, coachId: entry.coachId, status: 'open', time: time12(entry.start) + ' to ' + time12(fromMinutes(toMinutes(entry.start) + 50)) });
+    });
+    return out;
   }
   // A 25 minute lesson can also take either half of an open 50 minute (60 minute slot) time; the server then splits that time in two.
   function fits(entry, length) { return entry.minutes === length || (length === 25 && entry.minutes === 50); }
@@ -452,14 +474,21 @@
     choice.appendChild(move);
     var contact = el('input', { type: 'email', id: 'changeContact', name: 'email', maxlength: '254', autocomplete: 'email', inputmode: 'email' });
     var submit = el('button', { type: 'submit', text: 'Send me a confirmation' });
+    var legend = el('p', { 'class': 'legend', id: 'changeLegend' });
     var confirmBox = el('div', { hidden: 'hidden' }, field('The email address or mobile number you booked with', contact).concat([
-      el('p', { 'class': 'legend', text: 'We email that address (and text you, if you get our texts). Reply YES to confirm. Nothing changes until you do.' }),
-      el('div', { 'class': 'actions' }, [submit])]));
+      legend, el('div', { 'class': 'actions' }, [submit])]));
+    // A request the coach has not answered yet: cancelled at once on the server, with no YES email.
+    function waitingRequest() { return !!source && source.status === 'requested' && source.waiting === 'coach' && !source.change; }
     var form = el('form', { id: 'change', hidden: 'hidden', novalidate: 'novalidate' }, [
-      el('h2', { text: 'Change your lesson' }), el('p', { id: 'changeWhat' }), choice, confirmBox,
+      el('h2', { id: 'changeTitle', text: 'Change your lesson' }), el('p', { id: 'changeWhat' }), choice, confirmBox,
       el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'changeWebsite', tabindex: '-1', autocomplete: 'off' })))]);
     function ask(text) {
       form.querySelector('#changeWhat').textContent = text;
+      var instant = !target && waitingRequest();
+      submit.textContent = instant ? 'Cancel my request' : 'Send me a confirmation';
+      submit.className = instant ? 'danger' : '';
+      legend.textContent = instant ? 'Your request is cancelled straight away, and the coach is told. No email reply is needed.' :
+        'We email that address (and text you, if you get our texts). Reply YES to confirm. Nothing changes until you do.';
       choice.hidden = true;
       confirmBox.hidden = false;
       // A phone number is allowed too, so the email check is the server's job.
@@ -470,7 +499,11 @@
       form.hidden = false;
       form.scrollIntoView({ block: 'nearest' });
     }
-    cancel.addEventListener('click', function () { target = null; ask('Cancel ' + source.student + '\'s lesson with ' + source.coach + ' on ' + source.day + ', ' + source.time + '.'); });
+    cancel.addEventListener('click', function () {
+      target = null;
+      ask(waitingRequest() ? 'Cancel ' + source.student + '\'s request for ' + source.day + ', ' + source.time + ' with ' + source.coach + '.' :
+        'Cancel ' + source.student + '\'s lesson with ' + source.coach + ' on ' + source.day + ', ' + source.time + '.');
+    });
     move.addEventListener('click', function () { form.hidden = true; startMove(source); });
     form.addEventListener('input', clearInvalid);
     form.open = function (entry, to) {
@@ -478,7 +511,11 @@
       target = to || null;
       resetStatus(form);
       if (target) { ask('Move ' + entry.student + '\'s lesson on ' + entry.day + ', ' + entry.time + ' to ' + to.day + ', ' + to.time + ' with ' + to.coach + ' at Table ' + to.table + '. The new time goes to the coach to accept.'); return; }
-      form.querySelector('#changeWhat').textContent = 'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
+      form.querySelector('#changeWhat').textContent = waitingRequest() ?
+        'Is ' + entry.student + '\'s request for ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' yours? ' + entry.coach + ' has not answered it yet.' :
+        'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
+      cancel.textContent = waitingRequest() ? 'Cancel my request' : 'Cancel this lesson';
+      form.querySelector('#changeTitle').textContent = waitingRequest() ? 'Change your request' : 'Change your lesson';
       choice.hidden = false;
       confirmBox.hidden = true;
       form.hidden = false;
@@ -489,6 +526,8 @@
       if (!source) return;
       report(form, 'Sending...');
       guarded(submit, 'studentChange', [{ key: source.key, action: target ? 'move' : 'cancel', to: target ? target.key : '', contact: contact.value, website: form.querySelector('#changeWebsite').value }], function (result) {
+        // A withdrawn request has freed its time: draw the board again, with the answer above it.
+        if (result.ok && result.withdrawn) { bookingView(); show(result.message, 'ok'); return; }
         if (result.ok) form.hidden = true;
         report(form, result.message, result.ok ? 'ok' : 'error', result.field, { contact: '#changeContact' });
       });
@@ -950,7 +989,7 @@
     if (data.pending) {
       app.appendChild(el('p', { 'class': 'card', text: 'We sent you a list by ' + by + ' ' + data.pendingSince + '. Reply YES to publish it, or NO to cancel. That list is shown below; change it and submit again to send a new one.' }));
     }
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. A student may also ask for 25 minutes in either half of a 60 minute slot; that splits it into two 30 minute slots and the other half stays open. Times with a student on them cannot be changed here.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. A student may also ask for 25 minutes in either half of a 60 minute slot; that splits it into two 30 minute slots and the other half stays open. Two 30 minute slots in a row at one table can also be booked together as one 50 minute lesson. Times with a student on them cannot be changed here.' }));
     var picker = el('div', { 'class': 'lengths', role: 'group', 'aria-label': 'Slot length' });
     [30, 60].forEach(function (minutes) {
       var button = el('button', { type: 'button', text: minutes + ' minutes', 'data-minutes': String(minutes) });
