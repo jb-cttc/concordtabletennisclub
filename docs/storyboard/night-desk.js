@@ -492,7 +492,7 @@ const phases = [
 ];
 
 const meta = {
-  commit: '0ecf13509aab1617f6bbc3a6cb3cea09c46ad202',
+  commit: '6f13c826e598895ec175fbde45918a09ca8596a3',
   intro: 'A round robin night at the club, from opening the desk to results on the site: what each person does, what the screen shows, what can go wrong at each step, and the code underneath.',
   source: 'Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
   findingsNote: 'Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement.'

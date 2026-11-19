@@ -2431,6 +2431,7 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
     assert.ok(mineButton, 'Mine on the waiting request');
     mineButton.click();
     assert.match($('#changeWhat').textContent, /^Is Student Ray's request for .*, 8:00 PM to 8:25 PM with Coach Vic yours\? Coach Vic has not answered it yet\.$/);
+    assert.equal($('#changeTitle').textContent, 'Change your request');
     buttonIn($('#change'), 'Cancel my request').click();
     assert.equal($('#changeLegend').textContent, 'Your request is cancelled straight away, and the coach is told. No email reply is needed.');
     $('#changeContact').value = 'ray@example.com';

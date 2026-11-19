@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "0ecf13509aab1617f6bbc3a6cb3cea09c46ad202",
+  "commit": "6f13c826e598895ec175fbde45918a09ca8596a3",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -1113,7 +1113,7 @@
        "happens": "The hourly sweep disables them and hides their times.",
        "handling": "Add or remove a coach in CLUB_COACHES and coaching.html, not in the Sheet.",
        "status": "handled",
-       "evidence": "docs/coaching-flow.md:394"
+       "evidence": "docs/coaching-flow.md:404"
       }
      ],
      "screen": {
@@ -1133,7 +1133,7 @@
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1823,
+        "line": 1844,
         "symbol": "syncClubCoaches_",
         "note": "Matches the CoachList tab the desk writes."
        },
@@ -1194,7 +1194,7 @@
        "happens": "Leaving the email box points out a likely typo: *Did you mean sam@gmail.com?* with **Use gmail.com** and **Keep mine** (amber for a clear slip such as gmial.com, a quieter hint such as *Most Comcast addresses end in .net* for one worth a look). Pressing Send straight away shows no hint on the form; a clear slip is pointed out again in the confirm box, where one tap fixes it on the same screen.",
        "handling": "Nothing to do: the student can always keep what they typed, and the app's own check of the address is unchanged.",
        "status": "handled",
-       "evidence": "coaching-app/Index.html:558"
+       "evidence": "coaching-app/Index.html:574"
       },
       {
        "when": "The coach never answers",
@@ -1205,10 +1205,10 @@
       },
       {
        "when": "The student cancels or moves",
-       "happens": "They confirm the change by email YES; a move takes effect only if the new time is still open.",
+       "happens": "A request the coach has not answered yet is cancelled at once from **Mine** (**Cancel my request**), and the coach is told there is no need to answer. Cancelling a confirmed lesson, or any move, is confirmed by email YES; a move takes effect only if the new time is still open.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "docs/coaching-flow.md:190"
+       "evidence": "docs/coaching-flow.md:191"
       }
      ],
      "screen": {
@@ -1222,13 +1222,13 @@
       "entry": [
        {
         "file": "coaching-app/Index.html",
-        "line": 558,
+        "line": 574,
         "symbol": "emailTypo",
         "note": "A likely typo in the address: clear or worth a look."
        },
        {
         "file": "coaching-app/Index.html",
-        "line": 747,
+        "line": 763,
         "symbol": "showEmail",
         "note": "The confirm box: the address large, a clear typo pointed out."
        },
@@ -1258,7 +1258,7 @@
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1627,
+        "line": 1648,
         "symbol": "sweep",
         "note": "Hourly: expiries, reminders, retries, the public Sheet."
        }
@@ -1278,6 +1278,7 @@
        "A lesson is confirmed only by the coach's reply.",
        "A student never holds two overlapping lessons.",
        "An hour booked over two 30-minute times holds both of them, and both reopen as 30-minute times when it is cancelled, declined or expires.",
+       "Only a request still waiting for the coach is cancelled without a YES, and only by the address or number it was made with; the page answers the same whoever asks.",
        "A request is sent only by Confirm submission, to the address shown large in the confirm box (an edit there goes back into the form).",
        "A typo hint never blocks a request: a clear slip is pointed out before sending, a softer one only on leaving the box, and the student can keep what they typed."
       ],
@@ -1299,6 +1300,11 @@
         "file": "coaching-app/check-coaching.cjs",
         "case": "Two 30 minute times in a row, booked together as one hour",
         "covers": "Booking, cancelling and moving onto an hour over two 30-minute times; the page offers it and sends both keys."
+       },
+       {
+        "file": "coaching-app/check-coaching.cjs",
+        "case": "A request the coach has not answered yet is cancelled at once",
+        "covers": "Instant cancel of a waiting request: owner only, same answer for anyone, the notices, a late coach YES, and the page's Cancel my request."
        }
       ],
       "untested": [

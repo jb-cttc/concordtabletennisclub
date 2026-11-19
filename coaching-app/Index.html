@@ -480,7 +480,7 @@
     // A request the coach has not answered yet: cancelled at once on the server, with no YES email.
     function waitingRequest() { return !!source && source.status === 'requested' && source.waiting === 'coach' && !source.change; }
     var form = el('form', { id: 'change', hidden: 'hidden', novalidate: 'novalidate' }, [
-      el('h2', { text: 'Change your lesson' }), el('p', { id: 'changeWhat' }), choice, confirmBox,
+      el('h2', { id: 'changeTitle', text: 'Change your lesson' }), el('p', { id: 'changeWhat' }), choice, confirmBox,
       el('div', { 'class': 'trap', 'aria-hidden': 'true' }, field('Leave this empty', el('input', { type: 'text', id: 'changeWebsite', tabindex: '-1', autocomplete: 'off' })))]);
     function ask(text) {
       form.querySelector('#changeWhat').textContent = text;
@@ -515,6 +515,7 @@
         'Is ' + entry.student + '\'s request for ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' yours? ' + entry.coach + ' has not answered it yet.' :
         'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
       cancel.textContent = waitingRequest() ? 'Cancel my request' : 'Cancel this lesson';
+      form.querySelector('#changeTitle').textContent = waitingRequest() ? 'Change your request' : 'Change your lesson';
       choice.hidden = false;
       confirmBox.hidden = true;
       form.hidden = false;
