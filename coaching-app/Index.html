@@ -253,7 +253,7 @@
       preload('coachList', []);
       clear2(list);
       if (!result.ok) { list.appendChild(el('p', { text: result.message })); return; }
-      var openOf = function (minutes) { return result.board.some(function (entry) { return entry.status === 'open' && fits(entry, minutes); }); };
+      var openOf = function (minutes) { return boardFor(result, minutes).some(function (entry) { return entry.status === 'open' && fits(entry, minutes); }); };
       var length = openOf(50) || !openOf(25) ? 50 : 25;
       var chosen = null;
       var moving = null;
@@ -282,7 +282,7 @@
           button.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
         clear2(grids);
-        var open = result.board.filter(function (entry) { return entry.status === 'open' && fits(entry, length); });
+        var open = boardFor(result, length).filter(function (entry) { return entry.status === 'open' && fits(entry, length); });
         if (!open.length) grids.appendChild(el('p', { text: 'No ' + length + ' minute lessons are open right now. Try the other length, join a waitlist below, or check back soon.' }));
         result.days.forEach(function (day) {
           grids.appendChild(el('div', { 'class': 'day', text: day.day }));
@@ -341,7 +341,7 @@
     for (var table = 1; table <= day.tables; table += 1) grid.appendChild(el('div', { 'class': 'thead', text: 'Table ' + table }));
     for (var row = 0; row < rows; row += 1) grid.appendChild(el('div', { 'class': 'gtime', style: 'grid-row: ' + (row + 2) + '; grid-column: 1;', text: time12(fromMinutes(begin + row * 30)) }));
     var used = {};
-    result.board.filter(function (entry) { return entry.date === day.date; }).forEach(function (entry) {
+    boardFor(result, length).filter(function (entry) { return entry.date === day.date; }).forEach(function (entry) {
       var first = (toMinutes(entry.start) - begin) / 30;
       var span = entry.slot / 30;
       for (var step = 0; step < span; step += 1) used[entry.table + ':' + (first + step)] = true;
@@ -357,6 +357,28 @@
       }
     }
     return grid;
+  }
+  // The board for one lesson length. For 50 minutes, two open 25 minute times of one coach, back to back at one table, are
+  // shown as one 50 minute time over both, so a student can book the hour (the server's openTime_ takes the joined key).
+  // Pairs are made from the earliest time on: three in a row give one hour and one 25 minute time.
+  function boardFor(result, length) {
+    if (length !== 50) return result.board;
+    var out = [];
+    var taken = {};
+    result.board.forEach(function (entry, index) {
+      if (taken[index]) return;
+      var pairable = function (other) { return other.status === 'open' && other.slot === 30 && other.date === entry.date && other.coachId === entry.coachId && other.table === entry.table; };
+      var next = -1;
+      if (pairable(entry)) {
+        var after = fromMinutes(toMinutes(entry.start) + 30);
+        result.board.forEach(function (other, at) { if (next < 0 && at !== index && !taken[at] && other.start === after && pairable(other)) next = at; });
+      }
+      if (next < 0) { out.push(entry); return; }
+      taken[next] = true;
+      out.push({ key: entry.key + '+' + result.board[next].key, date: entry.date, day: entry.day, start: entry.start, slot: 60, minutes: 50, table: entry.table,
+        coach: entry.coach, coachId: entry.coachId, status: 'open', time: time12(entry.start) + ' to ' + time12(fromMinutes(toMinutes(entry.start) + 50)) });
+    });
+    return out;
   }
   // A 25 minute lesson can also take either half of an open 50 minute (60 minute slot) time; the server then splits that time in two.
   function fits(entry, length) { return entry.minutes === length || (length === 25 && entry.minutes === 50); }
@@ -950,7 +972,7 @@
     if (data.pending) {
       app.appendChild(el('p', { 'class': 'card', text: 'We sent you a list by ' + by + ' ' + data.pendingSince + '. Reply YES to publish it, or NO to cancel. That list is shown below; change it and submit again to send a new one.' }));
     }
-    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. A student may also ask for 25 minutes in either half of a 60 minute slot; that splits it into two 30 minute slots and the other half stays open. Times with a student on them cannot be changed here.' }));
+    app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. A student may also ask for 25 minutes in either half of a 60 minute slot; that splits it into two 30 minute slots and the other half stays open. Two 30 minute slots in a row at one table can also be booked together as one 50 minute lesson. Times with a student on them cannot be changed here.' }));
     var picker = el('div', { 'class': 'lengths', role: 'group', 'aria-label': 'Slot length' });
     [30, 60].forEach(function (minutes) {
       var button = el('button', { type: 'button', text: minutes + ' minutes', 'data-minutes': String(minutes) });

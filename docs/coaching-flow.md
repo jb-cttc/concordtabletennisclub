@@ -55,7 +55,12 @@ earlier) both showed only "requested".
 
 **How a request is made (from November 2026).** The student picks a time
 that has not started yet (Pacific time), fills in the form and presses **Send
-request**. The page then shows a confirm box: the lesson, the coach, the
+request**. With **50 minutes** chosen, the page offers each coach's 60-minute
+slots, and also two back-to-back 30-minute slots of one coach at one table as
+one 50-minute time over both (paired from the earliest: three in a row give one
+hour and one 25-minute time). Its key is the two slot ids joined by `+`
+(`openTime_` in `coaching-app/Code.js`); a move to such a time works the same
+way. The page then shows a confirm box: the lesson, the coach, the
 address we will email under *We will email the coach's answer to:* in large
 bold type, and every other detail the coach will get (student, parent if under
 18, mobile), with *Clicking Confirm submission sends a message to Coach … to
@@ -393,7 +398,7 @@ it has not changed for more than an hour, the check is not running.
 | **Coaches** `ask_slots` (JSON) and `ask_made` (ms) | The coach submitted times on the page and we are waiting for their YES (email *Confirm your coaching times [CTTC ref …]* and/or a text). Nothing is published until then. The email and text say when the coach must reply by: 48 hours after sending (`ASK_TTL_MS`). A lapsed list is kept another 14 days (`LATE_ASK_MS`) so a late reply is answered, never ignored (below). |
 | **Coaches** `registered_at` | The coach's texts work (they texted the club number). Empty means texting them fails. |
 | **Coaches** `status = disabled` | The coach and all their times are hidden. The hourly sweep sets this for anyone not in `CLUB_COACHES` in `coaching-app/Code.js`, and for a club coach the coaching page does not show (Pending at USATT and not one of the owner's `showWhilePending` exceptions in `data/coach-certifications.json`). It clears it for a club coach the page shows. The desk copies who is shown from the site to the hidden `CoachList` tab of its Sheet every hour; until that tab exists, or when it cannot be read, club coaches stay as they are. Add or remove a coach in `CLUB_COACHES` and the table on `coaching.html`, not in the Sheet. |
-| **Availability** rows with `confirmed = yes` | Published times. A row is one slot: `minutes` 30 or 60, `table` 1 to 3. A 25-minute booking on a 60-minute slot splits it into two 30-minute rows. Past rows are deleted by the sweep. |
+| **Availability** rows with `confirmed = yes` | Published times. A row is one slot: `minutes` 30 or 60, `table` 1 to 3. A 25-minute booking on a 60-minute slot splits it into two 30-minute rows. Two open 30-minute rows of one coach, back to back at one table, can be booked together as one 50-minute lesson: the request (`minutes` 60) covers both rows, which stay as they are and reopen as 30-minute times if it is cancelled, declined or expires. Past rows are deleted by the sweep. |
 | **Waitlist** | People emailed (*A coaching time you wanted is open*) when a held time frees up; each is removed once told. |
 
 **A late reply to a list** (after its 48 hours, within 14 more days), by email or text:
