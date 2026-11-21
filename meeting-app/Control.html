@@ -151,6 +151,36 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
 #minutes-text { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; min-height: 320px; white-space: pre; }
 #print-area { display: none; }
 
+/* Other controllers' changes: a soft orange glow that fades, and who made it. */
+.marked { position: relative; }
+.flash { animation: glow 2.6s ease-out; }
+@keyframes glow { 0% { background: #ffe2c4; } 100% { background: inherit; } }
+.by-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 0 8px; border-radius: 999px; background: #fff1e3; color: #9a4a06; font-size: 12px; font-weight: 700; vertical-align: middle; white-space: nowrap; animation: fadeout 9s forwards; }
+@keyframes fadeout { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+.toasts { position: fixed; left: 16px; bottom: 16px; z-index: 30; display: grid; gap: 6px; max-width: min(420px, calc(100vw - 32px)); pointer-events: none; }
+.toast { background: #17211b; color: #fff; border-left: 4px solid var(--ball); border-radius: 6px; padding: 8px 12px; font-size: 14px; box-shadow: 0 6px 18px rgba(0, 0, 0, .2); animation: toastin .25s ease-out, fadeout 7s forwards; }
+@keyframes toastin { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.others { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: #d8eadf; }
+.others i { font-style: normal; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 800; border: 2px solid var(--table); margin-left: -6px; }
+.me { font-size: 13px; }
+.me input { border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; width: 160px; }
+
+/* Deep dive: the meeting pivots to one topic; every controller adds points that stream onto the board. */
+.dive { max-width: 1400px; margin: 14px auto 0; padding: 0 22px; }
+.dive-card { background: var(--table); color: #fff; border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; box-shadow: inset 0 0 0 3px var(--table-line), 0 4px 14px rgba(0, 0, 0, .12); }
+.dive-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dive-head .label { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ball); }
+.dive-head strong { font-size: 20px; flex: 1 1 260px; }
+.dive-form { display: flex; gap: 8px; }
+.dive-form input { flex: 1; min-width: 0; border: 0; border-radius: 6px; padding: 10px 12px; font-size: 16px; color: var(--ink); }
+.points { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 260px; overflow: auto; }
+.points li { display: flex; gap: 10px; align-items: flex-start; background: rgba(255, 255, 255, .08); border-radius: 6px; padding: 7px 10px; }
+.points li span.t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.points li small { color: #cfe6d8; white-space: nowrap; }
+.points .x { border: 0; background: transparent; color: #cfe6d8; font-size: 16px; padding: 0 4px; }
+.points li.flash { animation: glowdark 2.6s ease-out; }
+@keyframes glowdark { 0% { background: rgba(245, 130, 32, .55); } 100% { background: rgba(255, 255, 255, .08); } }
+
 /* What is this screen for? Asked once per computer, like the desk's Player board. */
 .chooser { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; overflow: auto; background: radial-gradient(ellipse at 50% 40%, #1a6a47, var(--table) 55%, var(--table-deep)); }
 .chooser-card { width: min(640px, 100%); background: #fff; border-radius: 12px; padding: 26px 26px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .35); border-bottom: 5px solid var(--ball); }
@@ -202,6 +232,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     </div>
   </div>
   <div class="bar-actions">
+    <span id="others" class="others" title="Others changing this meeting in the last 10 minutes"></span>
     <span id="sync" class="sync" role="status" aria-live="polite"></span>
     <button id="screen-toggle" class="btn primary" type="button" aria-expanded="false" aria-controls="screen-panel" title="What the projector shows: layout, text size, attendees">&#9654; Projector screen</button>
     <button id="open-minutes" class="btn ghost" type="button">Minutes</button>
@@ -230,7 +261,14 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
   <span id="now-time" class="now-time"></span>
   <button id="now-next" class="btn primary small" type="button" hidden>&#10003; Done, next item</button>
   <button id="now-start" class="btn small" type="button" hidden>&#9654; Start with item 1</button>
+  <button id="now-dive" class="btn small" type="button" hidden title="Pivot the meeting into this topic: the projector fills with it, and everyone's points stream in">&#10530; Deep dive</button>
   <button id="now-clear" class="btn quiet small" type="button" hidden>Clear</button>
+</div></section>
+
+<section id="dive" class="dive" aria-label="Deep dive" hidden><div class="dive-card">
+  <div class="dive-head"><span class="label">Deep dive</span><strong id="dive-title"></strong><span id="dive-count" class="now-time" style="color:#cfe6d8"></span><button id="dive-end" class="btn small" type="button">End deep dive</button></div>
+  <form id="dive-form" class="dive-form" autocomplete="off"><input id="dive-text" maxlength="300" placeholder="Add a point to the discussion… (Enter)" aria-label="Add a point"><button class="btn primary" type="submit">Add</button></form>
+  <ul id="points" class="points"></ul>
 </div></section>
 
 <main class="cols">
@@ -274,11 +312,13 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
   </section>
   </div>
 </main>
-<p class="foot">Projector on another computer: open the Executive Committee Meeting button there (Membership page, club Google account) and choose <strong>Projector</strong>. It follows within a few seconds. <button id="change-screen" class="btn small quiet" type="button">Change what this screen is for</button></p>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<p class="foot"><label class="me">Your name on this laptop (others see it on your changes) <input id="my-name" maxlength="40" placeholder="Your name"></label><br>Projector on another computer: open the Executive Committee Meeting button there (Membership page, club Google account) and choose <strong>Projector</strong>. It follows within a few seconds. <button id="change-screen" class="btn small quiet" type="button">Change what this screen is for</button></p>
 
 <div id="chooser" class="chooser" role="dialog" aria-labelledby="chooser-heading" hidden><div class="chooser-card">
   <h1 id="chooser-heading">What is this screen for?</h1>
   <p id="chooser-note" class="hint">Asked once on each computer. Change it later at the bottom of the controls, or with Stop following on the board.</p>
+  <label class="stack" style="display:grid;gap:4px;font-weight:700;font-size:13px;color:var(--muted)">Your name (the other laptops see it on your changes)<input id="chooser-name" class="field" maxlength="40" placeholder="Your name"></label>
   <div class="choices">
     <a id="choose-board" class="choice" target="_top"><strong><span class="ball on" aria-hidden="true"></span>Projector</strong><span>Follow the meeting: the agenda with each item checked off as it is discussed, and the follow-ups with their owners. Updates by itself.</span></a>
     <button id="choose-control" class="choice" type="button"><strong><span class="paddle" aria-hidden="true"></span>Run the meeting</strong><span>Add and reorder items, check them off, take notes and assign follow-ups. Every change shows on the projector.</span></button>
@@ -330,8 +370,8 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
 <?!= include_('Sync') ?>
 <script>
 (function () {
-  var app = { server: null, view: null, pending: [], inFlight: null, meetings: [], appUrl: '', today: '', retryMs: 0, retryTimer: null, flushTimer: null, editing: null, startRows: [], pasteRows: [], actionItemPicked: false, byOwner: false };
-  var POLL_MS = 8000;
+  var app = { marks: {}, seenAt: 0, me: '', server: null, view: null, pending: [], inFlight: null, meetings: [], appUrl: '', today: '', retryMs: 0, retryTimer: null, flushTimer: null, editing: null, startRows: [], pasteRows: [], actionItemPicked: false, byOwner: false };
+  var POLL_MS = 2500;
   var $ = function (id) { return document.getElementById(id); };
 
   // ---- Status lines ----
@@ -359,6 +399,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
   function change(list) {
     if (!app.view) return false;
     list = Array.isArray(list) ? list : [list];
+    list.forEach(function (c) { if (app.me && !c.by) c.by = app.me; });
     var next = clone(app.view);
     try { list.forEach(function (c) { Model.apply(next, c, Date.now()); }); } catch (error) { setStatus(error.message, 'warn'); return false; }
     app.view = next;
@@ -383,6 +424,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
         setStatus('Another screen opened a different meeting, so the last change here was not saved. This screen now shows that meeting.', 'warn');
       }
       app.server = result.meeting;
+      notice(app.server);
       rebuild();
       render();
       broadcast({ meeting: app.view, base: app.server ? app.server.version : 0 });
@@ -410,10 +452,51 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     call('followTick', stampOf(app.server)).then(function (result) {
       if (!('meeting' in result) || app.inFlight || app.pending.length) return;
       app.server = result.meeting;
+      notice(app.server);
       rebuild();
       render();
       if (!app.server) openStart();
     }).catch(function () { /* the next beat tries again */ });
+  }
+
+  // Other controllers' changes since this screen last looked: mark what they touched (a glow and their name for a few
+  // seconds) and say what they removed in a small note at the bottom. This screen's own changes are not marked.
+  var MARK_MS = 9000;
+  function notice(m) {
+    if (!m) return;
+    var fresh = (m.activity || []).filter(function (a) { return a.n > app.seenAt; });
+    if (app.seenAt !== 0) fresh.forEach(function (a) {
+      if (!a.by || a.by === app.me) return;
+      if (/removed/.test(a.what) || a.kind === 'topic') toast(a.by + ' ' + a.what + (a.title ? ' \u201c' + a.title + '\u201d' : ''));
+      else if (a.id) app.marks[a.id] = { by: a.by, what: a.what, until: Date.now() + MARK_MS, flash: true };
+    });
+    (m.activity || []).forEach(function (a) { if (a.n > app.seenAt) app.seenAt = a.n; });
+    if (!app.seenAt) app.seenAt = -1;
+    drawOthers(m);
+    if (fresh.length) setTimeout(function () { render(); }, MARK_MS + 50);
+  }
+  function toast(text) {
+    var el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = text;
+    $('toasts').appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 7200);
+    while ($('toasts').children.length > 4) $('toasts').removeChild($('toasts').firstChild);
+  }
+  function drawOthers(m) {
+    var since = (m.updatedAt || Date.now()) - 10 * 60000;
+    var names = {};
+    (m.activity || []).forEach(function (a) { if (a.by && a.by !== app.me && a.at > since) names[a.by] = 1; });
+    var list = Object.keys(names);
+    $('others').innerHTML = list.length ? list.map(function (n) { return '<i style="background:' + chipColor(n) + '" title="' + esc(n) + '">' + esc(initials(n)) + '</i>'; }).join('') + '<span style="margin-left:4px">also here</span>' : '';
+  }
+  // The marker for one row: its class (a glow the first time it is drawn) and the name badge.
+  function markOf(id) {
+    var mark = app.marks[id];
+    if (!mark || mark.until < Date.now()) { delete app.marks[id]; return { cls: '', badge: '' }; }
+    var cls = ' marked' + (mark.flash ? ' flash' : '');
+    mark.flash = false;
+    return { cls: cls, badge: '<span class="by-badge" title="' + esc(mark.by + ' ' + mark.what) + '">' + esc(mark.by) + '</span>' };
   }
 
   function adopt(state) {
@@ -423,6 +506,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     app.server = state.meeting;
     app.pending = [];
     app.editing = null;
+    notice(app.server);
     rebuild();
     render();
     broadcast({ meeting: app.view, base: app.server ? app.server.version : 0 });
@@ -480,8 +564,23 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     $('now-time').textContent = at >= 0 ? timeOn(m) : '';
     $('now-next').hidden = at < 0;
     $('now-clear').hidden = at < 0;
+    $('now-dive').hidden = at < 0 || m.topic === m.current;
+    renderDive(m);
     $('now-start').hidden = at >= 0 || !firstOpen;
     if (firstOpen) $('now-start').textContent = '▶ Start with item ' + (indexOf(m.items, firstOpen.id) + 1);
+  }
+  function renderDive(m) {
+    var at = m.topic ? indexOf(m.items, m.topic) : -1;
+    $('dive').hidden = at < 0;
+    if (at < 0) return;
+    var it = m.items[at];
+    var points = it.points || [];
+    $('dive-title').textContent = (at + 1) + '. ' + it.title;
+    $('dive-count').textContent = points.length ? points.length + (points.length === 1 ? ' point' : ' points') : '';
+    $('points').innerHTML = points.map(function (pt) {
+      var mark = markOf(pt.id);
+      return '<li class="' + mark.cls + '" data-id="' + pt.id + '"><span class="t">' + esc(pt.text) + '</span><small>' + esc(pt.by || '') + '</small><button class="x" type="button" data-remove aria-label="Remove this point">&times;</button></li>';
+    }).join('') || '<li><span class="t" style="color:#cfe6d8">No points yet. Anyone at a controller can add one; they appear on the projector as they are made.</span></li>';
   }
   function timeOn(m) {
     var minutes = minutesSince(m.currentSince);
@@ -491,7 +590,8 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
   function renderItems(m) {
     var html = m.items.map(function (it, n) {
       var editing = app.editing && app.editing.kind === 'item' && app.editing.id === it.id;
-      var classes = 'item ' + it.status + (m.current === it.id ? ' current' : '');
+      var mark = markOf(it.id);
+      var classes = 'item ' + it.status + (m.current === it.id ? ' current' : '') + mark.cls;
       var tags = (it.added ? ' <span class="tag added">Added</span>' : '') + (it.carried ? ' <span class="tag carried">Carried over</span>' : '') + (it.status === 'tabled' ? ' <span class="tag later">Next meeting</span>' : '');
       var details = it.details ? '<ul class="item-details">' + it.details.split('\n').map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul>' : '';
       var notes = it.notes && !editing ? '<div class="notes-hint">&#128221; ' + esc(it.notes.split('\n')[0]) + '</div>' : '';
@@ -502,11 +602,11 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
         '<label>Sub-points (shown on the board, one per line)<textarea data-field="details" data-key="details-' + it.id + '" rows="3">' + esc(it.details) + '</textarea></label>' +
         '<label>Notes and decisions (for the minutes only)<textarea data-field="notes" data-key="notes-' + it.id + '" rows="3">' + esc(it.notes) + '</textarea></label>' +
         '<div class="editor-row"><button class="btn small" type="button" data-act="up"' + (n === 0 ? ' disabled' : '') + ' aria-label="Move up">&#8593;</button><button class="btn small" type="button" data-act="down"' + (n === m.items.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#8595;</button>' +
-        '<button class="btn small" type="button" data-act="later">' + (it.status === 'tabled' ? 'Back on today\'s agenda' : 'Move to next meeting') + '</button>' +
+        '<button class="btn small" type="button" data-act="dive">&#10530; Deep dive</button><button class="btn small" type="button" data-act="later">' + (it.status === 'tabled' ? 'Back on today\'s agenda' : 'Move to next meeting') + '</button>' +
         '<button class="btn small danger" type="button" data-act="delete">Delete</button><span class="spacer"></span><button class="btn small primary" type="button" data-act="close">Done</button></div></div>' : '';
       return '<li class="' + classes + '" data-id="' + it.id + '"' + (editing ? '' : ' draggable="true"') + '>' +
         '<span class="grip" aria-hidden="true" title="Drag to reorder">&#8942;&#8942;</span>' + ball +
-        '<div class="item-main" data-act="edit" title="Click to edit"><div class="item-title"><span class="num">' + (n + 1) + '.</span>' + esc(it.title) + tags + '</div>' + (editing ? '' : details) + notes + '</div>' +
+        '<div class="item-main" data-act="edit" title="Click to edit"><div class="item-title"><span class="num">' + (n + 1) + '.</span>' + esc(it.title) + tags + mark.badge + '</div>' + ((it.points || []).length ? '<div class="notes-hint">&#9679; ' + it.points.length + (it.points.length === 1 ? ' point' : ' points') + ' from the deep dive</div>' : '') + (editing ? '' : details) + notes + '</div>' +
         '<div class="item-side">' + side + '</div>' + editor + '</li>';
     }).join('');
     $('items').innerHTML = html || '<li class="empty">No items yet. Add one below, or click <strong>Paste agenda</strong>.</li>';
@@ -546,9 +646,10 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
           '<label>Due<input data-field="due" data-key="a-due-' + a.id + '" type="date" value="' + esc(a.due) + '"></label>' +
           '<label>Agenda item<select data-field="itemId" data-key="a-item-' + a.id + '"><option value="">General</option>' + m.items.map(function (it, n) { return '<option value="' + it.id + '"' + (it.id === a.itemId ? ' selected' : '') + '>' + (n + 1) + '. ' + esc(it.title.length > 40 ? it.title.slice(0, 39) + '…' : it.title) + '</option>'; }).join('') + '</select></label></div>' +
           '<div class="editor-row"><button class="btn small danger" type="button" data-act="a-delete">Delete</button><span class="spacer"></span><button class="btn small primary" type="button" data-act="close">Done</button></div></div>' : '';
-        return '<li class="action' + (a.done ? ' done' : '') + '" data-id="' + a.id + '">' +
+        var mark = markOf(a.id);
+        return '<li class="action' + (a.done ? ' done' : '') + mark.cls + '" data-id="' + a.id + '">' +
           '<button class="ball small' + (a.done ? ' on' : '') + '" type="button" data-act="a-toggle" aria-pressed="' + a.done + '" aria-label="' + (a.done ? 'Done: click to reopen ' : 'Mark done: ') + esc(a.text) + '"></button>' +
-          '<div class="a-main" data-act="a-edit" title="Click to edit"><div class="a-text">' + esc(a.text) + '</div><div class="a-meta">' + meta + '</div></div><span></span>' + editor + '</li>';
+          '<div class="a-main" data-act="a-edit" title="Click to edit"><div class="a-text">' + esc(a.text) + mark.badge + '</div><div class="a-meta">' + meta + '</div></div><span></span>' + editor + '</li>';
       }).join('');
     }).join('');
     $('actions').innerHTML = html || '<li class="empty">No follow-ups yet. Add one above: what needs to happen, and who owns it.</li>';
@@ -623,6 +724,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     else if (act === 'close') { app.editing = null; render(); }
     else if (act === 'up') change({ type: 'moveItem', id: id, to: at - 1 });
     else if (act === 'down') change({ type: 'moveItem', id: id, to: at + 1 });
+    else if (act === 'dive') { app.editing = null; change({ type: 'topic', id: id }); setTimeout(function () { $('dive-text').focus(); }, 0); }
     else if (act === 'later') change({ type: 'status', id: id, status: it.status === 'tabled' ? 'open' : 'tabled' });
     else if (act === 'delete') arm(target, function () { app.editing = null; change({ type: 'removeItem', id: id }); });
   });
@@ -696,6 +798,31 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     if (first) change({ type: 'current', id: first.id });
   });
   $('now-clear').addEventListener('click', function () { change({ type: 'current', id: '' }); });
+  $('now-dive').addEventListener('click', function () { if (app.view && app.view.current) { change({ type: 'topic', id: app.view.current }); setTimeout(function () { $('dive-text').focus(); }, 0); } });
+  $('dive-end').addEventListener('click', function () { change({ type: 'topic', id: '' }); });
+  $('dive-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var text = $('dive-text').value.trim();
+    if (!text || !app.view || !app.view.topic) return;
+    if (change({ type: 'addPoint', itemId: app.view.topic, point: { id: makeId(), text: text } })) $('dive-text').value = '';
+  });
+  $('points').addEventListener('click', function (event) {
+    var b = event.target.closest('[data-remove]');
+    var row = event.target.closest('li[data-id]');
+    if (b && row && app.view) change({ type: 'removePoint', itemId: app.view.topic, id: row.getAttribute('data-id') });
+  });
+
+  // ---- Your name, on every change this laptop makes ----
+  try { app.me = window.localStorage.getItem('cttc-meeting-name') || ''; } catch (error) { app.me = ''; }
+  function setMe(name) {
+    app.me = String(name || '').trim().slice(0, 40);
+    try { window.localStorage.setItem('cttc-meeting-name', app.me); } catch (error) { /* asked again next time */ }
+    $('my-name').value = app.me;
+    $('chooser-name').value = app.me;
+  }
+  setMe(app.me);
+  $('my-name').addEventListener('change', function () { setMe($('my-name').value); });
+  $('chooser-name').addEventListener('change', function () { setMe($('chooser-name').value); });
   setInterval(function () { if (app.view && app.view.current) $('now-time').textContent = timeOn(app.view); }, 20000);
 
   // ---- Header ----
@@ -1026,6 +1153,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     setScreenRole('board');
   });
   $('choose-control').addEventListener('click', function () {
+    setMe($('chooser-name').value);
     setScreenRole('control');
     $('chooser').hidden = true;
     if (!app.server && app.loaded) openStart();

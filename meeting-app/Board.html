@@ -108,6 +108,18 @@ body.idle { cursor: none; }
 .people-tab b { color: #fff; font-size: 2.6vh; text-combine-upright: all; }
 .people-tab .ball { width: 2.4vh; height: 2.4vh; }
 .people-tab .ball::after { display: none; }
+.topic .spot-title { font-size: calc(5 * var(--u)); }
+.b-now.dive { background: #fff; color: var(--table-deep); }
+.b-now.dive .paddle { background: var(--red); }
+.spot h3 small { letter-spacing: .04em; text-transform: none; color: #9fc2ad; font-weight: 600; }
+.b-points { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1.2 * var(--u)); }
+.b-points li { display: grid; grid-template-columns: calc(2.8 * var(--u)) minmax(0, 1fr); gap: 1.4vh; align-items: start; padding: calc(.6 * var(--u)) 1vh; border-radius: 1vh; }
+.b-points .ball { width: calc(2.8 * var(--u)); height: calc(2.8 * var(--u)); margin-top: calc(.3 * var(--u)); }
+.b-points .ball::after { display: none; }
+.pt-text { font-size: calc(2.9 * var(--u)); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.pt-by { margin-top: calc(.3 * var(--u)); font-size: calc(1.8 * var(--u)); color: #9fc2ad; }
+.b-points li.fresh { animation: slidein .6s cubic-bezier(.2, .7, .3, 1), fresh 2.4s ease-out; }
+@keyframes slidein { 0% { transform: translateX(4vw); opacity: 0; } 100% { transform: none; opacity: 1; } }
 .b-foot { display: flex; align-items: center; gap: 2vw; padding: 1vh 2.4vw 1.2vh; border-top: .3vh solid rgba(255, 255, 255, .55); font-size: 1.7vh; color: #9fc2ad; }
 .b-foot .spacer { flex: 1; }
 .dot { display: inline-block; width: 1.1vh; height: 1.1vh; border-radius: 50%; background: #5ad18b; margin-right: .8vh; vertical-align: middle; }
@@ -193,14 +205,20 @@ body.idle .b-foot button { visibility: hidden; }
     document.body.style.setProperty('--scale', String(d.scale));
     document.body.className = document.body.className.replace(/\blayout-\w+/g, '').trim() + ' layout-' + d.layout;
 
-    var past = { known: !!same, done: {}, actions: {} };
+    var past = { known: !!same, done: {}, actions: {}, points: {} };
     if (same) {
+      before.items.forEach(function (it) { (it.points || []).forEach(function (pt) { past.points[pt.id] = 1; }); });
       before.items.forEach(function (it) { if (it.status === 'done') past.done[it.id] = 1; });
       before.actions.forEach(function (a) { past.actions[a.id] = a.done ? 'done' : 'open'; });
     }
     var parts = [];
     var columns = [];
-    if (d.layout === 'spotlight') {
+    var topicAt = m.topic ? indexOf(m.items, m.topic) : -1;
+    document.body.className = document.body.className.replace(/\blayout-\w+/g, '').trim() + ' layout-' + (topicAt >= 0 ? 'topic' : d.layout);
+    if (topicAt >= 0) {
+      parts.push(deepDive(m, topicAt, past), '<div class="net" aria-hidden="true"></div>', followUps(m, past, m.actions.filter(function (a) { return a.itemId === m.topic; }), 'Follow-ups on this topic', 'Follow-ups added during the deep dive appear here.'));
+      columns.push('minmax(0, 1.7fr)', '2.2vw', 'minmax(0, 1fr)');
+    } else if (d.layout === 'spotlight') {
       parts.push(spotlight(m, past), '<div class="net" aria-hidden="true"></div>', upNext(m));
       columns.push('minmax(0, 2.2fr)', '2.2vw', 'minmax(0, 1fr)');
     } else if (d.layout === 'recap') {
@@ -266,6 +284,20 @@ body.idle .b-foot button { visibility: hidden; }
     var open = list.filter(function (a) { return !a.done; }).length;
     return '<section class="b-panel"><h2>' + esc(heading) + ' <small>' + (list.length ? open + ' open' : '') + '</small></h2><div class="fill"><ul id="b-actions" class="b-actions">' +
       (list.map(function (a) { return actionRow(m, a, past); }).join('') || '<li class="b-empty">' + (empty || 'Action items and their owners appear here.') + '</li>') + '</ul></div></section>';
+  }
+
+  // Deep dive: the meeting has pivoted to one topic. Its sub-points, then the points every controller adds, newest
+  // last, each with who added it; a new one slides in with the orange ball.
+  function deepDive(m, at, past) {
+    var it = m.items[at];
+    var points = it.points || [];
+    return '<section class="b-panel spot topic"><div class="fill"><span class="b-now dive"><span class="paddle"></span>Deep dive</span>' +
+      '<div class="spot-title">' + esc(it.title) + '</div>' + detailsHtml(it) +
+      '<h3>Discussion <small>' + (points.length ? points.length + (points.length === 1 ? ' point' : ' points') : '') + '</small></h3><ul id="b-points" class="b-points">' +
+      (points.map(function (pt) {
+        var fresh = past.known && !past.points[pt.id];
+        return '<li class="' + (fresh ? 'fresh' : '') + '">' + ball(' on', fresh) + '<div><div class="pt-text">' + esc(pt.text) + '</div>' + (pt.by ? '<div class="pt-by">' + esc(pt.by) + '</div>' : '') + '</div></li>';
+      }).join('') || '<li class="b-empty">Points added on the controllers appear here as they are made.</li>') + '</ul></div></section>';
   }
 
   // Spotlight: the item being discussed, big, with its sub-points and the follow-ups made on it. With nothing under

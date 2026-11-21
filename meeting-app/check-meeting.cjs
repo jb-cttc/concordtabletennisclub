@@ -318,7 +318,8 @@ function pageHtml(name) {
   assert.match(html, /var Model = \(function MeetingModel_\(\)/, name + ': the page runs the server\'s model');
   assert.match(html, /var APP_URL = 'https:\/\/script\.google\.com\/macros\/s\/TEST\/dev';/);
   // Follow faster than on a projector, so the test does not wait seconds.
-  return html.replace('var BEAT_MS = 3000;', 'var BEAT_MS = 20;').replace('var POLL_MS = 8000;', 'var POLL_MS = 25;');
+  assert.ok(html.includes(name === 'Board' ? 'var BEAT_MS = 3000;' : 'var POLL_MS = 2500;'), name + ': the follow beat this test speeds up');
+  return html.replace('var BEAT_MS = 3000;', 'var BEAT_MS = 20;').replace('var POLL_MS = 2500;', 'var POLL_MS = 25;');
 }
 const channels = new Set();
 class FakeChannel {
@@ -502,6 +503,45 @@ async function until(test, what, ms = 2000) {
   await until(() => there.querySelector('#b-items') && !there.querySelector('#b-actions'), 'the agenda alone');
   click(c, '[data-display="follow"] [data-value="true"]');
   await until(() => there.querySelector('#b-actions'), 'the follow-ups back');
+
+  // Two controllers: each names itself; what one adds glows on the other with its name, a removal is a small note, and
+  // a deep dive fills the board with the points both of them add.
+  type(c, '#my-name', 'Pat Example', 'change');
+  const second = open('Control', false);
+  const c2 = second.window.document;
+  await until(() => c2.getElementById('status').hidden, 'the second controller to open');
+  type(c2, '#chooser-name', 'Sam Sample', 'change');
+  click(c2, '#choose-control');
+  await until(() => c2.querySelectorAll('#items .item').length === 7, 'the second controller showing the agenda');
+  type(c2, '#new-item', 'Volunteer schedule');
+  c2.getElementById('add-item').dispatchEvent(new second.window.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => c.querySelector('#items .item.marked .by-badge'), 'the first controller marking the new item');
+  assert.equal(c.querySelector('#items .item.marked .by-badge').textContent, 'Sam Sample');
+  assert.match(c.querySelector('#items .item.marked').textContent, /Volunteer schedule/);
+  await until(() => /SS/.test(c.getElementById('others').textContent), 'who else is here');
+  assert.equal(c2.querySelector('#items .by-badge'), null, 'a controller\'s own changes are not marked');
+  const volunteers = run('getState').meeting.items.find(it => it.title === 'Volunteer schedule');
+  assert.equal(volunteers.by, 'Sam Sample');
+  click(c, '#items .item:last-child .item-main');
+  click(c, '#items .item:last-child [data-act="dive"]');
+  await until(() => !c2.getElementById('dive').hidden, 'the deep dive on the second controller');
+  await until(() => there.querySelector('.layout-topic, body.layout-topic') || /layout-topic/.test(there.body.className), 'the board pivoting to the topic');
+  assert.match(there.querySelector('.spot-title').textContent, /Volunteer schedule/);
+  type(c2, '#dive-text', 'Fridays need two closers');
+  c2.getElementById('dive-form').dispatchEvent(new second.window.Event('submit', { bubbles: true, cancelable: true }));
+  type(c, '#dive-text', 'Ask the Saturday regulars');
+  c.getElementById('dive-form').dispatchEvent(new control.window.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => there.querySelectorAll('#b-points li .pt-text').length === 2, 'both points on the board');
+  assert.deepEqual([...there.querySelectorAll('#b-points .pt-by')].map(x => x.textContent).sort(), ['Pat Example', 'Sam Sample']);
+  await until(() => c.querySelectorAll('#points li[data-id]').length === 2 && c2.querySelectorAll('#points li[data-id]').length === 2, 'both points on both controllers (' + c.querySelectorAll('#points li[data-id]').length + ',' + c2.querySelectorAll('#points li[data-id]').length + ',' + c.getElementById('dive').hidden + ',' + c2.getElementById('sync').textContent + ')');
+  click(c2, '#dive-end');
+  await until(() => !/layout-topic/.test(there.body.className), 'the board back to the agenda');
+  click(c2, '#items .item:last-child .item-main');
+  click(c2, '#items .item:last-child [data-act="delete"]');
+  click(c2, '#items .item:last-child [data-act="delete"]');
+  await until(() => /Sam Sample removed/.test(c.getElementById('toasts').textContent), 'a note that the other controller removed it');
+  assert.match(run('getState').meeting.activity.map(a => a.by + ' ' + a.what).join('|'), /Sam Sample added\|.*Pat Example started a deep dive on/);
+  second.window.close();
 
   // Minutes and the projector window.
   click(c, '#open-minutes');

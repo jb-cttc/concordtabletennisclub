@@ -13,7 +13,7 @@
 // decisions, for the minutes only. added marks an item added once the meeting was under way; carried one brought
 // forward from the meeting before. current is the item being discussed now.
 function MeetingModel_() {
-  var LIMITS = { title: 140, details: 1500, notes: 4000, action: 300, owner: 80, name: 80, role: 60, items: 60, actions: 120, attendees: 60 };
+  var LIMITS = { title: 140, details: 1500, notes: 4000, action: 300, owner: 80, name: 80, role: 60, items: 60, actions: 120, attendees: 60, point: 300, points: 40, by: 40, activity: 25 };
   var STATUSES = { open: 1, done: 1, tabled: 1 };
   var ID = /^[a-z0-9]{4,24}$/;
   // The board: full agenda, focus (titles only, discussed items folded up), spotlight (the item being discussed, big),
@@ -59,7 +59,9 @@ function MeetingModel_() {
       notes: text(raw.notes, LIMITS.notes),
       status: STATUSES[raw.status] ? raw.status : 'open',
       added: raw.added === undefined ? !!(meeting && meeting.startedAt) : !!raw.added,
-      carried: !!raw.carried
+      carried: !!raw.carried,
+      points: [],
+      by: line(raw.by, LIMITS.by)
     };
   }
   function action(raw) {
@@ -70,7 +72,8 @@ function MeetingModel_() {
       due: day(raw.due),
       itemId: okId(raw.itemId) ? raw.itemId : '',
       done: !!raw.done,
-      carried: raw.carried ? line(raw.carried, 20) : ''
+      carried: raw.carried ? line(raw.carried, 20) : '',
+      by: line(raw.by, LIMITS.by)
     };
   }
 
@@ -90,8 +93,43 @@ function MeetingModel_() {
 
   // Applies one change in place. A change to an item or follow-up that is no longer there (another screen removed it)
   // does nothing; a change that is not understood throws, so the page hears about it.
+  // Who did what, for the other controllers' markers: the last few changes made with a name (change.by).
+  function describe(meeting, change) {
+    var at;
+    switch (change.type) {
+      case 'addItems': var first = (change.items || [])[0]; return first ? { what: 'added', kind: 'item', id: first.id, title: first.title } : null;
+      case 'editItem': at = find(meeting.items, change.id); return at < 0 ? null : { what: change.notes !== undefined && change.title === undefined ? 'took notes on' : 'edited', kind: 'item', id: change.id, title: meeting.items[at].title };
+      case 'status': at = find(meeting.items, change.id); return at < 0 ? null : { what: change.status === 'done' ? 'checked off' : change.status === 'tabled' ? 'moved to next meeting' : 'reopened', kind: 'item', id: change.id, title: meeting.items[at].title };
+      case 'moveItem': at = find(meeting.items, change.id); return at < 0 ? null : { what: 'moved', kind: 'item', id: change.id, title: meeting.items[at].title };
+      case 'removeItem': at = find(meeting.items, change.id); return at < 0 ? null : { what: 'removed', kind: 'item', id: change.id, title: meeting.items[at].title };
+      case 'addAction': return change.action ? { what: 'added a follow-up', kind: 'action', id: change.action.id, title: change.action.text } : null;
+      case 'editAction': at = find(meeting.actions, change.id); return at < 0 ? null : { what: change.done === true ? 'completed' : 'edited', kind: 'action', id: change.id, title: meeting.actions[at].text };
+      case 'removeAction': at = find(meeting.actions, change.id); return at < 0 ? null : { what: 'removed a follow-up', kind: 'action', id: change.id, title: meeting.actions[at].text };
+      case 'addPoint': return change.point ? { what: 'added a point', kind: 'point', id: change.point.id, title: change.point.text, itemId: change.itemId } : null;
+      case 'removePoint': return { what: 'removed a point', kind: 'point', id: change.id, title: '', itemId: change.itemId };
+      case 'topic': at = find(meeting.items, change.id); return at < 0 ? { what: 'ended the deep dive', kind: 'topic', id: '', title: '' } : { what: 'started a deep dive on', kind: 'topic', id: change.id, title: meeting.items[at].title };
+      default: return null;
+    }
+  }
+
   function apply(meeting, change, now) {
     if (!change || typeof change !== 'object') throw new Error('Not a change.');
+    var by = line(change.by, LIMITS.by);
+    var said = by ? describe(meeting, change) : null;
+    applyOne(meeting, change, now, by);
+    if (said) {
+      said.at = now;
+      // A running number, so a screen can tell what it has not seen yet even when two changes share a millisecond.
+      meeting.activityCount = (meeting.activityCount || 0) + 1;
+      said.n = meeting.activityCount;
+      said.by = by;
+      said.title = line(said.title, 80);
+      meeting.activity = (meeting.activity || []).concat([said]).slice(-LIMITS.activity);
+    }
+    return meeting;
+  }
+
+  function applyOne(meeting, change, now, by) {
     var i;
     switch (change.type) {
       case 'meeting':
@@ -104,6 +142,7 @@ function MeetingModel_() {
           if (meeting.items.length >= LIMITS.items) throw new Error('An agenda holds at most ' + LIMITS.items + ' items.');
           var made = item(raw, meeting, now);
           if (!made.title) return;
+          if (!made.by) made.by = by || '';
           var at = typeof change.at === 'number' && change.at >= 0 && change.at <= meeting.items.length ? change.at + n : meeting.items.length;
           meeting.items.splice(at, 0, made);
         });
@@ -120,6 +159,7 @@ function MeetingModel_() {
         if (i < 0 || !STATUSES[change.status]) return meeting;
         meeting.items[i].status = change.status;
         if (change.status === 'done') start(meeting, now);
+        if (change.status !== 'open' && meeting.topic === change.id) meeting.topic = '';
         // Checking off (or tabling) the item being discussed moves Now to the next open item.
         if (change.status !== 'open' && meeting.current === change.id) setCurrent(meeting, nextOpen(meeting, change.id), now);
         return meeting;
@@ -142,6 +182,7 @@ function MeetingModel_() {
         if (i < 0) return meeting;
         meeting.items.splice(i, 1);
         if (meeting.current === change.id) setCurrent(meeting, '', now);
+        if (meeting.topic === change.id) meeting.topic = '';
         meeting.actions.forEach(function (a) { if (a.itemId === change.id) a.itemId = ''; });
         return meeting;
       case 'addAction':
@@ -149,6 +190,7 @@ function MeetingModel_() {
         if (meeting.actions.length >= LIMITS.actions) throw new Error('A meeting holds at most ' + LIMITS.actions + ' follow-ups.');
         var made = action(change.action);
         if (!made.text) return meeting;
+        if (!made.by) made.by = by || '';
         if (made.itemId && find(meeting.items, made.itemId) < 0) made.itemId = '';
         meeting.actions.push(made);
         return meeting;
@@ -197,6 +239,32 @@ function MeetingModel_() {
       case 'removeAttendee':
         i = find(meeting.attendees, change.id);
         if (i >= 0) meeting.attendees.splice(i, 1);
+        return meeting;
+      case 'topic':
+        // A deep dive: the meeting pivots to one item. The board fills with it and the points the controllers add.
+        if (!change.id) { meeting.topic = ''; return meeting; }
+        i = find(meeting.items, change.id);
+        if (i < 0) return meeting;
+        if (meeting.items[i].status !== 'open') meeting.items[i].status = 'open';
+        start(meeting, now);
+        setCurrent(meeting, change.id, now);
+        meeting.topic = change.id;
+        return meeting;
+      case 'addPoint':
+        i = find(meeting.items, change.itemId);
+        if (i < 0 || !change.point || !okId(change.point.id)) return meeting;
+        var points = meeting.items[i].points || (meeting.items[i].points = []);
+        if (find(points, change.point.id) >= 0) return meeting;
+        if (points.length >= LIMITS.points) throw new Error('A topic holds at most ' + LIMITS.points + ' points.');
+        var said = line(change.point.text, LIMITS.point);
+        if (said) points.push({ id: change.point.id, text: said, by: by || '', at: now });
+        return meeting;
+      case 'removePoint':
+        i = find(meeting.items, change.itemId);
+        if (i < 0) return meeting;
+        var list = meeting.items[i].points || [];
+        var at = find(list, change.id);
+        if (at >= 0) list.splice(at, 1);
         return meeting;
       case 'display':
         var d = meeting.display || (meeting.display = defaultDisplay());
@@ -293,6 +361,7 @@ function MeetingModel_() {
       var mark = it.status === 'done' ? '[x]' : it.status === 'tabled' ? '[>]' : '[ ]';
       out.push((n + 1) + '. ' + mark + ' ' + it.title + (it.status === 'tabled' ? ' (next meeting)' : '') + (it.added ? ' (added)' : ''));
       if (it.details) it.details.split('\n').forEach(function (d) { out.push('     - ' + d); });
+      (it.points || []).forEach(function (pt) { out.push('     * ' + pt.text + (pt.by ? ' (' + pt.by + ')' : '')); });
       if (it.notes) {
         out.push('     Notes:');
         it.notes.split('\n').forEach(function (d) { out.push('       ' + d); });

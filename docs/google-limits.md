@@ -102,12 +102,12 @@ timers, and needs no permission (scope). It keeps each meeting in its own
 project's script properties and its following screens in the script cache. Only
 while a meeting screen is open: the projector board asks `followTick` every 3
 seconds (every 12 after 20 quiet minutes; it pauses after 4 quiet hours or while
-its window is hidden), and the controller every 8 seconds when it has nothing
-waiting to save. A quiet beat is one cache read and no settings read; the
+its window is hidden), and each controller every 2.5 seconds when it has nothing
+waiting to save (several laptops can run the meeting at once). A quiet beat is one cache read and no settings read; the
 meeting is read only when it changed, from the cache. Each change on the
 controller is one page call: about one settings write, plus a read of the
 meeting and the meeting list. A 2-hour meeting with one board and one controller
-is about 3,300 page calls and a few hundred settings reads and writes. Those
+is about 5,300 page calls (about 2,900 more for each extra controller) and a few hundred settings reads and writes. Those
 page calls are a separate project's, so they do not touch the desk's lock or
 its settings:
 

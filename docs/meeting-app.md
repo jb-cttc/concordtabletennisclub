@@ -47,7 +47,21 @@ hidden).
    - **Text** size (70% to 160%; the board still shrinks to fit if it must),
      the **Attendees** panel (open, folded to a tab with the count, or hidden),
      and the follow-ups beside the agenda (shown or hidden).
-7. **Minutes** gives the agenda with what was discussed, each item's notes, the
+7. **Several controllers at once.** Each laptop signed in to the club account
+   can open the controls; each person gives their name once (on the first
+   screen, or at the bottom of the controls). What someone else adds or changes
+   glows orange on your screen for a few seconds with their name; what they
+   remove or a deep dive they start shows as a small note at the bottom left;
+   their initials show at the top while they are active. Every laptop's changes
+   reach the projector the same way.
+8. **Deep dive.** When the meeting pivots into a big topic (finances,
+   volunteers), click **Deep dive** on the item under Now (or in an item's
+   editor). The projector fills with that topic: its sub-points, the discussion
+   points every controller adds (each with who added it, sliding in as they are
+   made), and the follow-ups on that topic. **End deep dive** (or checking the
+   item off) returns the board to the layout chosen before. The points go into
+   the minutes under their item.
+9. **Minutes** gives the agenda with what was discussed, each item's notes, the
    attendees and the follow-ups as text to copy into the minutes document or an
    email, or to print.
 
