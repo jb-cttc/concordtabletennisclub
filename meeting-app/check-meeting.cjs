@@ -290,6 +290,8 @@ assert.match(files.Guard, /cttcMeeting: 'ready'/, 'tells meeting.html it opened'
   assert.match(csp, /frame-src https:\/\/script\.google\.com(;|$)/, 'only Google can be framed');
   assert.match(site, /<meta name="robots" content="noindex, nofollow">/);
   assert.doesNotMatch(site, /<script[^>]*\ssrc=|<iframe[^>]*\ssrc=/, 'nothing loaded from elsewhere; the frame address is set by the script');
+  assert.match(site, /<iframe id="meeting"[^>]*\sallow="fullscreen"/, 'the board\'s Full screen works through the site frame');
+  assert.match(files.Board, /\.waiting \{ position: absolute; inset: 0 0 7vh; pointer-events: none;/, 'the waiting message never covers Full screen in the bottom bar');
   const script = /<script>([\s\S]*?)<\/script>/.exec(site)[1];
   const appUrl = /var APP_URL = '([^']*)';/.exec(script)[1];
   assert.match(appUrl, /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/, 'the released /exec address, never /dev');
