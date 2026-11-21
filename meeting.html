@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src https://script.google.com; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>CTTC Executive Committee Meeting</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; height: 100dvh; background: #0c3a27; }
+    .stage { position: relative; flex: 1; display: flex; }
+    iframe { flex: 1; display: block; width: 100%; border: 0; background: #0c3a27; }
+    .signin[hidden] { display: none; }
+    .signin { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: #0c3a27; color: #17211b; font: 16px/1.45 Arial, Helvetica, sans-serif; overflow: auto; }
+    .card { box-sizing: border-box; width: 100%; max-width: 560px; padding: 28px 28px 22px; background: #fff; border-radius: 8px; border-bottom: 5px solid #ff8a1f; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+    .card h1 { margin: 0 0 8px; font: 700 26px/1.2 Georgia, "Times New Roman", serif; color: #145a3c; }
+    .card p { margin: 0 0 14px; }
+    .go { display: block; margin: 18px 0 8px; padding: 14px 18px; border-radius: 6px; background: #145a3c; color: #fff; font-weight: 700; font-size: 18px; text-align: center; text-decoration: none; }
+    .go:hover, .go:focus-visible { background: #0c3a27; }
+    .go:focus-visible, .card button:focus-visible { outline: 3px solid #ff8a1f; outline-offset: 2px; }
+    .card .more { padding-top: 14px; border-top: 1px solid #d8ddd9; color: #4d5852; font-size: 14px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+    .card button { border: 1px solid #145a3c; border-radius: 4px; background: #fff; color: #145a3c; padding: 8px 13px; font: 700 14px Arial, Helvetica, sans-serif; cursor: pointer; }
+    .card button.quiet { border-color: transparent; color: #657069; font-weight: 400; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <iframe id="meeting" title="CTTC Executive Committee Meeting"></iframe>
+    <div id="signin" class="signin" role="dialog" aria-labelledby="signin-title" hidden>
+      <div class="card">
+        <h1 id="signin-title">Sign in to open the meeting</h1>
+        <p id="signin-text">The executive committee's meeting app opens only for the club's Google account, and this computer is not signed in to it yet (or this browser keeps Google out of this page).</p>
+        <a id="direct" class="go" target="_top">Sign in with the club's Google account</a>
+        <p class="more">Signed in to a different Google account on this computer? Google may say <em>You need access</em>. Open a guest or private window, come back to this page, and sign in with the club's account there.</p>
+        <div class="actions"><button id="retry" type="button">Already signed in? Try again</button><button id="dismiss" class="quiet" type="button">The meeting is showing: hide this</button></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      // The meeting app (meeting-app/) is a separate Apps Script project that opens only for the club's Google account:
+      // this address is not a credential. ?view=board opens the projector board, which follows the controller. Nothing
+      // else from this page's own address is passed on. Google will not show its sign-in page inside a frame, so if the
+      // app has not said it opened (meeting-app/Guard.html) within WAIT_MS, the sign-in card covers the blank frame.
+      // APP_URL is the released /exec address, set when the app is first released (docs/meeting-app.md).
+      var APP_URL = '';
+      var WAIT_MS = 10000;
+      var frame = document.getElementById('meeting');
+      var signin = document.getElementById('signin');
+      var direct = document.getElementById('direct');
+      var timer = null;
+      var ready = false;
+      if (!APP_URL) {
+        document.getElementById('signin-title').textContent = 'The meeting app is not released yet';
+        document.getElementById('signin-text').textContent = 'It goes live once its pull request is merged and released. Until then, a maintainer can open the test copy for you.';
+        direct.hidden = true;
+        document.querySelector('.card .more').hidden = true;
+        document.querySelector('.card .actions').hidden = true;
+        signin.hidden = false;
+        return;
+      }
+      var url = new URL(APP_URL);
+      if (new URLSearchParams(location.search).get('view') === 'board') {
+        url.searchParams.set('view', 'board');
+        document.title = 'CTTC Meeting Board';
+      }
+      direct.href = url.toString();
+      function open() {
+        ready = false;
+        signin.hidden = true;
+        clearTimeout(timer);
+        timer = setTimeout(function () { if (!ready) signin.hidden = false; }, WAIT_MS);
+        frame.src = url.toString();
+      }
+      window.addEventListener('message', function (event) {
+        if (!/^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/.test(event.origin || '')) return;
+        if (!event.data || event.data.cttcMeeting !== 'ready') return;
+        ready = true;
+        clearTimeout(timer);
+        signin.hidden = true;
+      });
+      document.getElementById('retry').addEventListener('click', open);
+      document.getElementById('dismiss').addEventListener('click', function () { signin.hidden = true; });
+      open();
+    })();
+  </script>
+</body>
+</html>

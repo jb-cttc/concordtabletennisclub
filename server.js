@@ -20,6 +20,7 @@ const server = http.createServer(function (req, res) {
   if (urlPath === '/') urlPath = '/index.html';
   if (urlPath === '/desk') urlPath = '/desk.html';
   if (urlPath === '/cash') urlPath = '/cash.html';
+  if (urlPath === '/meeting') urlPath = '/meeting.html';
 
   const filePath = path.join(ROOT, urlPath);
 

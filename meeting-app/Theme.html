@@ -1,0 +1,62 @@
+<style>
+/* The ping pong look shared by the controller and the board: table green, white table lines, club gold, and the
+   desk's orange game ball (apps-script/Index.html .ball, style.css .ball) for every check mark. */
+:root {
+  --table: #145a3c;
+  --table-deep: #0c3a27;
+  --table-line: #f4f7f2;
+  --ball: #f58220;
+  --ball-deep: #c95f0a;
+  --gold: #c99934;
+  --red: #a43831;
+  --ink: #17211b;
+  --muted: #5d6a62;
+  --line: #d9dfd9;
+  --paper: #f3f6f1;
+  --panel: #ffffff;
+  --focus: #c99934;
+  --sans: "Avenir Next", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: var(--sans); color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* The ball: a check box drawn as a ping pong ball. Empty, it is an outline; checked, an orange ball with a white tick. */
+.ball {
+  flex: none; position: relative; width: 30px; height: 30px; border-radius: 50%; padding: 0;
+  border: 2px solid #c9d0cb; background: #fff; display: inline-grid; place-items: center;
+  transition: background .2s, border-color .2s, transform .2s;
+}
+.ball::after { content: ""; width: 11px; height: 6px; border: solid transparent; border-width: 0 0 3px 3px; transform: translateY(-2px) rotate(-45deg); }
+.ball:hover { border-color: var(--ball); }
+.ball:active { transform: scale(.9); }
+.ball.on { border-color: var(--ball-deep); background: radial-gradient(circle at 35% 30%, #ffc98a, var(--ball) 55%, #d96a0f); box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
+.ball.on::after { border-color: #fff; }
+.ball.later { border-style: dashed; border-color: var(--gold); background: #fff8e6; }
+.ball.later::after { content: "›"; width: auto; height: auto; border: 0; transform: none; color: var(--gold); font-weight: 800; font-size: 18px; line-height: 1; }
+.ball.small { width: 24px; height: 24px; }
+.ball.small::after { width: 9px; height: 5px; }
+.ball.bounce { animation: bounce .7s cubic-bezier(.3, .6, .4, 1); }
+@keyframes bounce { 0% { transform: translateY(0) scale(1); } 25% { transform: translateY(-14px) scale(1.05); } 50% { transform: translateY(0) scale(1.08, .9); } 70% { transform: translateY(-5px); } 100% { transform: translateY(0); } }
+
+/* An owner: initials in a colored circle, then the name. */
+.owner { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; white-space: nowrap; }
+.owner i { font-style: normal; display: inline-grid; place-items: center; width: 1.7em; height: 1.7em; border-radius: 50%; color: #fff; font-size: .78em; letter-spacing: .02em; }
+.owner.none { color: var(--red); font-weight: 600; }
+.owner.none i { background: transparent; border: 1.5px dashed var(--red); color: var(--red); }
+
+.tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: .72em; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; vertical-align: middle; white-space: nowrap; }
+.tag.added { background: #e7f0ff; color: #1f4f8f; }
+.tag.later { background: #fff2cc; color: #7a5a00; }
+.tag.carried { background: #eef1ee; color: #4a5a50; }
+
+/* The paddle, drawn in CSS: marks the item being discussed now. */
+.paddle { display: inline-block; position: relative; width: 18px; height: 18px; border-radius: 50% 50% 45% 45%; background: var(--red); transform: rotate(-35deg); margin-right: 4px; vertical-align: -2px; }
+.paddle::after { content: ""; position: absolute; left: 7px; top: 15px; width: 5px; height: 9px; border-radius: 2px; background: #8a5a2b; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
