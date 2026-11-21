@@ -234,6 +234,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
   <div class="bar-actions">
     <span id="others" class="others" title="Others changing this meeting in the last 10 minutes"></span>
     <span id="sync" class="sync" role="status" aria-live="polite"></span>
+    <button id="save-now" class="btn ghost" type="button" title="Make sure everything is saved before reloading (Ctrl+S or Cmd+S)">Save</button>
     <button id="screen-toggle" class="btn primary" type="button" aria-expanded="false" aria-controls="screen-panel" title="What the projector shows: layout, text size, attendees">&#9654; Projector screen</button>
     <button id="open-minutes" class="btn ghost" type="button">Minutes</button>
     <button id="open-meetings" class="btn ghost" type="button">Meetings</button>
@@ -989,8 +990,44 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     if (!app.view) return;
     change({ type: 'display', scale: Math.round((Model.display(app.view).scale + step) * 100) / 100 });
   }
-  $('scale-down').addEventListener('click', function () { nudgeScale(-0.1); });
-  $('scale-up').addEventListener('click', function () { nudgeScale(0.1); });
+  // Steps of 10% up to 150%, then 25% up to 300%.
+  $('scale-down').addEventListener('click', function () { var s = Model.display(app.view || {}).scale; nudgeScale(s > 1.5 ? -0.25 : -0.1); });
+  $('scale-up').addEventListener('click', function () { var s = Model.display(app.view || {}).scale; nudgeScale(s >= 1.5 ? 0.25 : 0.1); });
+
+  // ---- Save: before reloading for new code, make sure Google has everything ----
+  // Every change is saved as it is made; this finishes the field being typed in, sends anything still waiting at
+  // once (even while retrying), and says when Google has confirmed it all. Text typed in an Add box but not added yet
+  // is not part of the meeting, so it is named, to add before reloading.
+  var UNADDED = { 'new-item': 'the new agenda item box', 'action-text': 'the follow-up box', 'dive-text': 'the deep dive point box', 'checkin-name': 'the check-in box' };
+  function saveNow() {
+    var active = document.activeElement;
+    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) && !UNADDED[active.id]) {
+      // Commit the field being typed in, then leave it (a repeat of the same edit changes nothing).
+      active.dispatchEvent(new Event('change', { bubbles: true }));
+      active.blur();
+    }
+    setTimeout(function () {
+      clearTimeout(app.flushTimer);
+      if (app.retryTimer) { clearTimeout(app.retryTimer); app.retryTimer = null; }
+      flush();
+      var started = Date.now();
+      setStatus('Saving everything…', 'busy');
+      (function check() {
+        if (!app.pending.length && !app.inFlight && !app.retryTimer) {
+          var left = Object.keys(UNADDED).filter(function (id) { return $(id) && $(id).value.trim(); }).map(function (id) { return UNADDED[id]; });
+          var time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+          setStatus('Everything is saved (' + time + '). Safe to reload.' + (left.length ? ' Not added yet: text in ' + left.join(', ') + '. Click its Add button first, or it is lost on reload.' : ''), left.length ? 'warn' : '');
+          return;
+        }
+        if (Date.now() - started > 20000) { setStatus('Not saved yet: Google has not answered. Check the connection, then click Save again before reloading.', 'bad'); return; }
+        setTimeout(check, 200);
+      })();
+    }, 0);
+  }
+  $('save-now').addEventListener('click', saveNow);
+  document.addEventListener('keydown', function (event) {
+    if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S')) { event.preventDefault(); saveNow(); }
+  });
 
   // ---- Pasted agenda: review each line (item or sub-point) before it is added ----
   function rowsFrom(text) {

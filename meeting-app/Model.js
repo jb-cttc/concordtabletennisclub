@@ -21,7 +21,7 @@ function MeetingModel_() {
   var LAYOUTS = { full: 1, focus: 1, spotlight: 1, recap: 1 };
   var PEOPLE = { open: 1, tab: 1, hidden: 1 };
   var SCALE_MIN = 0.7;
-  var SCALE_MAX = 1.6;
+  var SCALE_MAX = 3;
   function defaultDisplay() { return { layout: 'full', scale: 1, people: 'tab', follow: true }; }
 
   function text(value, max) {

@@ -163,7 +163,7 @@ assert.throws(() => M.apply(M.blank({}, 1), { type: 'nope' }, 1), /Unknown chang
   // The projector settings, kept within bounds.
   assert.deepEqual(M.display(m), { layout: 'full', scale: 1, people: 'tab', follow: true });
   M.apply(m, { type: 'display', layout: 'spotlight', scale: 9, people: 'open', follow: false }, 400);
-  assert.deepEqual(M.display(m), { layout: 'spotlight', scale: 1.6, people: 'open', follow: false });
+  assert.deepEqual(M.display(m), { layout: 'spotlight', scale: 3, people: 'open', follow: false });
   M.apply(m, { type: 'display', layout: 'cinema', scale: 0.1 }, 400);
   assert.deepEqual(M.display(m), { layout: 'spotlight', scale: 0.7, people: 'open', follow: false }, 'an unknown layout is ignored; the text is never smaller than 70%');
   assert.deepEqual(M.display({}), { layout: 'full', scale: 1, people: 'tab', follow: true }, 'a meeting saved before these settings shows the defaults');
@@ -488,6 +488,12 @@ async function until(test, what, ms = 2000) {
   click(c, '#scale-up');
   click(c, '#scale-up');
   assert.equal(c.getElementById('scale-value').textContent, '120%');
+  // Past 150% the steps are 25%, up to 300%.
+  for (let i = 0; i < 20; i += 1) click(c, '#scale-up');
+  assert.equal(c.getElementById('scale-value').textContent, '300%');
+  assert.equal(c.getElementById('scale-up').disabled, true);
+  for (let i = 0; i < 9; i += 1) click(c, '#scale-down');
+  assert.equal(c.getElementById('scale-value').textContent, '120%');
   await until(() => there.body.style.getPropertyValue('--scale') === '1.2', 'the text size on the board');
   click(c, '[data-display="layout"] [data-value="spotlight"]');
   await until(() => there.querySelector('.spot-title'), 'the spotlight');
@@ -544,6 +550,20 @@ async function until(test, what, ms = 2000) {
   await until(() => /Sam Sample removed/.test(c.getElementById('toasts').textContent), 'a note that the other controller removed it');
   assert.match(run('getState').meeting.activity.map(a => a.by + ' ' + a.what).join('|'), /Sam Sample added\|.*Pat Example started a deep dive on/);
   second.window.close();
+
+  // Save: sends what is waiting, then says it is safe to reload, naming text typed in an Add box but not added.
+  type(c, '#action-text', 'Half-typed follow-up');
+  click(c, '#save-now');
+  await until(() => /Everything is saved/.test(c.getElementById('status').textContent), 'Save to confirm');
+  assert.match(c.getElementById('status').textContent, /Safe to reload\. Not added yet: text in the follow-up box/);
+  type(c, '#action-text', '');
+  click(c, '#items .item:nth-child(2) .item-main');
+  const notes = c.querySelector('#items .item:nth-child(2) [data-field="notes"]');
+  notes.value = 'Typed, then Save before leaving the field';
+  notes.focus();
+  click(c, '#save-now');
+  await until(() => /Everything is saved \([^)]*\)\. Safe to reload\.$/.test(c.getElementById('status').textContent), 'Save to commit the field being typed in');
+  assert.equal(run('getState').meeting.items[1].notes, 'Typed, then Save before leaving the field', 'Save finishes the field being typed in');
 
   // Minutes and the projector window.
   click(c, '#open-minutes');

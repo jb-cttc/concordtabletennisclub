@@ -44,7 +44,7 @@ hidden).
    - **Spotlight**: the item under discussion fills the screen with its
      sub-points and its follow-ups; the next items wait at the side.
    - **Follow-ups**: every action item by owner, for the end of the meeting.
-   - **Text** size (70% to 160%; the board still shrinks to fit if it must),
+   - **Text** size (70% to 300%; the board still shrinks to fit if it must),
      the **Attendees** panel (open, folded to a tab with the count, or hidden),
      and the follow-ups beside the agenda (shown or hidden).
 7. **Several controllers at once.** Each laptop signed in to the club account
