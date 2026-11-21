@@ -108,7 +108,9 @@ npx --no-install @google/clasp deploy -V <version> -d "what changed"      # the 
 npx --no-install @google/clasp redeploy <deployment-id> -V <version> -d "what changed"   # later releases
 ```
 
-After the first release, set `APP_URL` in `meeting.html` to the deployment's
-`/exec` address (until then the page says the app is not released yet). Look at
+The live deployment is version 1 onward of `AKfycbwS31-…-l0vA` (released 21 November
+2026); `meeting.html` frames its `/exec` address, so later releases use
+`redeploy` with that id and the site needs no change. `/dev` and `/exec` share
+the same stored meetings (the project's script properties). Look at
 both pages with `npm run desk:google -- --app meeting [--view board]` at a wide
 and a phone width, and pull the project back to compare with `main`.

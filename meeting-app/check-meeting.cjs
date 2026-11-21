@@ -292,7 +292,7 @@ assert.match(files.Guard, /cttcMeeting: 'ready'/, 'tells meeting.html it opened'
   assert.doesNotMatch(site, /<script[^>]*\ssrc=|<iframe[^>]*\ssrc=/, 'nothing loaded from elsewhere; the frame address is set by the script');
   const script = /<script>([\s\S]*?)<\/script>/.exec(site)[1];
   const appUrl = /var APP_URL = '([^']*)';/.exec(script)[1];
-  assert.ok(appUrl === '' || /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(appUrl), 'empty until released, then only a released /exec address, never /dev');
+  assert.match(appUrl, /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/, 'the released /exec address, never /dev');
   const runSite = (search, url) => {
     const els = {};
     const el = id => els[id] = els[id] || { id, hidden: true, textContent: '', href: '', src: '', addEventListener() {} };
