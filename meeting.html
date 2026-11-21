@@ -23,12 +23,14 @@
     .card .more { padding-top: 14px; border-top: 1px solid #d8ddd9; color: #4d5852; font-size: 14px; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
     .card button { border: 1px solid #145a3c; border-radius: 4px; background: #fff; color: #145a3c; padding: 8px 13px; font: 700 14px Arial, Helvetica, sans-serif; cursor: pointer; }
+    .awake { position: fixed; right: 12px; bottom: 12px; z-index: 5; max-width: 340px; padding: 8px 12px; border-radius: 6px; background: #fff4e0; color: #6b4300; font: 13px/1.4 Arial, Helvetica, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+    .awake[hidden] { display: none; }
     .card button.quiet { border-color: transparent; color: #657069; font-weight: 400; text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="stage">
-    <iframe id="meeting" title="CTTC Executive Committee Meeting" allow="fullscreen"></iframe>
+    <iframe id="meeting" title="CTTC Executive Committee Meeting" allow="fullscreen; screen-wake-lock"></iframe>
     <div id="signin" class="signin" role="dialog" aria-labelledby="signin-title" hidden>
       <div class="card">
         <h1 id="signin-title">Sign in to open the meeting</h1>
@@ -39,6 +41,7 @@
       </div>
     </div>
   </div>
+  <p id="awake" class="awake" role="status" hidden>This browser could not keep the screen on: set the computer not to sleep while the board is up.</p>
   <script>
     (function () {
       // The meeting app (meeting-app/) is a separate Apps Script project that opens only for the club's Google account:
@@ -66,6 +69,7 @@
       if (new URLSearchParams(location.search).get('view') === 'board') {
         url.searchParams.set('view', 'board');
         document.title = 'CTTC Meeting Board';
+        stayAwake();
       }
       direct.href = url.toString();
       function open() {
@@ -82,6 +86,28 @@
         clearTimeout(timer);
         signin.hidden = true;
       });
+      // The projector board keeps the screen on (no sleep, no screen saver) while this page is open, as the desk's Player
+      // board does: the browser's screen wake lock, held here on the site page (a lock asked for inside the app's frames
+      // is often refused), asked for again whenever the page comes back into view (the browser drops it while hidden),
+      // every 30 seconds, and after full screen or a click. Where the browser cannot hold it, a small note says so.
+      function stayAwake() {
+        var lock = null;
+        var note = document.getElementById('awake');
+        function keepAwake() {
+          if (lock || document.hidden) return;
+          if (!navigator.wakeLock || !navigator.wakeLock.request) { note.hidden = false; return; }
+          navigator.wakeLock.request('screen').then(function (held) {
+            lock = held;
+            note.hidden = true;
+            held.addEventListener('release', function () { lock = null; });
+          }).catch(function () { lock = null; if (!document.hidden) note.hidden = false; });
+        }
+        document.addEventListener('visibilitychange', keepAwake);
+        document.addEventListener('fullscreenchange', keepAwake);
+        document.addEventListener('click', keepAwake);
+        setInterval(keepAwake, 30000);
+        keepAwake();
+      }
       document.getElementById('retry').addEventListener('click', open);
       document.getElementById('dismiss').addEventListener('click', function () { signin.hidden = true; });
       open();

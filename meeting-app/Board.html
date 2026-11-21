@@ -451,6 +451,24 @@ body.idle .b-foot button { visibility: hidden; }
     } catch (error) { noFullscreen(); }
   }
   $('fullscreen').addEventListener('click', toggleFullscreen);
+
+  // The screen stays on while the board is open, as on the desk's Player board: the browser's screen wake lock, asked
+  // for again when the window comes back into view, every 30 seconds and after full screen. Inside the club site's page
+  // (meeting.html) the site page holds the lock itself, so a refusal here says nothing; opened directly, a refusal shows.
+  var lock = null;
+  function keepAwake() {
+    if (lock || document.hidden) return;
+    var refused = function () { lock = null; if (!window.cttcEmbedded && !document.hidden) { $('status-text').textContent = 'Screen may sleep: set the computer not to sleep while the board is up'; $('dot').className = 'dot bad'; } };
+    if (!navigator.wakeLock || !navigator.wakeLock.request) { refused(); return; }
+    navigator.wakeLock.request('screen').then(function (held) {
+      lock = held;
+      held.addEventListener('release', function () { lock = null; });
+    }).catch(refused);
+  }
+  document.addEventListener('visibilitychange', keepAwake);
+  document.addEventListener('fullscreenchange', keepAwake);
+  setInterval(keepAwake, 30000);
+  keepAwake();
   // Stop following: this computer is asked again what it is for, on the controls page.
   $('stop-follow').href = controlUrl() || '#';
   $('stop-follow').addEventListener('click', function (event) { if (!controlUrl()) event.preventDefault(); setScreenRole(''); });

@@ -290,7 +290,7 @@ assert.match(files.Guard, /cttcMeeting: 'ready'/, 'tells meeting.html it opened'
   assert.match(csp, /frame-src https:\/\/script\.google\.com(;|$)/, 'only Google can be framed');
   assert.match(site, /<meta name="robots" content="noindex, nofollow">/);
   assert.doesNotMatch(site, /<script[^>]*\ssrc=|<iframe[^>]*\ssrc=/, 'nothing loaded from elsewhere; the frame address is set by the script');
-  assert.match(site, /<iframe id="meeting"[^>]*\sallow="fullscreen"/, 'the board\'s Full screen works through the site frame');
+  assert.match(site, /<iframe id="meeting"[^>]*\sallow="fullscreen[;"]/, 'the board\'s Full screen works through the site frame');
   assert.match(files.Board, /\.waiting \{ position: absolute; inset: 0 0 7vh; pointer-events: none;/, 'the waiting message never covers Full screen in the bottom bar');
   const script = /<script>([\s\S]*?)<\/script>/.exec(site)[1];
   const appUrl = /var APP_URL = '([^']*)';/.exec(script)[1];
@@ -298,15 +298,29 @@ assert.match(files.Guard, /cttcMeeting: 'ready'/, 'tells meeting.html it opened'
   const runSite = (search, url) => {
     const els = {};
     const el = id => els[id] = els[id] || { id, hidden: true, textContent: '', href: '', src: '', addEventListener() {} };
-    const doc = { title: '', getElementById: el, querySelector: () => el('x') };
+    const listens = [];
+    const doc = { title: '', hidden: false, getElementById: el, querySelector: () => el('x'), addEventListener: name => listens.push(name) };
     const win = { addEventListener() {} };
-    vm.runInNewContext(script.replace(/var APP_URL = '[^']*';/, "var APP_URL = '" + url + "';"), { URL, URLSearchParams, location: { search }, document: doc, window: win, setTimeout: () => 0, clearTimeout() {} });
+    const asked = [];
+    const navigator = { wakeLock: { request: kind => { asked.push(kind); return { then: ok => { ok({ addEventListener() {} }); return { catch() {} }; } }; } } };
+    vm.runInNewContext(script.replace(/var APP_URL = '[^']*';/, "var APP_URL = '" + url + "';"), { URL, URLSearchParams, location: { search }, document: doc, window: win, navigator, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0 });
+    els.asked = asked;
+    els.listens = listens;
     return els;
   };
   const released = 'https://script.google.com/macros/s/RELEASED/exec';
   assert.equal(runSite('', released).meeting.src, released, 'the controls');
   assert.equal(runSite('?view=board&x=1', released).meeting.src, released + '?view=board', 'the board, and nothing else from the link');
   assert.equal(runSite('?view=other', released).meeting.src, released);
+  // The projector board keeps the screen on: the site page holds the wake lock, and asks again when it comes back into
+  // view; the controls do not.
+  const board = runSite('?view=board', released);
+  assert.deepEqual(board.asked, ['screen'], 'the board view asks for the screen wake lock');
+  assert.ok(board.listens.includes('visibilitychange'), 'and asks again when the page comes back into view');
+  assert.equal(board.awake.hidden, true, 'no note while the lock is held');
+  assert.deepEqual(runSite('', released).asked, [], 'the controls let the screen sleep as usual');
+  assert.match(site, /<iframe id="meeting"[^>]*allow="fullscreen; screen-wake-lock"/);
+  assert.match(files.Board, /navigator\.wakeLock\.request\('screen'\)/, 'the board asks too, as the desk\'s Player board does');
   const unreleased = runSite('', '');
   assert.equal(unreleased.meeting.src, '', 'before the first release nothing is framed');
   assert.equal(unreleased.signin.hidden, false, 'and the page says the app is not released yet');
