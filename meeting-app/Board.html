@@ -129,7 +129,8 @@ body.idle { cursor: none; }
 body.idle .b-foot a { visibility: hidden; }
 .b-foot button { background: transparent; border: .15vh solid rgba(255, 255, 255, .4); color: #cfe6d8; border-radius: .6vh; padding: .4vh 1.2vh; font-size: 1.6vh; }
 body.idle .b-foot button { visibility: hidden; }
-.waiting { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 4vh; font-size: 3vh; color: #e2efe7; }
+/* Never in the way of the bottom bar: Full screen must work before the meeting starts. */
+.waiting { position: absolute; inset: 0 0 7vh; pointer-events: none; display: grid; place-items: center; text-align: center; padding: 4vh; font-size: 3vh; color: #e2efe7; }
 .waiting b { display: block; font-size: 5vh; margin-bottom: 1vh; }
 .paused { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6, 24, 15, .78); font-size: 3vh; text-align: center; cursor: pointer; z-index: 5; }
 </style>
@@ -437,12 +438,17 @@ body.idle .b-foot button { visibility: hidden; }
   setInterval(clock, 15000);
   clock();
 
+  // Full screen, or, where this browser or page does not allow it, the keyboard shortcut that does the same.
+  var SHORTCUT = /Mac/.test(navigator.platform || '') ? 'Press Control-Command-F for full screen' : 'Press F11 for full screen';
+  function noFullscreen() { $('status-text').textContent = SHORTCUT; $('dot').className = 'dot bad'; setTimeout(status, 8000); }
   function toggleFullscreen() {
     var el = document.documentElement;
     try {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else if (el.requestFullscreen) el.requestFullscreen();
-    } catch (error) { /* the browser's own full screen (F11) works too */ }
+      if (document.fullscreenElement) { document.exitFullscreen(); return; }
+      if (!document.fullscreenEnabled || !el.requestFullscreen) { noFullscreen(); return; }
+      var asked = el.requestFullscreen();
+      if (asked && asked.catch) asked.catch(noFullscreen);
+    } catch (error) { noFullscreen(); }
   }
   $('fullscreen').addEventListener('click', toggleFullscreen);
   // Stop following: this computer is asked again what it is for, on the controls page.
