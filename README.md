@@ -34,6 +34,7 @@ and the owner-only Google desk used to run Monday and Wednesday round robins
 | `staffing-app/`, `docs/staffing-flow.md` | Public volunteer sign-ups to open and close the club (its own Apps Script project, shown on the home page in place of the closures calendar), and the guide to setting it up, importing the existing open/close list, and where a sign-up can get stuck. |
 | `tonight.html`, `turnout.js`, `tonight-launch.js`, `turnout-app/`, `docs/turnout-flow.md` | The Tonight page: who to expect at the next round robin by rating, drawn as a gym floor; the forecast it shares with the public turnout app (its own Apps Script project), which counts desk sign-ins and today's Voice texts without ever returning names; and the guide to setting it up. |
 | `text.html`, `assets/text.webmanifest`, `assets/icons/text-*.png`, `scripts/make-text-icons.py`, `navtoggle.js` | Text CTTC: a second Home Screen icon beside CTTC's. The header's Add to Home Screen button asks which icon; this one opens Messages with "I'll join CTTC's RR today" filled in (or shows one big button, if the phone wants a tap). Its icon is drawn by `python3 scripts/make-text-icons.py [A|B|C]`. |
+| `meeting-app/`, `meeting.html`, `docs/meeting-app.md` | The executive committee's meeting app (its own Apps Script project, club account only, opened from the Membership page's locked **Executive Committee Meeting** button): agenda, check-in from the player directory, follow-ups with owners, minutes, and a ping pong themed projector board that follows the controls. |
 | `docs/parallel-operations.md` | Running Access and the desk side by side: the admin-only comparison and every expected difference. |
 | `apps-script/CloverPayments.js`, `docs/clover-payments.md` | Clover card payments: the desk reads the club's Clover payments and marks the player Credit ✓, with a sidebar list of the few it cannot match and the `?view=clover` page for checking every night and saving cards learned from the records. |
 
@@ -350,6 +351,8 @@ next desk release; until then the button opens a page `/exec` does not know.
 **Volunteer signups:** `staffing-app/` is a separate Apps Script project, like `coaching-app/`. To set it up, follow
 [the staffing guide](docs/staffing-flow.md): create the project with clasp, set its script properties, run `setup()`,
 deploy it, then set `APP_URL` in `index.html` so the home page's **Volunteer signups** button appears.
+
+**Executive committee meetings:** `meeting-app/` is a separate Apps Script project, released like the desk (push to `/dev`, then version and deploy only merged code); after its first release, set `APP_URL` in `meeting.html`. See [the meeting app guide](docs/meeting-app.md).
 
 **Mode pill:** the desk header shows `/dev` or `/exec` beside the session date as a plain label.
 

@@ -1,0 +1,77 @@
+<script>
+// Shared by the controller and the board: the meeting rules (Model.js, the same function the server runs), calls to
+// Google, and the same-computer channel. The board on the same computer as the controller hears each change at once
+// over the channel; a board on another computer hears it on its next followTick.
+var Model = (<?!= model ?>)();
+var MODE = '<?= mode ?>';
+var APP_URL = '<?= appUrl ?>';
+var SITE = 'https://concordtabletennisclub.com';
+
+function call(name) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function (resolve, reject) {
+    if (!window.google || !google.script || !google.script.run) { reject(new Error('Google is not reachable from this page.')); return; }
+    var runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (error) { reject(error instanceof Error ? error : new Error(String(error && error.message || error))); });
+    runner[name].apply(runner, args);
+  });
+}
+
+function makeId() {
+  var alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  var bytes = new Uint8Array(10);
+  (window.crypto || window.msCrypto).getRandomValues(bytes);
+  var out = '';
+  for (var i = 0; i < bytes.length; i += 1) out += alphabet.charAt(bytes[i] % alphabet.length);
+  return out;
+}
+
+function clone(value) { return value ? JSON.parse(JSON.stringify(value)) : value; }
+function stampOf(meeting) { return meeting ? meeting.id + ':' + meeting.version : 'none'; }
+function esc(value) {
+  return String(value === undefined || value === null ? '' : value).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+}
+function initials(name) {
+  var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0].charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+}
+// A steady color per owner, so the same person's chip looks the same on both screens.
+var CHIP_COLORS = ['#c0392b', '#1f6fb2', '#7a4fb5', '#b7791f', '#2f855a', '#b83280', '#2c7a7b', '#975a16'];
+function chipColor(name) {
+  var h = 0;
+  String(name || '').toLowerCase().split('').forEach(function (c) { h = (h * 31 + c.charCodeAt(0)) % 9973; });
+  return CHIP_COLORS[h % CHIP_COLORS.length];
+}
+function shortDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return '';
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var p = value.split('-');
+  return months[Number(p[1]) - 1] + ' ' + Number(p[2]);
+}
+function minutesSince(ms) { return ms ? Math.max(0, Math.floor((Date.now() - ms) / 60000)) : 0; }
+
+var channel = null;
+try { channel = new BroadcastChannel('cttc-meeting'); } catch (error) { channel = null; }
+// { meeting, base }: the meeting as this controller shows it, and the saved version it was built on.
+function broadcast(message) {
+  if (!channel) return;
+  try { channel.postMessage(message); } catch (error) { /* the board polls */ }
+}
+
+// Where the board opens: through the club site when this page is framed there (no Google banner), else this app's own
+// address (/dev while testing).
+function boardUrl() {
+  if (window.cttcEmbedded) return SITE + '/meeting.html?view=board';
+  return APP_URL ? APP_URL + '?view=board' : '';
+}
+function controlUrl() {
+  if (window.cttcEmbedded) return SITE + '/meeting.html';
+  return APP_URL || '';
+}
+
+// What this computer is for, asked once per computer (like the desk's Player board): 'control' runs the meeting,
+// 'board' is the projector that follows it. Kept in this browser only.
+var SCREEN_KEY = 'cttc-meeting-screen';
+function screenRole() { try { return window.localStorage.getItem(SCREEN_KEY) || ''; } catch (error) { return ''; } }
+function setScreenRole(role) { try { if (role) window.localStorage.setItem(SCREEN_KEY, role); else window.localStorage.removeItem(SCREEN_KEY); } catch (error) { /* asked again next time */ } }
+</script>

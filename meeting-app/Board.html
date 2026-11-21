@@ -1,0 +1,464 @@
+<!-- App source and change requests: https://github.com/jb-cttc/concordtabletennisclub. Review in GitHub; deploy to Google separately. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<?!= include_('Theme') ?>
+<style>
+/* The projector board: a table tennis table seen from above. White table lines frame it, the net divides the agenda
+   from the follow-ups, and a scoreboard counts the items discussed. Every size follows --u (1% of the screen height,
+   times --fit), so the whole meeting fits the screen without scrolling. */
+html, body { height: 100%; }
+body { --fit: 1; --scale: 1; --u: calc(var(--fit) * var(--scale) * 1vh); background: var(--table-deep); color: #fff; overflow: hidden; }
+body.idle { cursor: none; }
+.table { position: absolute; inset: 1.6vh 1.4vw; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; border: .55vh solid var(--table-line); border-radius: .6vh; background: radial-gradient(ellipse at 50% 35%, #1a6a47 0%, var(--table) 55%, #10482f 100%); box-shadow: 0 0 0 .5vh rgba(0, 0, 0, .25), inset 0 0 6vh rgba(0, 0, 0, .25); }
+.b-head { display: flex; align-items: center; gap: 2vw; padding: 2.2vh 2.4vw 1.8vh; border-bottom: .3vh solid rgba(255, 255, 255, .55); }
+.b-head img { width: 7.4vh; height: 7.4vh; border-radius: 50%; background: #fff; padding: .4vh; flex: none; }
+.b-titles { flex: 1; min-width: 0; }
+.b-title { font-size: 4vh; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-date { margin-top: .5vh; font-size: 2.3vh; color: #cfe6d8; font-weight: 600; }
+.mode { background: #f0b429; color: #3b2a00; border-radius: 999px; padding: .1vh .8vh; font-weight: 800; font-size: 1.6vh; margin-left: 1vh; vertical-align: middle; }
+
+/* The scoreboard: flip cards, discussed against still to go. */
+.score { display: flex; gap: 1.2vh; align-items: stretch; }
+.card { min-width: 11vh; padding: .8vh 1.4vh 1vh; border-radius: .9vh; background: linear-gradient(#232826 0 49.5%, #0f1311 50.5% 100%); box-shadow: 0 .5vh 1.2vh rgba(0, 0, 0, .35), inset 0 0 0 .2vh rgba(255, 255, 255, .08); text-align: center; position: relative; }
+.card::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: .2vh; background: rgba(0, 0, 0, .7); }
+.card b { display: block; font-size: 6.4vh; line-height: 1; font-variant-numeric: tabular-nums; font-weight: 800; }
+.card span { display: block; margin-bottom: .4vh; font-size: 1.45vh; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #b7c4bc; }
+.card.done b { color: var(--ball); }
+.card.flip b { animation: flip .5s ease-out; }
+@keyframes flip { 0% { transform: rotateX(80deg); opacity: .2; } 100% { transform: rotateX(0); opacity: 1; } }
+
+.b-main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.4fr) 2.2vw minmax(0, 1fr); }
+.b-panel { min-height: 0; overflow: hidden; padding: 2.2vh 2.2vw 1vh; display: flex; flex-direction: column; }
+.b-panel h2 { margin: 0 0 1.6vh; font-size: calc(2.2 * var(--u)); white-space: nowrap; letter-spacing: .16em; text-transform: uppercase; color: #cfe6d8; display: flex; align-items: center; gap: 1.2vh; }
+.b-panel h2 small { font-size: .8em; letter-spacing: .06em; color: #9fc2ad; font-weight: 600; text-transform: none; }
+.fill { min-height: 0; flex: 1; overflow: hidden; }
+
+/* The net: a mesh with its white tape on top, and posts at each end. */
+.net { position: relative; margin: 1.4vh 0; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .22) 0 1px, transparent 1px .9vh), repeating-linear-gradient(90deg, rgba(255, 255, 255, .22) 0 1px, transparent 1px .9vh), rgba(0, 0, 0, .28); border-left: .45vh solid #f4f7f2; border-right: .2vh solid rgba(0, 0, 0, .35); border-radius: .3vh; }
+.net::before, .net::after { content: ""; position: absolute; left: -.9vh; width: calc(100% + 1.4vh); height: 1.2vh; background: #2b2f2d; border-radius: .3vh; }
+.net::before { top: -.6vh; }
+.net::after { bottom: -.6vh; }
+
+.b-items, .b-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1.1 * var(--u)); }
+.b-item { display: grid; grid-template-columns: calc(3.6 * var(--u)) minmax(0, 1fr) auto; gap: 1.6vh; align-items: start; padding: calc(.9 * var(--u)) 1.4vh; border-radius: 1vh; border: .25vh solid transparent; transition: background .3s, opacity .3s; }
+.b-item .ball, .b-action .ball { width: calc(3.6 * var(--u)); height: calc(3.6 * var(--u)); border-color: rgba(255, 255, 255, .55); background: transparent; cursor: default; }
+.b-item .ball::after, .b-action .ball::after { width: calc(1.3 * var(--u)); height: calc(.7 * var(--u)); border-width: 0 0 calc(.38 * var(--u)) calc(.38 * var(--u)); }
+.b-item .ball.on, .b-action .ball.on { border-color: var(--ball-deep); background: radial-gradient(circle at 35% 30%, #ffc98a, var(--ball) 55%, #d96a0f); }
+.b-item .ball.later { border-color: var(--gold); background: rgba(201, 153, 52, .15); }
+.b-item .ball.later::after { color: var(--gold); font-size: calc(2.4 * var(--u)); }
+.b-text { min-width: 0; }
+.b-item-title { font-size: calc(3.1 * var(--u)); font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.b-num { display: inline-block; min-width: 1.6em; color: #9fc2ad; font-weight: 700; font-variant-numeric: tabular-nums; }
+.b-details { margin: calc(.5 * var(--u)) 0 0 1.6em; padding-left: 1.1em; font-size: calc(2.25 * var(--u)); line-height: 1.3; color: #e2efe7; }
+.b-details li::marker { color: var(--ball); }
+/* A discussed item: its text steps back, its orange ball stays bright. */
+.b-item.done .b-text { opacity: .62; }
+.b-item.done .b-item-title { font-weight: 600; }
+.b-item.tabled { opacity: .62; }
+.b-item.current { background: rgba(255, 255, 255, .11); border-color: var(--ball); box-shadow: 0 0 0 .4vh rgba(245, 130, 32, .18), 0 1vh 2.4vh rgba(0, 0, 0, .25); opacity: 1; }
+.b-now { display: inline-flex; align-items: center; gap: .8vh; white-space: nowrap; background: var(--ball); color: #2b1300; font-weight: 800; font-size: calc(1.8 * var(--u)); letter-spacing: .08em; text-transform: uppercase; border-radius: 999px; padding: .5vh 1.4vh; }
+.b-now .paddle { width: calc(1.8 * var(--u)); height: calc(1.8 * var(--u)); background: #7a1f19; }
+.b-now .paddle::after { left: calc(.7 * var(--u)); top: calc(1.5 * var(--u)); width: calc(.5 * var(--u)); height: calc(.9 * var(--u)); }
+.b-now em { font-style: normal; font-weight: 700; letter-spacing: 0; text-transform: none; opacity: .8; }
+.b-item .tag, .b-action .tag { font-size: calc(1.4 * var(--u)); margin-left: .8vh; }
+.tag.added { background: #d7e6ff; }
+
+.b-action { display: grid; grid-template-columns: calc(3.6 * var(--u)) minmax(0, 1fr); gap: 1.6vh; align-items: start; padding: calc(.8 * var(--u)) 1.2vh; border-radius: 1vh; }
+.b-a-text { font-size: calc(2.55 * var(--u)); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.b-a-meta { margin-top: calc(.5 * var(--u)); display: flex; flex-wrap: wrap; align-items: center; gap: .6vh 1.6vh; font-size: calc(2 * var(--u)); color: #cfe6d8; }
+.b-a-meta .owner { color: #fff; }
+.b-a-meta .owner.none { color: #ffc2b8; }
+.b-a-meta .owner.none i { border-color: #ffc2b8; color: #ffc2b8; }
+.b-action.done { opacity: .55; }
+.b-action.done .b-a-text { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .45); }
+.b-action.fresh { animation: fresh 2.4s ease-out; }
+@keyframes fresh { 0% { background: rgba(245, 130, 32, .45); } 100% { background: transparent; } }
+.b-empty { color: #9fc2ad; font-size: calc(2.4 * var(--u)); padding: 1vh 1.4vh; }
+
+.b-folded { display: grid; grid-template-columns: calc(3.6 * var(--u)) minmax(0, 1fr); gap: 1.6vh; align-items: center; padding: calc(.5 * var(--u)) 1.4vh; font-size: calc(2.1 * var(--u)); color: #cfe6d8; }
+.b-folded span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-folded b { color: #fff; }
+.b-folded .ball { width: calc(3.2 * var(--u)); height: calc(3.2 * var(--u)); }
+.b-items.small .b-item-title { font-size: calc(2.5 * var(--u)); }
+
+/* Spotlight: the item under discussion, filling the table. */
+.spot .fill { display: flex; flex-direction: column; justify-content: flex-start; padding-top: 1vh; }
+.spot .b-now { align-self: flex-start; font-size: calc(2.2 * var(--u)); }
+.spot-title { margin: calc(1.6 * var(--u)) 0 calc(1 * var(--u)); font-size: calc(6 * var(--u)); font-weight: 800; line-height: 1.1; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.spot-title .b-num { min-width: 0; margin-right: .3em; }
+.spot .b-details { font-size: calc(3.3 * var(--u)); margin-left: 1em; line-height: 1.35; }
+.spot h3 { margin: calc(3 * var(--u)) 0 calc(1.2 * var(--u)); font-size: calc(1.9 * var(--u)); letter-spacing: .14em; text-transform: uppercase; color: #cfe6d8; }
+
+/* Recap: follow-ups grouped by owner, in columns. */
+.recap { column-count: 2; column-gap: 4vw; }
+.recap-group { break-inside: avoid; margin-bottom: calc(2.4 * var(--u)); }
+.recap-owner { font-size: calc(2.8 * var(--u)); margin-bottom: calc(.8 * var(--u)); }
+
+/* Attendees: a panel at the side, or a narrow tab with the count. */
+.people.open { border-left: .3vh solid rgba(255, 255, 255, .55); background: rgba(0, 0, 0, .12); padding-left: 1.6vw; padding-right: 1.6vw; }
+.people-list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1 * var(--u)); font-size: calc(2.1 * var(--u)); }
+.people-list li { display: grid; gap: .2vh; }
+.people-list small { color: #9fc2ad; font-size: .8em; padding-left: 2.3em; }
+.people-list .people-sub { margin-top: calc(1 * var(--u)); color: #9fc2ad; font-size: .8em; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; }
+.people.tab { border-left: .3vh solid rgba(255, 255, 255, .55); background: rgba(0, 0, 0, .12); display: flex; justify-content: center; padding-top: 2.4vh; }
+.people-tab { writing-mode: vertical-rl; display: inline-flex; align-items: center; gap: 1.2vh; font-size: 2vh; letter-spacing: .1em; text-transform: uppercase; color: #cfe6d8; font-weight: 700; }
+.people-tab b { color: #fff; font-size: 2.6vh; text-combine-upright: all; }
+.people-tab .ball { width: 2.4vh; height: 2.4vh; }
+.people-tab .ball::after { display: none; }
+.topic .spot-title { font-size: calc(5 * var(--u)); }
+.b-now.dive { background: #fff; color: var(--table-deep); }
+.b-now.dive .paddle { background: var(--red); }
+.spot h3 small { letter-spacing: .04em; text-transform: none; color: #9fc2ad; font-weight: 600; }
+.b-points { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(1.2 * var(--u)); }
+.b-points li { display: grid; grid-template-columns: calc(2.8 * var(--u)) minmax(0, 1fr); gap: 1.4vh; align-items: start; padding: calc(.6 * var(--u)) 1vh; border-radius: 1vh; }
+.b-points .ball { width: calc(2.8 * var(--u)); height: calc(2.8 * var(--u)); margin-top: calc(.3 * var(--u)); }
+.b-points .ball::after { display: none; }
+.pt-text { font-size: calc(2.9 * var(--u)); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.pt-by { margin-top: calc(.3 * var(--u)); font-size: calc(1.8 * var(--u)); color: #9fc2ad; }
+.b-points li.fresh { animation: slidein .6s cubic-bezier(.2, .7, .3, 1), fresh 2.4s ease-out; }
+@keyframes slidein { 0% { transform: translateX(4vw); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.b-foot { display: flex; align-items: center; gap: 2vw; padding: 1vh 2.4vw 1.2vh; border-top: .3vh solid rgba(255, 255, 255, .55); font-size: 1.7vh; color: #9fc2ad; }
+.b-foot .spacer { flex: 1; }
+.dot { display: inline-block; width: 1.1vh; height: 1.1vh; border-radius: 50%; background: #5ad18b; margin-right: .8vh; vertical-align: middle; }
+.dot.bad { background: #ffb020; }
+.clock { font-variant-numeric: tabular-nums; font-weight: 700; color: #cfe6d8; font-size: 2vh; }
+.b-foot a { color: #cfe6d8; font-size: 1.6vh; cursor: pointer; }
+body.idle .b-foot a { visibility: hidden; }
+.b-foot button { background: transparent; border: .15vh solid rgba(255, 255, 255, .4); color: #cfe6d8; border-radius: .6vh; padding: .4vh 1.2vh; font-size: 1.6vh; }
+body.idle .b-foot button { visibility: hidden; }
+.waiting { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 4vh; font-size: 3vh; color: #e2efe7; }
+.waiting b { display: block; font-size: 5vh; margin-bottom: 1vh; }
+.paused { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(6, 24, 15, .78); font-size: 3vh; text-align: center; cursor: pointer; z-index: 5; }
+</style>
+</head>
+<body>
+<?!= include_('Guard') ?>
+<div class="table">
+  <header class="b-head">
+    <img src="https://concordtabletennisclub.com/assets/logo.png" alt="">
+    <div class="b-titles"><div id="b-title" class="b-title">CTTC Executive Committee Meeting</div><div class="b-date"><span id="b-date"></span><span id="mode" class="mode" hidden>/dev</span></div></div>
+    <div class="score" aria-label="Agenda progress">
+      <div id="card-done" class="card done"><span>Discussed</span><b id="n-done">0</b></div>
+      <div id="card-left" class="card"><span>To go</span><b id="n-left">0</b></div>
+    </div>
+  </header>
+  <main id="b-main" class="b-main"></main>
+  <footer class="b-foot">
+    <span id="status" role="status"><span id="dot" class="dot"></span><span id="status-text">Connecting…</span></span>
+    <span class="spacer"></span>
+    <a id="stop-follow" target="_top" title="Stop following on this computer and show the controls">Stop following</a>
+    <button id="fullscreen" type="button">Full screen</button>
+    <span id="clock" class="clock"></span>
+  </footer>
+  <div id="waiting" class="waiting" hidden><div><b>Waiting for the meeting</b>Start a meeting on the controller and it appears here.</div></div>
+</div>
+<div id="paused" class="paused" hidden><div><b>Board paused</b><br>No changes for 4 hours. Click to follow the meeting again.</div></div>
+
+<?!= include_('Sync') ?>
+<script>
+(function () {
+  // Follow mode: ask Google every few seconds whether the meeting moved (one cache read), and take any change the
+  // controller on this same computer sends at once. Slower after 20 quiet minutes; paused after 4 quiet hours, or
+  // while this window is hidden. See docs/google-limits.md.
+  var BEAT_MS = 3000;
+  var QUIET_BEAT_MS = 12000;
+  var QUIET_AFTER_MS = 20 * 60000;
+  var PAUSE_AFTER_MS = 4 * 3600000;
+  var S = { stamp: null, meeting: null, base: -1, local: false, lastOk: 0, lastChange: Date.now(), busy: false, paused: false, timer: null, shownJson: '' };
+  var $ = function (id) { return document.getElementById(id); };
+  $('mode').hidden = MODE !== 'dev';
+
+  function indexOf(list, id) { for (var i = 0; i < list.length; i += 1) if (list[i].id === id) return i; return -1; }
+
+  function ownerHtml(name) {
+    if (!name) return '<span class="owner none"><i>?</i>Owner needed</span>';
+    return '<span class="owner"><i style="background:' + chipColor(name) + '">' + esc(initials(name)) + '</i>' + esc(name) + '</span>';
+  }
+
+  function show(m) {
+    var json = JSON.stringify(m);
+    if (json === S.shownJson) return;
+    var before = S.meeting;
+    S.shownJson = json;
+    S.meeting = m;
+    S.lastChange = Date.now();
+    draw(before);
+  }
+
+  // The board in the layout chosen on the controller (Projector screen): full agenda, focus, spotlight or recap, with
+  // the follow-ups beside it or not, and the attendee panel open, folded to a tab, or hidden.
+  var LAYOUT_NAMES = { full: 'Agenda', focus: 'Agenda', spotlight: 'Now', recap: 'Follow-ups' };
+  function draw(before) {
+    var m = S.meeting;
+    $('waiting').hidden = !!m;
+    if (!m) { $('b-main').innerHTML = ''; $('n-done').textContent = '0'; $('n-left').textContent = '0'; return; }
+    var same = before && before.id === m.id;
+    var d = Model.display(m);
+    $('b-title').textContent = m.title;
+    $('b-date').textContent = Model.longDate(m.date) || '';
+    var c = Model.counts(m);
+    setCard('done', c.done);
+    setCard('left', c.open);
+    document.body.style.setProperty('--scale', String(d.scale));
+    document.body.className = document.body.className.replace(/\blayout-\w+/g, '').trim() + ' layout-' + d.layout;
+
+    var past = { known: !!same, done: {}, actions: {}, points: {} };
+    if (same) {
+      before.items.forEach(function (it) { (it.points || []).forEach(function (pt) { past.points[pt.id] = 1; }); });
+      before.items.forEach(function (it) { if (it.status === 'done') past.done[it.id] = 1; });
+      before.actions.forEach(function (a) { past.actions[a.id] = a.done ? 'done' : 'open'; });
+    }
+    var parts = [];
+    var columns = [];
+    var topicAt = m.topic ? indexOf(m.items, m.topic) : -1;
+    document.body.className = document.body.className.replace(/\blayout-\w+/g, '').trim() + ' layout-' + (topicAt >= 0 ? 'topic' : d.layout);
+    if (topicAt >= 0) {
+      parts.push(deepDive(m, topicAt, past), '<div class="net" aria-hidden="true"></div>', followUps(m, past, m.actions.filter(function (a) { return a.itemId === m.topic; }), 'Follow-ups on this topic', 'Follow-ups added during the deep dive appear here.'));
+      columns.push('minmax(0, 1.7fr)', '2.2vw', 'minmax(0, 1fr)');
+    } else if (d.layout === 'spotlight') {
+      parts.push(spotlight(m, past), '<div class="net" aria-hidden="true"></div>', upNext(m));
+      columns.push('minmax(0, 2.2fr)', '2.2vw', 'minmax(0, 1fr)');
+    } else if (d.layout === 'recap') {
+      parts.push(recap(m, past));
+      columns.push('minmax(0, 1fr)');
+    } else {
+      parts.push(agenda(m, past, d.layout === 'focus'));
+      columns.push('minmax(0, 1.4fr)');
+      if (d.follow) { parts.push('<div class="net" aria-hidden="true"></div>', followUps(m, past, m.actions, 'Follow-ups')); columns.push('2.2vw', 'minmax(0, 1fr)'); }
+    }
+    if (d.people !== 'hidden') { parts.push(people(m, d.people)); columns.push(d.people === 'open' ? 'minmax(0, .62fr)' : '5.2vh'); }
+    $('b-main').style.gridTemplateColumns = columns.join(' ');
+    $('b-main').innerHTML = parts.join('');
+    fit();
+  }
+
+  function ball(classes, bounce) { return '<span class="ball' + classes + (bounce ? ' bounce' : '') + '" aria-hidden="true"></span>'; }
+  function detailsHtml(it) { return it.details ? '<ul class="b-details">' + it.details.split('\n').map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : ''; }
+  function nowBadge(m, word) {
+    var minutes = minutesSince(m.currentSince);
+    return '<span class="b-now"><span class="paddle"></span>' + word + (minutes && word === 'Now' ? ' <em>' + minutes + ' min</em>' : '') + '</span>';
+  }
+  function itemRow(m, it, n, past, showDetails) {
+    var current = m.current === it.id;
+    var tags = (it.added ? '<span class="tag added">Added</span>' : '') + (it.status === 'tabled' ? '<span class="tag later">Next meeting</span>' : '');
+    return '<li class="b-item ' + it.status + (current ? ' current' : '') + '" data-id="' + it.id + '">' +
+      ball(it.status === 'done' ? ' on' : it.status === 'tabled' ? ' later' : '', past.known && it.status === 'done' && !past.done[it.id]) +
+      '<div class="b-text"><div class="b-item-title"><span class="b-num">' + (n + 1) + '.</span>' + esc(it.title) + tags + '</div>' + (showDetails && it.status !== 'done' ? detailsHtml(it) : '') + '</div>' +
+      (current ? nowBadge(m, 'Now') : '<span></span>') + '</li>';
+  }
+
+  function agenda(m, past, focus) {
+    var rows = [];
+    if (focus) {
+      // Focus: what was discussed folds into one line, items moved to the next meeting into another, and only the item
+      // being discussed shows its sub-points.
+      var done = [];
+      var later = [];
+      m.items.forEach(function (it, n) {
+        if (it.status === 'done') done.push((n + 1) + '. ' + it.title);
+        else if (it.status === 'tabled') later.push((n + 1) + '. ' + it.title);
+        else rows.push(itemRow(m, it, n, past, m.current === it.id));
+      });
+      if (done.length) rows.unshift('<li class="b-folded">' + ball(' on', false) + '<span><b>' + done.length + ' discussed:</b> ' + esc(done.join(' · ')) + '</span></li>');
+      if (later.length) rows.push('<li class="b-folded later">' + ball(' later', false) + '<span><b>Next meeting:</b> ' + esc(later.join(' · ')) + '</span></li>');
+    } else {
+      rows = m.items.map(function (it, n) { return itemRow(m, it, n, past, true); });
+    }
+    return '<section class="b-panel"><h2>Agenda</h2><div class="fill"><ol id="b-items" class="b-items">' +
+      (rows.join('') || '<li class="b-empty">The agenda appears here as it is added.</li>') + '</ol></div></section>';
+  }
+
+  function actionRow(m, a, past) {
+    var at = indexOf(m.items, a.itemId);
+    var fresh = past.known && !past.actions[a.id];
+    var bounce = past.known && a.done && past.actions[a.id] === 'open';
+    return '<li class="b-action' + (a.done ? ' done' : '') + (fresh ? ' fresh' : '') + '">' + ball(a.done ? ' on' : '', bounce) +
+      '<div><div class="b-a-text">' + esc(a.text) + '</div><div class="b-a-meta">' + ownerHtml(a.owner) +
+      (a.due ? '<span>due ' + esc(shortDate(a.due)) + '</span>' : '') + (at >= 0 ? '<span>#' + (at + 1) + '</span>' : '') +
+      (a.carried ? '<span class="tag carried">From ' + esc(shortDate(a.carried) || a.carried) + '</span>' : '') + '</div></div></li>';
+  }
+  function followUps(m, past, list, heading, empty) {
+    var open = list.filter(function (a) { return !a.done; }).length;
+    return '<section class="b-panel"><h2>' + esc(heading) + ' <small>' + (list.length ? open + ' open' : '') + '</small></h2><div class="fill"><ul id="b-actions" class="b-actions">' +
+      (list.map(function (a) { return actionRow(m, a, past); }).join('') || '<li class="b-empty">' + (empty || 'Action items and their owners appear here.') + '</li>') + '</ul></div></section>';
+  }
+
+  // Deep dive: the meeting has pivoted to one topic. Its sub-points, then the points every controller adds, newest
+  // last, each with who added it; a new one slides in with the orange ball.
+  function deepDive(m, at, past) {
+    var it = m.items[at];
+    var points = it.points || [];
+    return '<section class="b-panel spot topic"><div class="fill"><span class="b-now dive"><span class="paddle"></span>Deep dive</span>' +
+      '<div class="spot-title">' + esc(it.title) + '</div>' + detailsHtml(it) +
+      '<h3>Discussion <small>' + (points.length ? points.length + (points.length === 1 ? ' point' : ' points') : '') + '</small></h3><ul id="b-points" class="b-points">' +
+      (points.map(function (pt) {
+        var fresh = past.known && !past.points[pt.id];
+        return '<li class="' + (fresh ? 'fresh' : '') + '">' + ball(' on', fresh) + '<div><div class="pt-text">' + esc(pt.text) + '</div>' + (pt.by ? '<div class="pt-by">' + esc(pt.by) + '</div>' : '') + '</div></li>';
+      }).join('') || '<li class="b-empty">Points added on the controllers appear here as they are made.</li>') + '</ul></div></section>';
+  }
+
+  // Spotlight: the item being discussed, big, with its sub-points and the follow-ups made on it. With nothing under
+  // discussion yet, the first open item, as Up next.
+  function spotlight(m, past) {
+    var at = indexOf(m.items, m.current);
+    var word = 'Now';
+    if (at < 0) { word = 'Up next'; at = indexOf(m.items, (m.items.filter(function (it) { return it.status === 'open'; })[0] || {}).id); }
+    if (at < 0) return '<section class="b-panel spot"><div class="fill"><p class="b-empty">' + (m.items.length ? 'Every item has been discussed.' : 'The agenda appears here as it is added.') + '</p></div></section>';
+    var it = m.items[at];
+    var mine = m.actions.filter(function (a) { return a.itemId === it.id; });
+    return '<section class="b-panel spot"><div class="fill">' + nowBadge(m, word) +
+      '<div class="spot-title"><span class="b-num">' + (at + 1) + '.</span>' + esc(it.title) + '</div>' + detailsHtml(it) +
+      (mine.length ? '<h3>Follow-ups on this item</h3><ul id="b-actions" class="b-actions">' + mine.map(function (a) { return actionRow(m, a, past); }).join('') + '</ul>' : '') +
+      '</div></section>';
+  }
+  function upNext(m) {
+    var at = indexOf(m.items, m.current);
+    var next = [];
+    for (var i = 0; i < m.items.length && next.length < 6; i += 1) {
+      var n = (at + 1 + i) % m.items.length;
+      if (n !== at && m.items[n].status === 'open') next.push('<li class="b-item open"><span class="ball" aria-hidden="true"></span><div class="b-text"><div class="b-item-title"><span class="b-num">' + (n + 1) + '.</span>' + esc(m.items[n].title) + '</div></div><span></span></li>');
+    }
+    return '<section class="b-panel"><h2>Up next</h2><div class="fill"><ol class="b-items small">' + (next.join('') || '<li class="b-empty">Nothing else on today\'s agenda.</li>') + '</ol></div></section>';
+  }
+
+  // Recap: every follow-up, by owner, for the end of the meeting.
+  function recap(m, past) {
+    var groups = [];
+    var byName = {};
+    m.actions.forEach(function (a) {
+      var key = (a.owner || '').toLowerCase();
+      if (!byName[key]) { byName[key] = { owner: a.owner, list: [] }; groups.push(byName[key]); }
+      byName[key].list.push(a);
+    });
+    groups.sort(function (a, b) { return !a.owner ? 1 : !b.owner ? -1 : a.owner.localeCompare(b.owner); });
+    var open = m.actions.filter(function (a) { return !a.done; }).length;
+    return '<section class="b-panel"><h2>Follow-ups by owner <small>' + (m.actions.length ? open + ' open' : '') + '</small></h2><div class="fill"><div id="b-actions" class="recap">' +
+      (groups.map(function (g) {
+        return '<div class="recap-group"><div class="recap-owner">' + ownerHtml(g.owner) + '</div><ul class="b-actions">' + g.list.map(function (a) { return actionRow(m, { id: a.id, text: a.text, owner: '', due: a.due, itemId: a.itemId, done: a.done, carried: a.carried }, past).replace(/<span class="owner none">[\s\S]*?Owner needed<\/span>/, ''); }).join('') + '</ul></div>';
+      }).join('') || '<p class="b-empty">No follow-ups yet.</p>') + '</div></div></section>';
+  }
+
+  // Who is here: the attendee panel, or a narrow tab with the count.
+  function people(m, mode) {
+    var here = m.attendees.filter(function (p) { return p.present !== false; });
+    if (mode === 'tab') return '<aside class="people tab" aria-label="Attendees"><span class="people-tab">' + ball(' on', false) + '<b>' + here.length + '</b> present</span></aside>';
+    var guests = here.filter(function (p) { return /guest/i.test(p.role); });
+    var members = here.filter(function (p) { return !/guest/i.test(p.role); });
+    var row = function (p) { return '<li>' + ownerHtml(p.name) + (p.role && !/^guest$/i.test(p.role) ? '<small>' + esc(p.role) + '</small>' : '') + '</li>'; };
+    return '<aside class="people open b-panel" aria-label="Attendees"><h2>Present <small>' + here.length + '</small></h2><div class="fill"><ul class="people-list">' +
+      (members.map(row).join('') || (guests.length ? '' : '<li class="b-empty">Checked-in attendees appear here.</li>')) +
+      (guests.length ? '<li class="people-sub">Guests</li>' + guests.map(row).join('') : '') + '</ul></div></aside>';
+  }
+
+  function setCard(which, value) {
+    var el = $('n-' + which);
+    if (el.textContent === String(value)) return;
+    el.textContent = String(value);
+    var card = $('card-' + which);
+    card.classList.remove('flip');
+    void card.offsetWidth;
+    card.classList.add('flip');
+  }
+
+  // Shrink everything together until every panel fits the screen (never below 55% of the chosen size).
+  function fit() {
+    // Starts from the text size chosen on the controller.
+    var fitValue = 1;
+    var body = document.body;
+    body.style.setProperty('--fit', '1');
+    var over = function () { return Array.prototype.some.call(document.querySelectorAll('.fill'), function (el) { return el.scrollHeight > el.clientHeight + 1; }); };
+    while (over() && fitValue > 0.55) {
+      fitValue = Math.round((fitValue - 0.05) * 100) / 100;
+      body.style.setProperty('--fit', String(fitValue));
+    }
+  }
+  window.addEventListener('resize', function () { if (S.meeting) fit(); });
+
+  // ---- Following ----
+  function fromServer(m) {
+    if (!m) { S.base = -1; S.local = false; show(null); return; }
+    if (!S.meeting || m.id !== S.meeting.id || m.version > S.base || !S.local) {
+      S.base = m.version;
+      S.local = false;
+      show(m);
+    }
+  }
+  if (channel) channel.onmessage = function (event) {
+    var message = event.data || {};
+    var m = message.meeting;
+    if (!m || !m.id) return;
+    if (!S.meeting || m.id !== S.meeting.id || message.base >= S.base) {
+      S.base = message.base;
+      S.local = true;
+      show(m);
+    }
+  };
+
+  function beat() {
+    clearTimeout(S.timer);
+    var quiet = Date.now() - S.lastChange;
+    if (quiet > PAUSE_AFTER_MS) { S.paused = true; $('paused').hidden = false; status(); return; }
+    S.timer = setTimeout(beat, quiet > QUIET_AFTER_MS ? QUIET_BEAT_MS : BEAT_MS);
+    if (S.busy || document.hidden) return;
+    S.busy = true;
+    call('followTick', S.stamp).then(function (result) {
+      S.busy = false;
+      S.lastOk = Date.now();
+      S.stamp = result.stamp;
+      if ('meeting' in result) fromServer(result.meeting);
+      status();
+    }).catch(function () { S.busy = false; status(); });
+  }
+  function status() {
+    var silent = S.lastOk ? Date.now() - S.lastOk : 0;
+    var bad = S.paused || !S.lastOk || silent > 60000;
+    $('dot').className = 'dot' + (bad ? ' bad' : '');
+    $('status-text').textContent = S.paused ? 'Paused' : !S.lastOk ? 'Connecting…' : silent > 60000 ? 'Google has not answered for ' + Math.round(silent / 60000) + ' min: showing the last update' : 'Following the meeting';
+  }
+  $('paused').addEventListener('click', function () { S.paused = false; S.lastChange = Date.now(); $('paused').hidden = true; beat(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !S.paused) beat(); });
+
+  // ---- Screen ----
+  function clock() {
+    var now = new Date();
+    var h = now.getHours();
+    $('clock').textContent = ((h + 11) % 12 + 1) + ':' + ('0' + now.getMinutes()).slice(-2) + (h < 12 ? ' AM' : ' PM');
+    if (S.meeting && S.meeting.current) {
+      var el = document.querySelector('.b-now em');
+      var minutes = minutesSince(S.meeting.currentSince);
+      if (el) el.textContent = minutes + ' min';
+      else if (minutes) draw(S.meeting);
+    }
+    status();
+  }
+  setInterval(clock, 15000);
+  clock();
+
+  function toggleFullscreen() {
+    var el = document.documentElement;
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (el.requestFullscreen) el.requestFullscreen();
+    } catch (error) { /* the browser's own full screen (F11) works too */ }
+  }
+  $('fullscreen').addEventListener('click', toggleFullscreen);
+  // Stop following: this computer is asked again what it is for, on the controls page.
+  $('stop-follow').href = controlUrl() || '#';
+  $('stop-follow').addEventListener('click', function (event) { if (!controlUrl()) event.preventDefault(); setScreenRole(''); });
+  document.addEventListener('dblclick', toggleFullscreen);
+  document.addEventListener('fullscreenchange', function () { $('fullscreen').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen'; setTimeout(fit, 200); });
+  var idleTimer = null;
+  document.addEventListener('mousemove', function () {
+    document.body.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () { document.body.classList.add('idle'); }, 3000);
+  });
+
+  beat();
+})();
+</script>
+</body>
+</html>

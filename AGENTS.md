@@ -44,6 +44,10 @@ environment gains a new kind of access, add it here and to
   looks, never clicks or saves; keep any extra checks read-only too. Uses the
   clasp sign-in `~/.clasprc.json`, written at session start from
   `CLASPRC_B64` (the club Google account).
+- **The executive committee meeting app** (`meeting-app/`, its own Apps Script
+  project): `clasp` from `meeting-app/` pushes to its `/dev`; look at it with
+  `npm run desk:google -- --app meeting [--view board] --out <scratchpad dir>`.
+  Its meetings live in its own script properties; it only looks, like the desk view.
 - **The private round-robin Sheet, read-only:** `npm run sheet:read -- <Tab>`
   prints a tab's columns and row count (`--rows` for the rows);
   `fetchSheetRows` in `scripts/lib/google-sheets.js` reads any range from a

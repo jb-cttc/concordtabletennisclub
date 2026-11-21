@@ -1,11 +1,12 @@
 // Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers|subscribers] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
+//      npm run desk:google -- --app meeting [--view board] ...   the executive committee meeting app (meeting-app/) instead
 // Opens the real Google-hosted desk (/dev by default, /exec with --exec) in headless Chromium, signed in with the
 // club's clasp sign-in (~/.clasprc.json), so an agent can see what it pushed. It looks, it does not touch: the script
 // never clicks, types or saves. It only loads the page, optionally switches the date picker (which only reads), waits
 // for the page to settle, prints a short summary and saves screenshots: desk.png is the browser window (Google keeps the
 // desk in a frame the window's height, so raise --height to see further down), and --selector saves one part of the
 // page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover, ?view=volunteers, ?view=subscribers) instead, and waits
-// for it to finish loading.
+// for it to finish loading. --app meeting opens the meeting app's controller (or its projector board with --view board).
 //
 // Both URLs run against the real club Sheet, Gmail and member data. Screenshots therefore show real names: keep them
 // in a scratch directory outside the repository, look at them, delete them, and never commit or post them.
@@ -39,8 +40,8 @@ async function accessToken() {
 
 // /dev is the deployment at HEAD; /exec is the numbered one. Looked up rather than written down, so a new
 // deployment never leaves this script pointing at the old one.
-async function deployment(token, live) {
-  const scriptId = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps-script', '.clasp.json'), 'utf8')).scriptId;
+async function deployment(token, live, app) {
+  const scriptId = JSON.parse(fs.readFileSync(path.join(ROOT, app === 'meeting' ? 'meeting-app' : 'apps-script', '.clasp.json'), 'utf8')).scriptId;
   const response = await fetch('https://script.googleapis.com/v1/projects/' + scriptId + '/deployments', { headers: { Authorization: 'Bearer ' + token } });
   if (!response.ok) throw new Error('Could not list the desk deployments (' + response.status + ')');
   const deployments = (await response.json()).deployments || [];
@@ -58,18 +59,21 @@ async function deployment(token, live) {
   const live = process.argv.includes('--exec');
   const date = option('date', '');
   const view = option('view', '');
+  const app = option('app', 'desk');
   const selector = option('selector', '');
   const width = Number(option('width', '1280'));
   const height = Number(option('height', '1800'));
   const out = path.resolve(option('out', path.join(os.tmpdir(), 'cttc-desk-view')));
   if (out.startsWith(ROOT + path.sep)) throw new Error('Screenshots show real member data: choose an --out directory outside the repository.');
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('--date must be YYYY-MM-DD');
-  if (view && !/^(cash|clover|volunteers|subscribers)$/.test(view)) throw new Error('--view must be cash, clover, volunteers or subscribers');
+  if (!/^(desk|meeting)$/.test(app)) throw new Error('--app must be desk or meeting');
+  if (app === 'meeting' && (date || (view && view !== 'board'))) throw new Error('The meeting app takes only --view board');
+  if (app === 'desk' && view && !/^(cash|clover|volunteers|subscribers)$/.test(view)) throw new Error('--view must be cash, clover, volunteers or subscribers');
   if (view && date) throw new Error('--date is for the desk; leave it out with --view');
   fs.mkdirSync(out, { recursive: true, mode: 0o700 });
 
   const token = await accessToken();
-  const target = await deployment(token, live);
+  const target = await deployment(token, live, app);
   const { chromium } = require('playwright');
   const browser = await chromium.launch();
   try {
@@ -83,7 +87,7 @@ async function deployment(token, live) {
 
     // The desk runs two frames deep inside Google's sandbox; find the one holding the session date picker (or, for
     // another page, its status bar).
-    const marker = view ? '#status' : '#date';
+    const marker = view || app === 'meeting' ? '#status' : '#date';
     let desk = null;
     for (let second = 0; second < 90 && !desk; second += 1) {
       for (const frame of page.frames()) if (await frame.$(marker).catch(() => null)) desk = frame;
@@ -95,7 +99,7 @@ async function deployment(token, live) {
     }
     await page.waitForTimeout(10000);
     // The other pages load their data after opening; wait while their status bar says they are busy.
-    for (let second = 0; view && second < 150 && await desk.$('#status.busy'); second += 1) await page.waitForTimeout(1000);
+    for (let second = 0; (view || app === 'meeting') && second < 150 && await desk.$('#status.busy'); second += 1) await page.waitForTimeout(1000);
     if (date) {
       await desk.evaluate(value => { const input = document.getElementById('date'); input.value = value; input.dispatchEvent(new Event('change')); }, date);
       await page.waitForTimeout(20000);

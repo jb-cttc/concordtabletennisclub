@@ -14,6 +14,13 @@ const cash = /<a id="cash-launch"[^>]*>/.exec(html);
 assert.ok(cash, 'the Cash flow button is on the page');
 assert.match(cash[0], /href="cash\.html"/, 'Cash flow opens the framed page, never the raw Google address');
 assert.doesNotMatch(html, /script\.google\.com/, 'the desk address lives in cash.html only');
+
+// The executive committee's meeting app: a locked button like Cash flow, opening the framed page (meeting-app/,
+// checked with that app).
+const meeting = /<a id="meeting-launch"[^>]*>([\s\S]*?)<\/a>/.exec(html);
+assert.ok(meeting, 'the Executive Committee Meeting button is on the page');
+assert.match(meeting[0], /class="organizer-launch" href="meeting\.html" target="_blank" rel="noopener" title="Club Google account sign-in required"/);
+assert.match(meeting[1], /&#128274;[\s\S]*Executive Committee Meeting/, 'locked, like the other club-account buttons');
 assert.match(html, /href="index\.html">Home<\/a> page to see which nights need help/, 'volunteers are pointed to the home page');
 
 const offer = /<section class="notice offer"[\s\S]*?<\/section>/.exec(html);

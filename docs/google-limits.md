@@ -96,6 +96,29 @@ a week, that is at most about 4,300 stamp checks and 900 reads a week:
 | Script lock | never taken | (saves wait on it) |
 | Desk log rows | about 7 a night | 2,000 kept |
 
+**Executive committee meeting app** (`meeting-app/`, November 2026) runs as the
+club account like the others, but uses no Sheet, Gmail, email, web requests or
+timers, and needs no permission (scope). It keeps each meeting in its own
+project's script properties and its following screens in the script cache. Only
+while a meeting screen is open: the projector board asks `followTick` every 3
+seconds (every 12 after 20 quiet minutes; it pauses after 4 quiet hours or while
+its window is hidden), and each controller every 2.5 seconds when it has nothing
+waiting to save (several laptops can run the meeting at once). A quiet beat is one cache read and no settings read; the
+meeting is read only when it changed, from the cache. Each change on the
+controller is one page call: about one settings write, plus a read of the
+meeting and the meeting list. A 2-hour meeting with one board and one controller
+is about 5,300 page calls (about 2,900 more for each extra controller) and a few hundred settings reads and writes. Those
+page calls are a separate project's, so they do not touch the desk's lock or
+its settings:
+
+| Limit | Meeting app adds (a 2-hour meeting) | Allowance |
+| --- | --- | --- |
+| Timer run time | nothing (page calls only, no timers) | 90 min a day |
+| Gmail reads, emails, web requests | nothing | 20,000 / 100 / 20,000 a day |
+| Settings reads | a few per change, none on a quiet beat (a few hundred) | 50,000 a day |
+| Settings writes | one per save (a few hundred at most) | 50,000 a day |
+| Script properties stored | at most 60 KB per meeting, 400 KB for every meeting kept (the app refuses past that and asks to delete an old meeting) | 500 KB per project |
+
 ## Scheduled jobs
 
 Google can repeat a timer only at a fixed rate (1, 5, 10, 15 or 30 minutes, or
@@ -113,6 +136,7 @@ is woken by the desk's mail reader with a web request, which does not count.
 | Coaching | Sweep (`sweep`, which also switches club coaches on or off to match the desk's `CoachList` tab, one extra Sheet read), then the reply check. The first sweep after 7 AM Pacific also sends the owner's daily summary (three Sheet reads it already makes; no Gmail reads) | Hourly. In between, the desk wakes the check (not timer time) when a text or an email reply came in. | 24 |
 | Staffing | Sweep (`sweep`), then the reply check, then this app's part of the owner's daily summary (one write to a hidden `StaffingDigest` tab of the desk Sheet) | Same as coaching | 24 |
 | Turnout | none | Only when the Tonight page asks (cached 60 seconds) | 0 timer runs |
+| Meeting | none | Only while a meeting page is open | 0 timer runs |
 
 **Measured before this design** (Wednesday 28 October 2026, a round robin day,
 `JobRuntime` at 4:20 PM): desk 184 runs, 3.9 seconds each; coaching 86 runs, 9.2

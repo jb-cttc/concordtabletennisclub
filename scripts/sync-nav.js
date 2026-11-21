@@ -71,7 +71,7 @@ function buildFooterBlock() {
 }
 
 // Pages with no site header: the desk's own pages, and Text CTTC (text.html), whose head carries its own Home Screen icon.
-var OWN_PAGES = ['desk.html', 'cash.html', 'text.html'];
+var OWN_PAGES = ['desk.html', 'cash.html', 'meeting.html', 'text.html'];
 var htmlFiles = fs.readdirSync(ROOT).filter(function (f) { return f.endsWith('.html') && OWN_PAGES.indexOf(f) < 0; });
 var updated = 0;
 var unchanged = 0;
