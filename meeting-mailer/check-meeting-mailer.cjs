@@ -45,6 +45,15 @@ assert.equal(result.quotaLeft, 99);
 assert.deepEqual(sent.map(m => [m.to, m.subject, m.htmlBody, m.body, m.name]), [['secretary@example.org', good.subject, '<p>Draft</p>', 'Draft', 'CTTC Executive Committee']]);
 assert.equal(plain(server.sentLog())[0].meetingId, 'm20261121abcd', 'each send is logged');
 
+// A copy to the club account: in Cc, counted against the recipients and the allowance, logged.
+const copied = send(Object.assign({}, good, { subject: '[DRAFT NOTES] With a copy', copy: ['Club@Example.org'] }));
+assert.deepEqual([copied.to, copied.copy, copied.quotaLeft], [['secretary@example.org'], ['club@example.org'], 97]);
+assert.deepEqual([sent[sent.length - 1].to, sent[sent.length - 1].cc], ['secretary@example.org', 'club@example.org']);
+assert.deepEqual(plain(server.sentLog()).pop().copy, ['club@example.org']);
+assert.equal(send(Object.assign({}, good, { subject: '[DRAFT NOTES] Same person', copy: ['secretary@example.org'] })).copy.length, 0, 'never the same person twice');
+assert.throws(() => send(Object.assign({}, good, { to: ['a@example.org', 'b@example.org', 'c@example.org'], copy: ['club@example.org'] })), /counting the copy/);
+assert.throws(() => send(Object.assign({}, good, { subject: '[DRAFT NOTES] Bad copy', copy: ['not an address'] })), /not an email address/);
+
 assert.throws(() => send(good), /same draft went to the same people/, 'no accidental second send');
 assert.equal(send(Object.assign({}, good, { resend: true })).sent, true, 'unless asked to resend');
 clock += 31 * 60000;
@@ -119,6 +128,7 @@ assert.match(text, /2\. Budget <script>alert\(1\)<\/script>\n   No decision reco
 const script = fs.readFileSync(path.join(dir, '..', 'scripts', 'meeting-draft-email.js'), 'utf8');
 assert.match(script, /use a folder outside the repository/);
 assert.match(script, /fn: 'sendDraftNotes'/);
+assert.match(script, /copy: \[club\]/, 'every draft is copied to the club account');
 assert.match(script, /dir: 'meeting-mailer'/);
 
 console.log('Meeting mailer checks passed');

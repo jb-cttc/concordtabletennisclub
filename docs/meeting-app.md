@@ -103,7 +103,9 @@ prepare the draft notes; the secretary reviews them and sends them on. The steps
    `summary.to` through the **meeting mailer** (`meeting-mailer/`, its own Apps
    Script project, club account only). The subject is always
    `[DRAFT NOTES] <title> – <date>`, and the email opens with the note to the
-   secretary, then a clear line, then the draft.
+   secretary, then a clear line, then the draft. The club account gets a copy
+   (Cc), so the club's Inbox keeps each draft: email a script sends is not filed
+   in the account's Sent folder.
 5. Delete `<dir>`.
 
 The mailer sends only subjects starting with `[DRAFT NOTES]`, to at most 3 people;

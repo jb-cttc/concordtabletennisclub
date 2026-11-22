@@ -3,7 +3,9 @@
 // an email permission and cannot be held up by one. The web app opens only for the club's Google account (access
 // MYSELF); nothing here is a button for people: scripts/meeting-draft-email.js calls sendDraftNotes through this page.
 //
-// What it will send, and nothing else: a subject that starts "[DRAFT NOTES] ", at most MAX_TO recipients, an HTML body
+// What it will send, and nothing else: a subject that starts "[DRAFT NOTES] ", at most MAX_TO recipients (counting the
+// copy to the club account, which the script adds so the club's Inbox keeps each draft: a script's email is not filed
+// in Sent), an HTML body
 // with a plain-text copy. It checks the club account's shared daily email allowance first (every club app shares it,
 // docs/google-limits.md) and keeps MIN_QUOTA for the other apps; it refuses the same subject to the same people twice
 // within REPEAT_MS unless asked to resend; and it keeps a log of each send (script property SENT_LOG, the last LOG_KEEP).
@@ -22,12 +24,15 @@ function doGet() {
     .setTitle('CTTC Meeting Mailer');
 }
 
-// draft: { to: [emails], subject, html, text, meetingId, resend }. Returns { sent, to, subject, at, quotaLeft }.
+// draft: { to: [emails], copy: [emails] (Cc), subject, html, text, meetingId, resend }. Returns { sent, to, copy,
+// subject, at, quotaLeft }.
 function sendDraftNotes(draft) {
   draft = draft || {};
-  var to = (Array.isArray(draft.to) ? draft.to : [draft.to]).map(function (e) { return String(e || '').trim().toLowerCase(); }).filter(Boolean);
-  if (!to.length || to.length > MAX_TO) throw new Error('Not sent: give 1 to ' + MAX_TO + ' recipients.');
-  to.forEach(function (e) { if (!EMAIL.test(e)) throw new Error('Not sent: "' + e + '" is not an email address.'); });
+  var clean = function (list) { return (Array.isArray(list) ? list : list ? [list] : []).map(function (e) { return String(e || '').trim().toLowerCase(); }).filter(Boolean); };
+  var to = clean(draft.to);
+  var copy = clean(draft.copy).filter(function (e) { return to.indexOf(e) < 0; });
+  if (!to.length || to.length + copy.length > MAX_TO) throw new Error('Not sent: give 1 to ' + MAX_TO + ' recipients, counting the copy.');
+  to.concat(copy).forEach(function (e) { if (!EMAIL.test(e)) throw new Error('Not sent: "' + e + '" is not an email address.'); });
   var subject = String(draft.subject || '').replace(/[\r\n]+/g, ' ').trim();
   if (!SUBJECT.test(subject) || subject.length > 200) throw new Error('Not sent: the subject must start with [DRAFT NOTES] (this mailer sends draft notes only).');
   var html = String(draft.html || '');
@@ -42,11 +47,14 @@ function sendDraftNotes(draft) {
     var recent = log.filter(function (entry) { return entry.key === key && now - entry.at < REPEAT_MS; })[0];
     if (recent && !draft.resend) throw new Error('Not sent: the same draft went to the same people ' + Math.round((now - recent.at) / 60000) + ' minutes ago. Ask to resend if that is intended.');
     var left = MailApp.getRemainingDailyQuota();
-    if (left - to.length < MIN_QUOTA) throw new Error('Not sent: only ' + left + ' email recipients are left today for every club app (keeping ' + MIN_QUOTA + '). Try again tomorrow.');
-    MailApp.sendEmail({ to: to.join(','), subject: subject, htmlBody: html, body: text, name: 'CTTC Executive Committee' });
-    log.push({ at: now, key: key, to: to, subject: subject, meetingId: String(draft.meetingId || '').slice(0, 40), size: html.length });
+    var count = to.length + copy.length;
+    if (left - count < MIN_QUOTA) throw new Error('Not sent: only ' + left + ' email recipients are left today for every club app (keeping ' + MIN_QUOTA + '). Try again tomorrow.');
+    var message = { to: to.join(','), subject: subject, htmlBody: html, body: text, name: 'CTTC Executive Committee' };
+    if (copy.length) message.cc = copy.join(',');
+    MailApp.sendEmail(message);
+    log.push({ at: now, key: key, to: to, copy: copy, subject: subject, meetingId: String(draft.meetingId || '').slice(0, 40), size: html.length });
     PropertiesService.getScriptProperties().setProperty(LOG_KEY, JSON.stringify(log.slice(-LOG_KEEP)));
-    return { sent: true, to: to, subject: subject, at: now, quotaLeft: left - to.length };
+    return { sent: true, to: to, copy: copy, subject: subject, at: now, quotaLeft: left - count };
   } finally {
     lock.releaseLock();
   }

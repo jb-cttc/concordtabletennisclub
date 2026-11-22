@@ -21,6 +21,15 @@ async function accessToken() {
   return (await response.json()).access_token;
 }
 
+// The Google account the clasp sign-in belongs to (the club account), from the token itself: no extra permission.
+async function accountEmail() {
+  const token = await accessToken();
+  const response = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(token));
+  const info = response.ok ? await response.json() : {};
+  if (!info.email) throw new Error('Could not tell which Google account the clasp sign-in is.');
+  return info.email;
+}
+
 // The app's released /exec (the newest numbered deployment), or /dev with live false.
 async function appUrl(token, dir, live) {
   const scriptId = JSON.parse(fs.readFileSync(path.join(ROOT, dir, '.clasp.json'), 'utf8')).scriptId;
@@ -63,4 +72,4 @@ async function callApp({ dir, live = true, query = '', marker, fn, args = [] }) 
   }
 }
 
-module.exports = { callApp, appUrl, accessToken };
+module.exports = { callApp, appUrl, accessToken, accountEmail };
