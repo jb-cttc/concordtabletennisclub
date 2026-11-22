@@ -48,6 +48,11 @@ environment gains a new kind of access, add it here and to
   project): `clasp` from `meeting-app/` pushes to its `/dev`; look at it with
   `npm run desk:google -- --app meeting [--view board] --out <scratchpad dir>`.
   Its meetings live in its own script properties; it only looks, like the desk view.
+- **Draft notes email after an executive committee meeting:**
+  `npm run meeting:draft -- fetch|preview|send` reads the meeting from the
+  meeting app and sends the secretary a `[DRAFT NOTES]` email through the meeting
+  mailer (`meeting-mailer/`, its own Apps Script project). Send only when the
+  owner asks; steps in `docs/meeting-app.md`. Uses the clasp sign-in.
 - **The private round-robin Sheet, read-only:** `npm run sheet:read -- <Tab>`
   prints a tab's columns and row count (`--rows` for the rows);
   `fetchSheetRows` in `scripts/lib/google-sheets.js` reads any range from a

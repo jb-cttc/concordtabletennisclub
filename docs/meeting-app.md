@@ -85,6 +85,34 @@ first, then by due date. Due dates turn amber within 3 days and red once overdue
   never takes over the projector.
 - The Tracker opens only for the club's Google account, like the rest of the app.
 
+## Draft notes for the secretary
+
+After each meeting, John asks Claude (in a Claude Code session on this repository) to
+prepare the draft notes; the secretary reviews them and sends them on. The steps:
+
+1. `npm run meeting:draft -- fetch --out <dir>` saves the meeting on screen in the
+   meeting app as `<dir>/meeting.json` (read only). `<dir>` must be outside the
+   repository: meeting records name members.
+2. Write `<dir>/summary.json`: the note to the secretary, the decisions, what was
+   said on each item (in the meeting's order), the follow-ups cleaned up, and open
+   questions. Say "no decision recorded" where the notes recorded none; never
+   guess. The fields are listed at the top of `scripts/lib/meeting-email.js`.
+3. `npm run meeting:draft -- preview --dir <dir>` writes `draft.html` and
+   `draft.txt`; look at them wide and at phone width.
+4. `npm run meeting:draft -- send --dir <dir>` sends it from the club account to
+   `summary.to` through the **meeting mailer** (`meeting-mailer/`, its own Apps
+   Script project, club account only). The subject is always
+   `[DRAFT NOTES] <title> – <date>`, and the email opens with the note to the
+   secretary, then a clear line, then the draft.
+5. Delete `<dir>`.
+
+The mailer sends only subjects starting with `[DRAFT NOTES]`, to at most 3 people;
+it keeps 10 of the club's daily email recipients for the other apps; it refuses
+the same draft to the same people twice within 30 minutes unless sent with
+`--resend`; and it logs each send in its script property `SENT_LOG`. The first
+time after it is released, the club account must open the mailer's `/exec`
+address once and click **Allow** (permission to send email as the account).
+
 **Meetings** lists every meeting kept: open an earlier one (it goes on the
 projector too), delete an old one, or start a new one. A new meeting can bring
 forward the last one's open follow-ups, its items moved to the next meeting, and
