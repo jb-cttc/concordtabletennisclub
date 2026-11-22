@@ -57,6 +57,13 @@ assert.equal(context.applyPublicRatings_(site([{ name: 'Sam Riviera', currentRat
 
 assert.throws(() => context.applyPublicRatings_(site([{ name: 'X', currentRating: 1 }, { name: 'x', currentRating: 2 }])), /Duplicate/);
 assert.throws(() => context.applyPublicRatings_(site([{ name: 'X', currentRating: -5 }])), /Invalid public rating/);
+// Someone who has only played the Equalizer is on the site with an EQ rating and no round robin rating: skipped, not an
+// error that stops every hourly sync (it did from November 8, 2026). Their desk rating is left alone.
+const eqOnly = context.applyPublicRatings_(site([{ name: 'Pat Lee', currentRating: 1449 }, { name: 'Chris Moss', currentRating: null, sessionsPlayed: 0, eqRating: 376 }]));
+assert.equal(eqOnly.skipped, false);
+assert.equal(tables.Players[1].current_rating, 1163, 'their desk rating is left alone');
+assert.throws(() => context.applyPublicRatings_(site([{ name: 'X', currentRating: null, sessionsPlayed: 3 }])), /Invalid public rating/, 'a round robin player with no rating is still an error');
+assert.throws(() => context.applyPublicRatings_(site([{ name: 'X', currentRating: 1200.5 }])), /Invalid public rating/);
 assert.throws(() => context.applyPublicRatings_({ players: [] }), /Unexpected/);
 
 assert.throws(() => context.finalizeSession('session-2026-09-23', 4), /already has results through 2026-09-23.*twice/);

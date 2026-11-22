@@ -232,6 +232,11 @@ assert.equal(ctx.checkPublishSetup().ok, false);
 // scheduled fallback stays later than the hold.
 const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'update-data.yml'), 'utf8');
 assert.match(workflow, /workflow_dispatch:/, 'the desk starts the workflow through workflow_dispatch');
+// GitHub's deploy sometimes cannot find the site it was just given: a failed first try waits and tries once more.
+assert.match(workflow, /id: deployment\n\s+continue-on-error: true\n\s+uses: actions\/deploy-pages@/, 'the first deploy may fail');
+assert.match(workflow, /id: deployment_retry\n\s+if: steps\.deployment\.outcome == 'failure'\n\s+uses: actions\/deploy-pages@/, 'and is tried once more');
+assert.ok(!/id: deployment_retry\n[^\n]*\n?\s+continue-on-error/.test(workflow), 'a second failure still fails the run');
+assert.match(workflow, /url: \$\{\{ steps\.deployment\.outputs\.page_url \|\| steps\.deployment_retry\.outputs\.page_url \}\}/);
 assert.match(workflow, /send_email:\n\s+description:[^\n]*\n\s+type: boolean\n\s+default: false/, 'emailing is off unless requested');
 const emailGate = "if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.send_email == 'true')";
 assert.equal(workflow.split(emailGate).length - 1, 2, 'both the email step and the sent-marker step use the gate');
