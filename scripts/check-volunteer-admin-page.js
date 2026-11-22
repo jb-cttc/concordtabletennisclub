@@ -20,15 +20,42 @@ assert.match(html, /<meta name="robots" content="noindex, nofollow">/, 'a privat
 assert.doesNotMatch(html, /<script[^>]*\ssrc=|<link[^>]*rel="stylesheet"|<img\s/i, 'nothing is loaded from elsewhere');
 assert.doesNotMatch(html, /<iframe[^>]*\ssrc=/, 'the frame address is set by the script, from one place');
 
+// Runs the launcher's script with a stand-in page: the frame address, the opening line, the sign-in card after the wait, and
+// the desk's "opened" word (only from Google's sandbox) taking both away.
+function runLauncher(script) {
+  const els = {};
+  const el = id => els[id] = els[id] || { id, hidden: true, src: '', href: '', addEventListener() {} };
+  let onMessage = null;
+  let pending = null;
+  vm.runInNewContext(script, { URL, URLSearchParams, document: { getElementById: el },
+    window: { addEventListener: (name, fn) => { if (name === 'message') onMessage = fn; } },
+    setTimeout: fn => { pending = fn; return 1; }, clearTimeout: () => { pending = null; } });
+  return { els, wait: () => pending && pending(), message: (origin, data) => onMessage({ origin, data }) };
+}
 const script = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
-const frame = { src: '' };
-const direct = { href: '' };
-vm.runInNewContext(script, { URL, URLSearchParams, document: { getElementById: id => (id === 'admin' ? frame : direct) } });
+const launched = runLauncher(script);
+const frame = launched.els.admin;
+const direct = launched.els.direct;
 const base = /new URL\('([^']+)'\)/.exec(script)[1];
 assert.match(base, /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/, 'only a released /exec address, never /dev');
 assert.equal(base, /new URL\('([^']+)'\)/.exec(desk)[1], 'the same deployment as the desk, so the same owner-only access');
 assert.equal(frame.src, base + '?view=volunteers');
 assert.equal(direct.href, frame.src);
+{
+  const opening = runLauncher(script);
+  assert.equal(opening.els.loading.hidden, false, 'says it is opening instead of a blank frame');
+  assert.equal(opening.els.signin.hidden, true);
+  opening.wait();
+  assert.equal(opening.els.signin.hidden, false, 'the sign-in card when the page has not said it opened');
+  assert.equal(opening.els.loading.hidden, true);
+  opening.message('https://evil.example', { cttcDesk: 'ready' });
+  assert.equal(opening.els.signin.hidden, false, 'only Google\'s sandbox can say it opened');
+  opening.message('https://n-abc123-0lu-script.googleusercontent.com', { cttcDesk: 'ready' });
+  assert.equal(opening.els.signin.hidden, true, 'the page opened: the card goes');
+  assert.equal(opening.els.loading.hidden, true);
+  assert.match(html, /\.loading \{[^}]*pointer-events: none;/, 'the opening line never blocks the page');
+  assert.match(html, /<a id="direct" class="go" target="_top">/, 'the sign-in button opens the page itself, where Google can sign in');
+}
 
 // The home page's button: the Organize button's red style and lock, next to Volunteer signups.
 const button = /<a id="volunteer-admin-launch"[^>]*>[\s\S]*?<\/a>/.exec(home);
@@ -40,7 +67,11 @@ assert.ok(home.indexOf('id="volunteer-launch"') < home.indexOf('id="volunteer-ad
 // The Volunteer Admin page itself (apps-script/VolunteerAdminPage.html), on a made-up board: every week is one row with
 // Monday, Wednesday, Friday and Saturday always in that order, and an open spot adds someone (confirmed, and emailed).
 const { JSDOM } = require('jsdom');
-const adminHtml = fs.readFileSync(path.join(root, 'apps-script', 'VolunteerAdminPage.html'), 'utf8');
+const adminSource = fs.readFileSync(path.join(root, 'apps-script', 'VolunteerAdminPage.html'), 'utf8');
+// The desk's framing guard first (it also tells volunteer-admin.html the page opened), word for word; the rest is the page.
+const deskGuard = /<body>\s*<script>([\s\S]*?)<\/script>/;
+assert.equal(deskGuard.exec(adminSource)[1], deskGuard.exec(fs.readFileSync(path.join(root, 'apps-script', 'Index.html'), 'utf8'))[1], 'the desk\'s framing guard, word for word');
+const adminHtml = adminSource.replace(deskGuard, '<body>');
 const positions = [
   { id: 'desk', label: 'Desk organizer', part: 'open', min: 1, full: 1, max: 1, training: ['keys', 'open'], alsoWith: ['tables'] },
   { id: 'tables', label: 'Table/barrier setup', part: 'open', min: 1, full: 3, max: 4, training: [], alsoWith: ['desk'] },
