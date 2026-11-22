@@ -39,6 +39,16 @@ assert.match(css, /\.pay-intro \{[^}]*animation: pay-intro-out[^}]*forwards;/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.pay-intro \{ display: none; \}/);
 assert.ok(fs.existsSync(path.join(root, 'assets/pay-qr.svg')), 'the desk QR code the intro shows');
 
+// The site deploy (.github/workflows/update-data.yml) copies only the scripts it names: every local script a page loads
+// must be among them, or the live page loads without it (pay.js was missed once, and the page showed no options).
+const deploy = /^\s*cp \*\.html ([^\n]+) _site\/$/m.exec(read('.github/workflows/update-data.yml'));
+assert.ok(deploy, 'the deploy copies the site pages');
+const copied = new Set(deploy[1].split(/\s+/));
+fs.readdirSync(root).filter(name => name.endsWith('.html')).forEach(name => {
+  const loaded = [...read(name).matchAll(/<script src="([\w.-]+\.js)(\?[^"]*)?"/g)].map(match => match[1]);
+  loaded.forEach(file => assert.ok(copied.has(file), name + ' loads ' + file + ', which the site deploy does not copy'));
+});
+
 // The monthly pass button is the same Zeffy page the home page and Membership page link to.
 const zeffy = /var ZEFFY = "([^"]+)"/.exec(script)[1];
 assert.match(home, new RegExp('<dd>\\$65/month, auto-pay \\(<a href="' + zeffy.replace(/[.?]/g, '\\$&') + '"'), 'the Fees Play Pass link');
