@@ -78,6 +78,9 @@ body.idle { cursor: none; }
 @keyframes fresh { 0% { background: rgba(245, 130, 32, .45); } 100% { background: transparent; } }
 .b-empty { color: #9fc2ad; font-size: calc(2.4 * var(--u)); padding: 1vh 1.4vh; }
 
+.b-a-meta .due.soon { color: #2b1300; background: #ffd27a; border-radius: 999px; padding: 0 .9vh; font-weight: 700; }
+.b-a-meta .due.overdue { color: #fff; background: var(--red); border-radius: 999px; padding: 0 .9vh; font-weight: 700; }
+.tag.progress { background: #d8f0e0; color: #145a3c; }
 .b-folded { display: grid; grid-template-columns: calc(3.6 * var(--u)) minmax(0, 1fr); gap: 1.6vh; align-items: center; padding: calc(.5 * var(--u)) 1.4vh; font-size: calc(2.1 * var(--u)); color: #cfe6d8; }
 .b-folded span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .b-folded b { color: #fff; }
@@ -172,6 +175,7 @@ body.idle .b-foot button { visibility: hidden; }
   var $ = function (id) { return document.getElementById(id); };
   $('mode').hidden = MODE !== 'dev';
 
+  function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   function indexOf(list, id) { for (var i = 0; i < list.length; i += 1) if (list[i].id === id) return i; return -1; }
 
   function ownerHtml(name) {
@@ -278,7 +282,8 @@ body.idle .b-foot button { visibility: hidden; }
     var bounce = past.known && a.done && past.actions[a.id] === 'open';
     return '<li class="b-action' + (a.done ? ' done' : '') + (fresh ? ' fresh' : '') + '">' + ball(a.done ? ' on' : '', bounce) +
       '<div><div class="b-a-text">' + esc(a.text) + '</div><div class="b-a-meta">' + ownerHtml(a.owner) +
-      (a.due ? '<span>due ' + esc(shortDate(a.due)) + '</span>' : '') + (at >= 0 ? '<span>#' + (at + 1) + '</span>' : '') +
+      (a.status === 'progress' && !a.done ? '<span class="tag progress">In progress</span>' : '') +
+      (a.due ? '<span class="due ' + Model.dueState(a, today()) + '">due ' + esc(shortDate(a.due)) + '</span>' : '') + (at >= 0 ? '<span>#' + (at + 1) + '</span>' : '') +
       (a.carried ? '<span class="tag carried">From ' + esc(shortDate(a.carried) || a.carried) + '</span>' : '') + '</div></div></li>';
   }
   function followUps(m, past, list, heading, empty) {

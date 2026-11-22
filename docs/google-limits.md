@@ -117,6 +117,7 @@ its settings:
 | Gmail reads, emails, web requests | nothing | 20,000 / 100 / 20,000 a day |
 | Settings reads | a few per change, none on a quiet beat (a few hundred) | 50,000 a day |
 | Settings writes | one per save (a few hundred at most) | 50,000 a day |
+| Follow-up tracker | opening or refreshing it reads every kept meeting (2 to 3 settings reads each, so about 100 for a year of monthly meetings); each change in it is one save | (within the settings rows above) |
 | Script properties stored | at most 60 KB per meeting, 400 KB for every meeting kept (the app refuses past that and asks to delete an old meeting) | 500 KB per project |
 
 ## Scheduled jobs

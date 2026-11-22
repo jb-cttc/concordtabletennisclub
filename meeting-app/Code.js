@@ -149,6 +149,37 @@ function deleteMeeting(id) {
   });
 }
 
+// ---- The follow-up tracker: every follow-up across the meetings kept, once each ----
+
+// { rows: [{ ref, fromId, fromDate, fromTitle, meetingId, meetingDate, itemTitle, action }], today, current }. Reads
+// every kept meeting (a few property reads each); only when the tracker is opened or refreshed.
+function listFollowUps() {
+  var meetings = index_().slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.updatedAt - b.updatedAt; })
+    .map(function (entry) { return load_(entry.id); }).filter(Boolean);
+  return { rows: model_().tracker(meetings), today: today_(), current: props_().getProperty(CURRENT_KEY) || '' };
+}
+
+// A change from the tracker to one follow-up, in the meeting it lives in now: status, owner, due date or text
+// (editAction), or a progress note (actionUpdate). Only those two kinds; the meeting on screen stays on screen, and
+// if this is it, its screens follow as usual. Returns the follow-up as the tracker shows it.
+function updateFollowUp(meetingId, actionId, changes) {
+  if (!Array.isArray(changes) || !changes.length || changes.length > 10) throw new Error('Nothing to save.');
+  changes.forEach(function (change) {
+    if (!change || (change.type !== 'editAction' && change.type !== 'actionUpdate') || change.id !== actionId) throw new Error('The tracker changes follow-ups only.');
+  });
+  return locked_(function () {
+    var meeting = load_(meetingId);
+    if (!meeting) throw new Error('That meeting is no longer kept.');
+    var now = Date.now();
+    changes.forEach(function (change) { model_().apply(meeting, change, now); });
+    meeting.version += 1;
+    meeting.updatedAt = now;
+    store_(meeting, true);
+    var row = model_().tracker([meeting]).filter(function (r) { return r.action.id === actionId; })[0] || null;
+    return { row: row, today: today_() };
+  });
+}
+
 // ---- Storage ----
 
 function props_() { return PropertiesService.getScriptProperties(); }
@@ -190,8 +221,9 @@ function load_(id) {
   }
 }
 
-// Saves the meeting, makes it the one on screen, updates the list and tells following screens.
-function store_(meeting) {
+// Saves the meeting, makes it the one on screen (unless keepScreen: a tracker change to an earlier meeting), updates
+// the list, and tells following screens when it is the meeting on screen.
+function store_(meeting, keepScreen) {
   var json = JSON.stringify(meeting);
   if (json.length > MEETING_MAX) throw new Error('This meeting is full: shorten some notes, or start a new meeting.');
   var store = props_();
@@ -203,14 +235,15 @@ function store_(meeting) {
   var pieces = Math.ceil(json.length / CHUNK);
   for (var i = 0; i < pieces; i += 1) values['MEETING_' + meeting.id + '_' + i] = json.slice(i * CHUNK, (i + 1) * CHUNK);
   values['MEETING_' + meeting.id] = JSON.stringify({ pieces: pieces });
-  values[CURRENT_KEY] = meeting.id;
+  var onScreen = !keepScreen || store.getProperty(CURRENT_KEY) === meeting.id;
+  if (!keepScreen) values[CURRENT_KEY] = meeting.id;
   var c = model_().counts(meeting);
-  entries.push({ id: meeting.id, title: meeting.title, date: meeting.date, items: c.items, done: c.done, actions: c.actions, updatedAt: meeting.updatedAt, size: json.length });
+  entries.push({ id: meeting.id, title: meeting.title, date: meeting.date, items: c.items, done: c.done, actions: c.actions, openActions: c.actions - c.actionsDone, updatedAt: meeting.updatedAt, size: json.length });
   entries.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : b.updatedAt - a.updatedAt; });
   values[INDEX_KEY] = JSON.stringify(entries);
   store.setProperties(values);
   for (var j = pieces; j < before; j += 1) store.deleteProperty('MEETING_' + meeting.id + '_' + j);
-  publish_(meeting);
+  if (onScreen) publish_(meeting);
 }
 
 function removeStored_(id) {
