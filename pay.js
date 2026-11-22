@@ -142,7 +142,7 @@
         '<span class="pay-pilot-tag">Pilot</span> Pay ahead by card</button>' +
       '<p class="pay-card-pilot pay-note" hidden>We&rsquo;re trying out paying online before you arrive. If anything looks off, pay at the desk as usual.</p>' +
       '<div class="pay-card-panel" hidden>' +
-        '<p class="pay-card-ask"><label for="pay-card-name">Who are you? Pick your name as the desk has it.</label></p>' +
+        '<p class="pay-card-ask"><label for="pay-card-name">Who are you? Pick your name as the RR results page shows it.</label></p>' +
         '<input id="pay-card-name" class="pay-card-name" type="search" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="60" placeholder="Start typing your name">' +
         '<ul class="pay-card-matches" role="list"></ul>' +
         '<button type="button" class="pay-card-new" hidden></button>' +
