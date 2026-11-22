@@ -37,11 +37,11 @@ Sheet:
 | --- | --- | --- | --- | --- | --- |
 | `pending` | Student pressed **Confirm submission** on the page; the coach has been asked (`verified_at` is that moment). | **Coach**: reply YES or NO. | Coach: email *Lesson request from {student} [CTTC ref …]* with the student's name, email and mobile (if given), plus a text if the coach has a mobile on the list. Student: email *Coaching request sent to Coach … (not confirmed yet)*. | The earlier of 48 hours after the request, or 12 hours before the lesson (`HOLD_HOURS`, `RELEASE_BEFORE_HOURS`). When that leaves the coach under 2 hours (`MIN_ANSWER_MS`, a lesson booked at short notice), until the lesson starts. | "Waiting for Coach … to accept" |
 | `unverified` | Only a request made before November 2026, when the student had to reply YES first. Nothing new is ever saved this way. | **Student**: reply YES. | Email *Confirm your coaching request [CTTC ref …]*. | 2 hours after submitting. | "Waiting for Student … to confirm" |
-| `confirmed` | Coach said YES. Done. | Nobody | Both: *Lesson confirmed: {date} {start}*, with each other's contact details. Texts too if opted in. | n/a | "booked" |
+| `confirmed` | Coach said YES. Done. With `undo = done:{ms}`, the student cancelled it on the page and then replied UNDO, which put it back. | Nobody | Both: *Lesson confirmed: {date} {start}*, with each other's contact details. Texts too if opted in. After an UNDO both get *Lesson back on: {date} {start}* instead. | n/a | "booked" |
 | `declined` | Coach said NO. | Nobody (student may pick another time) | Student: *Coaching request not accepted*. | n/a | time is open again |
 | `expired` with empty `verified_at` | (Before November 2026 only.) Student never replied YES. | Nobody | Student: *Coaching request expired: we did not get your YES*, with how to book now. Coach was never told. | n/a | time is open again |
 | `expired` with `verified_at` set | Coach never answered. | **Club** should follow up with the coach | Student and coach both, with the club cc'd (`ADMIN_EMAIL`): *…expired: the coach did not answer* / *Lesson request expired: no answer*. | n/a | time is open again |
-| `cancelled`, `cancelled_by = student` | Student confirmed a cancel (or, before November 2026, replied NO to the confirm email). | Nobody | Student: *Coaching lesson cancelled*. Coach: *Lesson cancelled by {student}*, only if the coach had been asked (`verified_at` set). | n/a | time is open again |
+| `cancelled`, `cancelled_by = student` | Student cancelled a confirmed lesson on the page (from late November 2026, at once; `undo = open:{ms}`, the cancel time), or confirmed a cancel by emailed YES (before then), or replied NO to the confirm email (before November 2026). | Nobody (the student may reply UNDO, §3) | Student: *Coaching lesson cancelled [CTTC ref …]* with an **UNDO** button when cancelled on the page, else *Coaching lesson cancelled*. Coach: *Lesson cancelled by {student}*, only if the coach had been asked (`verified_at` set). | UNDO counts until the lesson starts, at most 3 days (`UNDO_MS`) | time is open again |
 | `cancelled`, `cancelled_by = withdrawn` | Student cancelled the request on the page before the coach answered (from November 2026; no YES needed). | Nobody | Student: *Coaching request cancelled*. Coach: *Request withdrawn by {student}*, and a text if registered. | n/a | time is open again |
 | `cancelled`, `cancelled_by = move` | Student moved to another time; look for the new row (status `pending`). | See the new row | Coach of the old time: *Lesson cancelled by {student}* ("moved"). | n/a | old time open; new time "requested" |
 | `cancelled`, `cancelled_by = coach` | Set by hand by the club after a coach asked to cancel (coaches reply to their confirmation email; the app does not do this itself). | Nobody | Student: *Lesson cancelled by your coach*. | n/a | time is open again |
@@ -71,7 +71,8 @@ right in the box, and the correction goes back into the form.
 **Confirm submission** sends it; **Go back** (or Esc) sends nothing. The
 request is saved as `pending` and the coach is asked at once. There is no
 emailed or texted YES from the student for a new request, and no student
-reminder. The emailed YES is still how a student confirms a **cancel or move**.
+reminder. The emailed YES is still how a student confirms a **move** (and,
+before late November 2026, a cancel of a confirmed lesson).
 Before November 2026 a new request waited up to 2 hours for the student's
 emailed YES (`unverified`); a request still waiting when the change was
 released finishes the old way (its YES still counts; it is not reminded).
@@ -145,7 +146,10 @@ the log holds:
 
 - **Replies read**: kind `reply:<who>:<yes|no>` (`student-v` confirms a
   request, `student-c` a cancel or move, `coach-request`, `coach-slots`), with
-  `detail` `applied, now confirmed` or `not applied, now expired`.
+  `detail` `applied, now confirmed` or `not applied, now expired`. An UNDO is
+  `reply:student-u:undo`, `applied, now confirmed` or, when it could not put
+  the lesson back, `not applied, now cancelled (another student has booked
+  that time since)`.
 - **Failures**: `channel` `error`, kind naming what failed (for example
   `send-coach_emailed:pending`, `read-coach-texts`), and `detail` the error
   with addresses, numbers, quoted text and long ids replaced. The same failure
@@ -154,7 +158,9 @@ the log holds:
   changes status (made, confirmed by the student, accepted, declined,
   cancelled, moved, expired), with `detail` saying who must act next and by
   when (`waiting on coach until Saturday, October 10, 2026, 3:00 PM Pacific
-  Time`), who cancelled (`by student`), or for a move, `moved from <old code>`.
+  Time`), who cancelled (`by student`, plus `cancelled on the page` for an
+  instant cancel), `undone by the student` for a lesson an UNDO put back, or
+  for a move, `moved from <old code>`.
 - **Skipped checks**: kind `check-skipped`.
 
 `?log=<code>` shows only that booking's lines, plus a `booking` summary
@@ -176,8 +182,9 @@ stateDiagram-v2
     pending --> confirmed: coach replies YES
     pending --> declined: coach replies NO
     pending --> expired: 48 h, or 12 h before lesson (short notice: lesson start)
-    confirmed --> cancelled: cancel or move, or club cancels
-    pending --> cancelled: cancel or move
+    confirmed --> cancelled: cancel (at once), move (on YES), or club cancels
+    cancelled --> confirmed: student replies UNDO, time still free
+    pending --> cancelled: cancel (at once) or move (on YES)
     confirmed --> [*]
     declined --> [*]
     expired --> [*]
@@ -197,23 +204,57 @@ gets *Coaching request cancelled*, and the coach *Request withdrawn by
 coach's YES read afterwards books nothing. The page gives the same answer
 whoever asks, so it never tells anyone whose request a time is.
 
-Any other change (cancelling a confirmed lesson, or a move) does **not**
-change `status` until the student confirms. While it waits, the row has
-`change = cancel` or `change = move:{avail_id}` and `change_at` (ms). The student is emailed
-*Confirm: cancel your lesson [CTTC ref …]* or *Confirm: move your lesson
-[CTTC ref …]*. A move is applied only if the new time is still open when they
-reply YES; the new row starts at `pending` (the coach is asked straight away).
+### Cancelling a lesson, and UNDO
 
-While a cancel or move waits, the booking page, the coach page and the public
-Sheet show it on the lesson: **"Cancel requested: waiting for Student … to
-confirm"** (or "Move requested: …"). The lesson still counts as booked until
+**Cancelling a confirmed lesson** (from late November 2026) is instant too.
+Students took asking for a cancel to be the cancel, and left it waiting for a
+YES they never sent (two lessons waited that way on 21 November 2026). The
+student taps **Mine** on the time, **Cancel this lesson**, enters the email
+address or mobile number they booked with and presses **Cancel this lesson**.
+The row becomes `cancelled` with `cancelled_by = student` at once, and `undo =
+open:{ms}`; the time is open again, and the page gives the same answer
+whoever asks. The step is logged as `step:cancelled` with *cancelled on the
+page*. The student gets *Coaching lesson cancelled [CTTC ref …]*: *Done:
+Student …'s lesson is cancelled*, the lesson, and an **UNDO** button (*Put the
+lesson back, if nobody has booked the time since*) with the time it counts
+until. The coach gets *Lesson cancelled by {student}* (and a text, if
+registered), saying the student can undo it and that the coach will be told.
+A student who gets our texts is texted *…is cancelled. By mistake? Reply UNDO
+to our email.*
+
+**UNDO** counts until the lesson starts, for at most 3 days (`UNDO_MS`, the
+same 3 days the email check looks back). It puts the lesson back as it was
+(`status = confirmed`, `undo = done:{ms}`, step *undone by the student*), and
+the student and the coach both get *Lesson back on: {date} {start}* (texts
+too). It cannot when the lesson has started, the coach or the time is no
+longer offered, another student has booked the time since, or the same
+student holds another lesson then; the student gets *Your coaching reply*
+saying why, and that it stays cancelled. Either way the question closes, so a
+second UNDO is not read. Only the word UNDO counts (`undoAnswer_`: *UNDO*,
+*Undo please*, *Hi, undo*); any other reply to that email (*thanks!*) is left
+alone, with no *could not read* email. UNDO is by email only: a texted UNDO
+is not read.
+
+**A move** does **not** change `status` until the student confirms. While it
+waits, the row has `change = move:{avail_id}` and `change_at` (ms). The student
+is emailed *Confirm: move your lesson [CTTC ref …]*. A move is applied only if
+the new time is still open when they reply YES; the new row starts at
+`pending` (the coach is asked straight away). Cancelling the lesson while a
+move waits cancels it at once and drops the move; a YES to the move email
+afterwards is not read. A cancel asked before late November 2026 and still
+waiting (`change = cancel`, *Confirm: cancel your lesson*) still finishes by
 the student's YES.
+
+While a move waits, the booking page, the coach page and the public Sheet show
+it on the lesson: **"Move requested: waiting for Student … to confirm"** (or,
+for a cancel asked before late November 2026, "Cancel requested: …"). The
+lesson still counts as booked until the student's YES.
 
 ### Everything waiting, in one email
 
-A student can have several things waiting for their YES at one address: cancels
-or moves of different lessons (and, before November 2026, a new request), each
-asked by its own email.
+A student can have several things waiting for their YES at one address: moves
+of different lessons (and, before late November 2026, cancels; before November
+2026, a new request), each asked by its own email.
 People answer the newest email and expect that to be the answer. On 3 November
 2026 a student asked to cancel two Friday lessons, then booked a Saturday one
 and replied YES to that email; the two cancellations kept waiting. So **every
@@ -262,13 +303,15 @@ The first hourly sweep after 7 AM Pacific emails the owner (the script
 property `SUMMARY_EMAIL`, else `SUMMARY_TO` in `Code.js`) *Coaching daily
 summary: N waiting for a YES, M confirmed yesterday*:
 
-- **Waiting on students:** each new request to confirm and each cancel or move
-  to confirm, with the student, coach, lesson time, booking code and how long it
+- **Waiting on students:** each move to confirm (and any request or cancel
+  asked before those stopped needing a YES), with the student, coach, lesson time, booking code and how long it
   has waited. **Waiting on coaches:** each request to accept and each list of
   times to publish. *Nothing is waiting for an emailed YES* when there is none.
 - **Yesterday** (the Pacific day), counted from the Log tab: YES answers
   applied (lessons accepted by coaches, cancels and moves, coaching times, and
-  any request from before November 2026 a student confirmed); **new requests**
+  any request from before November 2026 a student confirmed); **cancels and
+  moves**, the lessons cancelled on the page (and how many an UNDO put back)
+  besides those confirmed by YES; **new requests**
   sent to the coach from the page (`step:pending` lines with *booked on the
   page*; these are not YES answers, so they are not in the *confirmed*
   total); **no answer**, requests that expired without the coach's answer
@@ -355,6 +398,12 @@ Invisible characters are removed first. An unreadable reply to an
   open question gets one "please reply again" email (the club is not emailed);
 - it arrives within 3 days and after the question was asked, and the
   question is still open.
+
+The *Coaching lesson cancelled* email of a lesson cancelled on the page asks
+nothing: its code counts only for a reply whose first line is **UNDO** (from
+the same address, while UNDO is offered; §3). Any other reply to it is left
+alone, and a reply from another address is told to reply UNDO from the right
+one.
 
 **Text replies** go through the club's Google Voice number, forwarded to Gmail.
 The app reads texts from the desk Sheet's `VoiceTexts` tab, where the desk's one
@@ -482,6 +531,7 @@ screen, so a refused request looked like nothing happened.
 | Symptom | Likely cause | Check | Fix |
 | --- | --- | --- | --- |
 | Page said "Something went wrong", retries say the time is taken, but a "requested" row exists for the student | Before `fix(coaching): never report a saved lesson request as a failure`, an error *after* saving (email, text, public Sheet rebuild) was shown as a failure. | Row is `unverified`; `student_emailed` may be empty. Executions show a failed `requestSlot`. | Fixed in code. For the stuck case, the next sweep sends the confirm email if it has not gone out. The student replies YES before `expires_at`. |
+| Student replied UNDO but the lesson stayed cancelled | Too late (the lesson had started, or 3 days had passed), another student booked the time first, the coach no longer offers it, or the reply was not read (another address, edited subject, first line not UNDO). | `?log=<code>`: `reply:student-u:undo` with `not applied, now cancelled (…)` says why, and the student was emailed it. No such line: the reply was not read (§4). | They book the time again on the page if it is open. |
 | Student says they replied YES to a cancel or move but nothing changed (or, before November 2026, a request is still `unverified`) | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or ask again from the page. |
 | Student never got any email about their request | The address was mistyped (the confirm box shows it large and points out likely typos, but it can still be wrong), or it went to spam. | `student_email` on the row; `student_emailed = pending` means it went out. | The coach has the address the student typed in their request email; correct it by cancelling and booking again. |
 | Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | `coach_emailed = pending`? `coach_texted = pending`? `Coaches.ask_ref` = this `request_id`? | Remind the coach to reply `YES` to the email or text. |
@@ -500,7 +550,8 @@ screen, so a refused request looked like nothing happened.
 | `CANCEL_NOTICE_HOURS` | 24 hours | the notice emails ask for before a cancel or move (not enforced) |
 | `HORIZON_DAYS` | 28 days | how far ahead times can be offered or requested |
 | `ASK_TTL_MS` | 48 hours | a coach's submitted list of times lapses |
-| `CHANGE_WAIT_MS` | 10 minutes | gap between cancel/move requests for one lesson |
+| `CHANGE_WAIT_MS` | 10 minutes | gap between move requests for one lesson |
+| `UNDO_MS` | 3 days | how long a student can reply UNDO to a lesson cancelled on the page (never after the lesson starts) |
 | `REMIND_COACH_MS` | 2 hours | when the one reminder to the coach goes out (halfway to the deadline, if sooner) |
 | `RETRY_MAIL_DAYS` | 3 days | unsent messages are retried this long |
 | Timers | `sweep` hourly, which also runs the check; the desk's mail reader wakes the check when a text or email reply comes in | replies are picked up within about 5 minutes by day (a minute during round robin sign-up, 30 at night), at most an hour if a wake is missed |
