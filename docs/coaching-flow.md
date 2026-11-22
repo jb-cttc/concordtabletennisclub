@@ -469,23 +469,23 @@ for a 50-minute and for a 25-minute lesson, in the **Your lesson rates
 box means no rate shown). Rates go out with the times: the same **Email me to
 confirm** button, the same *Confirm your coaching times* list (*Confirm your
 coaching times and rates*, or *Confirm your lesson rates* when only rates
-change) with a line such as *Rates: 50 minute lesson: $45 (was not listed)*,
+change) with a line such as *Rates: 50 minute lesson: $… (was not listed)*,
 the same text, and the same YES publishes both. So a stranger who picks a
 coach on the page changes nothing, and rates cost no extra email or text. The
-coach's *Done* reply ends *Your lesson rates: $45 for 50 minutes, $25 for 25
+coach's *Done* reply ends *Your lesson rates: $… for 50 minutes, $… for 25
 minutes.*
 
 Students see a listed rate:
 
 - in a **Lesson rates** box under the length buttons (each coach with times on
   the board, and *Coaches not listed here have not posted a rate* when some have
-  none), and on each open time on the board (*$45*);
-- under the time they pick (*Rate: $45 for this 50 minute lesson, paid directly
+  none), and on each open time on the board (*$…*);
+- under the time they pick (*Rate: $… for this 50 minute lesson, paid directly
   to Coach …*, or *Coach … has not listed a rate on the site*) and in the
   confirm box;
 - in their emails: *Coaching request sent to …* and *Lesson confirmed* (and
   *Lesson back on*) have a **Rate** row; the *Confirm: move your lesson* email
-  has a **New rate** row for the new time; the *confirmed* text adds *Rate: $45,
+  has a **New rate** row for the new time; the *confirmed* text adds *Rate: $…,
   paid to your coach.* The coach's request and confirmation emails have the same
   rate (*your listed rate, as the student saw it when they asked*).
 
