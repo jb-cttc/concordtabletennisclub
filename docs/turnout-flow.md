@@ -121,7 +121,7 @@ the app again.
 | File | Role |
 | --- | --- |
 | `turnout.js` | Pure logic: zones, the night and phase, likelihood, the tally. Published with the site. |
-| `turnout-app/` | Public Apps Script project. `turnout()` answers the counts; `doGet` serves it as JSON. `Turnout.js` is an exact copy of `turnout.js`. |
+| `turnout-app/` | Public Apps Script project. `turnout()` answers the counts; `doGet` serves it as JSON. `Turnout.js` is an exact copy of `turnout.js`. `Prepay.js` starts card checkouts for paying ahead (section 7). |
 | `tonight.html` | The page. Asks the app every minute (one answer is cached for 60 seconds on Google, so a busy page reads the Sheet about once a minute). |
 | `scripts/check-turnout.js`, `turnout-app/check-turnout-app.cjs` | Checks, in `npm test`. |
 
@@ -134,7 +134,8 @@ and says so.
 Like the coaching and staffing apps this is its own Apps Script project: a
 public web app exposes every function in its project, so the desk's code
 must never live in it. `check-turnout-app.cjs` asserts that only `doGet`,
-`turnout` and `setup` are public and that the code makes no writes.
+`turnout` and `setup` are public and that the code writes nothing but its log
+(and paying ahead's daily counter, section 7).
 
 1. Create the project from this folder while signed in to the club account:
 
@@ -167,8 +168,8 @@ the address answers "Access Denied" and the page shows the forecast only.
 
 Scopes: `spreadsheets` (to read the desk Sheet, including the Voice texts the
 desk collects), `script.external_request` (to read
-`closures.json` and `session-roster.json` from the site), `userinfo.email`
-(for `setup`'s owner check).
+`closures.json` and `session-roster.json` from the site, and to start Clover
+checkouts), `userinfo.email` (for `setup`'s owner check).
 
 ## 5. The turnout log
 
@@ -185,6 +186,10 @@ detail`). Read it from GitHub: **Actions > Desk log > Run workflow**, with
 | `turnout_setup` | step | How many players and published nights `setup` could read |
 | `turnout_failed` | error | What went wrong, cleaned of anything personal |
 | `texts_not_collected` | error | The desk's mail reader has not read mail for over 45 minutes, so new texts are missing; the page still answers. At most once in 10 minutes |
+| `prepay_started` | step | A card checkout started for paying ahead: the fee chosen, the amount and the day's count (`kind=member amount=$10 count=3`). `ref` is `P` and a code for the name, never the name |
+| `prepay_failed` | error | Clover refused or could not be reached (`HTTP 401 …`): the player was told to pay at the desk |
+| `prepay_not_set_up` | error | `CLOVER_CHECKOUT_TOKEN` or `CLOVER_MERCHANT_ID` is missing from the Script Properties. At most once in 10 minutes |
+| `prepay_cap_near` / `prepay_cap_reached` | warn / error | 120 checkouts started today; 150 reached, so paying ahead is off until tomorrow |
 
 A texter appears only as a code in `ref` (`S` and six characters; the same
 sender always gets the same code), never a name, number or message. The
@@ -200,3 +205,62 @@ minutes. The tab keeps the latest 2,000 rows.
 | Someone who texted is at the front desk, not their zone | Their Voice contact name does not match one desk player. Add an `Aliases` row in the desk Sheet, or fix the contact name in Google Voice. |
 | Counts lag the desk by up to a minute | The 60-second cache, plus the desk's own save a moment after each change. |
 | "Likely" never appears | Expected: at a 90% bar only near-perfect regulars qualify. See section 2. |
+
+## 7. Paying ahead by card
+
+On a round robin day, until 8:30 PM (or the end of Saturday's round robin, 6
+PM, if sooner), a player can pay tonight's fee by card before they arrive.
+The text page (`text.html`) offers it under the Text button; the pay page
+(`pay.html`, and **Pay now** under Fees on the home page) shows **Card, ahead
+of time** beside Venmo and Zelle.
+
+1. The player chooses who's playing (Member, Visitor, First visit, Under 18,
+   or the night's special), as for Venmo.
+2. They pick their name from the club's published player list
+   (`data/player-index.json`, the desk's directory as the site last
+   published it), or type it with **Not in the list? I'm new**. The page
+   remembers it on that phone for next time.
+3. They check what they are paying (name, fee, night) and press **Pay $10 by
+   card**. The page sends the name, the fee, today's date and the amount
+   shown to this app (`?prepay=1`).
+4. `Prepay.js` checks it: a round robin day the gym is open, before 8:30 PM,
+   the page's date is today, and the amount is the price it works out itself
+   from the desk's fees (`PREPAY_FEES`, checked against
+   `apps-script/NightFees.js`). Anything else is refused with a short reason,
+   and the page says so. Then it asks Clover's Hosted Checkout
+   (`api.clover.com/invoicingcheckoutservice/v1/checkouts`) for a checkout
+   with the name as the customer and one line, *CTTC round robin, Mon Nov 23*,
+   noted with the fee and the name, and answers only Clover's page address.
+5. The player pays on Clover's page (no card number reaches the site or
+   Google) and Clover sends them back to `pay.html?paid=<date>`: *Paid for
+   tonight by card. Just check in at the desk*, with a link to text the club
+   so they count on the Tonight page. Cancelled or declined, the page says
+   nothing was charged.
+6. The desk's Clover section reads the payment with every other Clover
+   payment and matches it by the checkout's customer name and the amount
+   (`docs/clover-payments.md`): a player who paid ahead shows **Credit ✓** as
+   soon as they are signed in. A wrong fee (a visitor who chose Member), or a
+   name the desk cannot place, waits for the organizer like any payment.
+
+The page never learns whether a name is in the directory or what anyone's
+status is: the app does not look names up, and the desk checks the amount.
+
+**Setup (owner, done November 2026).** In this project's **Project Settings
+> Script properties**: `CLOVER_CHECKOUT_TOKEN`, the Clover Ecommerce private
+token made with the **Hosted checkout** integration type, and
+`CLOVER_MERCHANT_ID`, the same merchant id the desk uses. In the Clover
+dashboard, under **Settings > Ecommerce > Hosted Checkout**, leave the
+**Redirect URLs** blank: set there, they replace the app's and players do not
+come back to the pay page. If the token leaks, delete it on Clover's
+Ecommerce API Tokens page, make a new one and replace the property.
+
+**Limits.** One web call to Clover per checkout started. At most 150 a day
+(`PREPAY_COUNT_<date>` in the Script Properties, earlier days removed), with
+`prepay_cap_near` in the log at 120 (`docs/google-limits.md`). A checkout
+page lasts 15 minutes; one never paid costs nothing.
+
+| Symptom | Likely cause |
+| --- | --- |
+| *Card payment is not available right now* | `prepay_not_set_up` or `prepay_failed` in the log: the properties, the token (401) or Clover itself. |
+| No Card button on a round robin day | After 8:30 PM, a closed night in `closures.json`, or the page could not read `closures.json` (then the button shows and the app decides). |
+| A player who paid ahead is not Credit ✓ | The name they picked or typed is not exactly one player (or alias), or the fee they chose is not theirs: the payment is waiting in the desk's Clover section. |

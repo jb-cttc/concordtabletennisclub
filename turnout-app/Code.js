@@ -9,6 +9,9 @@
 // searches Gmail: the club's apps share about 20,000 Gmail reads a day); and the site's published session-roster.json for who usually comes (turnout.js, copied
 // here as Turnout.js). What it answers is counts per rating zone and nothing else: never a name, a number or a text,
 // because the page is public and tells anyone who will be at the gym tonight. Steps and setup: docs/turnout-flow.md.
+//
+// It also starts card checkouts for paying ahead on the site's pay page (Prepay.js): the only thing it sends anywhere,
+// and it answers only Clover's checkout address.
 var TZ = 'America/Los_Angeles';
 var SITE = 'https://concordtabletennisclub.com';
 // One answer serves every visitor for this long, so a busy page reads the Sheet and Gmail about once a minute.
@@ -37,8 +40,11 @@ var LOG_KEEP = 2000;
 var LOG_REPEAT_SECONDS = 6 * 3600;
 var LOG_FAILURE_SECONDS = 600;
 
-function doGet() {
-  return ContentService.createTextOutput(JSON.stringify(turnout())).setMimeType(ContentService.MimeType.JSON);
+// ?prepay=1 starts a card checkout for tonight (Prepay.js); anything else is the turnout answer.
+function doGet(event) {
+  var params = (event && event.parameter) || {};
+  var answer = params.prepay ? prepay_(params, new Date()) : turnout();
+  return ContentService.createTextOutput(JSON.stringify(answer)).setMimeType(ContentService.MimeType.JSON);
 }
 
 // The answer for the page: {ok, date, phase, today, updatedAt, brackets: [{label, min, max, here, texted, likely,

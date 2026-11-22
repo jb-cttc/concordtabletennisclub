@@ -34,6 +34,12 @@ the desk's server functions), the **Clover card payments** section of
 If the token leaks, delete it in the same Clover screen, create a new one and
 replace `CLOVER_API_TOKEN`.
 
+**Paying ahead by card** (November 2026) uses a second, separate token: an
+**Ecommerce API Token** of the **Hosted checkout** type, kept in the public
+turnout app's Script Properties as `CLOVER_CHECKOUT_TOKEN`, never in the
+desk. The desk's own read-only token above stays as it is. See
+[Paying ahead by card](turnout-flow.md#7-paying-ahead-by-card).
+
 ## 2. How a payment is matched
 
 Clover rarely knows the payer's name: a tap-to-pay card comes through as
@@ -89,6 +95,14 @@ covers the night owes nothing, so their own fee never counts: a pass holder's
 $5 for their junior matches the junior by itself, on a $5 special night too.
 
 A refund, a void, a decline, or cash typed into Clover is never matched.
+
+**Paid ahead online.** A player who paid on the pay page before coming
+([Paying ahead by card](turnout-flow.md#7-paying-ahead-by-card)) has a Clover
+payment like any other, with no card swiped at the desk. Its Clover customer
+is the name they picked from the club's player list (or typed, if new), so
+rule 2 above matches it by that name, and the amount must be that player's
+fee as usual. A player who chose the wrong fee, or a new player not yet in
+the directory, waits for the organizer with that name shown.
 
 ## 3. At the desk
 
