@@ -26,17 +26,20 @@
     .awake { position: fixed; right: 12px; bottom: 12px; z-index: 5; max-width: 340px; padding: 8px 12px; border-radius: 6px; background: #fff4e0; color: #6b4300; font: 13px/1.4 Arial, Helvetica, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
     .awake[hidden] { display: none; }
     .card button.quiet { border-color: transparent; color: #657069; font-weight: 400; text-decoration: underline; }
+    .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 16px; color: #dfe9e3; font: 18px/1.4 Arial, Helvetica, sans-serif; text-align: center; pointer-events: none; }
+    .loading[hidden] { display: none; }
   </style>
 </head>
 <body>
   <div class="stage">
     <iframe id="meeting" title="CTTC Executive Committee Meeting" allow="fullscreen; screen-wake-lock"></iframe>
+    <p id="loading" class="loading" role="status" hidden>Opening the meeting app&hellip;</p>
     <div id="signin" class="signin" role="dialog" aria-labelledby="signin-title" hidden>
       <div class="card">
         <h1 id="signin-title">Sign in to open the meeting</h1>
-        <p id="signin-text">The executive committee's meeting app opens only for the club's Google account, and this computer is not signed in to it yet (or this browser keeps Google out of this page).</p>
+        <p id="signin-text">The executive committee's meeting app opens only for the club's Google account. This device is not signed in to it yet, or this browser keeps Google out of this page (Safari on a phone usually does). The button opens the app on its own, where Google can sign you in.</p>
         <a id="direct" class="go" target="_top">Sign in with the club's Google account</a>
-        <p class="more">Signed in to a different Google account on this computer? Google may say <em>You need access</em>. Open a guest or private window, come back to this page, and sign in with the club's account there.</p>
+        <p class="more">Signed in to more than one Google account on this device? Google opens the app with the account that was signed in first, and may say <em>You need access</em>. If Google's page offers a choice of account, pick the club's. Otherwise open a private window, come back to this page, and sign in with the club's account there.</p>
         <div class="actions"><button id="retry" type="button">Already signed in? Try again</button><button id="dismiss" class="quiet" type="button">The meeting is showing: hide this</button></div>
       </div>
     </div>
@@ -47,13 +50,15 @@
       // The meeting app (meeting-app/) is a separate Apps Script project that opens only for the club's Google account:
       // this address is not a credential. ?view=board opens the projector board, which follows the controller. Nothing
       // else from this page's own address is passed on. Google will not show its sign-in page inside a frame, so if the
-      // app has not said it opened (meeting-app/Guard.html) within WAIT_MS, the sign-in card covers the blank frame.
+      // app has not said it opened (meeting-app/Guard.html) within WAIT_MS, the sign-in card covers the blank frame. Until
+      // then a line says the app is opening, so the wait never looks like a broken green page (a phone report, Nov 2026).
       // APP_URL is the released /exec address, set when the app is first released (docs/meeting-app.md).
       var APP_URL = 'https://script.google.com/macros/s/AKfycbwS31-oCzkXClPnSe61xVIErhvIQ-OPkzVlNHjF8XP6lH-lVjwTMaQeS_nvIG0Hx-l0vA/exec';
-      var WAIT_MS = 10000;
+      var WAIT_MS = 6000;
       var frame = document.getElementById('meeting');
       var signin = document.getElementById('signin');
       var direct = document.getElementById('direct');
+      var loading = document.getElementById('loading');
       var timer = null;
       var ready = false;
       if (!APP_URL) {
@@ -75,8 +80,9 @@
       function open() {
         ready = false;
         signin.hidden = true;
+        loading.hidden = false;
         clearTimeout(timer);
-        timer = setTimeout(function () { if (!ready) signin.hidden = false; }, WAIT_MS);
+        timer = setTimeout(function () { if (!ready) { signin.hidden = false; loading.hidden = true; } }, WAIT_MS);
         frame.src = url.toString();
       }
       window.addEventListener('message', function (event) {
@@ -85,6 +91,7 @@
         ready = true;
         clearTimeout(timer);
         signin.hidden = true;
+        loading.hidden = true;
       });
       // The projector board keeps the screen on (no sleep, no screen saver) while this page is open, as the desk's Player
       // board does: the browser's screen wake lock, held here on the site page (a lock asked for inside the app's frames
@@ -109,7 +116,7 @@
         keepAwake();
       }
       document.getElementById('retry').addEventListener('click', open);
-      document.getElementById('dismiss').addEventListener('click', function () { signin.hidden = true; });
+      document.getElementById('dismiss').addEventListener('click', function () { signin.hidden = true; loading.hidden = true; });
       open();
     })();
   </script>

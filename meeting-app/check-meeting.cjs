@@ -350,6 +350,10 @@ assert.match(files.Guard, /cttcMeeting: 'ready'/, 'tells meeting.html it opened'
   assert.equal(runSite('', released).meeting.src, released, 'the controls');
   assert.equal(runSite('?view=board&x=1', released).meeting.src, released + '?view=board', 'the board, and nothing else from the link');
   assert.equal(runSite('?view=other', released).meeting.src, released);
+  // While the app opens, the page says so instead of showing a plain green frame (it looked broken on a phone).
+  assert.equal(runSite('', released).loading.hidden, false, 'the page says the app is opening');
+  assert.match(site, /id="loading"[^>]*>Opening the meeting app/);
+  assert.match(site, /\.loading \{[^}]*pointer-events: none;/, 'the opening line never blocks the app');
   // The projector board keeps the screen on: the site page holds the wake lock, and asks again when it comes back into
   // view; the controls do not.
   const board = runSite('?view=board', released);
@@ -362,6 +366,7 @@ assert.match(files.Guard, /cttcMeeting: 'ready'/, 'tells meeting.html it opened'
   const unreleased = runSite('', '');
   assert.equal(unreleased.meeting.src, '', 'before the first release nothing is framed');
   assert.equal(unreleased.signin.hidden, false, 'and the page says the app is not released yet');
+  assert.equal(unreleased.loading.hidden, true, 'with no opening line under the card');
   assert.match(unreleased['signin-title'].textContent, /not released yet/);
 }
 
