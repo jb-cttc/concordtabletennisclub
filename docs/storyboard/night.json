@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "4480587bd5a5cdb8f32af5d0673e58c7b4600812",
+  "commit": "d1dc67613a8d13ea4f40b3654be9718e0764851e",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -747,7 +747,7 @@
      "title": "A player pays for tonight ahead, by card",
      "who": "Player",
      "when": "Round robin day, until 8:30 PM",
-     "summary": "Under the Text button, **Skip the line: pay for tonight by card now** opens the pay page at **Card, ahead of time** (also on the pay page and **Pay now** on the home page). The player chooses who's playing (Member $10, Visitor $15, First visit $10, Under 18 $5, or the night's special), picks their name from the club's player list or types it with **Not in the list? I'm new**, checks the line *Ada Every · Member · round robin Mon, Nov 23* and presses **Pay $10 by card**. They pay on Clover's page and come back to **Paid for tonight by card. Just check in at the desk.**",
+     "summary": "A pilot (November 2026), kept quiet on purpose. Under the Text button, **PILOT Or pay ahead by card** opens the pay page with **PILOT Pay ahead by card** open, below Venmo and Zelle (also on the pay page and **Pay now** on the home page), with *We're trying out paying online before you arrive. If anything looks off, pay at the desk as usual.* The player chooses who's playing (Member $10, Visitor $15, First visit $10, Under 18 $5, or the night's special), picks their name from the club's player list or types it with **Not in the list? I'm new**, checks the line *Ada Every · Member · round robin Mon, Nov 23* and presses **Pay $10 by card**. They pay on Clover's page and come back to **Paid for tonight by card. Just check in at the desk.**, which asks them to show the page or Clover's receipt if the desk does not show them as paid.",
      "subtext": "The turnout app works out the price itself and asks Clover for the checkout; the desk later matches the payment by the name and the amount, so the player is Credit ✓ as soon as they are signed in.",
      "caveats": [
       "Only on a round robin day the gym is open, until 8:30 PM (6 PM on Saturday, when the round robin ends).",
@@ -779,7 +779,7 @@
      ],
      "screen": {
       "kind": "site",
-      "note": "The pay page: who's playing, Card ahead of time, the name picker and Pay $10 by card."
+      "note": "The pay page: who's playing, the Pilot card option, the name picker and Pay $10 by card."
      },
      "tech": {
       "entry": [
@@ -791,13 +791,13 @@
        },
        {
         "file": "pay.js",
-        "line": 215,
+        "line": 217,
         "symbol": "Card, ahead of time",
-        "note": "Name picker, review, the request."
+        "note": "The pilot option: name picker, review, the request."
        },
        {
         "file": "pay.js",
-        "line": 165,
+        "line": 167,
         "symbol": "returned",
         "note": "Back from Clover: paid, cancelled, declined."
        },
