@@ -6,9 +6,10 @@
 // left out, and the live pay page showed no options).
 //
 //   const site = require('./lib/site-build');
-//   site.read('pay.html')   // a deployed file's text; throws if the deploy does not publish it
-//   site.has('pay.js')      // whether the deploy publishes it
-//   site.dir()              // the built folder, built once per run and removed on exit
+//   site.read(file)   // a deployed file's text, by its path on the site; throws if the deploy does not publish it
+//   site.has(file)    // whether the deploy publishes it
+//   site.dir()        // the built folder, built once per run and removed on exit
+// (Name files in a check, not here: scripts/test-plan.js routes a check by the file names written in it.)
 
 const fs = require('node:fs');
 const os = require('node:os');
