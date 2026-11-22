@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:equalizer && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:staffing && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs && npm run -s check:cash-page && npm run -s check:desk-log && npm run -s check:membership && npm run -s check:volunteer && npm run -s check:volunteer-admin && npm run -s check:closures && npm run -s check:turnout && npm run -s check:turnout-app && npm run -s check:meeting && npm run -s check:home-screen && npm run -s check:leaderboard && npm run -s check:test-plan && npm run -s check:starter-seed && npm run -s check:storyboard",
+    "test": "npm run -s check:app && npm run -s check:ratings && npm run -s check:equalizer && npm run -s check:standings && npm run -s check:email && npm run -s check:subscribe && npm run -s check:coaching && npm run -s check:staffing && npm run -s check:parallel && npm run -s check:publication && npm run -s check:disposable && npm run -s check:desk && npm run -s check:coach-certs && npm run -s check:cash-page && npm run -s check:desk-log && npm run -s check:membership && npm run -s check:volunteer && npm run -s check:volunteer-admin && npm run -s check:closures && npm run -s check:turnout && npm run -s check:turnout-app && npm run -s check:meeting && npm run -s check:meeting-mailer && npm run -s check:home-screen && npm run -s check:leaderboard && npm run -s check:test-plan && npm run -s check:starter-seed && npm run -s check:storyboard",
     "test:plan": "node scripts/test-plan.js",
     "test:changed": "node scripts/test-plan.js --run",
     "build:sessions": "NODE_USE_SYSTEM_CA=1 node scripts/build-sessions.js",
@@ -45,6 +45,8 @@
     "check:turnout": "node scripts/check-turnout.js",
     "check:turnout-app": "node turnout-app/check-turnout-app.cjs",
     "check:meeting": "node meeting-app/check-meeting.cjs",
+    "check:meeting-mailer": "node meeting-mailer/check-meeting-mailer.cjs",
+    "meeting:draft": "node scripts/meeting-draft-email.js",
     "turnout:backtest": "node scripts/turnout-backtest.js",
     "publish:finalized": "node scripts/publish-finalized-sessions.js",
     "preflight:live": "node scripts/preflight-live-publication.js",

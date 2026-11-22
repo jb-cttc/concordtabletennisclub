@@ -63,7 +63,7 @@ function deskPage() {
 const DYNAMIC = {
   'scripts/lib/desk-sim.js': () => fs.readdirSync(path.join(ROOT, 'apps-script')).filter(name => /^[A-Z].*\.js$/.test(name)).map(name => 'apps-script/' + name).concat(deskPage())
 };
-const APP_DIRS = ['coaching-app', 'meeting-app', 'staffing-app', 'subscribe-app', 'turnout-app'];
+const APP_DIRS = ['coaching-app', 'meeting-app', 'meeting-mailer', 'staffing-app', 'subscribe-app', 'turnout-app'];
 
 // Files a source file names in its strings (resolved next to it, at the repo root, or one level up), and its local requires.
 function namedFiles(file) {
@@ -156,7 +156,7 @@ const areaOf = file => {
 };
 // Pages that only describe the apps (the storyboard quotes tab names in prose).
 const PROSE = /^(storyboard\.html|scripts\/build-storyboard\.js)$/;
-const AREA_LABEL = { 'apps-script': 'the desk', 'coaching-app': 'Coaching app', 'staffing-app': 'Volunteer app', 'subscribe-app': 'Subscribe app', 'turnout-app': 'Tonight page app', 'meeting-app': 'Meeting app', site: 'Club site', docs: 'docs' };
+const AREA_LABEL = { 'apps-script': 'the desk', 'coaching-app': 'Coaching app', 'staffing-app': 'Volunteer app', 'subscribe-app': 'Subscribe app', 'turnout-app': 'Tonight page app', 'meeting-app': 'Meeting app', 'meeting-mailer': 'Meeting mailer', site: 'Club site', docs: 'docs' };
 const MAP_NODE = { 'apps-script': 'The desk', 'coaching-app': 'Coaching app', 'staffing-app': 'Volunteer app', 'turnout-app': 'Tonight page', site: 'Club site' };
 
 function sharedNames(file, lines) {

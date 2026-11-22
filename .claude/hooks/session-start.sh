@@ -38,6 +38,7 @@ if [ -n "$clasp_ok" ]; then
   echo "- The real Google desk, /dev and /exec: npm run desk:google"
   echo "- Apps Script push to /dev and /exec release: clasp from apps-script/"
   echo "- The executive committee meeting app: clasp from meeting-app/, and npm run desk:google -- --app meeting [--view board]"
+  echo "- Draft notes email after a meeting (only when the owner asks): npm run meeting:draft -- fetch|preview|send (docs/meeting-app.md)"
   echo "- Read-only Google API calls (deployments, logs): .claude/google-api.py"
 fi
 if [ -n "${GOOGLE_SERVICE_ACCOUNT_EMAIL:-}" ] && [ -n "${GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:-}" ] && [ -n "${GOOGLE_ROUND_ROBIN_DATABASE_ID:-}" ]; then
