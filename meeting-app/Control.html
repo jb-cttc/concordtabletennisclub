@@ -151,6 +151,42 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
 #minutes-text { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; min-height: 320px; white-space: pre; }
 #print-area { display: none; }
 
+/* Due dates: amber within 3 days, red once overdue. */
+.due { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.due.soon { color: #8a5a00; background: #fff2cc; border-radius: 999px; padding: 0 7px; font-weight: 700; }
+.due.overdue { color: #fff; background: var(--red); border-radius: 999px; padding: 0 7px; font-weight: 700; }
+.tag.progress { background: #e6f4ea; color: #1d6b3a; }
+
+/* The follow-up tracker: every follow-up across meetings, once each. */
+.tracker { position: fixed; inset: 0; z-index: 15; background: var(--paper); overflow: auto; }
+.trk-head { position: sticky; top: 0; z-index: 2; background: var(--table); color: #fff; border-bottom: 4px solid var(--table-line); }
+.trk-head-inner { max-width: 1100px; margin: auto; padding: 14px 22px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.trk-head h2 { margin: 0; font-size: 22px; flex: 1 1 220px; }
+.trk-sum { font-size: 14px; color: #d8eadf; }
+.trk-body { max-width: 1100px; margin: 0 auto; padding: 14px 22px 40px; display: grid; gap: 14px; }
+.trk-filters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.trk-filters select, .trk-filters input { border: 1px solid #c9d2cb; border-radius: 6px; padding: 7px 9px; font-size: 14px; background: #fff; }
+.trk-filters input[type=search] { flex: 1 1 200px; min-width: 0; }
+.trk-group { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.trk-owner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: linear-gradient(#fbfcfa, #f5f8f4); border-bottom: 1px solid var(--line); font-size: 16px; }
+.trk-owner .count { flex: 1; }
+.trk-list { list-style: none; margin: 0; padding: 0; }
+.trk { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 11px 14px; border-bottom: 1px solid #edf0ec; }
+.trk:last-child { border-bottom: 0; }
+.trk.done .trk-text { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(0, 0, 0, .25); }
+.trk-main { min-width: 0; cursor: pointer; }
+.trk-text { font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
+.trk-meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 13px; color: var(--muted); }
+.trk-last { margin-top: 5px; font-size: 13px; color: #3e4a43; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trk-last b { color: var(--muted); font-weight: 600; }
+.trk select.status { border: 1px solid #c9d2cb; border-radius: 6px; padding: 5px 6px; font-size: 13px; background: #fff; }
+.trk .editor { grid-column: 2 / -1; }
+.updates { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.updates li { background: #f5f8f4; border-radius: 6px; padding: 6px 9px; font-size: 14px; }
+.updates small { color: var(--muted); margin-left: 6px; }
+.trk-saving { opacity: .6; }
+@media (max-width: 560px) { .trk-head-inner, .trk-body { padding-left: 12px; padding-right: 12px; } .trk { grid-template-columns: 24px minmax(0, 1fr); } .trk > select.status { grid-column: 2; justify-self: start; } }
+
 /* Other controllers' changes: a soft orange glow that fades, and who made it. */
 .marked { position: relative; }
 .flash { animation: glow 2.6s ease-out; }
@@ -236,6 +272,7 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
     <span id="sync" class="sync" role="status" aria-live="polite"></span>
     <button id="save-now" class="btn ghost" type="button" title="Make sure everything is saved before reloading (Ctrl+S or Cmd+S)">Save</button>
     <button id="screen-toggle" class="btn primary" type="button" aria-expanded="false" aria-controls="screen-panel" title="What the projector shows: layout, text size, attendees">&#9654; Projector screen</button>
+    <button id="open-tracker" class="btn ghost" type="button" title="Every follow-up from every meeting: status, due dates, progress updates">Tracker</button>
     <button id="open-minutes" class="btn ghost" type="button">Minutes</button>
     <button id="open-meetings" class="btn ghost" type="button">Meetings</button>
   </div>
@@ -365,6 +402,25 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
   </div>
   <div class="dlg-foot"><span class="hint">Opening a meeting puts it on the projector too.</span><span class="spacer"></span><button id="meetings-new" class="btn primary" type="button">Start a new meeting</button></div>
 </dialog>
+
+<section id="tracker" class="tracker" aria-labelledby="tracker-heading" hidden>
+  <div class="trk-head"><div class="trk-head-inner">
+    <h2 id="tracker-heading">Follow-up tracker</h2>
+    <span id="trk-sum" class="trk-sum" role="status"></span>
+    <button id="trk-refresh" class="btn small ghost" type="button">Refresh</button>
+    <button id="trk-close" class="btn small" type="button">Close</button>
+  </div></div>
+  <div class="trk-body">
+    <div class="trk-filters">
+      <div class="seg" role="group" aria-label="Show" id="trk-show"><button type="button" data-value="open" aria-pressed="true">Open</button><button type="button" data-value="overdue" aria-pressed="false">Overdue</button><button type="button" data-value="done" aria-pressed="false">Done</button><button type="button" data-value="all" aria-pressed="false">All</button></div>
+      <select id="trk-owner" aria-label="Owner"></select>
+      <select id="trk-meeting" aria-label="Meeting"></select>
+      <input id="trk-search" type="search" placeholder="Search follow-ups and updates" aria-label="Search">
+    </div>
+    <div id="trk-list" class="trk-groups" style="display:grid;gap:14px"></div>
+    <p class="hint">Each follow-up appears once, from the meeting it was made in to the latest meeting that brought it forward. Changes here go to that meeting; the next meeting brings forward everything not done, with its history.</p>
+  </div>
+</section>
 
 <div id="print-area"></div>
 
@@ -640,12 +696,13 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
       return (group.name ? '<li class="action-group">' + esc(group.name) + '</li>' : '') + group.list.map(function (a) {
         var editing = app.editing && app.editing.kind === 'action' && app.editing.id === a.id;
         var at = indexOf(m.items, a.itemId);
-        var meta = ownerHtml(a.owner) + (a.due ? '<span>due ' + esc(shortDate(a.due)) + '</span>' : '') + (at >= 0 ? '<span>#' + (at + 1) + ' ' + esc(m.items[at].title.length > 32 ? m.items[at].title.slice(0, 31) + '…' : m.items[at].title) + '</span>' : '') + (a.carried ? '<span class="tag carried">From ' + esc(shortDate(a.carried) || a.carried) + '</span>' : '');
+        var meta = ownerHtml(a.owner) + (a.status === 'progress' && !a.done ? '<span class="tag progress">In progress</span>' : '') + (a.due ? '<span class="due ' + Model.dueState(a, app.today) + '">due ' + esc(shortDate(a.due)) + '</span>' : '') + ((a.updates || []).length ? '<span title="' + esc(a.updates[a.updates.length - 1].text) + '">&#128172; ' + a.updates.length + '</span>' : '') + (at >= 0 ? '<span>#' + (at + 1) + ' ' + esc(m.items[at].title.length > 32 ? m.items[at].title.slice(0, 31) + '…' : m.items[at].title) + '</span>' : '') + (a.carried ? '<span class="tag carried">From ' + esc(shortDate(a.carried) || a.carried) + '</span>' : '');
         var editor = editing ? '<div class="editor">' +
           '<label>Follow-up<input data-field="text" data-key="a-text-' + a.id + '" maxlength="300" value="' + esc(a.text) + '"></label>' +
           '<div class="action-row"><label>Owner<input data-field="owner" data-key="a-owner-' + a.id + '" list="people" maxlength="80" value="' + esc(a.owner) + '"></label>' +
           '<label>Due<input data-field="due" data-key="a-due-' + a.id + '" type="date" value="' + esc(a.due) + '"></label>' +
           '<label>Agenda item<select data-field="itemId" data-key="a-item-' + a.id + '"><option value="">General</option>' + m.items.map(function (it, n) { return '<option value="' + it.id + '"' + (it.id === a.itemId ? ' selected' : '') + '>' + (n + 1) + '. ' + esc(it.title.length > 40 ? it.title.slice(0, 39) + '…' : it.title) + '</option>'; }).join('') + '</select></label></div>' +
+          '<label>Status<select data-field="status" data-key="a-status-' + a.id + '"><option value="open"' + (a.status !== 'progress' && !a.done ? ' selected' : '') + '>Open</option><option value="progress"' + (a.status === 'progress' && !a.done ? ' selected' : '') + '>In progress</option><option value="done"' + (a.done ? ' selected' : '') + '>Done</option></select></label>' +
           '<div class="editor-row"><button class="btn small danger" type="button" data-act="a-delete">Delete</button><span class="spacer"></span><button class="btn small primary" type="button" data-act="close">Done</button></div></div>' : '';
         var mark = markOf(a.id);
         return '<li class="action' + (a.done ? ' done' : '') + mark.cls + '" data-id="' + a.id + '">' +
@@ -1140,6 +1197,145 @@ dialog::backdrop { background: rgba(8, 30, 20, .55); }
   $('meetings-new').addEventListener('click', function () {
     if (app.pending.length || app.inFlight) { setStatus('Wait a moment: the last change here is still saving.', 'warn'); return; }
     openStart();
+  });
+
+  // ---- Follow-up tracker ----
+  var trk = { rows: [], today: '', current: '', show: 'open', owner: '', meeting: '', q: '', open: '', busy: {} };
+  function openTracker() {
+    $('tracker').hidden = false;
+    $('trk-sum').textContent = 'Loading…';
+    loadTracker();
+  }
+  function loadTracker() {
+    call('listFollowUps').then(function (result) {
+      trk.rows = result.rows || [];
+      trk.today = result.today || app.today;
+      trk.current = result.current || '';
+      drawTracker();
+    }).catch(function (error) { $('trk-sum').textContent = 'Could not load the follow-ups: ' + (error.message || error); });
+  }
+  function trkShown(row) {
+    var a = row.action;
+    if (trk.show === 'open' && a.done) return false;
+    if (trk.show === 'done' && !a.done) return false;
+    if (trk.show === 'overdue' && Model.dueState(a, trk.today) !== 'overdue') return false;
+    if (trk.owner && (a.owner || '').toLowerCase() !== trk.owner) return false;
+    if (trk.meeting && row.fromId !== trk.meeting && row.meetingId !== trk.meeting) return false;
+    if (trk.q) {
+      var hay = (a.text + ' ' + a.owner + ' ' + row.itemTitle + ' ' + (a.updates || []).map(function (u) { return u.text; }).join(' ')).toLowerCase();
+      if (hay.indexOf(trk.q) < 0) return false;
+    }
+    return true;
+  }
+  function drawTracker() {
+    var rows = trk.rows;
+    var open = rows.filter(function (r) { return !r.action.done; });
+    var overdue = open.filter(function (r) { return Model.dueState(r.action, trk.today) === 'overdue'; }).length;
+    var progress = open.filter(function (r) { return r.action.status === 'progress'; }).length;
+    $('trk-sum').textContent = open.length + ' open' + (progress ? ' · ' + progress + ' in progress' : '') + (overdue ? ' · ' + overdue + ' overdue' : '') + ' · ' + (rows.length - open.length) + ' done';
+    Array.prototype.forEach.call($('trk-show').querySelectorAll('button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-value') === trk.show)); });
+    // Owner and meeting choices from the follow-ups themselves.
+    var owners = {};
+    var meetings = {};
+    rows.forEach(function (r) { if (r.action.owner) owners[r.action.owner.toLowerCase()] = r.action.owner; meetings[r.fromId] = r.fromDate; });
+    $('trk-owner').innerHTML = '<option value="">Every owner</option>' + Object.keys(owners).sort().map(function (k) { return '<option value="' + esc(k) + '"' + (k === trk.owner ? ' selected' : '') + '>' + esc(owners[k]) + '</option>'; }).join('');
+    $('trk-meeting').innerHTML = '<option value="">Every meeting</option>' + Object.keys(meetings).sort(function (a, b) { return meetings[a] < meetings[b] ? 1 : -1; }).map(function (id) { return '<option value="' + esc(id) + '"' + (id === trk.meeting ? ' selected' : '') + '>From ' + esc(Model.longDate(meetings[id]) || meetings[id]) + '</option>'; }).join('');
+    // By owner, owners A to Z, no owner last; within an owner, overdue first, then by due date, then oldest first.
+    var groups = {};
+    var names = [];
+    rows.filter(trkShown).forEach(function (r) {
+      var key = (r.action.owner || '').toLowerCase();
+      if (!groups[key]) { groups[key] = { name: r.action.owner, list: [] }; names.push(key); }
+      groups[key].list.push(r);
+    });
+    names.sort(function (a, b) { return !a ? 1 : !b ? -1 : a.localeCompare(b); });
+    var rank = function (r) { return r.action.done ? 3 : Model.dueState(r.action, trk.today) === 'overdue' ? 0 : r.action.due ? 1 : 2; };
+    $('trk-list').innerHTML = names.map(function (key) {
+      var g = groups[key];
+      g.list.sort(function (x, y) { return rank(x) - rank(y) || (x.action.due || '9').localeCompare(y.action.due || '9') || (x.fromDate || '').localeCompare(y.fromDate || ''); });
+      var openHere = g.list.filter(function (r) { return !r.action.done; }).length;
+      return '<section class="trk-group"><div class="trk-owner">' + ownerHtml(g.name) + '<span class="count">' + openHere + ' open</span></div><ul class="trk-list">' + g.list.map(trkRow).join('') + '</ul></section>';
+    }).join('') || '<p class="empty">' + (rows.length ? 'No follow-ups match.' : 'No follow-ups yet. Add them during a meeting under Follow-ups.') + '</p>';
+  }
+  function trkRow(r) {
+    var a = r.action;
+    var last = (a.updates || [])[(a.updates || []).length - 1];
+    var due = Model.dueState(a, trk.today);
+    var opened = trk.open === r.ref;
+    var editor = opened ? '<div class="editor">' +
+      '<label>Follow-up<input data-tf="text" data-key="t-text-' + r.ref + '" maxlength="300" value="' + esc(a.text) + '"></label>' +
+      '<div class="action-row" style="grid-template-columns:1fr 1fr"><label>Owner<input data-tf="owner" data-key="t-owner-' + r.ref + '" list="people" maxlength="80" value="' + esc(a.owner) + '"></label><label>Due<input data-tf="due" data-key="t-due-' + r.ref + '" type="date" value="' + esc(a.due) + '"></label></div>' +
+      '<label>Progress updates</label><ul class="updates">' + ((a.updates || []).map(function (u) { return '<li>' + esc(u.text) + '<small>' + esc((u.by ? u.by + ', ' : '') + (u.at ? new Date(u.at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '')) + '</small></li>'; }).join('') || '<li class="hint" style="background:none;padding:0">None yet.</li>') + '</ul>' +
+      '<form class="add-row" data-tf-form style="padding:0;background:none"><input class="field" data-key="t-upd-' + r.ref + '" maxlength="300" placeholder="Add a progress update… (Enter)"><button class="btn" type="submit">Add update</button></form>' +
+      '<div class="editor-row"><span class="hint">From ' + esc(Model.longDate(r.fromDate) || r.fromDate) + (r.meetingId !== r.fromId ? ', brought forward to ' + esc(shortDate(r.meetingDate)) : '') + '</span><span class="spacer"></span><button class="btn small" type="button" data-tact="close">Close</button></div></div>' : '';
+    return '<li class="trk' + (a.done ? ' done' : '') + (trk.busy[r.ref] ? ' trk-saving' : '') + '" data-ref="' + esc(r.ref) + '">' +
+      '<button class="ball small' + (a.done ? ' on' : '') + '" type="button" data-tact="done" aria-pressed="' + a.done + '" aria-label="' + (a.done ? 'Done: click to reopen ' : 'Mark done: ') + esc(a.text) + '"></button>' +
+      '<div class="trk-main" data-tact="open" title="Click to edit or add an update"><div class="trk-text">' + esc(a.text) + '</div>' +
+      '<div class="trk-meta">' + (a.due ? '<span class="due ' + due + '">' + (due === 'overdue' ? 'overdue · ' : '') + 'due ' + esc(shortDate(a.due)) + '</span>' : '<span>no due date</span>') +
+      '<span>From ' + esc(shortDate(r.fromDate)) + '</span>' + (r.itemTitle ? '<span>' + esc(r.itemTitle.length > 40 ? r.itemTitle.slice(0, 39) + '…' : r.itemTitle) + '</span>' : '') + '</div>' +
+      (last && !opened ? '<div class="trk-last"><b>Latest:</b> ' + esc(last.text) + (last.by ? ' <b>— ' + esc(last.by) + '</b>' : '') + '</div>' : '') + '</div>' +
+      '<select class="status" data-tf="status" aria-label="Status"><option value="open"' + (a.status !== 'progress' && !a.done ? ' selected' : '') + '>Open</option><option value="progress"' + (a.status === 'progress' && !a.done ? ' selected' : '') + '>In progress</option><option value="done"' + (a.done ? ' selected' : '') + '>Done</option></select>' +
+      editor + '</li>';
+  }
+  function trkFind(ref) { for (var i = 0; i < trk.rows.length; i += 1) if (trk.rows[i].ref === ref) return trk.rows[i]; return null; }
+  // One change to one follow-up, sent to the meeting it lives in; the row shows the saved result.
+  function trkSave(ref, change) {
+    var row = trkFind(ref);
+    if (!row) return;
+    change.id = row.action.id;
+    if (app.me) change.by = app.me;
+    trk.busy[ref] = true;
+    keepFocus(drawTracker);
+    call('updateFollowUp', row.meetingId, row.action.id, [change]).then(function (result) {
+      delete trk.busy[ref];
+      if (result.row) { row.action = result.row.action; row.itemTitle = result.row.itemTitle || row.itemTitle; }
+      trk.today = result.today || trk.today;
+      keepFocus(drawTracker);
+      if (row.meetingId === (app.server && app.server.id)) poll();
+    }).catch(function (error) {
+      delete trk.busy[ref];
+      keepFocus(drawTracker);
+      $('trk-sum').textContent = 'Not saved: ' + (error.message || error);
+    });
+  }
+  $('open-tracker').addEventListener('click', openTracker);
+  $('trk-close').addEventListener('click', function () { $('tracker').hidden = true; });
+  $('trk-refresh').addEventListener('click', loadTracker);
+  $('trk-show').addEventListener('click', function (event) { var b = event.target.closest('button[data-value]'); if (b) { trk.show = b.getAttribute('data-value'); drawTracker(); } });
+  $('trk-owner').addEventListener('change', function () { trk.owner = $('trk-owner').value; drawTracker(); });
+  $('trk-meeting').addEventListener('change', function () { trk.meeting = $('trk-meeting').value; drawTracker(); });
+  $('trk-search').addEventListener('input', function () { trk.q = $('trk-search').value.trim().toLowerCase(); keepFocus(drawTracker); });
+  $('trk-list').addEventListener('click', function (event) {
+    var target = event.target.closest('[data-tact]');
+    var li = event.target.closest('li[data-ref]');
+    if (!target || !li) return;
+    var ref = li.getAttribute('data-ref');
+    var act = target.getAttribute('data-tact');
+    var row = trkFind(ref);
+    if (!row) return;
+    if (act === 'done') trkSave(ref, { type: 'editAction', status: row.action.done ? 'open' : 'done' });
+    else if (act === 'open') { trk.open = trk.open === ref ? '' : ref; drawTracker(); }
+    else if (act === 'close') { trk.open = ''; drawTracker(); }
+  });
+  $('trk-list').addEventListener('change', function (event) {
+    var field = event.target.getAttribute('data-tf');
+    var li = event.target.closest('li[data-ref]');
+    if (!field || !li) return;
+    var edit = { type: 'editAction' };
+    edit[field] = event.target.value;
+    trkSave(li.getAttribute('data-ref'), edit);
+  });
+  $('trk-list').addEventListener('submit', function (event) {
+    var form = event.target.closest('[data-tf-form]');
+    var li = event.target.closest('li[data-ref]');
+    if (!form || !li) return;
+    event.preventDefault();
+    var input = form.querySelector('input');
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    // A first update on an open follow-up moves it to In progress.
+    trkSave(li.getAttribute('data-ref'), { type: 'actionUpdate', update: { id: makeId(), text: text }, started: true });
   });
 
   // ---- Minutes ----

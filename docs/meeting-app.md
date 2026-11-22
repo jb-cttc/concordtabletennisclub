@@ -65,6 +65,26 @@ hidden).
    attendees and the follow-ups as text to copy into the minutes document or an
    email, or to print.
 
+## Follow-ups between meetings: the Tracker
+
+**Tracker** (top of the controls) lists every follow-up from every meeting kept,
+once each, grouped by owner (no owner last). Within an owner, overdue ones come
+first, then by due date. Due dates turn amber within 3 days and red once overdue.
+
+- **Show** Open (open and in progress), Overdue, Done or All; narrow it to one
+  owner or one meeting, or search the follow-ups and their updates.
+- Click the ball to mark a follow-up done (click again to reopen), or pick
+  **Open / In progress / Done**.
+- Click a follow-up to change its text, owner or due date, see its history, and
+  **Add update**: a dated note with your name ("Dec 2: Rossmoor called back").
+  The first update on an open follow-up moves it to In progress.
+- A follow-up brought forward to the next meeting is the same follow-up there,
+  with its status and history, so it appears once in the Tracker. Changes from
+  the Tracker go to the meeting it lives in now; if that meeting is on the
+  projector, the projector and the other laptops follow, and an earlier meeting
+  never takes over the projector.
+- The Tracker opens only for the club's Google account, like the rest of the app.
+
 **Meetings** lists every meeting kept: open an earlier one (it goes on the
 projector too), delete an old one, or start a new one. A new meeting can bring
 forward the last one's open follow-ups, its items moved to the next meeting, and

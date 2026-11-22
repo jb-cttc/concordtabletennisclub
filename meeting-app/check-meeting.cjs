@@ -27,7 +27,7 @@ const model = read('Model.js');
   assert.doesNotMatch(source, /SpreadsheetApp|GmailApp|MailApp|UrlFetchApp|DriveApp|DocumentApp|newTrigger|Session\.get/, 'no Sheet, mail, web, Drive, timers or user lookups: nothing that spends a shared Google limit or needs a scope');
 });
 const publicFunctions = [...code.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(m => m[1]).filter(name => !name.endsWith('_')).sort();
-assert.deepEqual(publicFunctions, ['deleteMeeting', 'doGet', 'followTick', 'getState', 'openMeeting', 'saveChanges', 'startMeeting'], 'the calls the pages make, and nothing else public');
+assert.deepEqual(publicFunctions, ['deleteMeeting', 'doGet', 'followTick', 'getState', 'listFollowUps', 'openMeeting', 'saveChanges', 'startMeeting', 'updateFollowUp'], 'the calls the pages make, and nothing else public');
 assert.deepEqual([...model.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(m => m[1]), ['MeetingModel_'], 'the model is one self-contained function: the page gets its source');
 
 // ---- A fake Google ----
@@ -167,6 +167,19 @@ assert.throws(() => M.apply(M.blank({}, 1), { type: 'nope' }, 1), /Unknown chang
   M.apply(m, { type: 'display', layout: 'cinema', scale: 0.1 }, 400);
   assert.deepEqual(M.display(m), { layout: 'spotlight', scale: 0.7, people: 'open', follow: false }, 'an unknown layout is ignored; the text is never smaller than 70%');
   assert.deepEqual(M.display({}), { layout: 'full', scale: 1, people: 'tab', follow: true }, 'a meeting saved before these settings shows the defaults');
+  // Follow-ups: open, in progress or done; dated updates with who added them; due dates amber within 3 days, red after.
+  M.apply(m, { type: 'editAction', id: 'bbbb1', status: 'progress' }, 500);
+  assert.deepEqual([m.actions[0].status, m.actions[0].done], ['progress', false]);
+  M.apply(m, { type: 'actionUpdate', id: 'bbbb1', update: { id: 'uuuu1', text: 'Draft sent to the board' }, by: 'Pat Example' }, 600);
+  assert.deepEqual(m.actions[0].updates, [{ id: 'uuuu1', text: 'Draft sent to the board', by: 'Pat Example', at: 600 }]);
+  M.apply(m, { type: 'editAction', id: 'bbbb1', done: true }, 700);
+  assert.deepEqual([m.actions[0].status, m.actions[0].done], ['done', true], 'the ball and the status agree');
+  M.apply(m, { type: 'editAction', id: 'bbbb1', done: false }, 700);
+  assert.equal(m.actions[0].status, 'open');
+  assert.equal(M.dueState({ due: '2026-11-30' }, '2026-12-01'), 'overdue');
+  assert.equal(M.dueState({ due: '2026-12-04' }, '2026-12-01'), 'soon');
+  assert.equal(M.dueState({ due: '2026-12-05' }, '2026-12-01'), '');
+  assert.equal(M.dueState({ due: '2026-11-30', done: true }, '2026-12-01'), '', 'a done follow-up is never overdue');
   const minutes = M.minutes(m);
   assert.match(minutes, /Saturday, November 21|Date: /);
   assert.match(minutes, /\[ \] Pat Example: Email the closure dates \(due 2026-12-01\)/);
@@ -254,6 +267,31 @@ assert.deepEqual(next.items.map(it => [it.title, it.carried, it.added]), [['Holi
 assert.deepEqual(next.actions.map(a => [a.text, a.owner, a.carried, a.done]), [['Post the closures on the site', 'Sam Sample', '2026-11-21', false]]);
 assert.deepEqual(next.attendees.map(p => [p.name, p.present]), [['Pat Example', false], ['Sam Sample', false]], 'last meeting\'s attendees come back expected, to check in; guests do not');
 assert.deepEqual(state.meetings.map(e => e.date), ['2026-12-19', '2026-11-21'], 'newest first');
+
+// The tracker: a follow-up brought forward is one follow-up (same ref), shown from the meeting it was made in and
+// living in the latest meeting; a done one stays in its own meeting.
+let tracked = run('listFollowUps');
+assert.deepEqual(tracked.rows.map(r => [r.action.text, r.fromDate, r.meetingDate, r.action.done]), [
+  ['Post the closures on the site', '2026-11-21', '2026-12-19', false],
+  ['Already handled', '2026-11-21', '2026-11-21', true]
+]);
+assert.equal(tracked.rows[0].ref, 'act00001', 'the ref is the id it was made with');
+assert.equal(tracked.current, next.id);
+// A change from the tracker to a follow-up in an earlier meeting saves there, and leaves the meeting on screen alone.
+const before = run('followTick', null).stamp;
+let saved2 = run('updateFollowUp', first.id, 'act00002', [{ type: 'actionUpdate', id: 'act00002', update: { id: 'upd00001', text: 'Confirmed by email' }, by: 'Pat Example' }]);
+assert.equal(saved2.row.action.updates[0].text, 'Confirmed by email');
+assert.equal(props.get('MEETING_CURRENT'), next.id, 'the meeting on screen stays on screen');
+assert.equal(run('followTick', null).stamp, before, 'and its screens are not told anything changed');
+// One in the meeting on screen: its screens follow.
+const live = next.actions[0];
+saved2 = run('updateFollowUp', next.id, live.id, [{ type: 'actionUpdate', id: live.id, update: { id: 'upd00002', text: 'Asked the webmaster' }, started: true, by: 'Sam Sample' }]);
+assert.equal(saved2.row.action.status, 'progress', 'a first update moves an open follow-up to In progress');
+assert.notEqual(run('followTick', before).stamp, before, 'the screens of the meeting on screen follow');
+assert.throws(() => run('updateFollowUp', next.id, live.id, [{ type: 'removeAction', id: live.id }]), /follow-ups only/, 'the tracker cannot delete or change anything else');
+assert.throws(() => run('updateFollowUp', next.id, live.id, [{ type: 'editAction', id: 'someother1' }]), /follow-ups only/);
+tracked = run('listFollowUps');
+assert.deepEqual(tracked.rows[0].action.updates.map(u => u.text), ['Asked the webmaster']);
 assert.deepEqual(run('saveChanges', first.id, [{ type: 'meeting', title: 'old' }]).moved, true, 'a change made on a meeting no longer on screen is not applied');
 assert.equal(run('getState').meeting.id, next.id);
 assert.throws(() => run('deleteMeeting', next.id), /on screen/);
@@ -578,6 +616,34 @@ async function until(test, what, ms = 2000) {
   click(c, '#save-now');
   await until(() => /Everything is saved \([^)]*\)\. Safe to reload\.$/.test(c.getElementById('status').textContent), 'Save to commit the field being typed in');
   assert.equal(run('getState').meeting.items[1].notes, 'Typed, then Save before leaving the field', 'Save finishes the field being typed in');
+
+  // The tracker: every follow-up once, by owner; a first update moves one to In progress; Done from the tracker
+  // shows on the controls of the meeting on screen.
+  click(c, '#open-tracker');
+  await until(() => c.querySelectorAll('#trk-list .trk').length > 0, 'the tracker');
+  assert.equal(c.getElementById('tracker').hidden, false);
+  const trkTexts = () => [...c.querySelectorAll('#trk-list .trk .trk-text')].map(x => x.textContent);
+  assert.ok(trkTexts().includes('Post the closures on the site'));
+  assert.match(c.querySelector('#trk-list .trk-group .trk-owner').textContent, /Sam Sample|Owner needed/);
+  const row = [...c.querySelectorAll('#trk-list .trk')].find(li => /Post the closures/.test(li.textContent));
+  const ref = row.getAttribute('data-ref');
+  click(c, '#trk-list .trk[data-ref="' + ref + '"] .trk-main');
+  const upd = c.querySelector('#trk-list .trk[data-ref="' + ref + '"] [data-tf-form] input');
+  upd.value = 'Posted the December dates';
+  c.querySelector('#trk-list .trk[data-ref="' + ref + '"] [data-tf-form]').dispatchEvent(new control.window.Event('submit', { bubbles: true, cancelable: true }));
+  await until(() => /In progress/.test((run('listFollowUps').rows.find(r => r.ref === ref) || { action: {} }).action.status === 'progress' ? 'In progress' : ''), 'the update saved');
+  await until(() => c.querySelector('#trk-list .trk[data-ref="' + ref + '"] select.status').value === 'progress', 'the tracker showing In progress');
+  await until(() => /In progress/.test(c.getElementById('actions').textContent), 'the controls showing In progress');
+  click(c, '#trk-list .trk[data-ref="' + ref + '"] [data-tact="done"]');
+  await until(() => c.querySelector('#trk-list .trk[data-ref="' + ref + '"]') === null, 'a done follow-up leaving the Open list');
+  click(c, '#trk-show [data-value="done"]');
+  assert.ok(trkTexts().includes('Post the closures on the site'), 'and showing under Done');
+  await until(() => c.querySelector('#actions .action.done'), 'the controls showing it done');
+  type(c, '#trk-search', 'nothing like this');
+  assert.match(c.getElementById('trk-list').textContent, /No follow-ups match/);
+  type(c, '#trk-search', '');
+  click(c, '#trk-close');
+  assert.equal(c.getElementById('tracker').hidden, true);
 
   // Minutes and the projector window.
   click(c, '#open-minutes');

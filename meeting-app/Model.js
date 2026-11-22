@@ -13,8 +13,10 @@
 // decisions, for the minutes only. added marks an item added once the meeting was under way; carried one brought
 // forward from the meeting before. current is the item being discussed now.
 function MeetingModel_() {
-  var LIMITS = { title: 140, details: 1500, notes: 4000, action: 300, owner: 80, name: 80, role: 60, items: 60, actions: 120, attendees: 60, point: 300, points: 40, by: 40, activity: 25 };
+  var LIMITS = { title: 140, details: 1500, notes: 4000, action: 300, owner: 80, name: 80, role: 60, items: 60, actions: 120, attendees: 60, point: 300, points: 40, by: 40, activity: 25, update: 300, updates: 30 };
   var STATUSES = { open: 1, done: 1, tabled: 1 };
+  // A follow-up: open, in progress, or done (done is also kept as a plain flag, which the pages read).
+  var ACTION_STATUSES = { open: 1, progress: 1, done: 1 };
   var ID = /^[a-z0-9]{4,24}$/;
   // The board: full agenda, focus (titles only, discussed items folded up), spotlight (the item being discussed, big),
   // or recap (the follow-ups by owner); text size; the attendee panel open, folded to a tab, or hidden; follow-ups shown.
@@ -64,17 +66,29 @@ function MeetingModel_() {
       by: line(raw.by, LIMITS.by)
     };
   }
+  // ref is the follow-up's identity across meetings: its own id when made, kept when the next meeting brings it
+  // forward, so the tracker shows one follow-up with its whole history, not a copy per meeting.
   function action(raw) {
+    var status = ACTION_STATUSES[raw.status] ? raw.status : raw.done ? 'done' : 'open';
     return {
       id: raw.id,
+      ref: okId(raw.ref) ? raw.ref : raw.id,
       text: line(raw.text, LIMITS.action),
       owner: line(raw.owner, LIMITS.owner),
       due: day(raw.due),
       itemId: okId(raw.itemId) ? raw.itemId : '',
-      done: !!raw.done,
+      status: status,
+      done: status === 'done',
       carried: raw.carried ? line(raw.carried, 20) : '',
-      by: line(raw.by, LIMITS.by)
+      by: line(raw.by, LIMITS.by),
+      updates: (Array.isArray(raw.updates) ? raw.updates : []).filter(function (u) { return u && okId(u.id) && line(u.text, LIMITS.update); }).map(function (u) {
+        return { id: u.id, text: line(u.text, LIMITS.update), by: line(u.by, LIMITS.by), at: Number(u.at) || 0 };
+      }).slice(-LIMITS.updates)
     };
+  }
+  function setStatus(a, status) {
+    a.status = status;
+    a.done = status === 'done';
   }
 
   // The meeting is under way from the first item discussed or checked off; items added after that are marked Added.
@@ -103,7 +117,8 @@ function MeetingModel_() {
       case 'moveItem': at = find(meeting.items, change.id); return at < 0 ? null : { what: 'moved', kind: 'item', id: change.id, title: meeting.items[at].title };
       case 'removeItem': at = find(meeting.items, change.id); return at < 0 ? null : { what: 'removed', kind: 'item', id: change.id, title: meeting.items[at].title };
       case 'addAction': return change.action ? { what: 'added a follow-up', kind: 'action', id: change.action.id, title: change.action.text } : null;
-      case 'editAction': at = find(meeting.actions, change.id); return at < 0 ? null : { what: change.done === true ? 'completed' : 'edited', kind: 'action', id: change.id, title: meeting.actions[at].text };
+      case 'editAction': at = find(meeting.actions, change.id); return at < 0 ? null : { what: change.done === true || change.status === 'done' ? 'completed' : change.status === 'progress' ? 'started' : 'edited', kind: 'action', id: change.id, title: meeting.actions[at].text };
+      case 'actionUpdate': at = find(meeting.actions, change.id); return at < 0 ? null : { what: 'added an update to', kind: 'action', id: change.id, title: meeting.actions[at].text };
       case 'removeAction': at = find(meeting.actions, change.id); return at < 0 ? null : { what: 'removed a follow-up', kind: 'action', id: change.id, title: meeting.actions[at].text };
       case 'addPoint': return change.point ? { what: 'added a point', kind: 'point', id: change.point.id, title: change.point.text, itemId: change.itemId } : null;
       case 'removePoint': return { what: 'removed a point', kind: 'point', id: change.id, title: '', itemId: change.itemId };
@@ -202,7 +217,20 @@ function MeetingModel_() {
         if (change.owner !== undefined) a.owner = line(change.owner, LIMITS.owner);
         if (change.due !== undefined) a.due = day(change.due);
         if (change.itemId !== undefined) a.itemId = okId(change.itemId) && find(meeting.items, change.itemId) >= 0 ? change.itemId : '';
-        if (change.done !== undefined) a.done = !!change.done;
+        if (change.status !== undefined && ACTION_STATUSES[change.status]) setStatus(a, change.status);
+        else if (change.done !== undefined) setStatus(a, change.done ? 'done' : a.status === 'done' ? 'open' : a.status || 'open');
+        return meeting;
+      case 'actionUpdate':
+        // A dated progress note on a follow-up, with who added it (the tracker's history).
+        i = find(meeting.actions, change.id);
+        if (i < 0 || !change.update || !okId(change.update.id)) return meeting;
+        var notes = meeting.actions[i].updates || (meeting.actions[i].updates = []);
+        if (find(notes, change.update.id) >= 0) return meeting;
+        var said2 = line(change.update.text, LIMITS.update);
+        if (!said2) return meeting;
+        notes.push({ id: change.update.id, text: said2, by: by || '', at: now });
+        if (notes.length > LIMITS.updates) notes.splice(0, notes.length - LIMITS.updates);
+        if (meeting.actions[i].status === 'open' && change.started) setStatus(meeting.actions[i], 'progress');
         return meeting;
       case 'removeAction':
         i = find(meeting.actions, change.id);
@@ -321,14 +349,44 @@ function MeetingModel_() {
       items: previous.items.filter(function (it) { return it.status === 'tabled'; }).map(function (it) {
         return { id: makeId(), title: it.title, details: it.details, notes: '', status: 'open', added: false, carried: true };
       }),
+      // The same follow-ups (same ref), with their status and history: the tracker shows each once.
       actions: previous.actions.filter(function (a) { return !a.done; }).map(function (a) {
-        return { id: makeId(), text: a.text, owner: a.owner, due: a.due, itemId: '', done: false, carried: a.carried || from || 'earlier' };
+        return { id: makeId(), ref: a.ref || a.id, text: a.text, owner: a.owner, due: a.due, itemId: '', status: a.status === 'progress' ? 'progress' : 'open', carried: a.carried || from || 'earlier', by: a.by, updates: a.updates || [] };
       }),
       // Expected, not yet checked in.
       attendees: previous.attendees.filter(function (p) { return p.present !== false && !/guest/i.test(p.role); }).map(function (p) {
         return { id: makeId(), name: p.name, role: p.role, present: false };
       })
     };
+  }
+
+  // Due date state for a follow-up, against today (YYYY-MM-DD): overdue, soon (within 3 days), or ''.
+  function dueState(a, today) {
+    if (!a.due || a.done || !day(today)) return '';
+    if (a.due < today) return 'overdue';
+    var t = Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, Number(today.slice(8, 10)));
+    var d = Date.UTC(Number(a.due.slice(0, 4)), Number(a.due.slice(5, 7)) - 1, Number(a.due.slice(8, 10)));
+    return (d - t) / 86400000 <= 3 ? 'soon' : '';
+  }
+
+  // Every follow-up across the meetings given (oldest first), once each: the latest copy of each ref, with where it
+  // came from (the first meeting) and where it lives now (the meeting a change to it goes to).
+  function tracker(meetings) {
+    var byRef = {};
+    var order = [];
+    meetings.forEach(function (m) {
+      (m.actions || []).forEach(function (raw) {
+        var a = action(raw);
+        var at = find(m.items || [], a.itemId);
+        var row = byRef[a.ref];
+        if (!row) { row = byRef[a.ref] = { ref: a.ref, fromId: m.id, fromDate: m.date, fromTitle: m.title }; order.push(a.ref); }
+        row.meetingId = m.id;
+        row.meetingDate = m.date;
+        row.action = a;
+        row.itemTitle = at >= 0 ? m.items[at].title : row.itemTitle || '';
+      });
+    });
+    return order.map(function (ref) { return byRef[ref]; });
   }
 
   function counts(meeting) {
@@ -373,11 +431,13 @@ function MeetingModel_() {
       var about = '';
       var at = find(meeting.items, a.itemId);
       if (at >= 0) about = ' [item ' + (at + 1) + ']';
-      out.push('  ' + (a.done ? '[x] ' : '[ ] ') + (a.owner || 'Unassigned') + ': ' + a.text + (a.due ? ' (due ' + a.due + ')' : '') + about + (a.carried ? ' (from ' + a.carried + ')' : ''));
+      out.push('  ' + (a.done ? '[x] ' : a.status === 'progress' ? '[~] ' : '[ ] ') + (a.owner || 'Unassigned') + ': ' + a.text + (a.due ? ' (due ' + a.due + ')' : '') + about + (a.carried ? ' (from ' + a.carried + ')' : ''));
+      var last = (a.updates || [])[(a.updates || []).length - 1];
+      if (last) out.push('       Latest update: ' + last.text + (last.by ? ' (' + last.by + ')' : ''));
     });
-    out.push('', '[x] discussed or done   [>] moved to the next meeting');
+    out.push('', '[x] discussed or done   [~] in progress   [>] moved to the next meeting');
     return out.join('\n');
   }
 
-  return { LIMITS: LIMITS, SCALE_MIN: SCALE_MIN, SCALE_MAX: SCALE_MAX, display: function (m) { var d = defaultDisplay(); var own = (m && m.display) || {}; Object.keys(d).forEach(function (k) { if (own[k] !== undefined) d[k] = own[k]; }); return d; }, blank: blank, apply: apply, parseAgenda: parseAgenda, parseAttendees: parseAttendees, carryOver: carryOver, counts: counts, longDate: longDate, minutes: minutes, okId: okId };
+  return { LIMITS: LIMITS, dueState: dueState, tracker: tracker, SCALE_MIN: SCALE_MIN, SCALE_MAX: SCALE_MAX, display: function (m) { var d = defaultDisplay(); var own = (m && m.display) || {}; Object.keys(d).forEach(function (k) { if (own[k] !== undefined) d[k] = own[k]; }); return d; }, blank: blank, apply: apply, parseAgenda: parseAgenda, parseAttendees: parseAttendees, carryOver: carryOver, counts: counts, longDate: longDate, minutes: minutes, okId: okId };
 }
