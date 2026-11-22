@@ -9,7 +9,7 @@
   <meta property="og:title" content="Concord Table Tennis Club">
   <meta property="og:description" content="Table tennis in Walnut Creek, CA, four days a week. Round robin play, open to the public. Ratings, results, and player stats.">
   <meta property="og:url" content="https://concordtabletennisclub.com/">
-  <link rel="stylesheet" href="style.css?v=20261115">
+  <link rel="stylesheet" href="style.css?v=20261122">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="assets/site.webmanifest">
@@ -136,6 +136,11 @@
       </dl>
       <p style="font-size:0.875rem;color:var(--muted)">Free after 9pm during open play only. The gym closes at 10pm.</p>
       <p style="font-size:0.875rem">Cash, credit card, Zelle, and Venmo accepted.</p>
+      <!-- The same options the desk QR code opens (pay.html), folded away until opened; index.html#pay opens it. -->
+      <details id="pay" class="pay-details">
+        <summary>Pay now: Venmo, Zelle, or card</summary>
+        <div class="pay-widget" data-pay></div>
+      </details>
   </section>
 
   <section id="latest-results" hidden>
@@ -153,7 +158,7 @@
     <p class="tonight-text-box"><strong>Want to be included?</strong> <span class="nowrap"><a href="sms:+19252383505?&amp;body=I'll%20join%20CTTC's%20RR%20today">(925) 238-3505</a> Text us</span></p>
   </div>
   <ul>
-    <li>Pay in advance via Zelle or Venmo and skip the front desk. Text to confirm.</li>
+    <li><a href="#pay" data-open-pay>Pay in advance</a> via Zelle or Venmo and skip the front desk. Text to confirm.</li>
   </ul>
 
   <h3>Open play</h3>
@@ -171,6 +176,7 @@
 
 <script src="navtoggle.js"></script>
 <script src="tonight-launch.js"></script>
+<script src="pay.js?v=20261122"></script>
 
 <script>
 (function () {
@@ -378,6 +384,16 @@
         if (app.hidden) launch.click();
         try { launch.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (error) {}
       });
+    });
+  })();
+
+  // Pay now under Fees: opened by index.html#pay and by the links that point to it.
+  (function () {
+    var pay = document.getElementById("pay");
+    function openPay() { pay.open = true; try { pay.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (error) {} }
+    if (window.location.hash === "#pay") pay.open = true;
+    document.querySelectorAll("[data-open-pay]").forEach(function (link) {
+      link.addEventListener("click", function (event) { event.preventDefault(); openPay(); });
     });
   })();
 

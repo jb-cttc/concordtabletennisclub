@@ -71,8 +71,8 @@ function buildFooterBlock() {
 }
 
 // Pages with no site header: the desk's own pages, Text CTTC (text.html), whose head carries its own Home Screen icon, and
-// the front desk payment page and its printed QR sign (pay.html, pay-sign.html).
-var OWN_PAGES = ['desk.html', 'cash.html', 'meeting.html', 'text.html', 'pay.html', 'pay-sign.html'];
+// the front desk payment page (pay.html), which the desk QR code opens.
+var OWN_PAGES = ['desk.html', 'cash.html', 'meeting.html', 'text.html', 'pay.html'];
 var htmlFiles = fs.readdirSync(ROOT).filter(function (f) { return f.endsWith('.html') && OWN_PAGES.indexOf(f) < 0; });
 var updated = 0;
 var unchanged = 0;
