@@ -187,8 +187,13 @@ var TABS = {
   SeedReport: ['at', 'kind', 'name', 'count', 'candidates'],
   // Typed by the owner: one date per row (2026-11-13 or 11/13/2026) and a short public note. Those nights show as closed.
   Closures: ['date', 'note'],
+  // Each club weekday's point of contact (1 is Monday), the same person every week: whom that night's volunteers ask for help.
+  // Set only on the desk's Volunteer Admin page (adminRun_, kind 'contact'), to anyone on the desk's player list; name is
+  // their desk name then. A cleared weekday keeps its row with no player_id. The public calendar shows only the first name.
+  Contacts: ['weekday', 'day', 'player_id', 'name', 'updated_at'],
   // One row per change made on the desk's Volunteer Admin page (adminApply_): change_id groups one submission; kind add,
-  // remove, move or training; before and after in words; emailed 'yes' once the person was told ('-' for training).
+  // remove, move, training or contact; before and after in words; emailed 'yes' once the person was told ('-' for training
+  // and contact).
   AdminChanges: ['at', 'change_id', 'kind', 'ref', 'player_id', 'name', 'before', 'after', 'emailed'],
   // One row per message sent, reply read, step or failure. to is a code, never an address or number.
   Log: ['at', 'channel', 'kind', 'ref', 'to', 'detail']
@@ -618,7 +623,7 @@ function save_(name, entry) {
   range.setNumberFormat('@');
   range.setValues([headers.map(function (key) { return entry[key] == null ? '' : String(entry[key]); })]);
   entry._row = row;
-  if (name === 'Signups') boardChanged_();
+  if (name === 'Signups' || name === 'Contacts') boardChanged_();
 }
 
 // Columns added in a later version get their header names on the next sweep, so nobody has to run setup() again.
@@ -831,6 +836,42 @@ function dateUtc_(date) { return Date.UTC(Number(date.slice(0, 4)), Number(date.
 function validDate_(date) { return DATE_PATTERN.test(date) && new Date(dateUtc_(date)).toISOString().slice(0, 10) === date; }
 
 function weekday_(date) { return new Date(dateUtc_(date)).getUTCDay(); }
+
+// ---------- Points of contact ----------
+// Each club weekday's point of contact (the Contacts tab, set on Volunteer Admin): {1: {playerId, name}, ...}. A weekday with
+// none set is left out. rows: the Contacts tab when already read.
+function dayContacts_(rows) {
+  var out = {};
+  (rows || rows_('Contacts')).forEach(function (row) {
+    var day = Number(row.weekday);
+    var playerId = String(row.player_id || '').trim();
+    var name = String(row.name || '').replace(/\s+/g, ' ').trim();
+    if (NIGHTS[day] && playerId && name) out[day] = { playerId: playerId, name: name };
+  });
+  return out;
+}
+
+// "Point of contact for ALL Mondays"
+function contactLabel_(day) { return 'Point of contact for ALL ' + DAYS[day] + 's'; }
+
+// "Ada Park, ada.park@example.com, (925) 555-0188": the point of contact as the emails to confirmed volunteers show them, with
+// the email and mobile on file (Emails tab) when there are any. Never on the public calendar, which shows the first name only.
+function contactDetails_(contact, emails) {
+  var row = approvedEmail_(emails, contact.playerId);
+  return [contact.name, row ? cleanEmail_(row.email) : '', row ? phoneLabel_(row.phone) : ''].filter(Boolean).join(', ');
+}
+
+// [['Point of contact for ALL Mondays', 'Ada Park, ada.park@example.com'], ...]: one row for each weekday among these
+// shifts that has a point of contact, Monday first. emails: the Emails tab when already read.
+function contactRows_(entries, emails) {
+  var contacts = dayContacts_();
+  var days = {};
+  entries.forEach(function (entry) { if (contacts[weekday_(entry.date)]) days[weekday_(entry.date)] = true; });
+  var list = Object.keys(days).sort();
+  if (!list.length) return [];
+  emails = emails || rows_('Emails');
+  return list.map(function (day) { return [contactLabel_(day), contactDetails_(contacts[day], emails)]; });
+}
 
 function addDays_(date, days) { return new Date(dateUtc_(date) + days * 86400000).toISOString().slice(0, 10); }
 
@@ -1203,8 +1244,10 @@ function board_(signups, closures, now) {
   var horizon = horizon_();
   var site = siteClosures_();
   var holding = signups.filter(function (entry) { return holds_(entry, now) && entry.date >= horizon.first && entry.date <= horizon.last; });
+  var contacts = dayContacts_();
   var nights = nightsIn_(horizon).map(function (date) {
     var night = nightOf_(date, horizon, closures);
+    var contact = contacts[weekday_(date)];
     var here = holding.filter(function (entry) { return entry.date === date; });
     var labels = publicNames_(here);
     var slots = {};
@@ -1235,7 +1278,9 @@ function board_(signups, closures, now) {
     POSITIONS.forEach(function (spec) { slots[spec.id].forEach(function (slot) { delete slot.signupId; }); });
     return {
       date: date, day: dayLabel_(date), short: shortDay_(date), time: time12_(night.start) + ' to ' + time12_(night.end), start: night.start, end: night.end,
-      status: status, bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date),
+      status: status, bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date), 
+      // The point of contact by first name only ("J.B." for "J. B. Birch"), as the calendar shows volunteers.
+      contact: night.closed || !contact ? '' : firstName_(contact.name) || contact.name,
       missing: night.closed || night.past ? [] : missing_(here, now), wanted: status === 'covered' ? wanted_(here, now) : [], slots: slots, free: free
     };
   });
@@ -4247,6 +4292,8 @@ function batchMail_(batch, mine, now, bundle, signups) {
     // Answered with exceptions, or after a NO, or put right by the club: the email says plainly what is on the schedule now.
     var updated = ['yes except', 'yes again', 'club fix', 'my nights'].indexOf(batch.answer) >= 0;
     var perkNote = freeLines_(confirmed.filter(function (entry) { return entry.status === 'confirmed'; }), signups, now, true);
+    // Who to ask about these nights, with their email and mobile: this email goes only to the volunteer's own address.
+    var contacts = contactRows_(confirmed.filter(function (entry) { return entry.status === 'confirmed'; }));
     return { freeIds: perkNote.freeIds, subject: updated ? 'Understood: your CTTC volunteer nights are updated' : 'You are on the CTTC staff schedule', lines: [hello,
       updated ? { callout: 'Understood - we have updated the system with the following confirmed nights:', tone: 'good' } :
         { callout: 'Thank you! **' + confirmed.length + ' night' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
@@ -4259,6 +4306,9 @@ function batchMail_(batch, mine, now, bundle, signups) {
       onNewer.length ? 'Your newer sign-up replaces ' + (onNewer.length === 1 ? 'this one' : 'these') + ', so ' + (onNewer.length === 1 ? 'it was' : 'they were') + ' not confirmed here. Your YES to that email makes the change.' : null,
       onNewer.length ? shiftRows_(onNewer) : null,
       { heading: 'Where' }, LOCATION,
+      contacts.length ? { heading: 'Point of contact' } : null,
+      contacts.length ? 'Need help, or have a question about one of your nights? Get in touch with:' : null,
+      contacts.length ? { rows: contacts } : null,
       { heading: 'Can\'t make a night after all?' },
       'Untick it on your nights page and tap Save. The rest stay as they are, and the club is told: ' + mineLink_(batch.email)]) };
   }
@@ -4303,7 +4353,8 @@ function remind_(signups, emails, now) {
       sendMail_(key.split(' ')[0], 'Reminder: your CTTC shift tomorrow, ' + shortDay_(tomorrow), ['Hello ' + firstName_(entries[0].name) + ',',
         { callout: 'Thanks for helping run the club **tomorrow, ' + dayLabel_(tomorrow) + '**.', tone: 'good' }, shiftRows_(entries),
         freeReminder_(entries, signups, now),
-        { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]] },
+        { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]]
+          .concat(contactRows_(entries, emails)) },
         'Can\'t make it? Please untick it on your nights page so someone can step in: ' + mineLink_(key.split(' ')[0])], ['reminder', entries[0].batch_id]);
     } catch (error) {
       logError_('send a shift reminder', error, entries[0].batch_id);
@@ -4321,7 +4372,8 @@ function remind_(signups, emails, now) {
 // reads and changes this app's schedule and training through doPost (fn 'admin'), with the desk's admin key: the hidden
 // AppWake tab of the desk Sheet, column B, which only the desk writes. Every rule and every email stays here.
 //   board: every upcoming night with full names, the training lists, the last changes, the emails left today.
-//   apply: a bucket of changes (add someone to a shift, remove a shift, move one, give or take training), checked all
+//   apply: a bucket of changes (add someone to a shift, remove a shift, move one, give or take training, set or clear a
+//   weekday's point of contact), checked all
 //   together against the Sheet as it is now. Any problem and nothing is changed. With preview, nothing is changed either:
 //   the answer is the emails each person would get. Otherwise every change is saved, recorded in AdminChanges, and each
 //   person whose shifts changed gets one email saying what changed.
@@ -4391,7 +4443,16 @@ function adminBoard_() {
   });
   // Who has an email on file: the page asks for one only when adding someone who has none (ids only, never the address).
   var withEmail = {};
-  rows_('Emails').forEach(function (row) { if (String(row.status).trim().toLowerCase() === 'approved' && cleanEmail_(row.email)) withEmail[String(row.player_id).trim()] = true; });
+  var emails = rows_('Emails');
+  // Each weekday's point of contact, with the details confirmed volunteers are sent (their own email and mobile on file, which
+  // the club shares with that weekday's volunteers by choosing them) and the first name the public calendar shows.
+  var contacts = dayContacts_();
+  var contactList = Object.keys(NIGHTS).map(function (day) {
+    var held = contacts[day];
+    return { weekday: Number(day), day: DAYS[day], label: contactLabel_(day), playerId: held ? held.playerId : '', name: held ? held.name : '',
+      details: held ? contactDetails_(held, emails) : '', publicName: held ? firstName_(held.name) || held.name : '' };
+  });
+  emails.forEach(function (row) { if (String(row.status).trim().toLowerCase() === 'approved' && cleanEmail_(row.email)) withEmail[String(row.player_id).trim()] = true; });
   return {
     ok: true, today: horizon.today, mode: mode_(), quota: MailApp.getRemainingDailyQuota(), minQuota: MIN_QUOTA, maxChanges: ADMIN_MAX_CHANGES, noteMax: ADMIN_NOTE_MAX,
     withEmail: Object.keys(withEmail),
@@ -4400,7 +4461,7 @@ function adminBoard_() {
       return { id: spec.id, label: spec.label, part: spec.part, min: spec.min, full: spec.full || spec.min, max: spec.max, training: spec.training, alsoWith: spec.alsoWith || [] };
     }),
     skills: ADMIN_SKILLS.map(function (skill) { return { id: skill, label: SKILLS[skill] }; }),
-    nights: nights, training: training, recent: recent
+    nights: nights, training: training, recent: recent, contacts: contactList
   };
 }
 
@@ -4409,7 +4470,8 @@ function adminShift_(entry) { return shortDay_(entry.date) + ': ' + shiftLabel_(
 
 // Checks and applies a bucket of changes (see above). changes: [{ kind: 'remove', id, was: {date, position} } |
 // { kind: 'move', id, was, to: {date, position} } | { kind: 'add', playerId, to: {date, position}, email } |
-// { kind: 'training', playerId, skill, value }]. newPlayers: players the desk is adding with this bucket ([{playerId, name}]),
+// { kind: 'training', playerId, skill, value } | { kind: 'contact', weekday, playerId } (playerId '' clears that weekday)].
+// newPlayers: players the desk is adding with this bucket ([{playerId, name}]),
 // known to the desk though not yet in this app's cached player list.
 // An add is the club signing someone up itself, for when the normal sign-up is not working: it is confirmed at once (no YES
 // asked), and the person is emailed like everyone else the bucket changes. Someone with no email on file needs one typed
@@ -4481,6 +4543,25 @@ function adminRun_(changes, note, preview, known) {
     done.push({ index: index, kind: 'training', playerId: playerId, name: known[playerId], before: change.value ? 'no' : 'yes', after: change.value ? 'yes' : 'no',
       what: SKILLS[change.skill] });
   });
+  // Points of contact: one per club weekday, anyone on the desk's player list, or none. Nobody is emailed about it; the preview
+  // shows what volunteers will be told (contactPreview_).
+  var contactRows = rows_('Contacts');
+  var contactsNow = dayContacts_(contactRows);
+  var contactDays = {};
+  changes.forEach(function (change, index) {
+    if (!change || change.kind !== 'contact') return;
+    var day = Number(change.weekday);
+    var playerId = String(change.playerId || '');
+    if (!NIGHTS[day] || String(change.weekday) !== String(day)) return problem(index, 'That point of contact change is not valid.');
+    if (contactDays[day]) return problem(index, 'Two changes to the point of contact for ALL ' + DAYS[day] + 's. Keep one.');
+    contactDays[day] = true;
+    if (playerId && !known[playerId]) return problem(index, 'That player is not on the desk\'s active player list.');
+    var was = contactsNow[day] || null;
+    if ((was ? was.playerId : '') === playerId) {
+      return problem(index, playerId ? known[playerId] + ' is already the point of contact for ALL ' + DAYS[day] + 's.' : 'ALL ' + DAYS[day] + 's have no point of contact to clear.');
+    }
+    done.push({ index: index, kind: 'contact', weekday: day, playerId: playerId, name: playerId ? known[playerId] : '', was: was });
+  });
   // A new night, position and person for a move or an add: the same rules as the sign-up page, '' or the reason.
   var placeProblem = function (person, name, to, except) {
     var spec = position_(String(to.position || ''));
@@ -4499,7 +4580,9 @@ function adminRun_(changes, note, preview, known) {
     return '';
   };
   // Removals first, so a spot freed anywhere in the bucket can be filled by a move or an add in it.
-  var schedule = changes.map(function (change, index) { return { change: change, index: index }; }).filter(function (item) { return item.change && item.change.kind !== 'training'; });
+  var schedule = changes.map(function (change, index) { return { change: change, index: index }; }).filter(function (item) {
+    return item.change && item.change.kind !== 'training' && item.change.kind !== 'contact';
+  });
   schedule = schedule.filter(function (item) { return item.change.kind === 'remove'; }).concat(schedule.filter(function (item) { return item.change.kind !== 'remove'; }));
   var typedEmails = {};
   schedule.forEach(function (item) {
@@ -4587,7 +4670,7 @@ function adminRun_(changes, note, preview, known) {
   if (preview) {
     return { ok: true, preview: true, changes: done.length, emails: messages.map(function (message, index) {
       return { name: people[contacts[index]].name, to: maskEmail_(contacts[index]), subject: message.subject, text: message.lines.filter(Boolean).map(blockText_).filter(Boolean).join('\n\n') };
-    }) };
+    }), contacts: contactPreview_(done, emails) };
   }
 
   // Save: an email typed for someone added, each person's added shifts as one confirmed submission (as if they had said
@@ -4621,6 +4704,15 @@ function adminRun_(changes, note, preview, known) {
     row.updated_at = nowIso_();
     save_('Training', row);
   });
+  done.forEach(function (item) {
+    if (item.kind !== 'contact') return;
+    var row = contactRows.filter(function (entry) { return Number(entry.weekday) === item.weekday; })[0] || { weekday: String(item.weekday) };
+    row.day = DAYS[item.weekday];
+    row.player_id = item.playerId;
+    row.name = item.name;
+    row.updated_at = nowIso_();
+    save_('Contacts', row);
+  });
   // A sign-up whose every pick was taken off while it still waited for a YES has nothing left to ask: it is closed quietly
   // (the person's email about the change says what happened).
   var batchIds = {};
@@ -4638,6 +4730,10 @@ function adminRun_(changes, note, preview, known) {
   });
   var records = done.map(function (item) {
     var record = { at: nowIso_(), change_id: changeId, kind: item.kind, emailed: '' };
+    if (item.kind === 'contact') {
+      return Object.assign(record, { ref: 'weekday:' + item.weekday, player_id: item.playerId || (item.was ? item.was.playerId : ''), name: item.name || (item.was ? item.was.name : ''),
+        before: contactLabel_(item.weekday) + ': ' + (item.was ? item.was.name : 'none'), after: contactLabel_(item.weekday) + ': ' + (item.name || 'none'), emailed: '-' });
+    }
     if (item.kind === 'training') return Object.assign(record, { ref: item.playerId, player_id: item.playerId, name: item.name, before: item.what + ': ' + item.before, after: item.what + ': ' + item.after, emailed: '-' });
     if (item.kind === 'add') {
       return Object.assign(record, { ref: item.entry.signup_id, player_id: item.entry.player_id, name: item.entry.name, before: 'not signed up',
@@ -4678,6 +4774,18 @@ function adminRun_(changes, note, preview, known) {
   });
   logRow_('step', 'step:club-change', changeId, '-', done.length + ' changes, ' + emailed + ' of ' + contacts.length + ' people emailed');
   return { ok: true, changeId: changeId, changes: done.length, emailed: emailed, people: contacts.length };
+}
+
+// What each point of contact change in a bucket will show, for the club's review: the weekday, the first name on the public
+// calendar, and the name, email and mobile confirmed volunteers are sent (with a warning when there is no email on file).
+function contactPreview_(done, emails) {
+  return done.filter(function (item) { return item.kind === 'contact'; }).map(function (item) {
+    var contact = { playerId: item.playerId, name: item.name };
+    var row = item.playerId ? approvedEmail_(emails, item.playerId) : null;
+    return { weekday: item.weekday, label: contactLabel_(item.weekday), name: item.name, was: item.was ? item.was.name : '',
+      publicName: item.playerId ? firstName_(item.name) || item.name : '', details: item.playerId ? contactDetails_(contact, emails) : '',
+      warning: item.playerId && !row ? item.name + ' has no email on file, so volunteers are sent the name only.' : '' };
+  });
 }
 
 // The email to one person about the club's changes to their shifts. after: every sign-up as it will be; before: as it was.
