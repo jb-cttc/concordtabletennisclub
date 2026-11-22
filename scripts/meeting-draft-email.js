@@ -8,7 +8,9 @@
 //                                                                      meeting.json and summary.json (written by hand)
 //   npm run meeting:draft -- send    --dir <dir> [--resend]             sends that draft to summary.to through the
 //                                                                      meeting mailer (meeting-mailer/), from the club
-//                                                                      account, subject "[DRAFT NOTES] ..."
+//                                                                      account, subject "[DRAFT NOTES] ...", with a
+//                                                                      copy to the club account (its Inbox keeps it;
+//                                                                      a script's email is not filed in Sent)
 //
 // summary.json is the part written for each meeting: the note to the secretary, decisions, what was said on each
 // item, the follow-ups cleaned up, open questions (scripts/lib/meeting-email.js lists its fields). Meeting records
@@ -17,7 +19,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { callApp } = require('./lib/apps-script-call');
+const { callApp, accountEmail } = require('./lib/apps-script-call');
 const email = require('./lib/meeting-email');
 
 const ROOT = path.join(__dirname, '..');
@@ -59,7 +61,8 @@ function build(dir) {
   } else if (command === 'send') {
     const dir = outside(option('dir'));
     const draft = build(dir);
-    const result = await callApp({ dir: 'meeting-mailer', marker: '#ready', fn: 'sendDraftNotes', args: [{ to: [draft.summary.to.email], subject: draft.subject, html: draft.html, text: draft.text, meetingId: draft.meeting.id, resend: args.includes('--resend') }] });
+    const club = await accountEmail();
+    const result = await callApp({ dir: 'meeting-mailer', marker: '#ready', fn: 'sendDraftNotes', args: [{ to: [draft.summary.to.email], copy: [club], subject: draft.subject, html: draft.html, text: draft.text, meetingId: draft.meeting.id, resend: args.includes('--resend') }] });
     console.log(JSON.stringify(result, null, 1));
   } else {
     console.error('Use: npm run meeting:draft -- fetch --out <dir> | preview --dir <dir> | send --dir <dir> [--resend]');
