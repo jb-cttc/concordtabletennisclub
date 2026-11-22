@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
 
     steps:
       - name: Check out repository
@@ -149,8 +149,22 @@ jobs:
         with:
           path: _site
 
+      # GitHub sometimes cannot find the site it was just given ("No artifacts named github-pages were found": 4 of 60
+      # runs in November 2026, none of them ours to fix) and a re-run then works. So a failed first try waits 30 seconds
+      # and tries once more, rather than leaving the site waiting for the next scheduled run; a second failure fails
+      # the run as before.
       - name: Deploy to GitHub Pages
         id: deployment
+        continue-on-error: true
+        uses: actions/deploy-pages@v4.0.5
+
+      - name: Wait before trying the deploy again
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages (second try)
+        id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4.0.5
 
       - name: Send session summary email

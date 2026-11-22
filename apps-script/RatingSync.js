@@ -64,6 +64,9 @@ function applyPublicRatings_(data, timings) {
   data.players.forEach(function (player) {
     var key = normalizeName_(player.name).toLowerCase();
     if (!key || published[key] !== undefined) throw new Error('Duplicate or blank public player: ' + player.name);
+    // Someone who has only played the Equalizer has an EQ rating but no round robin rating yet (currentRating null):
+    // nothing to sync for them. Any other value that is not a whole rating still stops the sync.
+    if (player.currentRating === null && !player.sessionsPlayed) return;
     if (!Number.isInteger(player.currentRating) || player.currentRating < 0 || player.currentRating > 4000) throw new Error('Invalid public rating for ' + player.name);
     published[key] = player.currentRating;
   });
