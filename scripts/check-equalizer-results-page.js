@@ -4,13 +4,11 @@
 // publish code (lib/equalizer-fixture.js) shows its pilot banner, every group with its winner, and the Finals bracket
 // with the byes and the champion's trophy. Made-up players only.
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const path = require('path');
+const site = require('./lib/site-build');
 const { JSDOM } = require('jsdom');
 const { publishedEqualizer } = require('./lib/equalizer-fixture');
 
-const ROOT = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(ROOT, 'roundrobins.html'), 'utf8');
+const html = site.read('roundrobins.html');
 const block = (html.match(/<script>[\s\S]*?<\/script>/g) || []).find(text => text.includes('var PILOTS'));
 assert.ok(block, 'the Equalizer script was found');
 const body = /<body>([\s\S]*)<\/body>/.exec(html)[1].replace(/<script[\s\S]*?<\/script>/g, '').replace(/<script[^>]*src=[^>]*><\/script>/g, '');
@@ -27,7 +25,7 @@ async function page(sessions, details) {
     return data ? Promise.resolve({ json: () => Promise.resolve(JSON.parse(JSON.stringify(data))) }) : Promise.reject(new Error('not found'));
   };
   dom.window.Element.prototype.scrollIntoView = () => {};
-  dom.window.eval(fs.readFileSync(path.join(ROOT, 'standings.js'), 'utf8'));
+  dom.window.eval(site.read('standings.js'));
   dom.window.eval(block.replace(/^<script>|<\/script>$/g, ''));
   for (let i = 0; i < 10; i += 1) await settle();
   return { dom, fetched, $: s => dom.window.document.querySelector(s), $$: s => [...dom.window.document.querySelectorAll(s)] };

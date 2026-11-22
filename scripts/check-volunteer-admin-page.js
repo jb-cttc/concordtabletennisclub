@@ -5,12 +5,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const site = require('./lib/site-build');
 const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'volunteer-admin.html'), 'utf8');
-const desk = fs.readFileSync(path.join(root, 'desk.html'), 'utf8');
-const home = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const html = site.read('volunteer-admin.html');
+const desk = site.read('desk.html');
+const home = site.read('index.html');
 
 const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)[1];
 assert.match(csp, /default-src 'none'/);

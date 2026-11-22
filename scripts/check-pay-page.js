@@ -2,7 +2,8 @@
 
 // Pay for tonight (pay.js), on the page the desk QR code opens (pay.html) and folded under Fees on the home page: it asks
 // the same fees the desk charges (apps-script/NightFees.js); Venmo and Zelle open only with the key in the desk code's
-// link (scripts/pay-lock.js); and the Venmo button carries the amount for who's playing, or the special's fee.
+// link (scripts/pay-lock.js); and the Venmo button carries the amount for who's playing, or the special's fee. The pages,
+// pay.js and style.css are read as deployed (_site, scripts/lib/site-build.js), so one the deploy leaves out fails here.
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -11,12 +12,13 @@ const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const lock = require('./pay-lock.js');
+const site = require('./lib/site-build');
 
 const root = path.join(__dirname, '..');
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
-const script = read('pay.js');
-const payPage = read('pay.html');
-const home = read('index.html');
+const script = site.read('pay.js');
+const payPage = site.read('pay.html');
+const home = site.read('index.html');
 
 const desk = {};
 vm.runInNewContext(read('apps-script/NightFees.js'), desk);
@@ -34,32 +36,25 @@ assert.match(home, /<script src="pay\.js\?v=\d+"><\/script>/);
 assert.doesNotMatch(read('scripts/sync-nav.js').match(/const NAV_LINKS = \[[\s\S]*?\];/)[0], /pay\.html/, 'not in the menu');
 
 // The intro on pay.html ends by itself (CSS, not script) and is left out for reduced motion.
-const css = read('style.css');
+const css = site.read('style.css');
 assert.match(css, /\.pay-intro \{[^}]*animation: pay-intro-out[^}]*forwards;/);
 assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.pay-intro \{ display: none; \}/);
-assert.ok(fs.existsSync(path.join(root, 'assets/pay-qr.svg')), 'the desk QR code the intro shows');
-
-// The site deploy (.github/workflows/update-data.yml) copies only the scripts it names: every local script a page loads
-// must be among them, or the live page loads without it (pay.js was missed once, and the page showed no options).
-const deploy = /^\s*cp \*\.html ([^\n]+) _site\/$/m.exec(read('.github/workflows/update-data.yml'));
-assert.ok(deploy, 'the deploy copies the site pages');
-const copied = new Set(deploy[1].split(/\s+/));
-fs.readdirSync(root).filter(name => name.endsWith('.html')).forEach(name => {
-  const loaded = [...read(name).matchAll(/<script src="([\w.-]+\.js)(\?[^"]*)?"/g)].map(match => match[1]);
-  loaded.forEach(file => assert.ok(copied.has(file), name + ' loads ' + file + ', which the site deploy does not copy'));
-});
+assert.ok(site.has('assets/pay-qr.svg'), 'the QR code the intro shows');
 
 // The monthly pass button is the same Zeffy page the home page and Membership page link to.
 const zeffy = /var ZEFFY = "([^"]+)"/.exec(script)[1];
 assert.match(home, new RegExp('<dd>\\$65/month, auto-pay \\(<a href="' + zeffy.replace(/[.?]/g, '\\$&') + '"'), 'the Fees Play Pass link');
-assert.ok(read('membership.html').includes('href="' + zeffy + '"'), 'the Membership page link');
+assert.ok(site.read('membership.html').includes('href="' + zeffy + '"'), 'the Membership page link');
 
 // The Venmo and Zelle details are only sealed in pay.js (scripts/pay-lock.js), never readable in the repository.
 const locked = /^  var LOCKED = "([A-Za-z0-9_-]*)";$/m.exec(script);
 assert.ok(locked, 'pay.js has its LOCKED line');
 assert.doesNotMatch(script, /\b(venmo|zelle|zelleName|venmoLast4): "/, 'no account written out in pay.js');
 assert.doesNotMatch(script, /\(?\b\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}\b/, 'no phone number in pay.js');
-assert.doesNotMatch(read('pay.html') + home, /#k=[A-Za-z0-9_-]{22}/, 'the desk key is not on the site');
+// Nor the desk key anywhere on the published site.
+fs.readdirSync(site.dir()).filter(name => /\.(html|js|css)$/.test(name)).forEach(name => {
+  assert.doesNotMatch(site.read(name), /#k=[A-Za-z0-9_-]{22}/, 'no desk key in ' + name);
+});
 
 const TEST = { venmo: 'Test-Club', venmoLast4: '1234', zelle: '5105550123', zelleName: 'Test Treasurer' };
 const settle = () => new Promise(resolve => setTimeout(resolve, 50));

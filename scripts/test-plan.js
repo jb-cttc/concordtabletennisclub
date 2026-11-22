@@ -61,7 +61,9 @@ function deskPage() {
   return files;
 }
 const DYNAMIC = {
-  'scripts/lib/desk-sim.js': () => fs.readdirSync(path.join(ROOT, 'apps-script')).filter(name => /^[A-Z].*\.js$/.test(name)).map(name => 'apps-script/' + name).concat(deskPage())
+  'scripts/lib/desk-sim.js': () => fs.readdirSync(path.join(ROOT, 'apps-script')).filter(name => /^[A-Z].*\.js$/.test(name)).map(name => 'apps-script/' + name).concat(deskPage()),
+  // The site check reads every file the deploy publishes (scripts/lib/site-build.js lists them from the workflow).
+  'scripts/check-site-build.js': () => require('./lib/site-build').sources()
 };
 const APP_DIRS = ['coaching-app', 'meeting-app', 'meeting-mailer', 'staffing-app', 'subscribe-app', 'turnout-app'];
 
