@@ -19,6 +19,10 @@
 var TZ = 'America/Los_Angeles';
 // Club nights by weekday (0 is Sunday): Monday, Wednesday and Friday 7 to 10 PM, Saturday 3 to 6 PM, Pacific.
 var NIGHTS = { 1: { start: '19:00', end: '22:00' }, 3: { start: '19:00', end: '22:00' }, 5: { start: '19:00', end: '22:00' }, 6: { start: '15:00', end: '18:00' } };
+// Each club night's point of contact, by weekday: the same person every week, whom any volunteer that night asks for help or
+// about anything to do with the night. First names only, as the calendar shows volunteers. Shown on the night's panel and in
+// its WhatsApp message (staffBoard), and in the confirmation and day-before reminder emails (contactOn_, contactRows_).
+var DAY_CONTACTS = { 1: 'Raymond', 3: 'JB', 5: 'Bryan', 6: 'Ngai Chi' };
 // The calendar shows the current month and the next two, in Pacific time: on November 1st, January opens.
 var MONTHS_SHOWN = 3;
 // Tonight can be picked until an hour before the club opens, and a hold never lasts past that point either.
@@ -831,6 +835,14 @@ function dateUtc_(date) { return Date.UTC(Number(date.slice(0, 4)), Number(date.
 function validDate_(date) { return DATE_PATTERN.test(date) && new Date(dateUtc_(date)).toISOString().slice(0, 10) === date; }
 
 function weekday_(date) { return new Date(dateUtc_(date)).getUTCDay(); }
+// The night's point of contact (DAY_CONTACTS), or '' for a weekday that has none.
+function contactOn_(date) { return DAY_CONTACTS[weekday_(date)] || ''; }
+// [['Mondays', 'Raymond'], ...]: the point of contact for each weekday among these shifts, Monday first.
+function contactRows_(entries) {
+  var days = {};
+  entries.forEach(function (entry) { if (contactOn_(entry.date)) days[weekday_(entry.date)] = true; });
+  return Object.keys(days).sort().map(function (day) { return [DAYS[day] + 's', DAY_CONTACTS[day]]; });
+}
 
 function addDays_(date, days) { return new Date(dateUtc_(date) + days * 86400000).toISOString().slice(0, 10); }
 
@@ -1235,7 +1247,7 @@ function board_(signups, closures, now) {
     POSITIONS.forEach(function (spec) { slots[spec.id].forEach(function (slot) { delete slot.signupId; }); });
     return {
       date: date, day: dayLabel_(date), short: shortDay_(date), time: time12_(night.start) + ' to ' + time12_(night.end), start: night.start, end: night.end,
-      status: status, bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date),
+      status: status, bookable: night.bookable, note: night.closed ? night.note : siteNote_(site, date), contact: night.closed ? '' : contactOn_(date),
       missing: night.closed || night.past ? [] : missing_(here, now), wanted: status === 'covered' ? wanted_(here, now) : [], slots: slots, free: free
     };
   });
@@ -4247,6 +4259,7 @@ function batchMail_(batch, mine, now, bundle, signups) {
     // Answered with exceptions, or after a NO, or put right by the club: the email says plainly what is on the schedule now.
     var updated = ['yes except', 'yes again', 'club fix', 'my nights'].indexOf(batch.answer) >= 0;
     var perkNote = freeLines_(confirmed.filter(function (entry) { return entry.status === 'confirmed'; }), signups, now, true);
+    var contacts = contactRows_(confirmed.filter(function (entry) { return entry.status === 'confirmed'; }));
     return { freeIds: perkNote.freeIds, subject: updated ? 'Understood: your CTTC volunteer nights are updated' : 'You are on the CTTC staff schedule', lines: [hello,
       updated ? { callout: 'Understood - we have updated the system with the following confirmed nights:', tone: 'good' } :
         { callout: 'Thank you! **' + confirmed.length + ' night' + (confirmed.length === 1 ? ' is' : 's are') + ' confirmed.** We email you a reminder the day before each one.', tone: 'good' },
@@ -4259,6 +4272,9 @@ function batchMail_(batch, mine, now, bundle, signups) {
       onNewer.length ? 'Your newer sign-up replaces ' + (onNewer.length === 1 ? 'this one' : 'these') + ', so ' + (onNewer.length === 1 ? 'it was' : 'they were') + ' not confirmed here. Your YES to that email makes the change.' : null,
       onNewer.length ? shiftRows_(onNewer) : null,
       { heading: 'Where' }, LOCATION,
+      contacts.length ? { heading: 'Point of contact' } : null,
+      contacts.length ? 'Need help, or have a question about a night? Ask that night\'s point of contact:' : null,
+      contacts.length ? { rows: contacts } : null,
       { heading: 'Can\'t make a night after all?' },
       'Untick it on your nights page and tap Save. The rest stay as they are, and the club is told: ' + mineLink_(batch.email)]) };
   }
@@ -4303,7 +4319,8 @@ function remind_(signups, emails, now) {
       sendMail_(key.split(' ')[0], 'Reminder: your CTTC shift tomorrow, ' + shortDay_(tomorrow), ['Hello ' + firstName_(entries[0].name) + ',',
         { callout: 'Thanks for helping run the club **tomorrow, ' + dayLabel_(tomorrow) + '**.', tone: 'good' }, shiftRows_(entries),
         freeReminder_(entries, signups, now),
-        { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]] },
+        { rows: [['Where', LOCATION, 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(LOCATION)]]
+          .concat(contactOn_(tomorrow) ? [['Point of contact', contactOn_(tomorrow) + ' (ask them if you need help tomorrow)']] : []) },
         'Can\'t make it? Please untick it on your nights page so someone can step in: ' + mineLink_(key.split(' ')[0])], ['reminder', entries[0].batch_id]);
     } catch (error) {
       logError_('send a shift reminder', error, entries[0].batch_id);

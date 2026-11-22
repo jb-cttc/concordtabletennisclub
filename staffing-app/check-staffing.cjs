@@ -333,6 +333,9 @@ assert.equal(properties.STAFFING_DB_ID, 'private-book-id');
   assert.equal(night('2026-10-19').bookable, true, 'tonight can be picked in the morning');
   assert.equal(night('2026-10-24').time, '3:00 PM to 6:00 PM', 'Saturday is 3 to 6');
   assert.equal(night('2026-10-21').time, '7:00 PM to 10:00 PM');
+  // Each night's point of contact: the same person every week for its weekday (DAY_CONTACTS), one for every club night.
+  assert.deepEqual(Object.keys(context.DAY_CONTACTS).sort(), Object.keys(context.NIGHTS).sort(), 'every club night has a point of contact');
+  assert.ok(view.nights.every(entry => entry.contact && entry.contact === context.DAY_CONTACTS[new Date(entry.date + 'T12:00:00Z').getUTCDay()]));
   clock = pacificAt('2026-10-31', '23:59');
   assert.deepEqual(board().months.map(month => month.title), ['October 2026', 'November 2026', 'December 2026']);
   clock = pacificAt('2026-11-01', '00:01');
@@ -443,6 +446,10 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   const done = mailTo('hal.reed@example.com').pop();
   assert.equal(done.subject, 'You are on the CTTC staff schedule');
   assert.match(done.body, /3 nights are confirmed/);
+  const contacts = context.DAY_CONTACTS;
+  assert.ok(done.body.includes('Ask that night\'s point of contact:\n\nMondays: ' + contacts[1] + '\nWednesdays: ' + contacts[3] + '\nFridays: ' + contacts[5] + '\n'),
+    'the confirmation names the point of contact for each weekday confirmed, and only those');
+  assert.ok(!done.body.includes('Saturdays: '));
   assert.equal(night('2026-10-26').slots.desk[0].pending, false);
   assert.match(night('2026-10-26').slots.desk[0].id, /^[0-9a-f]{16}$/, 'a confirmed slot carries an id for "This is me"');
   const count = sent.length;
@@ -557,6 +564,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   grids.Closures.push(['2026-10-24', 'Gym closed for an event'], [new Date(pacificAt('2026-10-31', '00:00')), 'Halloween'], ['11/14/2026', ''], ['not a date', 'ignored']);
   assert.equal(night('2026-10-24').status, 'closed');
   assert.equal(night('2026-10-24').note, 'Gym closed for an event');
+  assert.equal(night('2026-10-24').contact, '', 'a closed night needs no point of contact');
   assert.equal(night('2026-10-24').bookable, false);
   assert.equal(night('2026-10-31').status, 'closed', 'a cell the Sheet turned into a date still works');
   assert.equal(night('2026-11-14').status, 'closed', 'as does 11/14/2026');
@@ -1231,6 +1239,7 @@ const seedCheck = () => {
   assert.equal(reminders.length, 1);
   assert.equal(reminders[0].subject, 'Reminder: your CTTC shift tomorrow, Mon, Nov 23');
   assert.match(reminders[0].body, /Put tables and barriers away \(closing, 10:00 PM\)/);
+  assert.ok(reminders[0].body.includes('Point of contact: ' + context.DAY_CONTACTS[1] + ' (ask them if you need help tomorrow)'), 'the reminder names Monday\'s point of contact');
   context.sweep();
   clock += 3600000;
   context.sweep();
@@ -2230,13 +2239,15 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   cellFor('2026-12-02').click();
   const panel = document.getElementById('night');
   assert.match(panel.textContent, /Wednesday, December 2, 2026/);
+  assert.equal(panel.querySelector('.contact').textContent, 'Need help, or have a question about Wednesday nights? Point of contact: ' + context.DAY_CONTACTS[3]);
   // Share to WhatsApp: the message is typed in WhatsApp, which opens straight away on a phone (no layout here: a desktop).
   const share = panel.querySelector('a.share');
   assert.equal(share.textContent, 'Share to WhatsApp');
   assert.match(share.href, /^https:\/\/wa\.me\/\?text=/);
   assert.equal(share.target, '_blank');
   const shared = decodeURIComponent(share.href.split('?text=')[1]);
-  assert.match(shared, /^🏓 \*CTTC volunteers: Wednesday, December 2, 2026\*\n7:00 PM to 10:00 PM\n\n⚠️ \*Still needed:\* a desk organizer, a money collector/);
+  assert.ok(shared.startsWith('🏓 *CTTC volunteers: Wednesday, December 2, 2026*\n7:00 PM to 10:00 PM\n🙋 Point of contact: ' + context.DAY_CONTACTS[3] + '\n\n'), 'the message names the night\'s point of contact');
+  assert.match(shared, /^🏓 \*CTTC volunteers: Wednesday, December 2, 2026\*\n7:00 PM to 10:00 PM\n.*\n\n⚠️ \*Still needed:\* a desk organizer, a money collector/);
   assert.match(shared, /\*Opening, 7:00 PM\*\n• Nobody yet\n\n\*Closing, 10:00 PM\*\n• Nobody yet\n\nCan you help\? https:\/\/concordtabletennisclub\.com\/ → Volunteer signups$/);
   {
     // Confirmed names only, by position, first names as the calendar shows them; a waiting pick is left out.

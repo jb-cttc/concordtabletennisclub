@@ -99,6 +99,7 @@
   .pos-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; font-size: 0.95rem; }
   .pos-head span { color: #666; font-size: 0.8rem; }
   .does { margin: 2px 0 0; color: #555; font-size: 0.82rem; }
+  .contact { margin: 6px 0 0; font-size: 0.95rem; }
   .night-note { padding: 6px 10px; background: #fff4d6; border-left: 4px solid #c98a00; border-radius: 4px; font-size: 0.9rem; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; align-items: center; }
   .chip { display: inline-block; padding: 5px 10px; border-radius: 16px; font-size: 0.9rem; border: 1px solid #ccc; background: #fafafa; color: #1c1c1c; font-weight: 600; }
@@ -421,6 +422,9 @@
       area.appendChild(panel);
       return;
     }
+    // The night's point of contact (DAY_CONTACTS in Code.js): the same person every week, whom that night's volunteers ask.
+    if (night.contact) panel.appendChild(el('p', { 'class': 'contact' }, ['Need help, or have a question about ' + weekdayName(night.date) + ' nights? Point of contact: ',
+      el('b', { text: night.contact })]));
     // Open with changes (closures.json: reduced play area, or a holiday): still needs volunteers.
     if (night.note) panel.appendChild(el('p', { 'class': 'night-note', text: '\u2139 ' + night.note }));
     if (night.free) panel.appendChild(perkBox(night));
@@ -514,6 +518,7 @@
     var names = function (spec) { return night.slots[spec.id].filter(function (slot) { return !slot.pending; }).map(function (slot) { return slot.name; }); };
     var lines = ['🏓 *CTTC volunteers: ' + night.day + '*', night.time];
     if (night.note) lines.push('ℹ️ ' + night.note);
+    if (night.contact) lines.push('🙋 Point of contact: ' + night.contact);
     if (night.free) {
       lines.push('', '🎁 *Volunteer tonight, play free:* the first ' + night.free.spots + ' to sign up to open and the first ' + night.free.spots + ' to close play free (everyone else pays $' + night.free.fee + ').');
       ['open', 'close'].forEach(function (part) { lines.push('• ' + (part === 'open' ? 'Opening' : 'Closing') + ': ' + freeLine(night, part).text); });
