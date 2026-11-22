@@ -4,12 +4,10 @@
 // sign-up app (staffing-app/) reads it so a closed night asks for no volunteers.
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const site = require('./lib/site-build');
 const { JSDOM } = require('jsdom');
 
-const root = path.join(__dirname, '..');
-const data = JSON.parse(fs.readFileSync(path.join(root, 'data', 'closures.json'), 'utf8'));
+const data = JSON.parse(site.read('data/closures.json'));
 
 assert.ok(Array.isArray(data.months) && data.months.length, 'months to draw');
 data.months.forEach(month => assert.match(month, /^\d{4}-(0[1-9]|1[0-2])$/));
@@ -26,7 +24,7 @@ Object.keys(data.days).forEach(day => {
 });
 
 // The home page draws both from the file; nothing about closures is written into the page itself.
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const html = site.read('index.html');
 assert.match(html, /<ul id="closure-list"><\/ul>/, 'the list comes from data/closures.json');
 assert.doesNotMatch(html, /"20\d\d-\d\d-\d\d":\s*"(full|partial|holiday)"/, 'no closure dates in the page');
 const block = /\n  \/\/ Closures come from data\/closures\.json[\s\S]*?\.catch\(function \(\) \{\}\);\n/.exec(html);

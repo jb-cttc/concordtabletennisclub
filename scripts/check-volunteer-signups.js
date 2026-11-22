@@ -7,10 +7,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const site = require('./lib/site-build');
 const { JSDOM } = require('jsdom');
 
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const html = site.read('index.html');
 
 const block = /\n  \/\/ Volunteer signups:[\s\S]*?\n  \}\)\(\);\n/.exec(html);
 assert.ok(block, 'the volunteer script was found');

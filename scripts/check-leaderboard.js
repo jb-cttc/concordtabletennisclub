@@ -3,12 +3,10 @@
 // The Leaderboard (leaderboard.html): every column heading sorts its table, a second tap reverses it, and the Rank column
 // keeps showing each player's real rank. Made-up players only.
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const path = require('path');
+const site = require('./lib/site-build');
 const { JSDOM } = require('jsdom');
 
-const ROOT = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(ROOT, 'leaderboard.html'), 'utf8');
+const html = site.read('leaderboard.html');
 const block = (html.match(/<script>[\s\S]*?<\/script>/g) || []).find(text => text.includes('leaderboard-body'));
 assert.ok(block, 'the leaderboard script was found');
 const body = /<body>([\s\S]*)<\/body>/.exec(html)[1].replace(/<script[\s\S]*?<\/script>/g, '');
@@ -95,7 +93,7 @@ const players = [
   assert.equal(heading(improved, 'Was').getAttribute('aria-sort'), 'ascending', 'a new period keeps the sort');
 
   // Phones keep Sessions on screen (only Trend is hidden), so the list can be sorted by it there too.
-  const css = fs.readFileSync(path.join(ROOT, 'style.css'), 'utf8');
+  const css = site.read('style.css');
   const phone = /@media \(max-width: 640px\) \{[\s\S]*?\n\}/g;
   const phoneCss = (css.match(phone) || []).join('\n');
   assert.match(phoneCss, /\.leaderboard-table:not\(\.improved-table\) th:nth-child\(4\),\n\s*\.leaderboard-table:not\(\.improved-table\) td:nth-child\(4\) \{\n\s*display: none;/);

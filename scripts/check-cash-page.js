@@ -3,11 +3,12 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const site = require('./lib/site-build');
 const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'cash.html'), 'utf8');
-const desk = fs.readFileSync(path.join(root, 'desk.html'), 'utf8');
+const html = site.read('cash.html');
+const desk = site.read('desk.html');
 
 // What the page may load and how it is indexed.
 const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)[1];

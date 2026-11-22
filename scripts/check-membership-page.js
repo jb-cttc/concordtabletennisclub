@@ -4,11 +4,9 @@
 // (Volunteer signups live on the home page: scripts/check-volunteer-signups.js.)
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const site = require('./lib/site-build');
 
-const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'membership.html'), 'utf8');
+const html = site.read('membership.html');
 
 const cash = /<a id="cash-launch"[^>]*>/.exec(html);
 assert.ok(cash, 'the Cash flow button is on the page');
@@ -43,7 +41,7 @@ const links = html.match(/<a href="[^"]*\.pdf"[^>]*>[^<]*<\/a>/g) || [];
 assert.ok(links.length >= 2 && links.every((a) => a.includes(`href="${FORM}"`) && a.includes('2027 membership form')), 'every form link downloads the 2027 form');
 assert.ok(offer[0].includes(`href="${FORM}"`), 'the offer links the 2027 form');
 assert.doesNotMatch(html, /2026 (membership form|pricing)|cttc-memberships/i, 'nothing offers the 2026 form or pricing');
-const pdf = fs.readFileSync(path.join(root, FORM));
+const pdf = site.read(FORM, null);
 assert.equal(pdf.subarray(0, 5).toString(), '%PDF-', 'the 2027 form is a PDF in the repository');
 
 console.log('Membership page checks passed');

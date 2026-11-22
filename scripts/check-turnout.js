@@ -6,14 +6,16 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const site = require('./lib/site-build');
 const { JSDOM } = require('jsdom');
 const T = require('../turnout');
 
 const root = path.join(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+// The pages and scripts as deployed (_site): a file the deploy leaves out fails here (scripts/lib/site-build.js).
+const published = file => site.read(file);
 
-assert.equal(read('turnout-app/Turnout.js'), read('turnout.js'), 'turnout-app/Turnout.js is an exact copy of turnout.js: cp turnout.js turnout-app/Turnout.js');
-assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html [^\n]*\bturnout\.js\b[^\n]* _site\//, 'the site publishes turnout.js');
+assert.equal(read('turnout-app/Turnout.js'), published('turnout.js'), 'turnout-app/Turnout.js is an exact copy of the published turnout.js: cp turnout.js turnout-app/Turnout.js');
 
 // ---- Rating zones: the bottom of each range is in it, the top is not ----
 [[0, 0], [599, 0], [600, 1], [799, 1], [800, 2], [999, 2], [1000, 3], [1199, 3], [1200, 4], [1399, 4], [1400, 5],
@@ -160,19 +162,19 @@ assert.equal(split.unrated.expected, 0);
 assert.equal(T.tally([{ key: 'a', rating: 700, status: 'maybe', chance: 0.5 }], 20).unrated.expected, 0, 'with a forecast to share it by, nothing waits at the front desk');
 
 // ---- The page ----
-const html = read('tonight.html');
+const html = published('tonight.html');
 const turnoutUrl = /var TURNOUT_URL = "([^"]*)";/.exec(html);
 assert.ok(turnoutUrl, 'the app address is set in one place');
 assert.ok(turnoutUrl[1] === '' || /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(turnoutUrl[1]), 'empty, or a released /exec address, never /dev');
 if (turnoutUrl[1]) assert.ok(read('docs/turnout-flow.md').includes(turnoutUrl[1]), 'the address is written down for maintainers');
 assert.ok(html.indexOf('<script src="turnout.js"></script>') > 0);
 assert.ok(html.indexOf('id="tonight-summary-wrap"') < html.indexOf('id="gym-floor"'), 'the plain table sits above the floor');
-assert.match(read('roundrobins.html'), /href="tonight\.html"/, 'the Round Robins page links to it');
-assert.match(read('index.html'), /href="tonight\.html"/, 'the home page links to it');
+assert.match(published('roundrobins.html'), /href="tonight\.html"/, 'the Round Robins page links to it');
+assert.match(published('index.html'), /href="tonight\.html"/, 'the home page links to it');
 // Beside the button on both pages, the number always fills in the join text, whatever the day: "?&body=" is read by
 // iPhone, iPad and Mac Messages (after the "&") and by Android (after the "?"), so the link needs no script.
 ['index.html', 'roundrobins.html'].forEach(file => {
-  const teaser = new JSDOM(read(file)).window.document.querySelector('.tonight-teaser');
+  const teaser = new JSDOM(published(file)).window.document.querySelector('.tonight-teaser');
   assert.equal(teaser.querySelector('.tonight-launch').textContent, 'See who’s playing tonight', file);
   const box = teaser.querySelector('.tonight-text-box');
   assert.equal(box.textContent, 'Want to be included? (925) 238-3505 Text us', file);
@@ -184,13 +186,12 @@ assert.match(html, /<a href="roundrobins\.html" class="active">/, 'Tonight is pa
 // Coming back to the button: tonight-launch.js, on both pages, notes where the button sat on the screen when it was
 // tapped and, on Back, scrolls so it sits there again (the home page is built as it loads, so the browser's own guess
 // lands far below it).
-const launchSource = read('tonight-launch.js');
+const launchSource = published('tonight-launch.js');
 ['index.html', 'roundrobins.html'].forEach(file => {
-  assert.ok(read(file).includes('<script src="tonight-launch.js"></script>'), file + ' loads tonight-launch.js');
+  assert.ok(published(file).includes('<script src="tonight-launch.js"></script>'), file + ' loads tonight-launch.js');
 });
-assert.match(read('.github/workflows/update-data.yml'), /cp \*\.html [^\n]*\btonight-launch\.js\b/, 'and the site publishes it');
 function launchPage({ type, stored, buttonTop }) {
-  const dom = new JSDOM(read('index.html').replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/index.html' });
+  const dom = new JSDOM(published('index.html').replace(/<script[\s\S]*?<\/script>/g, ''), { runScripts: 'outside-only', url: 'https://concordtabletennisclub.com/index.html' });
   const window = dom.window;
   const scrolls = [];
   if (stored) window.sessionStorage.setItem('cttc-tonight-return', JSON.stringify(stored));
@@ -213,7 +214,7 @@ assert.deepEqual(launchPage({ type: 'navigate', stored: { page: '/index.html', t
 assert.deepEqual(launchPage({ type: 'back_forward', stored: { page: '/roundrobins.html', top: 480 }, buttonTop: 1425 }).scrolls, [], 'only the page the button was tapped on');
 
 const pageScript = /<script>\n([\s\S]*?)<\/script>\n\n<\/body>/.exec(html)[1];
-const turnoutSource = read('turnout.js');
+const turnoutSource = published('turnout.js');
 const publicRoster = JSON.parse(JSON.stringify(roster));
 const publicPlayers = { players: [{ name: 'Ada Every', currentRating: 1250 }, { name: 'Bo Mondays', currentRating: 640 }, { name: 'Cy Lapsed', currentRating: 1700 }] };
 

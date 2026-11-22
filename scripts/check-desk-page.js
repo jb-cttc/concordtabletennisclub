@@ -3,10 +3,11 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const site = require('./lib/site-build');
 const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'desk.html'), 'utf8');
+const html = site.read('desk.html');
 
 // What the page may load and how it is indexed.
 const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html)[1];
@@ -100,7 +101,7 @@ const source = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 assert.match(source, /if \(urlPath === '\/desk'\) urlPath = '\/desk\.html';/);
 
 // The Organize button opens the framed desk page, never the raw Google address (which shows Google's banner).
-const roundRobins = fs.readFileSync(path.join(root, 'roundrobins.html'), 'utf8');
+const roundRobins = site.read('roundrobins.html');
 assert.match(roundRobins, /<a id="organizer-launch"[^>]*href="desk\.html"/);
 // The only Google address on the page is the public sign-up form, never the desk.
 assert.doesNotMatch(roundRobins.replace(/SUBSCRIBE_URL = '[^']+'/, ''), /script\.google\.com/);

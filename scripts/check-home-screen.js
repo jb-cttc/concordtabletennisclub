@@ -7,13 +7,12 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const path = require('node:path');
+const site = require('./lib/site-build');
 const { JSDOM, ResourceLoader } = require('jsdom');
 
-const root = path.join(__dirname, '..');
-const pngSize = file => { const data = fs.readFileSync(path.join(root, file)); return [data.readUInt32BE(16), data.readUInt32BE(20)]; };
+const pngSize = file => { const data = site.read(file, null); return [data.readUInt32BE(16), data.readUInt32BE(20)]; };
 
-const manifest = JSON.parse(fs.readFileSync(path.join(root, 'assets/site.webmanifest'), 'utf8'));
+const manifest = JSON.parse(site.read('assets/site.webmanifest'));
 assert.equal(manifest.start_url, '/?from=home-screen', 'the saved icon opens the home page (the marker then leaves the address)');
 assert.equal(manifest.id, '/');
 assert.equal(manifest.short_name, 'CTTC');
@@ -23,20 +22,21 @@ manifest.icons.forEach(icon => {
 });
 assert.deepEqual(pngSize('assets/icons/apple-touch-icon.png'), [180, 180]);
 
-// Standalone pages without the site header: the desk's frames, the Text CTTC icon, the front desk payment page
-// (pay.html), and the storyboard (a generated
-// document, scripts/build-storyboard.js, that links back to About).
-const pages = fs.readdirSync(root).filter(name => name.endsWith('.html') && !['desk.html', 'cash.html', 'volunteer-admin.html', 'email-list.html', 'meeting.html', 'text.html', 'storyboard.html', 'pay.html'].includes(name));
+// Every page the site deploys (_site) carries them, except standalone pages without the site header: the desk's frames,
+// the Text CTTC icon, the front desk payment page (pay.html), the storyboard (a generated document,
+// scripts/build-storyboard.js, that links back to About), and the volunteer and coaching apps' pages, which the deploy
+// copies in from staffing-app/ and coaching-app/ and the home and Coaching pages open in place.
+const pages = fs.readdirSync(site.dir()).filter(name => name.endsWith('.html') && !['desk.html', 'cash.html', 'volunteer-admin.html', 'email-list.html', 'meeting.html', 'text.html', 'storyboard.html', 'pay.html', 'volunteer-app.html', 'coaching-app.html'].includes(name));
 pages.forEach(name => {
-  const html = fs.readFileSync(path.join(root, name), 'utf8');
+  const html = site.read(name);
   assert.match(html, /<link rel="apple-touch-icon" href="assets\/icons\/apple-touch-icon\.png">/, name);
   assert.match(html, /<link rel="manifest" href="assets\/site\.webmanifest">/, name);
   assert.match(html, /<meta name="apple-mobile-web-app-title" content="CTTC">/, name);
   assert.match(html, /<button class="home-screen" type="button" aria-label="Add CTTC to your Home Screen" title="Add to Home Screen" hidden>/, name);
 });
 
-const script = fs.readFileSync(path.join(root, 'navtoggle.js'), 'utf8');
-const header = /<header>[\s\S]*?<\/header>/.exec(fs.readFileSync(path.join(root, 'index.html'), 'utf8'))[0];
+const script = site.read('navtoggle.js');
+const header = /<header>[\s\S]*?<\/header>/.exec(site.read('index.html'))[0];
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36';
 const DESKTOP = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -113,8 +113,8 @@ options(sheetOf(firefox))[0].click();
 assert.match(sheetOf(firefox).textContent, /Add to Home screen or Install app/);
 
 // ---- Text CTTC: its own page, icon and name, so it sits beside the CTTC icon ----
-const textHtml = fs.readFileSync(path.join(root, 'text.html'), 'utf8');
-const textManifest = JSON.parse(fs.readFileSync(path.join(root, 'assets/text.webmanifest'), 'utf8'));
+const textHtml = site.read('text.html');
+const textManifest = JSON.parse(site.read('assets/text.webmanifest'));
 assert.equal(textManifest.id, '/text.html', 'its own id, so it is a second icon, not the CTTC one again');
 assert.equal(textManifest.start_url, '/text.html?from=home-screen');
 assert.ok(textManifest.start_url.startsWith(textManifest.scope));
@@ -128,7 +128,7 @@ assert.match(textHtml, /<link rel="apple-touch-icon" href="assets\/icons\/text-a
 assert.match(textHtml, /<link rel="manifest" href="assets\/text\.webmanifest">/);
 assert.match(textHtml, /<meta name="apple-mobile-web-app-title" content="Text CTTC">/);
 const SEND = 'sms:+19252383505?&body=' + encodeURIComponent('I\'ll join CTTC\'s RR today');
-const teaserLink = new JSDOM(fs.readFileSync(path.join(root, 'index.html'), 'utf8')).window.document.querySelector('.tonight-text-box a').getAttribute('href');
+const teaserLink = new JSDOM(site.read('index.html')).window.document.querySelector('.tonight-text-box a').getAttribute('href');
 assert.equal(teaserLink, SEND, 'the same text as the Text us link beside the Tonight button');
 
 const pageScript = /<script>\n([\s\S]*?)<\/script>/.exec(textHtml)[1];
