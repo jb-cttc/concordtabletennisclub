@@ -59,6 +59,9 @@ var MIN_QUOTA = 10;
 // was asked. New requests now go to the coach at once (status 'pending'): the page asks the student to confirm before sending.
 // The code that answers an 'unverified' request is kept so any still waiting when this was released finishes as promised.
 var CHANGE_WAIT_MS = 10 * 60 * 1000;
+// How long a student can reply UNDO to a lesson they cancelled on the page, at most (never after the lesson starts). The same 3
+// days the email check looks back.
+var UNDO_MS = 3 * 24 * 60 * 60 * 1000;
 var LOG_KEEP = 500;
 var LOG_SHOWN = 300;
 // A step of the check that fails without a break for this long is emailed to the club. Google's services have outages
@@ -124,7 +127,11 @@ var TABS = {
     // A newer ask replaces a conflicting older one (see "When a newer ask replaces an older one"). change_was is the waiting
     // change a newer change of the same lesson replaced ('cancel@' or 'move:…@' and its change_at); replaces is the request(s)
     // of the same student at an overlapping time that this request replaces once the student says YES to it.
-    'change_was', 'replaces'],
+    'change_was', 'replaces',
+    // A lesson the student cancelled on the page (from November 2026, at once, with no YES): 'open:' and the cancel time (ms)
+    // while they can still reply UNDO to the email that told them (see "Cancelling a lesson, and UNDO"), 'done:' and the time
+    // once an UNDO put it back. Empty otherwise.
+    'undo'],
   // One row per email that asked a student about everything waiting for their YES at once (see "Everything waiting, in one
   // email"). trigger is what that email was sent about ('' for a follow-up that only lists what is waiting); items is every
   // question it listed, space separated: 'v:' and a request id (confirm a new request) or 'c:', a request id and the change's
@@ -1180,9 +1187,10 @@ function applyProposal_(coach, now) {
 // ---------- Public: students cancel or move a lesson ----------
 
 // form: {key: the board time, action: 'cancel' | 'move', to: an open time (for a move), contact: the email or mobile number booked
-// with}. Nothing changes here: if the contact matches the request on that time, we email (and text, for a student who gets our
-// texts) a question, and the change happens when they reply YES. The answer is the same either way, so the page never tells
-// anyone whose lesson a time is.
+// with}. If the contact matches the request on that time, a cancel happens at once (a request the coach has not answered is
+// withdrawn; a confirmed lesson is cancelled, and the email offers UNDO). A move, or a cancel of anything else, is emailed (and
+// texted, for a student who gets our texts) as a question, and happens when they reply YES. The answer is the same whoever
+// asks, so the page never tells anyone whose lesson a time is.
 function studentChange(form) {
   form = form || {};
   var done = { ok: true, message: 'If that time is yours, we just sent a message to the email address (and, if you get our texts, the mobile number) you booked with. Reply YES to it to confirm. Nothing changes until you reply.' };
@@ -1194,7 +1202,9 @@ function studentChange(form) {
   if (!email && !phone) return fail_('Please enter the email address or mobile number you booked with.', 'contact');
   var question = null;
   var cancelled = null;
-  var withdrawn = { ok: true, withdrawn: true, message: 'If that request was made with this email address or mobile number, it is cancelled now and the time is open again. The coach is told, and we emailed you a note.' };
+  var withdrawn = { ok: true, cancelled: true, message: 'If that request was made with this email address or mobile number, it is cancelled now and the time is open again. The coach is told, and we emailed you a note.' };
+  var lessonGone = { ok: true, cancelled: true, message: 'If that lesson was booked with this email address or mobile number, it is cancelled now and the time is open again. ' +
+    'The coach is told, and we emailed you a note. Cancelled by mistake? Reply UNDO to that email.' };
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -1229,6 +1239,22 @@ function studentChange(form) {
       cancelled = request;
       return withdrawn;
     }
+    // A confirmed lesson is cancelled at once too (from November 2026): students took asking for the cancel to be the cancel, and
+    // left it waiting for a YES. The email that tells them offers UNDO instead, which puts the lesson back while the time is free.
+    if (action === 'cancel' && effectiveStatus_(request, now) === 'confirmed') {
+      if (!owner) return lessonGone;
+      request.status = 'cancelled';
+      request.cancelled_by = 'student';
+      request.change = '';
+      request.change_at = '';
+      request.change_was = '';
+      request.undo = 'open:' + now;
+      request.updated_at = nowIso_();
+      save_('Requests', request);
+      logStep_(request, 'cancelled on the page');
+      cancelled = request;
+      return lessonGone;
+    }
     var wanted = action === 'move' ? 'move:' + target.key : 'cancel';
     var waiting = !!request.change && holds_(request, now);
     // The same ask again within 10 minutes sends nothing more; a different one replaces the waiting one (shown in its email).
@@ -1243,7 +1269,7 @@ function studentChange(form) {
     lock.releaseLock();
     // Saved: the emails and texts go out now, and the hourly sweep retries any that fail.
     if (cancelled) {
-      try { sweep_(); } catch (error) { logError_('tell about a withdrawn request', error, cancelled.request_id); }
+      try { sweep_(); } catch (error) { logError_('tell about a cancellation', error, cancelled.request_id); }
     }
   }
   if (question) askStudentChange_(question);
@@ -1730,8 +1756,13 @@ function summaryOf_(now, today) {
   // are counted from their step line instead, and so are requests the coach let run out.
   var booked = 0;
   var unanswered = 0;
+  // Lessons cancelled on the page need no YES either (from November 2026), and some are put back by an UNDO.
+  var cancelledOnPage = 0;
+  var undone = 0;
   log.forEach(function (line) {
     if (dayOf(line.at) === yesterday && line.kind === 'step:pending' && /booked on the page/.test(line.detail)) booked += 1;
+    if (dayOf(line.at) === yesterday && line.kind === 'step:cancelled' && /cancelled on the page/.test(line.detail)) cancelledOnPage += 1;
+    if (dayOf(line.at) === yesterday && line.kind === 'step:confirmed' && /undone by the student/.test(line.detail)) undone += 1;
     if (dayOf(line.at) === yesterday && line.kind === 'step:expired' && /coach did not answer/.test(line.detail)) unanswered += 1;
     var reply = /^reply:([a-z-]+):(yes|no|only)$/.exec(line.kind);
     if (!reply || dayOf(line.at) !== yesterday) return;
@@ -1758,7 +1789,8 @@ function summaryOf_(now, today) {
         ['New requests', booked + ' sent to the coach from the page' + (counts['student-v'] ? ', and ' + counts['student-v'] + ' older ' + (counts['student-v'] === 1 ? 'one' : 'ones') + ' confirmed by the student\'s YES' : '')],
         ['Lessons', counts['coach-request'] + ' accepted by the coach'],
         ['No answer', unanswered + (unanswered === 1 ? ' request' : ' requests') + ' expired without the coach\'s answer'],
-        ['Cancels and moves', counts['student-c'] + ' confirmed by the student'], ['Coaching times', counts['coach-slots'] + ' lists published by the coach'],
+        ['Cancels and moves', cancelledOnPage + (cancelledOnPage === 1 ? ' lesson' : ' lessons') + ' cancelled on the page (' + undone + ' put back by UNDO), ' +
+          counts['student-c'] + ' confirmed by the student\'s YES'], ['Coaching times', counts['coach-slots'] + ' lists published by the coach'],
         ['NO answers', declined + ' applied'], ['One reply for a list', lists + (lists === 1 ? ' reply' : ' replies') + ' to an email listing several things']] },
       complete ? '' : 'The log does not reach back to the start of yesterday, so these counts may be low.',
       'Each booking code opens that booking\'s whole story on the coaching app\'s ?log page.'
@@ -1944,7 +1976,7 @@ function deliver_(request, coach, field, compose) {
       var log = [field + ':' + request.status, request.request_id];
       var lines = message.text ? null : message.lines.concat(bookingLine_(request));
       if (message.text) sendText_(message.person, message.text, log);
-      else if (field === 'student_emailed') sendStudentMail_(message.to, message.subject, lines, request.status === 'unverified' ? 'v:' + request.request_id : '', log, message.cc);
+      else if (field === 'student_emailed') sendStudentMail_(message.to, message.subject, lines, message.trigger || (request.status === 'unverified' ? 'v:' + request.request_id : ''), log, message.cc);
       else sendMail_(message.to, message.subject, lines, message.cc, log);
     } catch (error) {
       logError_('send ' + field + ':' + request.status, error, request.request_id);
@@ -2008,7 +2040,9 @@ function lessonRows_(request) {
 }
 
 function changeSteps_(request) {
-  return { steps: ['Open ' + PAGE_URL, 'Tap your time (shown as **' + studentName_(request) + '**).', 'Reply **YES** to the email we send you to confirm the change.'] };
+  return { steps: ['Open ' + PAGE_URL, 'Tap your time (shown as **' + studentName_(request) + '**), then **Mine**.',
+    'To cancel, choose **Cancel**: it is cancelled at once' + (request.status === 'confirmed' ? ', and our email about it lets you **UNDO** a mistake.' : '.'),
+    'To move it, pick the new time and reply **YES** to the email we send you to confirm the move.'] };
 }
 
 // [background, border, text color, title, note shown in the cell, sentence under the day heading]
@@ -2143,8 +2177,9 @@ function studentMail_(request, coach) {
   if (request.status === 'confirmed') {
     var reach = [['Email', cleanEmail_(coach.email), 'mailto:' + cleanEmail_(coach.email)], ['Phone', phoneLabel_(coach.phone), 'tel:+1' + phoneDigits_(coach.phone)]]
       .filter(function (row) { return row[1]; });
-    return { to: to, subject: 'Lesson confirmed: ' + request.date + ' ' + request.start, lines: [who,
-      { callout: '**Your lesson is confirmed.**', tone: 'good' },
+    var back = /^done:/.test(request.undo);
+    return { to: to, subject: (back ? 'Lesson back on: ' : 'Lesson confirmed: ') + request.date + ' ' + request.start, lines: [who,
+      { callout: back ? '**Done: your lesson is back on**, as it was before you cancelled it. ' + coachShown + ' has been told.' : '**Your lesson is confirmed.**', tone: 'good' },
       { heading: 'Lesson details' },
       { rows: details.concat([['Coach', String(coach.name).trim()]]) },
       { heading: 'Your coach\'s contact' },
@@ -2176,6 +2211,18 @@ function studentMail_(request, coach) {
         'The request now goes straight to ' + coachShown + ' to accept: no YES reply is needed any more.',
         'We email you as soon as the coach answers.'] }] };
   }
+  // Cancelled on the page: done at once, so this email is the record of it, and the way back if it was a mistake. Its own code is
+  // for the UNDO, so it never becomes a list of what else is waiting (trigger 'u:' is not on that list).
+  var undoUntil = undoUntil_(request);
+  if (request.status === 'cancelled' && request.cancelled_by === 'student' && undoUntil > Date.now()) {
+    return { to: to, subject: 'Coaching lesson cancelled ' + refTag_(undoCode_(request)), trigger: 'u:' + request.request_id, lines: [who,
+      { callout: '**Done: ' + studentName_(request) + '\'s lesson is cancelled.** ' + coachShown + ' has been told, and the time is open again. Nothing more is needed from you.', tone: 'good' },
+      { heading: 'The cancelled lesson' },
+      { rows: details.concat([['Coach', coachShown]]) },
+      { heading: 'Cancelled by mistake?' },
+      { choices: [['UNDO', 'Put the lesson back, if nobody has booked the time since.']] },
+      'Tap **UNDO** (or reply to this email with just **UNDO**) by **' + momentLabel_(undoUntil) + '**. Did not cancel it yourself? Someone may have used your email address: UNDO puts it back too.'] };
+  }
   if (request.status === 'cancelled' && request.cancelled_by === 'student') {
     return { to: to, subject: 'Coaching lesson cancelled', lines: [who, 'As you asked, the lesson with ' + coachShown + ' on ' + when + ' is cancelled and the time was released.'] };
   }
@@ -2206,8 +2253,9 @@ function coachMail_(request, coach, studentRow) {
       phoneDigits_(coach.phone) ? 'We are also texting your mobile about it. You can answer either one.' : ''] };
   }
   if (request.status === 'confirmed') {
-    return { to: to, subject: 'Lesson confirmed: ' + request.date + ' ' + request.start, lines: [
-      { callout: '**You confirmed this lesson.**', tone: 'good' },
+    var back = /^done:/.test(request.undo);
+    return { to: to, subject: (back ? 'Lesson back on: ' : 'Lesson confirmed: ') + request.date + ' ' + request.start, lines: [
+      { callout: back ? '**' + request.student_name + ' undid their cancellation: the lesson is back on**, as you confirmed it.' : '**You confirmed this lesson.**', tone: 'good' },
       { heading: 'Lesson details' },
       { rows: [['Student', studentContact_(request, studentRow)]].concat(lessonRows_(request)) },
       'On the club site it appears as "' + studentName_(request) + ' has session with ' + coachName_(coach) + '".',
@@ -2228,7 +2276,8 @@ function coachMail_(request, coach, studentRow) {
   // Told only if the coach had already heard about the request.
   if (request.status === 'cancelled' && (request.cancelled_by === 'student' || request.cancelled_by === 'move') && request.verified_at) {
     return { to: to, subject: 'Lesson cancelled by ' + request.student_name, lines: [request.student_name + (request.cancelled_by === 'move' ? ' moved the lesson on ' + when + ' to another time' :
-      ' cancelled the lesson on ' + when) + '. The time is open again.'] };
+      ' cancelled the lesson on ' + when) + '. The time is open again.',
+      undoSince_(request) ? 'If they cancelled by mistake they can undo it while nobody else has booked the time, and we will tell you if they do.' : ''] };
   }
   return null;
 }
@@ -2245,7 +2294,7 @@ function coachText_(request, coach, student) {
   if (!phoneDigits_(coach.phone) || !request.coach_texted) return null;
   var when = shortWhen_(request.date, request.start);
   if (request.status === 'confirmed') {
-    return { person: coach, text: 'CTTC: Confirmed. ' + studentName_(request) + ', ' + lessonMinutes_(request.minutes) + ' min lesson ' + when +
+    return { person: coach, text: 'CTTC: ' + (/^done:/.test(request.undo) ? 'Back on: ' + studentName_(request) + ' undid the cancellation. ' : 'Confirmed. ') + studentName_(request) + ', ' + lessonMinutes_(request.minutes) + ' min lesson ' + when +
       ', Table ' + (Number(request.table) || 1) + ', ' + LOCATION + '. Student: ' + studentContact_(request, student) + '.' };
   }
   if (request.status === 'declined') {
@@ -2270,13 +2319,14 @@ function studentText_(request, coach, student) {
   var when = shortWhen_(request.date, request.start);
   var again = ' Pick another time at ' + PAGE_URL.replace('https://', '') + '.';
   var text = {
-    confirmed: 'your lesson with ' + coachName_(coach) + ' on ' + when + ' is confirmed. Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + '.',
+    confirmed: 'your lesson with ' + coachName_(coach) + ' on ' + when + ' is ' + (/^done:/.test(request.undo) ? 'back on' : 'confirmed') + '. Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + '.',
     declined: coachName_(coach) + ' cannot do ' + when + '. You are not booked.' + again,
     expired: 'your request for ' + when + ' expired without an answer. You are not booked.' + again
   }[request.status];
   if (request.status === 'cancelled') {
     text = request.cancelled_by === 'coach' ? coachName_(coach) + ' cancelled your lesson on ' + when + '.' + again :
-      request.cancelled_by === 'move' ? null : request.cancelled_by === 'withdrawn' ? 'your request for ' + when + ' is cancelled. You are not booked.' : 'your lesson on ' + when + ' is cancelled.';
+      request.cancelled_by === 'move' ? null : request.cancelled_by === 'withdrawn' ? 'your request for ' + when + ' is cancelled. You are not booked.' :
+        'your lesson on ' + when + ' is cancelled.' + (undoSince_(request) ? ' By mistake? Reply UNDO to our email.' : '');
   }
   return text ? { person: { name: student.name, phone: student.phone }, text: 'CTTC: ' + studentName_(request) + ', ' + text } : null;
 }
@@ -2419,13 +2469,13 @@ function ownWords_(text) {
     var next = lines[i + 1] || '';
     // Some apps send only HTML, and Gmail's plain-text version can run lines together ("YESSent from my Galaxy"): a signature
     // or quote marker inside a line ends their words there too.
-    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no|yes to only this):|concord table tennis club|_{5,}/i);
+    var glued = line.search(/sent from my |get outlook for |-{2,}\s*(original|forwarded) message|on\b.{4,}\bwrote:|\[CTTC ref |reply (yes|no|yes to only this|undo):|concord table tennis club|_{5,}/i);
     if (glued > 0) {
       mine.push(line.slice(0, glued).trim());
       break;
     }
     if (/^>/.test(line) || /^-{2,}\s*(original message|forwarded message)/i.test(line) || /^_{5,}$/.test(line) ||
-      /^(sent from|get outlook for)\b/i.test(line) || /^--\s*$/.test(line) || /\[CTTC ref |^reply (yes|no)\b|concord table tennis club/i.test(line) || (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) ||
+      /^(sent from|get outlook for)\b/i.test(line) || /^--\s*$/.test(line) || /\[CTTC ref |^reply (yes|no|undo)\b|concord table tennis club/i.test(line) || (/^(from|sent|to|subject|date):\s/i.test(line) && mine.length) ||
       /^on\b.{4,}\bwrote:?$/i.test(line) || (/^on\b.{4,}/i.test(line) && /\bwrote:?$/i.test(next))) break;
     mine.push(line);
   }
@@ -2969,6 +3019,99 @@ function verifyCode_(request) { return code_('v:' + request.request_id); }
 
 function changeCode_(request) { return code_('c:' + request.request_id + ':' + request.change_at); }
 
+// ---------- Cancelling a lesson, and UNDO ----------
+// A confirmed lesson cancelled on the page is cancelled at once (undo 'open:' and the time). The email that says so can be
+// answered UNDO until the lesson starts, for at most UNDO_MS; UNDO puts it back if the time is still free (undoCancel_).
+
+function undoCode_(request) { return code_('u:' + request.request_id + ':' + undoSince_(request)); }
+
+// When the lesson was cancelled on the page (ms), while UNDO is offered; else 0.
+function undoSince_(request) {
+  var match = /^open:(\d+)$/.exec(String(request.undo || ''));
+  return request.status === 'cancelled' && request.cancelled_by === 'student' && match ? Number(match[1]) : 0;
+}
+
+// When the lesson starts, as a moment (ms).
+function lessonStart_(request) { return Date.now() + (wallMinutes_(request.date, request.start) - nowMinutes_()) * 60000; }
+
+// The last moment an UNDO counts: the lesson's start, or UNDO_MS after the cancel if sooner. 0 when none is offered.
+function undoUntil_(request) {
+  var since = undoSince_(request);
+  return since ? Math.min(since + UNDO_MS, lessonStart_(request)) : 0;
+}
+
+// 'undo' when the first line of the person's own words asks for it ("UNDO", "Undo please", "Hi Dee, undo", or "Hi," then "UNDO"),
+// else ''.
+var GREETING = /^(hi|hey|hello|dear|good (morning|afternoon|evening))\b/;
+function undoAnswer_(text) {
+  var line = ownWords_(text).split('\n').map(function (each) { return each.trim().toLowerCase(); }).filter(function (each) {
+    return each && !(GREETING.test(each) && !/\bun-?do\b/.test(each));
+  })[0] || '';
+  line = line.replace(/^(hi|hey|hello|dear|good (morning|afternoon|evening))\b[^,.!:]{0,30}[,.!:]\s*/, '').replace(/^(ok|okay|yes|sure)\b[\s,.!:-]*/, '');
+  return /^(please\s+)?un-?do\b/.test(line) ? 'undo' : '';
+}
+
+// Why the lesson cannot go back on its time now, or '' when it can: the time has started, the coach or the time is no longer
+// offered, someone else holds it, or the same student holds another lesson then. Call while holding the lock.
+function undoBlocked_(request, requests, now) {
+  if (lessonStart_(request) <= now) return 'the lesson time has passed';
+  var coach = rows_('Coaches').filter(function (entry) { return entry.coach_id === request.coach_id; })[0];
+  if (!coach || !active_(coach)) return 'the coach is no longer taking lessons on the schedule';
+  var offered = rows_('Availability').filter(function (entry) {
+    return entry.coach_id === request.coach_id && entry.date === request.date && entry.confirmed === 'yes';
+  });
+  for (var minute = toMinutes_(request.start); minute < toMinutes_(request.start) + Number(request.minutes); minute += 30) {
+    var time = fromMinutes_(minute);
+    if (!offered.some(function (entry) { return overlaps_(entry.start, entry.minutes, time, 30); })) return 'the coach no longer offers that time';
+  }
+  var name = String(request.student_name).trim().toLowerCase();
+  var clash = requests.filter(function (other) {
+    return other.request_id !== request.request_id && holds_(other, now) && other.date === request.date && overlaps_(other.start, other.minutes, request.start, request.minutes) &&
+      (other.coach_id === request.coach_id || (other.student_email === request.student_email && String(other.student_name).trim().toLowerCase() === name));
+  })[0];
+  if (clash) return clash.coach_id === request.coach_id ? 'another student has booked that time since' : 'the student has another lesson at that time now';
+  return '';
+}
+
+// A student replied UNDO to the email saying their lesson was cancelled. Put back, it is confirmed again as it was (undo 'done:'),
+// and the sweep tells the student and the coach it is back on. If it cannot go back, the student is told why; either way the
+// question closes. answeredAt: when the reply was sent, so one sent in time counts even if read a little later.
+function undoCancel_(requestId, answeredAt) {
+  var request = null;
+  var why = '';
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var now = Date.now();
+    var requests = rows_('Requests');
+    request = requests.filter(function (entry) { return entry.request_id === requestId; })[0];
+    if (!request || !undoSince_(request) || !(answeredAt < undoUntil_(request))) return;
+    why = undoBlocked_(request, requests, now);
+    request.undo = why ? '' : 'done:' + now;
+    if (!why) {
+      request.status = 'confirmed';
+      request.cancelled_by = '';
+    }
+    request.updated_at = nowIso_();
+    save_('Requests', request);
+    if (!why) logStep_(request, 'undone by the student');
+  } finally {
+    lock.releaseLock();
+  }
+  logReply_('email', 'student-u', requestId, 'undo', !why, request.status + (why ? ' (' + why + ')' : ''));
+  if (why) {
+    try {
+      if (mailAvailable_()) sendStudentMail_(request.student_email, 'Your coaching reply', ['Hello,',
+        { callout: 'We could not put back ' + studentName_(request) + '\'s lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ': ' + why +
+          '. **It stays cancelled.**', tone: 'action' },
+        'You can pick another time at ' + PAGE_URL, bookingLine_(request)], '', ['student-undo-reply', requestId]);
+    } catch (error) {
+      logError_('answer a student', error, requestId);
+    }
+  }
+  sweep_();
+}
+
 // Every question still waiting for an emailed answer: {code, email, after, kind, id}.
 function emailQuestions_(now) {
   var questions = [];
@@ -2996,6 +3139,7 @@ function emailQuestions_(now) {
       questions.push({ code: requestCode_(request), email: cleanEmail_(byId[request.coach_id].email), after: after, kind: 'request', id: request.request_id, coachId: request.coach_id });
     }
     if (request.change && holds_(request, now)) questions.push({ code: changeCode_(request), email: request.student_email, after: Number(request.change_at), kind: 'c', id: request.request_id });
+    if (undoSince_(request) && now < undoUntil_(request)) questions.push({ code: undoCode_(request), email: request.student_email, after: undoSince_(request), kind: 'u', id: request.request_id });
     if (request.change && holds_(request, now) && request.change_was) {
       var was = Number(request.change_was.split('@')[1]);
       if (String(was) !== request.change_at) questions.push({ code: code_('c:' + request.request_id + ':' + was), email: request.student_email, after: was, kind: 'r', id: request.request_id });
@@ -3040,11 +3184,16 @@ function checkMail_() {
       // Notices go out only for a recent reply to a question still open; a late YES is only looked for.
       var notify = !question.before && Date.now() - at < 5 * 3600000;
       if (!sameAddress_(address, question.email)) {
-        if (us.indexOf(address) < 0 && notify) wrongSender_(message.getId(), address, String(message.getSubject() || ''));
+        if (us.indexOf(address) < 0 && notify) wrongSender_(message.getId(), address, String(message.getSubject() || ''), question.kind === 'u' ? '**UNDO**' : '**YES** or **NO**');
         return;
       }
       if (autoReply_(message)) return;
       var body = replyText_(message);
+      // The cancellation email asks nothing: only an UNDO counts, and anything else ("thanks!") is left alone.
+      if (question.kind === 'u') {
+        if (undoAnswer_(body) && (!answers[code] || at < answers[code].at)) answers[code] = { question: question, answer: 'undo', at: at, address: address };
+        return;
+      }
       var answer = replyAnswer_(body, question.kind === 'b');
       // YES to ONLY THIS means YES to an email that asks about one thing.
       if (answer === 'only' && question.kind !== 'b') answer = 'yes';
@@ -3067,6 +3216,7 @@ function checkMail_() {
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
     else if (question.kind === 'b') answerBundle_(question.id, found.answer, found.at);
     else if (question.kind === 'r') replacedAnswer_(question.id, found.answer);
+    else if (question.kind === 'u') undoCancel_(question.id, found.at);
     else studentAnswer_(question.id, question.kind, found.answer, 'email', found.at);
   });
   properties.setProperty('MAIL_CHECKED_AT', String(now));
@@ -3119,7 +3269,7 @@ function sameAddress_(a, b) {
 // A reply quoting our code from another address does not count (nobody may answer for someone else), but it is never silent:
 // the sender is told to reply from the address the question went to, once per reply. The club is not emailed: the sender has
 // what they need to fix it.
-function wrongSender_(messageId, address, subject) {
+function wrongSender_(messageId, address, subject, words) {
   try {
     var cache = CacheService.getScriptCache();
     if (cache.get('sender:' + messageId) || !mailAvailable_()) return;
@@ -3127,7 +3277,7 @@ function wrongSender_(messageId, address, subject) {
     try {
       sendMail_(address, 'Your reply did not count: please answer from the right address', ['We got your reply to "' + subject.replace(/^(re|fwd?):\s*/i, '') +
         '", but it came from a different email address than the one the question was sent to, so nothing changed.',
-        { callout: 'Please **reply from the email address the question was sent to**, saying **YES** or **NO**.', tone: 'action' }], null, ['wrong-sender', messageId]);
+        { callout: 'Please **reply from the email address the question was sent to**, saying ' + (words || '**YES** or **NO**') + '.', tone: 'action' }], null, ['wrong-sender', messageId]);
     } catch (error) {
       logError_('tell a sender to use the right address', error, messageId);
     }

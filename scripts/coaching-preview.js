@@ -151,7 +151,7 @@ function yes(name, digits) {
   // Dropped so this setup YES, stamped a second ahead, cannot answer the next question too.
   inbox.pop();
 }
-// An email reply from whoever the message went to; only the first line (YES or NO) matters to the app.
+// An email reply from whoever the message went to; only the first line (YES, NO or UNDO) matters to the app.
 function answerEmail(message, word) {
   const at = new Date(Date.now() + 1000);
   const id = 'answer-' + messageCount++;
@@ -227,8 +227,10 @@ function sitePage() {
 function mailPage() {
   const items = outbox.map(message => {
     const body = escapeHtml(message.body).replace(/https:\/\/concordtabletennisclub\.com\/coaching\.html/g, '<a href="/coaching.html">' + LOCAL + '/coaching.html</a>');
+    // The email saying a lesson was cancelled on the page takes only UNDO.
+    const words = /^Coaching lesson cancelled \[/.test(message.subject) ? ['UNDO'] : ['YES', 'NO'];
     const reply = /\[CTTC ref [0-9A-F]{10}\]$/.test(message.subject) ?
-      '<p><strong>Reply by email:</strong> <a href="/reply?id=' + message.id + '&body=YES">YES</a> &middot; <a href="/reply?id=' + message.id + '&body=NO">NO</a></p>' : '';
+      '<p><strong>Reply by email:</strong> ' + words.map(word => '<a href="/reply?id=' + message.id + '&body=' + word + '">' + word + '</a>').join(' &middot; ') + '</p>' : '';
     return '<article><h2>' + escapeHtml(message.subject) + '</h2><p>To: ' + escapeHtml(message.to) + ' &middot; ' + message.at.toLocaleTimeString() + '</p>' + reply + '<pre>' + body + '</pre></article>';
   }).join('');
   const messages = texts.map(text => '<article><h2>Text message (Google Voice)</h2><p>To: ' + escapeHtml(text.to) + ' &middot; ' + text.at.toLocaleTimeString() + '</p><pre>' + escapeHtml(text.body) + '</pre></article>').join('');
@@ -274,7 +276,7 @@ const server = http.createServer((request, response) => {
   if (url.pathname === '/mail') return send(200, 'text/html; charset=utf-8', mailPage());
   if (url.pathname === '/reply') {
     const message = outbox.find(entry => entry.id === url.searchParams.get('id'));
-    const word = url.searchParams.get('body') === 'NO' ? 'NO' : 'YES';
+    const word = ['NO', 'UNDO'].includes(url.searchParams.get('body')) ? url.searchParams.get('body') : 'YES';
     if (message) answerEmail(message, word);
     response.writeHead(302, { Location: '/mail' });
     return response.end();

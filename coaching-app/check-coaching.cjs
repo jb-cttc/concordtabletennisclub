@@ -295,9 +295,27 @@ const keyOf = email => {
   const entry = grids.Availability.slice(1).find(line => ['coach_id', 'date', 'start'].every(name => cell('Availability', line, name) === cell('Requests', request, name)));
   return cell('Availability', entry, 'avail_id');
 };
+// A confirmed lesson is cancelled at once on the page (from November 2026).
 const cancelLesson = (email, contact = email) => {
+  const held = requestBy(email).filter(line => /^(unverified|pending|confirmed)$/.test(cell('Requests', line, 'status'))).pop();
+  const id = cell('Requests', held, 'request_id');
   assert.equal(run('studentChange', { key: keyOf(email), action: 'cancel', contact }).ok, true);
-  replyTo(email, 'YES', /^Confirm: cancel your lesson/);
+  assert.equal(cell('Requests', requestRows().find(line => cell('Requests', line, 'request_id') === id), 'status'), 'cancelled');
+};
+// A cancel of a lesson asked before November 2026, still waiting for the student's emailed YES when the change was released:
+// what the old page call saved (change 'cancel', replacing a different change still waiting) and the email it sent.
+const askedCancel = (key, email) => {
+  const requests = context.rows_('Requests');
+  const request = context.heldBy_(context.rows_('Availability').find(entry => entry.avail_id === key), requests, clock);
+  assert.equal(request.student_email, email);
+  const waiting = !!request.change && context.holds_(request, clock);
+  request.change_was = waiting && request.change !== 'cancel' ? request.change + '@' + request.change_at : '';
+  request.change = 'cancel';
+  request.change_at = String(clock);
+  context.save_('Requests', request);
+  const student = context.rows_('Students').find(entry => entry.email === email);
+  const coach = context.rows_('Coaches').find(entry => entry.coach_id === request.coach_id);
+  context.askStudentChange_({ request, student, coach, target: null });
 };
 const slot = (date, start, minutes, table = 1) => ({ date, start, minutes, table });
 const coachRow = id => grids.Coaches.find(line => line[4] === id);
@@ -389,7 +407,7 @@ assert.deepEqual(timers(), ['sweep every 60']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
-assert.equal(grids.Requests[0].length, 26);
+assert.equal(grids.Requests[0].length, 27);
 assert.deepEqual(grids.Schedule[0], ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']);
 assert.match(grids.About[0][0], /does not change any booking/);
 
@@ -746,40 +764,85 @@ const answered = ann().length;
 say('Ann Coach', 'YES');
 assert.equal(ann().length, answered, 'a YES with no question waiting does nothing');
 
-// ---- Cancelling: tap the time, give the email address or mobile number booked with, reply YES ----
+// ---- Cancelling: tap the time, give the email address or mobile number booked with. A lesson is cancelled at once, and the
+// email that says so offers UNDO, which puts it back while nobody else has the time ----
 sent.length = 0;
 const samKey = keyOf('sam@example.com');
 assert.equal(run('studentChange', { key: samKey, action: 'cancel' }).ok, false, 'an email address or mobile number is needed');
 assert.equal(run('studentChange', { key: samKey, contact: 'sam@example.com' }).ok, false, 'and a choice');
+const textsBefore = ann().length;
 const generic = run('studentChange', { key: samKey, action: 'cancel', contact: 'pat@example.com' });
-assert.equal(generic.ok, true);
+assert.deepEqual([generic.ok, generic.cancelled], [true, true]);
 assert.equal(run('studentChange', { key: samKey, action: 'cancel', contact: '(925) 555-0199' }).ok, true);
 assert.equal(sent.length, 0, 'nobody else can cancel it, and is not told whose time it is');
+assert.equal(statusOf('sam@example.com'), 'confirmed');
 assert.deepEqual(run('studentChange', { key: samKey, action: 'cancel', contact: ' SAM@example.com ' }), generic, 'the owner gets the very same answer');
-assert.equal(sent.length, 1);
-assert.match(sent[0].subject, /^Confirm: cancel your lesson \[CTTC ref [0-9A-F]{10}\]$/);
-assert.match(sent[0].body, /Reply YES: Cancel the lesson and release the time\.\nReply NO: Keep the lesson as it is\./);
-assert.match(sent[0].body, /When: Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time[^]*Coach: Coach Ann/);
-assert.match(sent[0].htmlBody, /#fde2e1[^"]*"><strong>&#10005; TO BE CANCELLED<\/strong><br>Coach Ann \u00b7 7:00 PM to 7:50 PM/, 'the time to cancel is marked on the schedule');
-run('studentChange', { key: samKey, action: 'cancel', contact: 'sam@example.com' });
-assert.equal(sent.length, 1, 'asking again within ten minutes sends nothing more');
-assert.equal(statusOf('sam@example.com'), 'confirmed', 'nothing changes before the YES');
-// The next check starts while this one is still reading mail: it must not read and apply the same YES again, which
-// sent the student a second email saying the change was "no longer waiting".
-overlap = () => { delete cache['check-texts']; context.checkTexts(); };
-logs.length = 0;
-replyTo('sam@example.com', 'YES', /^Confirm: cancel your lesson/);
-assert.equal(overlap, null);
-assert.ok(logs.includes('coaching checkTexts skipped: the previous check is still running'), 'a skipped check says so in the logs');
-assert.equal(statusOf('sam@example.com'), 'cancelled');
+assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('sam@example.com'), name)), ['cancelled', 'student'], 'cancelled straight away, with no YES');
+assert.match(cell('Requests', latestRequest('sam@example.com'), 'undo'), /^open:\d+$/);
+assert.ok(!sent.some(message => /^Confirm: cancel/.test(message.subject)), 'no YES is asked for');
+const cancelledNote = mailTo('sam@example.com');
+assert.equal(cancelledNote.length, 1);
+assert.match(cancelledNote[0].subject, /^Coaching lesson cancelled \[CTTC ref [0-9A-F]{10}\]$/, 'its code is for the UNDO');
+assert.match(cancelledNote[0].body, /Done: Student Sam's lesson is cancelled\. Coach Ann has been told, and the time is open again\. Nothing more is needed from you\./);
+assert.match(cancelledNote[0].body, /When: Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time[^]*Coach: Coach Ann/);
+assert.match(cancelledNote[0].body, /Reply UNDO: Put the lesson back, if nobody has booked the time since\.\n\nTap UNDO \(or reply to this email with just UNDO\) by Monday, October 5, 2026, [0-9:]+ [AP]M Pacific Time\./,
+  'UNDO counts for 3 days, or until the lesson if sooner');
+assert.deepEqual([...cancelledNote[0].htmlBody.matchAll(/href="mailto:[^"]+&amp;body=([^"]+)"/g)].map(match => match[1]), ['UNDO'], 'one button: UNDO');
 assert.deepEqual(mailTo('ann@example.com').map(message => message.subject), ['Lesson cancelled by Sam Student']);
-assert.deepEqual(mailTo('sam@example.com').map(message => message.subject).slice(1), ['Coaching lesson cancelled']);
-assert.equal(ann()[ann().length - 1], 'CTTC: Student Sam cancelled the lesson on Fri Oct 9, 7:00 PM. The time is open again.');
+assert.match(mailTo('ann@example.com')[0].body, /they can undo it while nobody else has booked the time, and we will tell you if they do/);
+assert.deepEqual(ann().slice(textsBefore), ['CTTC: Student Sam cancelled the lesson on Fri Oct 9, 7:00 PM. The time is open again.']);
+assert.ok(run('openSlots').slots.some(entry => entry.key === slots[0].key), 'a cancelled slot is open again');
 assert.equal(run('studentChange', { key: samKey, action: 'cancel', contact: 'sam@example.com' }).ok, false, 'a cancelled lesson cannot be cancelled again');
 const cancelledCount = sent.length;
 context.sweep();
 assert.equal(sent.length, cancelledCount, 'the cancellation notice is sent once');
-assert.ok(run('openSlots').slots.some(entry => entry.key === slots[0].key), 'a cancelled slot is open again');
+// A reply that is not UNDO ("thanks!") changes nothing, and gets no "could not read your reply" email.
+replyTo('sam@example.com', 'Thanks!', /^Coaching lesson cancelled/);
+assert.equal(sent.length, cancelledCount);
+// From another address it does not count, and the sender is told to reply UNDO from the right one.
+answerMail('pat@example.com', 'UNDO', askedBy('sam@example.com', /^Coaching lesson cancelled/));
+assert.equal(statusOf('sam@example.com'), 'cancelled');
+assert.match(sent.pop().body, /reply from the email address the question was sent to, saying UNDO\./);
+// UNDO puts it back. The next check starts while this one is still reading mail: it must not read and apply the same reply again.
+overlap = () => { delete cache['check-texts']; context.checkTexts(); };
+logs.length = 0;
+sent.length = 0;
+const textsAtUndo = ann().length;
+replyTo('sam@example.com', 'Undo please', /^Coaching lesson cancelled/);
+assert.equal(overlap, null);
+assert.ok(logs.includes('coaching checkTexts skipped: the previous check is still running'), 'a skipped check says so in the logs');
+assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('sam@example.com'), name)), ['confirmed', ''], 'the lesson is back on');
+assert.match(cell('Requests', latestRequest('sam@example.com'), 'undo'), /^done:\d+$/);
+assert.deepEqual(sent.map(message => [message.to, message.subject]), [['sam@example.com', 'Lesson back on: 2026-10-09 19:00'], ['ann@example.com', 'Lesson back on: 2026-10-09 19:00']]);
+assert.match(sent[0].body, /Done: your lesson is back on, as it was before you cancelled it\. Coach Ann has been told\./);
+assert.match(sent[0].body, /Email: ann@example\.com/, 'with the coach\'s contact, as when it was confirmed');
+assert.match(sent[1].body, /Sam Student undid their cancellation: the lesson is back on, as you confirmed it\./);
+assert.deepEqual(ann().slice(textsAtUndo).map(text => text.slice(0, 80)), ['CTTC: Back on: Student Sam undid the cancellation. Student Sam, 50 min lesson Fri Oct'.slice(0, 80)]);
+assert.ok(!run('openSlots').slots.some(entry => entry.key === slots[0].key), 'the time is held again');
+assert.equal(grids.Log.slice(1).filter(line => line[2] === 'reply:student-u:undo').pop()[5], 'applied, now confirmed');
+assert.equal(grids.Log.slice(1).filter(line => line[2] === 'step:confirmed').pop()[5], 'undone by the student');
+const undoneCount = sent.length;
+replyTo('sam@example.com', 'UNDO', /^Coaching lesson cancelled/);
+assert.equal(sent.length, undoneCount, 'a second UNDO finds nothing to answer');
+// Cancelled again, and someone else books the time: UNDO cannot put it back, and the student is told why.
+cancelLesson('sam@example.com');
+book(form(slots[0], { name: 'Nia Other', email: 'nia@example.com' }));
+sent.length = 0;
+replyTo('sam@example.com', 'UNDO', /^Coaching lesson cancelled/);
+assert.equal(statusOf('sam@example.com'), 'cancelled');
+assert.deepEqual(sent.map(message => message.subject), ['Your coaching reply']);
+assert.match(sent[0].body, /We could not put back Student Sam's lesson on Friday, October 9, 2026, 7:00 PM to 7:50 PM Pacific Time: another student has booked that time since\. It stays cancelled\./);
+assert.equal(grids.Log.slice(1).filter(line => line[2] === 'reply:student-u:undo').pop()[5], 'not applied, now cancelled (another student has booked that time since)');
+replyTo('ann@example.com', 'NO', /^Lesson request from Nia Other/);
+// What counts as an UNDO, as people write it; and how long it counts.
+for (const [text, expected] of [['UNDO', 'undo'], ['Undo please', 'undo'], ['please undo', 'undo'], ['Hi,\nUNDO', 'undo'], ['Hello\nundo', 'undo'], ['Hi Dee, undo it', 'undo'],
+  ['ok, undo', 'undo'], ['UNDO\n\nSent from my iPhone', 'undo'], ['UNDOSent from my Galaxy', 'undo'], ['Thanks!', ''], ['Do not undo', ''], ['YES', ''], ['undone, thanks', '']]) {
+  assert.equal(context.undoAnswer_(text), expected, JSON.stringify(text));
+}
+const undoWindow = (date, start) => context.undoUntil_({ status: 'cancelled', cancelled_by: 'student', undo: 'open:' + clock, date, start });
+assert.equal(undoWindow('2026-10-30', '19:00'), clock + context.UNDO_MS, '3 days for a lesson further off');
+assert.equal(undoWindow(pacific(clock + hours(2)).slice(0, 10), pacific(clock + hours(2)).slice(11, 16)), clock + hours(2), 'until the lesson starts, if sooner');
+assert.equal(context.undoUntil_({ status: 'cancelled', cancelled_by: 'student', undo: '', date: '2026-10-30', start: '19:00' }), 0, 'none for a cancel the old way');
 sent.length = 0;
 cancelLesson('pat@example.com');
 assert.deepEqual(mailTo('ann@example.com').map(message => message.subject), ['Lesson cancelled by Pat Other']);
@@ -873,7 +936,6 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.deepEqual(both().map(entry => entry[0]), ['booked', 'booked']);
   // Mine on either half finds the lesson; cancelled, both reopen as 30 minute times.
   assert.equal(run('studentChange', { key: b.key, action: 'cancel', contact: 'lu@example.com' }).ok, true);
-  replyTo('lu@example.com', 'YES', /^Confirm: cancel your lesson/);
   assert.equal(statusOf('lu@example.com'), 'cancelled');
   assert.deepEqual(both(), [['open', a.time], ['open', b.time]]);
 
@@ -902,7 +964,7 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   const from = sent.length;
   const texts = ann().length;
   const answer = run('studentChange', { key: picked.key, action: 'cancel', contact: 'someone@example.com' });
-  assert.deepEqual([answer.ok, answer.withdrawn], [true, true]);
+  assert.deepEqual([answer.ok, answer.cancelled], [true, true]);
   assert.equal(statusOf('rhea@example.com'), 'pending', 'someone else\'s address changes nothing');
   assert.equal(sent.length, from, 'and sends nothing');
   assert.deepEqual(run('studentChange', { key: picked.key, action: 'cancel', contact: 'rhea@example.com' }), answer, 'the owner gets the very same answer');
@@ -919,16 +981,21 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   // The coach's YES to the old request, read afterwards, books nothing.
   replyTo('ann@example.com', 'YES', /^Lesson request from Rhea Student/);
   assert.equal(statusOf('rhea@example.com'), 'cancelled');
-  // A confirmed lesson still needs the student's emailed YES to cancel.
+  assert.equal(mailTo('rhea@example.com', from)[0].subject, 'Coaching request cancelled', 'a request never confirmed has no UNDO');
+  // A move still needs the student's emailed YES; cancelling instead goes ahead at once and drops the move that waited.
   book(form(picked, { name: 'Rhea Student', email: 'rhea@example.com' }));
   replyTo('ann@example.com', 'YES', /^Lesson request from Rhea Student/);
+  const moveTo = run('openSlots').slots.find(x => x.coach === 'Coach Ann' && x.key !== picked.key);
   const before = sent.length;
-  const lesson = run('studentChange', { key: picked.key, action: 'cancel', contact: 'rhea@example.com' });
-  assert.equal(lesson.withdrawn, undefined);
-  assert.equal(statusOf('rhea@example.com'), 'confirmed', 'nothing changes until the YES');
-  assert.match(mailTo('rhea@example.com', before).pop().subject, /^Confirm: cancel your lesson/);
-  replyTo('rhea@example.com', 'YES', /^Confirm: cancel your lesson/);
-  assert.equal(statusOf('rhea@example.com'), 'cancelled');
+  assert.equal(run('studentChange', { key: picked.key, action: 'move', to: moveTo.key, contact: 'rhea@example.com' }).cancelled, undefined);
+  assert.deepEqual(['status', 'change'].map(name => cell('Requests', latestRequest('rhea@example.com'), name)), ['confirmed', 'move:' + moveTo.key], 'nothing moves until the YES');
+  assert.match(mailTo('rhea@example.com', before).pop().subject, /^Confirm: move your lesson/);
+  assert.equal(run('studentChange', { key: picked.key, action: 'cancel', contact: 'rhea@example.com' }).cancelled, true);
+  assert.deepEqual(['status', 'change'].map(name => cell('Requests', latestRequest('rhea@example.com'), name)), ['cancelled', '']);
+  const told = sent.length;
+  replyTo('rhea@example.com', 'YES', /^Confirm: move your lesson/);
+  assert.equal(requestBy('rhea@example.com').filter(line => cell('Requests', line, 'status') !== 'cancelled').length, 0, 'the YES to the dropped move books nothing');
+  assert.equal(sent.length, told, 'that question is closed');
 }
 
 // ---- One time (2026-11-04): a YES meant for everything waiting counts for the two cancellations asked just before it ----
@@ -942,7 +1009,7 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
     replyTo('ann@example.com', 'YES', /^Lesson request from Zoe Student/);
   }
   assert.deepEqual(statuses(), ['confirmed', 'confirmed']);
-  for (const picked of [first, second]) assert.equal(run('studentChange', { key: picked.key, action: 'cancel', contact: zoe }).ok, true);
+  for (const picked of [first, second]) askedCancel(picked.key, zoe);
   clock += 60000;
   book(form(third, { name: 'Zoe Student', email: zoe }));
   assert.deepEqual(statuses(), ['confirmed', 'confirmed', 'pending'], 'her new request went to the coach; the cancellations still wait');
@@ -996,17 +1063,18 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
     return picked;
   };
 
-  // The case of Nov 3 2026: two cancellations, then a new request, then one YES to the newest email.
+  // The case of Nov 3 2026: two cancellations, then a new request, then one YES to the newest email. Cancels no longer wait for
+  // a YES (November 2026), so these are cancels asked the old way, still waiting when that changed; moves list the same way.
   const mia = 'mia@example.com';
   const [one, two] = confirmedPair(mia);
   sent.length = 0;
-  assert.equal(run('studentChange', { key: one.key, action: 'cancel', contact: mia }).ok, true);
+  askedCancel(one.key, mia);
   const first = sent[0];
   assert.match(first.subject, /^Confirm: cancel your lesson \[CTTC ref [0-9A-F]{10}\]$/, 'one thing waiting: the email is as before');
   assert.match(first.body, /Reply YES: Cancel the lesson and release the time\.\nReply NO: Keep the lesson as it is\./);
   assert.doesNotMatch(first.body, /ONLY THIS/);
   assert.equal([...first.htmlBody.matchAll(/href="mailto:/g)].length, 2, 'with a button for each answer');
-  assert.equal(run('studentChange', { key: two.key, action: 'cancel', contact: mia }).ok, true);
+  askedCancel(two.key, mia);
   const second = sent[1];
   assert.match(second.subject, /^Confirm: cancel your lesson \[CTTC ref [0-9A-F]{10}\]$/);
   assert.notEqual(second.subject, first.subject);
@@ -1047,9 +1115,9 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   const ned = 'ned@example.com';
   const [lesson, other] = confirmedPair(ned);
   clock += 11 * 60000;
-  assert.equal(run('studentChange', { key: lesson.key, action: 'cancel', contact: ned }).ok, true);
+  askedCancel(lesson.key, ned);
   sent.length = 0;
-  assert.equal(run('studentChange', { key: other.key, action: 'cancel', contact: ned }).ok, true);
+  askedCancel(other.key, ned);
   const both = latest(ned, /^Confirm: cancel your lesson/);
   assert.match(both.body, /Reply YES to ONLY THIS: Do only #2 \(cancel that lesson\)\. #1 stays waiting\./);
   tap(both, 'YES to ONLY THIS');
@@ -1067,9 +1135,9 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   // NO to a list declines just that email's own item; an earlier email still answers its own.
   const ora = 'ora@example.com';
   const [early, late] = confirmedPair(ora);
-  assert.equal(run('studentChange', { key: early.key, action: 'cancel', contact: ora }).ok, true);
+  askedCancel(early.key, ora);
   const alone = latest(ora, /^Confirm: cancel your lesson/);
-  assert.equal(run('studentChange', { key: late.key, action: 'cancel', contact: ora }).ok, true);
+  askedCancel(late.key, ora);
   const pair = latest(ora, /^Confirm: cancel your lesson/);
   tap(pair, 'NO');
   assert.deepEqual(lessons(ora), [['confirmed', 'cancel'], ['confirmed', '']], 'NO kept the second lesson, and the first still waits');
@@ -1087,7 +1155,7 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   book(tiaForm(seven));
   replyTo('ann@example.com', 'YES', /^Lesson request from Tia Student/);
   sent.length = 0;
-  assert.equal(run('studentChange', { key: seven.key, action: 'cancel', contact: tia }).ok, true);
+  askedCancel(seven.key, tia);
   const cancelAsk = sent.pop();
   const moveTo = open().filter(entry => entry.date !== seven.date).pop();
   clock += 60000;
@@ -1139,7 +1207,7 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   assert.equal(run('studentChange', { key: open()[0].key, action: 'cancel', contact: ora }).ok, false, 'nothing of hers is held now');
   const [pip] = confirmedPair('pip@example.com');
   clock += 11 * 60000;
-  assert.equal(run('studentChange', { key: pip.key, action: 'cancel', contact: 'pip@example.com' }).ok, true);
+  askedCancel(pip.key, 'pip@example.com');
   const summaries = () => sent.filter(message => message.to === context.SUMMARY_TO);
   sent.length = 0;
   context.SUMMARY_HOUR = Number(pacific(clock).slice(11, 13)) + 1;
@@ -1169,10 +1237,11 @@ assert.ok(grids.Schedule.slice(1).every(line => line[5] === 'Open'));
   const steps = (kind, detail) => grids.Log.slice(1).filter(line => line[2] === kind && detail.test(line[5]) && pacific(Date.parse(line[0])).slice(0, 10) === day).length;
   const booked = steps('step:pending', /booked on the page/);
   assert.ok(booked >= 10);
+  assert.ok(steps('step:cancelled', /cancelled on the page/) >= 5 && steps('step:confirmed', /undone by the student/) >= 1, 'page cancels and UNDOs are counted too');
   assert.equal(tally('student-v'), 0, 'no new request waits for the student\'s YES');
   assert.match(summary.body, new RegExp('Confirmed: ' + confirmed + ' YES answers applied\\nNew requests: ' + booked + ' sent to the coach from the page\\nLessons: ' + tally('coach-request') +
-    ' accepted by the coach\\nNo answer: ' + steps('step:expired', /coach did not answer/) + ' requests expired without the coach\'s answer\\nCancels and moves: ' + tally('student-c') +
-    ' confirmed by the student'), 'yesterday, by kind');
+    ' accepted by the coach\\nNo answer: ' + steps('step:expired', /coach did not answer/) + ' requests expired without the coach\'s answer\\nCancels and moves: ' + steps('step:cancelled', /cancelled on the page/) + ' lessons cancelled on the page \\(' +
+    steps('step:confirmed', /undone by the student/) + ' put back by UNDO\\), ' + tally('student-c') + ' confirmed by the student\'s YES'), 'yesterday, by kind');
   assert.match(summary.body, /One reply for a list: [1-9]\d* replies to an email listing several things/);
   assert.match(summary.body, /The log does not reach back to the start of yesterday/, 'the test log starts that day, and the summary says so');
   // With nothing waiting, it says so.
@@ -1913,23 +1982,28 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
     "sent as a reply to the student's own text, with the coach's contact details");
   assert.match(textsTo('Abe Coach').join('\n'), /Student: Pia Student, pia@example\.com, \(925\) 555-0123\./, "the coach gets the student's mobile number too");
   assert.match(mailTo('abe@example.com').find(message => /^Lesson confirmed/.test(message.subject)).body, /Student: Pia Student, pia@example\.com, \(925\) 555-0123/);
-  // With texts on, a change is asked by text as well as email, and either YES does it. Her mobile number identifies her.
+  // With texts on, a move is asked by text as well as email, and either answer counts. Her mobile number identifies her.
   sent.length = 0;
-  assert.equal(run('studentChange', { key: keyOf('pia@example.com'), action: 'cancel', contact: '925.555.0123' }).ok, true);
-  assert.match(mailTo('pia@example.com')[0].subject, /^Confirm: cancel your lesson/);
-  assert.equal(pia()[2], 'CTTC: Reply YES to cancel ' + piaFirst.label + '\'s lesson on Sat Oct 17, 4:00 PM, or NO to keep it.');
+  const firstLesson = () => cell('Requests', requestBy('pia@example.com')[0], 'status') + ' ' + cell('Requests', requestBy('pia@example.com')[0], 'change');
+  assert.equal(run('studentChange', { key: keyOf('pia@example.com'), action: 'move', to: abeSlot().key, contact: '925.555.0123' }).ok, true);
+  assert.match(mailTo('pia@example.com')[0].subject, /^Confirm: move your lesson/);
+  assert.match(pia()[2], new RegExp('^CTTC: Reply YES to move ' + piaFirst.label + '\'s lesson on Sat Oct 17, 4:00 PM to .+ \\(Coach Abe\\), or NO to keep it\\.$'));
   say('Someone Else', 'YES', otherFrom);
-  assert.equal(cell('Requests', requestBy('pia@example.com')[0], 'status'), 'confirmed');
-  say('(925) 555-0123', 'yes', piaPhone);
-  assert.equal(cell('Requests', requestBy('pia@example.com')[0], 'status'), 'cancelled');
-  assert.equal(pia()[3], 'CTTC: ' + piaFirst.label + ', your lesson on Sat Oct 17, 4:00 PM is cancelled.');
+  assert.match(firstLesson(), /^confirmed move:/, 'a YES from another phone does nothing');
+  say('(925) 555-0123', 'no', piaPhone);
+  assert.equal(firstLesson(), 'confirmed ', 'her texted NO keeps the lesson');
+  assert.match(pia()[3], /^CTTC: OK, nothing changed\. /);
+  // A cancel by her mobile number goes ahead at once, and the text says how to undo it.
+  assert.equal(run('studentChange', { key: keyOf('pia@example.com'), action: 'cancel', contact: '925.555.0123' }).cancelled, true);
+  assert.equal(firstLesson(), 'cancelled ');
+  assert.equal(pia()[4], 'CTTC: ' + piaFirst.label + ', your lesson on Sat Oct 17, 4:00 PM is cancelled. By mistake? Reply UNDO to our email.');
   // A new request goes straight to the coach for her too: nothing is texted to her until the coach answers.
   const third = run('requestSlot', form(abeSlot(), { name: 'Pia Student', email: 'pia@example.com' }));
   assert.match(third.message, /^Request sent to Coach Abe\. It is not booked until Coach Abe accepts\./);
   assert.equal(statusOf('pia@example.com'), 'pending');
-  assert.equal(pia().length, 4, 'no question is texted to her');
+  assert.equal(pia().length, 5, 'no question is texted to her');
   say('Abe Coach', 'NO');
-  assert.equal(pia()[4], 'CTTC: ' + piaFirst.label + ', Coach Abe cannot do Sat Oct 17, 4:00 PM. You are not booked. Pick another time at concordtabletennisclub.com/coaching.html.', 'the answer is texted');
+  assert.equal(pia()[5], 'CTTC: ' + piaFirst.label + ', Coach Abe cannot do Sat Oct 17, 4:00 PM. You are not booked. Pick another time at concordtabletennisclub.com/coaching.html.', 'the answer is texted');
   assert.doesNotMatch(pia().filter((body, index) => index !== 1).join(' '), /Pia Student|pia@|Abe Coach|[?]t=/, 'first names only in a text, except the confirmation');
   const piaCount = pia().length;
   context.sweep();
@@ -2148,15 +2222,16 @@ const samCodes = requestBy('sam@example.com').map(line => context.bookingCode_({
 const samMail = allSent.filter(message => message.to.toLowerCase() === 'sam@example.com' && message.subject !== 'We could not read your reply');
 assert.ok(samMail.every(message => samCodes.some(code => message.body.includes('Booking code: ' + code + '. Quote it if you contact the club about this lesson.'))),
   'every email to the student about a booking carries its code');
-assert.ok(samMail.filter(message => message.body.includes(samCode)).length >= 4, 'sent to the coach, confirmed, confirm the cancel, cancelled');
+assert.ok(samMail.filter(message => message.body.includes(samCode)).length >= 4, 'sent to the coach, confirmed, cancelled, back on, cancelled again');
 assert.ok(allSent.filter(message => /^Lesson (request from|confirmed)/.test(message.subject) && message.to === 'ann@example.com' && message.body.includes(samCode)).length >= 2,
   'and so do the coach\'s');
 const story = JSON.parse(context.doGet({ parameter: { log: samCode.toLowerCase() } }).text);
 assert.ok(story.lines.length && story.lines.every(line => line.ref === samCode), 'only that booking\'s lines');
-assert.deepEqual(story.lines.filter(line => line.channel === 'step').map(line => line.kind), ['step:pending', 'step:confirmed', 'step:cancelled']);
+assert.deepEqual(story.lines.filter(line => line.channel === 'step').map(line => line.kind + ' ' + line.detail.replace(/^waiting on coach until .*, /, '')),
+  ['step:pending booked on the page', 'step:confirmed ', 'step:cancelled by student, cancelled on the page', 'step:confirmed undone by the student', 'step:cancelled by student, cancelled on the page']);
 assert.match(story.lines[0].detail, /^waiting on coach until \w+day, .*, booked on the page$/, 'each step says who must act and by when, and the first that it came from the page');
 assert.deepEqual(story.lines.filter(line => line.kind.startsWith('reply:')).map(line => line.kind + ' ' + line.detail),
-  ['reply:coach-request:yes applied, now confirmed', 'reply:student-c:yes applied, now cancelled']);
+  ['reply:coach-request:yes applied, now confirmed', 'reply:student-u:undo applied, now confirmed', 'reply:student-u:undo not applied, now cancelled (another student has booked that time since)']);
 assert.deepEqual(Object.keys(story.booking), ['code', 'date', 'start', 'status', 'waitingOn', 'deadline']);
 assert.equal(story.booking.code, samCode);
 assert.equal(story.booking.status, 'cancelled');
@@ -2441,6 +2516,42 @@ logs.filter(line => line.startsWith('coaching sent ')).forEach(line => {
     await wait(50);
     assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('ray@example.com'), name)), ['cancelled', 'withdrawn']);
     assert.match($('#message').textContent, /it is cancelled now and the time is open again/);
+    await wait(50);
+    $('.lengths [data-minutes="25"]').click();
+    assert.ok(Array.from(doc.querySelectorAll('button.tbl.free')).some(node => node.getAttribute('aria-label') === 'Table 3, Coach Vic, 8:00 PM to 8:25 PM, open'),
+      'the board is drawn again with the time open');
+    dom.window.close();
+  }
+  // ---- Mine on a booked lesson: Cancel this lesson, at once, and the page says how to undo it ----
+  {
+    const vicLate = run('openSlots').slots.find(entry => entry.coach === 'Coach Vic' && entry.start === '20:00');
+    assert.equal(run('requestSlot', form(vicLate, { name: 'Una Student', email: 'una@example.com' })).ok, true);
+    replyTo('vic@example.com', 'YES', /^Lesson request from Una Student/);
+    assert.equal(statusOf('una@example.com'), 'confirmed');
+    const dom = new JSDOM(page, {
+      url: SITE + '/coaching-app.html', runScripts: 'dangerously', pretendToBeVisual: true,
+      beforeParse(window) {
+        window.HTMLElement.prototype.scrollIntoView = () => {};
+        window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+        window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+        window.top.postMessage = () => {};
+        window.fetch = (url, options) => viaDoPost(options);
+      }
+    });
+    await wait(50);
+    const doc = dom.window.document, $ = selector => doc.querySelector(selector);
+    const buttonIn = (root, text) => Array.from(root.querySelectorAll('button')).find(node => node.textContent === text);
+    Array.from(doc.querySelectorAll('button.mini')).find(node => /Student Una/.test(node.getAttribute('aria-label'))).click();
+    assert.equal($('#changeTitle').textContent, 'Change your lesson');
+    buttonIn($('#change'), 'Cancel this lesson').click();
+    assert.equal($('#changeLegend').textContent, 'Your lesson is cancelled straight away, the time opens up and the coach is told. No email reply is needed. Cancelled by mistake? Reply UNDO to the email we send you.');
+    $('#changeContact').value = 'una@example.com';
+    const submit = $('#change button[type=submit]');
+    assert.equal(submit.textContent, 'Cancel this lesson', 'the button says what it does');
+    submit.click();
+    await wait(50);
+    assert.deepEqual(['status', 'cancelled_by'].map(name => cell('Requests', latestRequest('una@example.com'), name)), ['cancelled', 'student']);
+    assert.match($('#message').textContent, /it is cancelled now and the time is open again\. .*Reply UNDO to that email\./);
     await wait(50);
     $('.lengths [data-minutes="25"]').click();
     assert.ok(Array.from(doc.querySelectorAll('button.tbl.free')).some(node => node.getAttribute('aria-label') === 'Table 3, Coach Vic, 8:00 PM to 8:25 PM, open'),
