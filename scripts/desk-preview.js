@@ -526,12 +526,21 @@ const volunteerPreview = (function () {
     recent: [{ at: today + 'T18:05:00.000Z', kind: 'move', name: 'Ben Sample', before: 'Mon, Nov 9: Lock-up (closing, 10:00 PM)', after: 'Wed, Nov 11: Lock-up (closing, 10:00 PM)', emailed: 'yes' }],
     players: names.map((name, index) => ({ playerId: id(name), name, rating: 1800 - index * 70 })).concat([{ playerId: 'vol-mo', name: 'Mo Sample', rating: 950 }]),
     // Mo has no email on file, so adding Mo asks for one.
-    withEmail: names.map(id)
+    withEmail: names.map(id),
+    // Each weekday's point of contact (Friday has none yet), as the volunteer app's adminBoard_ lists them.
+    contacts: [[1, 'Ann Sample'], [3, 'Ben Sample'], [5, ''], [6, 'Cy Sample']].map(([weekday, name]) => ({ weekday, day: DAYS[weekday], label: 'Point of contact for ALL ' + DAYS[weekday] + 's',
+      playerId: name ? id(name) : '', name, details: name ? name + ', ' + name.split(' ')[0].toLowerCase() + '@example.com' : '', publicName: name.split(' ')[0] }))
   };
   const playerName = playerId => (board.players.find(player => player.playerId === playerId) || { name: playerId }).name;
   return {
     getVolunteerAdmin: () => JSON.parse(JSON.stringify(board)),
-    previewVolunteerAdmin: bucket => ({ ok: true, preview: true, changes: bucket.changes.length, emails: bucket.changes.filter(change => change.kind !== 'training').map(change => {
+    previewVolunteerAdmin: bucket => ({ ok: true, preview: true, changes: bucket.changes.length,
+      contacts: bucket.changes.filter(change => change.kind === 'contact').map(change => {
+        const name = change.playerId ? playerName(change.playerId) : '';
+        return { weekday: change.weekday, label: 'Point of contact for ALL ' + DAYS[change.weekday] + 's', name, publicName: name.split(' ')[0],
+          details: !name ? '' : change.playerId === 'vol-mo' ? name : name + ', ' + name.split(' ')[0].toLowerCase() + '@example.com', warning: change.playerId === 'vol-mo' ? name + ' has no email on file, so volunteers are sent the name only.' : '' };
+      }),
+      emails: bucket.changes.filter(change => change.kind !== 'training' && change.kind !== 'contact').map(change => {
       if (change.kind === 'add') {
         const name = playerName(change.playerId);
         return { name, to: (change.email || name)[0].toLowerCase() + '\u2022\u2022\u2022@example.com', subject: 'The club signed you up for a CTTC volunteer shift',

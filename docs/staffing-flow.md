@@ -40,14 +40,19 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
     filled.)
   - **Closed** (`×`): the gym is closed that night (section 8). A closed
     night asks for no volunteers, is not counted and gets no reminders.
-- **Each night has a point of contact**, the same person every week for that
-  weekday: Mondays Raymond, Wednesdays JB, Fridays Bryan, Saturdays Ngai Chi
-  (`DAY_CONTACTS`). Any volunteer that night asks them for help or about
-  anything to do with the night. The night's panel says "Need help, or have a
-  question about Monday nights? Point of contact: Raymond", its Share to
-  WhatsApp message names them, and so do the confirmation email (one line per
-  weekday confirmed) and the day-before reminder. A closed night shows none.
-  To change a person, change `DAY_CONTACTS` in a PR and release `/exec`.
+- **Each weekday has a point of contact**, the same person for every Monday
+  (and so on), whom that night's volunteers ask for help or about anything to
+  do with the night. There are no per-night exceptions: cover for a night is
+  arranged among the contacts themselves. The club assigns them on **Volunteer
+  Admin**, at the top of each weekday's column (section 12), from anyone on the
+  desk's player list; they are kept in this app's private `Contacts` tab. The
+  public calendar shows the **first name only**: "Point of contact for ALL
+  Mondays: Ada" on the night's panel and in its Share to WhatsApp message. The
+  emails that go only to a confirmed volunteer, the confirmation (one line per
+  weekday confirmed) and the day-before reminder, give the contact's full name
+  and the **email and mobile on file** for them ("Point of contact for ALL
+  Mondays: Ada Park, ada.park@example.com, (925) 555-0188"). A closed night,
+  or a weekday with nobody assigned, names nobody.
 - **The page opens on a night.** On opening, the next night still open for
   sign-ups is selected and its panel shown: tonight until sign-ups close an
   hour before opening, then the next club night. It is not scrolled to or
@@ -229,6 +234,7 @@ list when it is a Google Doc; DocumentApp has no read-only scope) and
 | `People` | app | Everyone who signed up, by email; the mobile on file and text opt-in (`texts`). |
 | `Training` | Volunteer Admin and the seed import | Who may take Desk organizer (`keys` and `open` = yes), Money collector (`front_desk` = yes) and Lock-up (`keys` = yes). Table setup and putting tables away need no training. |
 | `Closures` | owner | `date` (`2026-11-13` or `11/13/2026`) and a short public `note`. |
+| `Contacts` | Volunteer Admin | Each club weekday's point of contact: `weekday` (1 is Monday), `day`, `player_id`, `name` (their desk name when set), `updated_at`. A cleared weekday keeps its row with no `player_id` (section 12). |
 | `SeedLinks`, `SeedReport` | owner / import | The seed import's fix-up loop (section 6). |
 | `MemberEmailReport` | import | What `importMemberEmails` added, kept and could not match (full names; private). |
 | `Log` | app | One row per email/text sent, reply read, step or error. Recipients are codes; never an address or number. |
@@ -643,6 +649,17 @@ is not shown leaves its place empty, so each column stays one weekday. Month
 filters, *Find a person* (highlights their cards) and *Nights with sign-ups
 only* narrow it down.
 
+**Points of contact.** Above each weekday's column, a card names that
+weekday's point of contact, the same person every week: their name, what the
+emails to confirmed volunteers give (name, email and mobile on file) and the
+first name the public calendar shows. **Assign** or **Change** searches the
+desk's players; **Clear** leaves the weekday with nobody. A change waits in the
+bucket like any other; Review shows what volunteers will see (and warns when
+the person has no email on file, so volunteers get the name only). Nobody is
+emailed about it. On Submit it is saved to the `Contacts` tab, recorded in
+`AdminChanges` (kind `contact`, before and after), and the public calendar
+shows it on its next load.
+
 - **Add:** tap an open spot (*needed · add* or *open spot · add*), search the
   desk's players and pick one, for when the normal sign-up is not working.
   People who cannot take that spot are listed greyed out with the reason (needs
@@ -674,7 +691,7 @@ rating**, and the desk adds them exactly as its own Add a player does, so the
 desk knows them before they ever volunteer. Nobody is emailed about training.
 
 **The bucket.** Nothing changes until it is submitted. Every add, move, removal,
-training change and new player waits under **Changes to submit**, each with
+training change, point of contact and new player waits under **Changes to submit**, each with
 *undo*, and is kept on that device if the page is closed. **Review emails**
 asks this app to check everything against the Sheet as it is now and shows the
 email each person will get; **Submit** is offered only after that. On Submit

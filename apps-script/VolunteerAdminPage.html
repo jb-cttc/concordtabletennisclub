@@ -96,6 +96,17 @@
   .people li.taken span { text-decoration: line-through; color: var(--red); }
   .people .x { border: 1px solid #c9d2cc; background: #fff; border-radius: 4px; color: var(--red); padding: 2px 8px; font: 12px Arial, sans-serif; }
   .people .undo { border: 0; background: none; color: var(--blue); text-decoration: underline; font: 12px Arial, sans-serif; }
+  /* Each weekday column's point of contact, above its nights: the same person every week, assigned here. */
+  .poc { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 6px; padding: 8px 10px; font: 13px Arial, sans-serif; }
+  .poc.changing { background: #eef3fb; border-color: var(--blue); }
+  .poc .poc-role { display: block; font: 700 11px Arial, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: var(--blue); }
+  .poc .poc-who { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 2px; }
+  .poc .poc-who b { font: 700 15px Georgia, serif; }
+  .poc small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+  .poc button { border: 0; background: none; color: var(--blue); text-decoration: underline; font: 12px Arial, sans-serif; padding: 0; flex: none; }
+  .kind.contact { background: var(--blue); }
+  .contact-review { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 4px; }
+  .contact-review p { margin: 2px 0; }
   .add-row { display: flex; gap: 6px; }
   .add-row input { flex: 1; min-width: 0; border: 1px solid #aeb7b1; border-radius: 4px; padding: 7px 9px; font: 14px Arial, sans-serif; }
   .finds { list-style: none; margin: 4px 0 0; padding: 0; font: 13px Arial, sans-serif; }
@@ -367,6 +378,17 @@
     bucket.newPlayers = bucket.newPlayers.filter(function (player) { return bucket.changes.some(function (change) { return change.playerId === player.tempId; }); });
     changed();
   }
+  // Points of contact: board.contacts is the Sheet, a 'contact' change in the bucket replaces one weekday's (playerId '' clears).
+  function contactChange(weekday) { return bucket.changes.filter(function (change) { return change.kind === 'contact' && change.weekday === weekday; })[0]; }
+  function setContact(weekday, playerId) {
+    var now = board.contacts.filter(function (day) { return day.weekday === weekday; })[0];
+    bucket.changes = bucket.changes.filter(function (change) { return !(change.kind === 'contact' && change.weekday === weekday); });
+    if (now.playerId !== playerId) bucket.changes.push({ kind: 'contact', weekday: weekday, playerId: playerId });
+    var days = 'ALL ' + now.day + 's';
+    say(playerId === now.playerId ? 'The point of contact for ' + days + ' stays as it is.' : (playerId ? nameOf(playerId) + ' will be the point of contact for ' + days :
+      'The point of contact for ' + days + ' will be cleared') + '. It waits in the bucket until you submit.', 'ok');
+    changed();
+  }
   function labelOf(id) {
     var item = placed()[id].item;
     return item.slot.name + ' (' + spec(item.position).label + ', ' + nightOf(item.date).short + ')';
@@ -405,6 +427,10 @@
       if ($('peopleOnly').checked && !here.length) return;
       shown.push({ night: night, here: here });
     });
+    // First row: each column's point of contact, Monday, Wednesday, Friday, Saturday (DAY_COLUMN), whatever nights are shown.
+    var heads = [];
+    (board.contacts || []).forEach(function (day) { heads[DAY_COLUMN[day.weekday]] = contactHead(day); });
+    if (heads.length) for (var place = 0; place < WEEK_COLUMNS; place += 1) box.appendChild(heads[place] || el('div', { 'class': 'night-gap', 'aria-hidden': 'true' }));
     // One row per week, Monday, Wednesday, Friday, Saturday from left to right; an empty cell where a night is not shown.
     var lastWeek = '';
     var column = 0;
@@ -419,7 +445,7 @@
       box.appendChild(nightPanel(entry.night, entry.here, where, find));
       column += 1;
     });
-    if (!shown.length) box.appendChild(el('p', { 'class': 'muted', text: 'No nights to show.' }));
+    if (!shown.length) box.appendChild(el('p', { 'class': 'muted', text: 'No nights to show.', style: 'grid-column: 1 / -1;' }));
   }
   // The club's nights in their columns: Monday, Wednesday, Friday, Saturday (any other day takes the next column along).
   var WEEK_COLUMNS = 4;
@@ -688,8 +714,69 @@
     });
   }
 
+  // The head of each weekday column: that weekday's point of contact, assigned for every week (no per-night exceptions; cover
+  // for a night is arranged among the contacts themselves).
+  function contactHead(day) {
+    var change = contactChange(day.weekday);
+    var playerId = change ? change.playerId : day.playerId;
+    var head = el('div', { 'class': 'poc' + (change ? ' changing' : ''), 'data-weekday': String(day.weekday) });
+    var action = el('button', { type: 'button', text: playerId ? 'Change' : 'Assign', 'aria-label': (playerId ? 'Change the ' : 'Assign the ') + day.label.toLowerCase() });
+    action.addEventListener('click', function () { openContactPicker(day); });
+    head.append(el('span', { 'class': 'poc-role', text: day.label }),
+      el('div', { 'class': 'poc-who' }, [el('b', { 'class': playerId ? '' : 'muted', text: playerId ? nameOf(playerId) : 'Nobody yet' }), action]));
+    if (change) {
+      var back = el('button', { type: 'button', text: 'undo', 'aria-label': 'Undo the change to the ' + day.label.toLowerCase() });
+      back.addEventListener('click', function () { setContact(day.weekday, day.playerId); });
+      head.appendChild(el('small', {}, ['Was ' + (day.name || 'nobody') + '. Review the bucket to see what volunteers will be sent. ', back]));
+    } else if (day.playerId) {
+      head.appendChild(el('small', { text: 'Emails: ' + day.details }));
+      head.appendChild(el('small', { text: 'Public calendar: ' + day.publicName }));
+    }
+    return head;
+  }
+  function openContactPicker(day) {
+    var back = $('picker');
+    var close = el('button', { type: 'button', 'aria-label': 'Close', text: '×' });
+    close.addEventListener('click', closePicker);
+    var change = contactChange(day.weekday);
+    var current = change ? change.playerId : day.playerId;
+    var input = el('input', { type: 'search', placeholder: 'Type a name', 'aria-label': 'Search the desk\'s players', autocomplete: 'off' });
+    var finds = el('ul', { 'class': 'finds' });
+    input.addEventListener('input', function () {
+      finds.replaceChildren();
+      var query = input.value.trim().toLowerCase();
+      if (query.length < 2) return;
+      var matches = board.players.filter(function (player) { return player.name.toLowerCase().indexOf(query) >= 0 && player.playerId !== current; }).slice(0, 8);
+      matches.forEach(function (player) {
+        var pick = el('button', { type: 'button', text: player.name + ' · ' + player.rating });
+        pick.addEventListener('click', function () { closePicker(); setContact(day.weekday, player.playerId); });
+        finds.appendChild(el('li', {}, [pick]));
+      });
+      if (!matches.length) finds.appendChild(el('li', { 'class': 'muted', text: 'No player on the desk called that.' }));
+    });
+    var clear = null;
+    if (current) {
+      clear = el('button', { type: 'button', 'class': 'link', text: 'Clear: no point of contact for ALL ' + day.day + 's' });
+      clear.addEventListener('click', function () { closePicker(); setContact(day.weekday, ''); });
+    }
+    back.replaceChildren(el('div', { 'class': 'picker', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pickerTitle' }, [
+      el('div', { 'class': 'picker-head' }, [el('div', {}, [el('h2', { id: 'pickerTitle', text: day.label }),
+        el('small', { text: 'Every ' + day.day + ', every week. Now: ' + (current ? nameOf(current) : 'nobody') })]), close]),
+      el('div', { 'class': 'picker-body' }, [input, finds,
+        el('p', { 'class': 'muted', text: 'The public calendar shows their first name. The confirmation and reminder emails to ' + day.day + ' volunteers give their name, and the email and mobile on file.' }),
+        clear ? el('div', { 'class': 'actions' }, [clear]) : null])]));
+    back.hidden = false;
+    back.onclick = function (event) { if (event.target === back) closePicker(); };
+    input.focus();
+  }
+
   function changeText(change) {
     var line = el('span', { 'class': 'text' });
+    if (change.kind === 'contact') {
+      var day = board.contacts.filter(function (entry) { return entry.weekday === change.weekday; })[0];
+      line.append(day.label + ': ', day.name ? el('del', { text: day.name }) : 'nobody', ' → ', change.playerId ? el('ins', { text: nameOf(change.playerId) }) : 'nobody');
+      return line;
+    }
     if (change.kind === 'training') {
       line.append(nameOf(change.playerId) + ': ', change.value ? el('ins', { text: 'give ' }) : el('del', { text: 'take away ' }),
         board.skills.filter(function (skill) { return skill.id === change.skill; })[0].label + ' training');
@@ -715,27 +802,39 @@
       list.appendChild(el('li', {}, [el('span', { 'class': 'kind player', text: 'NEW PLAYER' }), el('span', { 'class': 'text', text: player.name + ', rating ' + player.rating + ' (added to the desk)' })]));
     });
     bucket.changes.forEach(function (change, index) {
-      var row = el('li', {}, [el('span', { 'class': 'kind ' + change.kind, text: change.kind === 'training' ? 'TRAINING' : change.kind.toUpperCase() }), changeText(change)]);
+      var row = el('li', {}, [el('span', { 'class': 'kind ' + change.kind, text: change.kind.toUpperCase() }), changeText(change)]);
       var x = el('button', { type: 'button', 'class': 'undo link', text: 'undo' });
       x.addEventListener('click', function () {
         if (change.kind === 'training') setTraining(change.playerId, change.skill, !change.value);
+        else if (change.kind === 'contact') setContact(change.weekday, (board.contacts.filter(function (day) { return day.weekday === change.weekday; })[0] || {}).playerId || '');
         else undo(change.id);
       });
       row.appendChild(x);
       lastProblems.filter(function (problem) { return problem.index === index; }).forEach(function (problem) { row.appendChild(el('p', { 'class': 'problem', text: problem.reason })); });
       list.appendChild(row);
     });
-    if (!count()) body.appendChild(el('p', { 'class': 'muted', text: 'Nothing yet. Add, remove or move people on the Schedule, or change who is trained under Training & access.' }));
+    if (!count()) body.appendChild(el('p', { 'class': 'muted', text: 'Nothing yet. Add, remove or move people on the Schedule, change who is trained under Training & access, or assign a point of contact at the top of a weekday\'s column.' }));
     body.appendChild(list);
-    var schedule = bucket.changes.some(function (change) { return change.kind !== 'training'; });
+    var schedule = bucket.changes.some(function (change) { return change.kind !== 'training' && change.kind !== 'contact'; });
     if (schedule) {
       var area = el('textarea', { maxlength: String(board.noteMax), placeholder: 'Optional: a message to include in every email (for example, why the change)' });
       area.value = note;
       area.addEventListener('input', function () { note = area.value; reviewed = null; save(); $('submit').disabled = true; });
       body.append(el('label', { text: 'Message to the volunteers (optional)' }), area);
     }
+    if (reviewed && (reviewed.contacts || []).length) {
+      body.appendChild(el('h3', { text: 'What volunteers will see' }));
+      reviewed.contacts.forEach(function (contact) {
+        body.appendChild(el('div', { 'class': 'contact-review' }, contact.name ? [
+          el('b', { text: contact.label }),
+          el('p', { text: 'On the public calendar: ' + contact.publicName }),
+          el('p', { text: 'In the confirmation and reminder emails: ' + contact.details }),
+          contact.warning ? el('p', { 'class': 'problem', text: contact.warning }) : null] : [
+          el('b', { text: contact.label }), el('p', { text: 'Cleared: the calendar and emails name nobody for these nights.' })]));
+      });
+    }
     if (reviewed && reviewed.emails) {
-      body.appendChild(el('h3', { text: reviewed.emails.length ? 'The emails (' + reviewed.emails.length + ')' : 'Nobody is emailed (training only)' }));
+      body.appendChild(el('h3', { text: reviewed.emails.length ? 'The emails (' + reviewed.emails.length + ')' : 'Nobody is emailed (training and points of contact only)' }));
       reviewed.emails.forEach(function (email) {
         body.appendChild(el('details', { 'class': 'email' }, [el('summary', { text: email.name + ' (' + email.to + '): ' + email.subject }), el('pre', { text: email.text })]));
       });
@@ -762,7 +861,7 @@
       var ids = {};
       signups().forEach(function (item) { ids[item.slot.id] = item; });
       bucket.changes = bucket.changes.filter(function (change) {
-        if (change.kind === 'training') return true;
+        if (change.kind === 'training' || change.kind === 'contact') return true;
         if (change.kind === 'add') { var night = nightOf(change.to.date); return !!night && night.open && !night.closed; }
         var item = ids[change.id];
         return !!item && item.date === change.was.date && item.position === change.was.position;
@@ -771,7 +870,7 @@
       render();
     });
   }
-  function payload() { return { newPlayers: bucket.newPlayers, changes: bucket.changes.map(function (change) { return { kind: change.kind, id: change.id, was: change.was, to: change.to, playerId: change.playerId, skill: change.skill, value: change.value, email: change.email }; }) }; }
+  function payload() { return { newPlayers: bucket.newPlayers, changes: bucket.changes.map(function (change) { return { kind: change.kind, id: change.id, was: change.was, to: change.to, playerId: change.playerId, skill: change.skill, value: change.value, email: change.email, weekday: change.weekday }; }) }; }
   function answered(result) {
     lastProblems = (result.problems || []).filter(function (problem) { return problem.index !== undefined; });
     say(result.message + ' ' + (result.problems || []).map(function (problem) { return problem.reason; }).join(' '), 'error');
