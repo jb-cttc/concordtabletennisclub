@@ -210,9 +210,12 @@ minutes. The tab keeps the latest 2,000 rows.
 
 On a round robin day, until 8:30 PM (or the end of Saturday's round robin, 6
 PM, if sooner), a player can pay tonight's fee by card before they arrive.
-The text page (`text.html`) offers it under the Text button; the pay page
-(`pay.html`, and **Pay now** under Fees on the home page) shows **Card, ahead
-of time** beside Venmo and Zelle.
+It starts as a **pilot** (November 2026), kept quiet on purpose: the text page
+(`text.html`) has a small **PILOT Or pay ahead by card** link under the Text
+button, and the pay page (`pay.html`, and **Pay now** under Fees on the home
+page) has an outlined **PILOT Pay ahead by card** option below Venmo and
+Zelle, with *We're trying out paying online before you arrive. If anything
+looks off, pay at the desk as usual.* On other days it is not shown at all.
 
 1. The player chooses who's playing (Member, Visitor, First visit, Under 18,
    or the night's special), as for Venmo.

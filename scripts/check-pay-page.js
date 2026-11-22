@@ -170,7 +170,7 @@ const SUNDAY = '2027-01-10T19:30:00-08:00';
   win = open(payPage, SUNDAY);
   await settle();
   assert.equal(win.document.querySelector('.pay-card').hidden, true);
-  assert.equal(win.document.querySelector('.pay-card-closed').hidden, false);
+  assert.equal(win.document.querySelector('.pay-card-pilot').hidden, true, 'and no pilot note');
 
   // Monday morning: pick a name from the directory, see what you pay, confirm.
   const MONDAY = '2026-11-23T10:00:00-08:00';
@@ -179,7 +179,9 @@ const SUNDAY = '2027-01-10T19:30:00-08:00';
   doc = win.document;
   const cardButton = doc.querySelector('.pay-card');
   assert.equal(cardButton.hidden, false);
-  assert.equal(doc.querySelector('.pay-with').hidden, false, '"Pay $10 with" the card');
+  assert.equal(doc.querySelector('.pay-card-pilot').hidden, false, 'marked as a pilot');
+  assert.match(cardButton.textContent, /^Pilot Pay ahead by card$/);
+  assert.ok(doc.querySelector('.pay-pilot').compareDocumentPosition(doc.querySelector('.pay-locked')) & win.Node.DOCUMENT_POSITION_PRECEDING, 'after Venmo and Zelle, not before');
   cardButton.click();
   await settle();
   const typeName = text => {

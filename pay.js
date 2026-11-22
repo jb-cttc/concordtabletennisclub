@@ -126,21 +126,6 @@
     '</div>' +
     '<div class="pay-step">' +
       '<p class="pay-label">2. Pay <span class="pay-amount">$10</span><span class="pay-with" hidden> with</span></p>' +
-      '<button type="button" class="pay-method pay-card" aria-expanded="false" hidden>' +
-        '<span class="pay-method-name">Card, ahead of time</span><span class="pay-method-what">Pay now on Clover&rsquo;s secure page</span></button>' +
-      '<div class="pay-card-panel" hidden>' +
-        '<p class="pay-card-ask"><label for="pay-card-name">Who are you? Pick your name as the desk has it.</label></p>' +
-        '<input id="pay-card-name" class="pay-card-name" type="search" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="60" placeholder="Start typing your name">' +
-        '<ul class="pay-card-matches" role="list"></ul>' +
-        '<button type="button" class="pay-card-new" hidden></button>' +
-        '<div class="pay-card-review" hidden>' +
-          '<p class="pay-card-who"></p>' +
-          '<button type="button" class="pay-card-go"></button>' +
-          '<p class="pay-note">You pay on Clover&rsquo;s secure page, then come back here. Paying ahead works on round robin days until 8:30 PM.</p>' +
-        '</div>' +
-        '<p class="pay-card-error" role="alert" hidden></p>' +
-      '</div>' +
-      '<p class="pay-card-closed pay-note" hidden>Paying ahead by card works on round robin days until 8:30 PM.</p>' +
       '<p class="pay-locked" hidden>Scan the QR code at the front desk to pay by <strong>Venmo</strong> or <strong>Zelle</strong>. Cash and card work at the desk too.</p>' +
       '<a class="pay-method pay-venmo" href="#" hidden>' +
         '<span class="pay-method-name">Venmo</span><span class="pay-method-what">Opens the app, amount filled in</span></a>' +
@@ -151,6 +136,23 @@
         '<p>In your bank app, choose <strong>Zelle</strong> and send <strong class="pay-amount">$10</strong> to:</p>' +
         '<p class="pay-zelle-to"><span class="pay-zelle-address"></span> <button type="button" class="pay-copy">Copy</button></p>' +
         '<p class="pay-note pay-zelle-name"></p>' +
+      '</div>' +
+      '<div class="pay-pilot">' +
+      '<button type="button" class="pay-card" aria-expanded="false" hidden>' +
+        '<span class="pay-pilot-tag">Pilot</span> Pay ahead by card</button>' +
+      '<p class="pay-card-pilot pay-note" hidden>We&rsquo;re trying out paying online before you arrive. If anything looks off, pay at the desk as usual.</p>' +
+      '<div class="pay-card-panel" hidden>' +
+        '<p class="pay-card-ask"><label for="pay-card-name">Who are you? Pick your name as the desk has it.</label></p>' +
+        '<input id="pay-card-name" class="pay-card-name" type="search" autocomplete="off" autocapitalize="words" spellcheck="false" maxlength="60" placeholder="Start typing your name">' +
+        '<ul class="pay-card-matches" role="list"></ul>' +
+        '<button type="button" class="pay-card-new" hidden></button>' +
+        '<div class="pay-card-review" hidden>' +
+          '<p class="pay-card-who"></p>' +
+          '<button type="button" class="pay-card-go"></button>' +
+          '<p class="pay-note">You pay on Clover&rsquo;s secure page, then come back here. Works on round robin days until 8:30 PM.</p>' +
+        '</div>' +
+        '<p class="pay-card-error" role="alert" hidden></p>' +
+      '</div>' +
       '</div>' +
     '</div>' +
     '<p class="pay-done" hidden>Paid? Show the desk your confirmation screen.</p>' +
@@ -167,7 +169,7 @@
     var paid = /[?&]paid=(\d{4}-\d{2}-\d{2})(&|$)/.exec(search);
     if (paid) {
       return '<div class="pay-back pay-back-paid" role="status"><p><strong>Paid' + (paid[1] === today() ? ' for tonight' : ' for ' + longDay(paid[1])) +
-        ' by card.</strong> Just check in at the desk.</p>' +
+        ' by card.</strong> Just check in at the desk. We&rsquo;re piloting this, so if the desk doesn&rsquo;t show you as paid, show them this page or Clover&rsquo;s receipt.</p>' +
         (paid[1] === today() ? '<p class="pay-note">Haven&rsquo;t texted yet? <a href="' + TEXT_LINK + '">Text CTTC: I&rsquo;ll join today</a> so you count on the Tonight page.</p>' : '') + '</div>';
     }
     if (/[?&]prepay=cancelled(&|$)/.test(search)) return '<div class="pay-back" role="status"><p><strong>Card payment cancelled.</strong> Nothing was charged.</p></div>';
@@ -306,8 +308,7 @@
     });
     openToday.then(function (open) {
       card.hidden = !open;
-      one(".pay-card-closed").hidden = open;
-      one(".pay-with").hidden = !open && !PAY.venmo && !PAY.zelle;
+      one(".pay-card-pilot").hidden = !open;
       if (open && /^#card$/.test(window.location.hash) && root === document.querySelector("[data-pay]")) {
         openCard();
         if (panel.scrollIntoView) panel.scrollIntoView({ block: "start" });
