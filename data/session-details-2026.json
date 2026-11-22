@@ -1,5 +1,812 @@
 [
   {
+    "date": "2026-11-21",
+    "sessionId": "session-2026-11-21",
+    "source": "app",
+    "revision": 46,
+    "finalizedAt": "11/21/2026",
+    "groups": [
+      {
+        "name": "Group 1",
+        "players": [
+          {
+            "name": "Kyint Ng",
+            "wins": 4,
+            "losses": 1,
+            "gamesWon": 12,
+            "gamesLost": 8,
+            "ratingBefore": 1667,
+            "ratingAfter": 1695,
+            "ratingAdj": 28,
+            "matches": [
+              {
+                "opponent": "Raymond Trinh",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 8,
+                "forfeit": false
+              },
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Patrick Lam",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 16,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 5,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Ngai-Chi Chung",
+            "wins": 4,
+            "losses": 1,
+            "gamesWon": 10,
+            "gamesLost": 6,
+            "ratingBefore": 1750,
+            "ratingAfter": 1741,
+            "ratingAdj": -9,
+            "matches": [
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Raymond Trinh",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 5,
+                "forfeit": false
+              },
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -16,
+                "forfeit": false
+              },
+              {
+                "opponent": "Patrick Lam",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Patrick Lam"
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Raymond Trinh",
+            "wins": 3,
+            "losses": 2,
+            "gamesWon": 13,
+            "gamesLost": 9,
+            "ratingBefore": 1679,
+            "ratingAfter": 1715,
+            "ratingAdj": 36,
+            "matches": [
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -8,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -5,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 4,
+                "forfeit": false
+              },
+              {
+                "opponent": "Patrick Lam",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 45,
+                "forfeit": false
+              },
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Patrick Lam",
+            "wins": 3,
+            "losses": 2,
+            "gamesWon": 11,
+            "gamesLost": 5,
+            "ratingBefore": 1900,
+            "ratingAfter": 1856,
+            "ratingAdj": -44,
+            "matches": [
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Raymond Trinh",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -45,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 0,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": true,
+                "forfeitedBy": "Patrick Lam"
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Jafar Fatemi",
+            "wins": 1,
+            "losses": 4,
+            "gamesWon": 8,
+            "gamesLost": 12,
+            "ratingBefore": 1582,
+            "ratingAfter": 1572,
+            "ratingAdj": -10,
+            "matches": [
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Patrick Lam",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Raymond Trinh",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -4,
+                "forfeit": false
+              },
+              {
+                "opponent": "Victor Lee",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -5,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Victor Lee",
+            "wins": 0,
+            "losses": 5,
+            "gamesWon": 1,
+            "gamesLost": 15,
+            "ratingBefore": 1381,
+            "ratingAfter": 1380,
+            "ratingAdj": -1,
+            "matches": [
+              {
+                "opponent": "Patrick Lam",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Kyint Ng",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Ngai-Chi Chung",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Jafar Fatemi",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Raymond Trinh",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          }
+        ]
+      },
+      {
+        "name": "Group 2",
+        "players": [
+          {
+            "name": "Brandon Van Buskirk",
+            "wins": 4,
+            "losses": 0,
+            "gamesWon": 12,
+            "gamesLost": 3,
+            "ratingBefore": 1217,
+            "ratingAfter": 1272,
+            "ratingAdj": 55,
+            "matches": [
+              {
+                "opponent": "Naveen Pandu",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Constantine Dinkov",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 4,
+                "forfeit": false
+              },
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 50,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Constantine Dinkov",
+            "wins": 3,
+            "losses": 1,
+            "gamesWon": 11,
+            "gamesLost": 4,
+            "ratingBefore": 1114,
+            "ratingAfter": 1163,
+            "ratingAdj": 49,
+            "matches": [
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 3,
+                "forfeit": false
+              },
+              {
+                "opponent": "Brandon Van Buskirk",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -4,
+                "forfeit": false
+              },
+              {
+                "opponent": "Naveen Pandu",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 50,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Eric Aki",
+            "wins": 2,
+            "losses": 2,
+            "gamesWon": 8,
+            "gamesLost": 9,
+            "ratingBefore": 1522,
+            "ratingAfter": 1422,
+            "ratingAdj": -100,
+            "matches": [
+              {
+                "opponent": "Naveen Pandu",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Constantine Dinkov",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -50,
+                "forfeit": false
+              },
+              {
+                "opponent": "Brandon Van Buskirk",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -50,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Naveen Pandu",
+            "wins": 1,
+            "losses": 3,
+            "gamesWon": 5,
+            "gamesLost": 9,
+            "ratingBefore": 860,
+            "ratingAfter": 885,
+            "ratingAdj": 25,
+            "matches": [
+              {
+                "opponent": "Brandon Van Buskirk",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Constantine Dinkov",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Barry Tesar",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 25,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Barry Tesar",
+            "wins": 0,
+            "losses": 4,
+            "gamesWon": 1,
+            "gamesLost": 12,
+            "ratingBefore": 981,
+            "ratingAfter": 952,
+            "ratingAdj": -29,
+            "matches": [
+              {
+                "opponent": "Constantine Dinkov",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -3,
+                "forfeit": false
+              },
+              {
+                "opponent": "Eric Aki",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Brandon Van Buskirk",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Naveen Pandu",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -25,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          }
+        ]
+      },
+      {
+        "name": "Group 3",
+        "players": [
+          {
+            "name": "Simon He",
+            "wins": 4,
+            "losses": 1,
+            "gamesWon": 12,
+            "gamesLost": 4,
+            "ratingBefore": 623,
+            "ratingAfter": 646,
+            "ratingAdj": 23,
+            "matches": [
+              {
+                "opponent": "John Hasson",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 5,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vishal Atreja",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 16,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vince Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 3,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 1,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Vishal Atreja",
+            "wins": 3,
+            "losses": 2,
+            "gamesWon": 10,
+            "gamesLost": 8,
+            "ratingBefore": 700,
+            "ratingAfter": 675,
+            "ratingAdj": -25,
+            "matches": [
+              {
+                "opponent": "Vince Rafe",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -16,
+                "forfeit": false
+              },
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "John Hasson",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -30,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 20,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Alex Ignatov",
+            "wins": 3,
+            "losses": 2,
+            "gamesWon": 11,
+            "gamesLost": 6,
+            "ratingBefore": 800,
+            "ratingAfter": 732,
+            "ratingAdj": -68,
+            "matches": [
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vince Rafe",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -50,
+                "forfeit": false
+              },
+              {
+                "opponent": "John Hasson",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vishal Atreja",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -20,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "John Hasson",
+            "wins": 3,
+            "losses": 2,
+            "gamesWon": 10,
+            "gamesLost": 9,
+            "ratingBefore": 540,
+            "ratingAfter": 573,
+            "ratingAdj": 33,
+            "matches": [
+              {
+                "opponent": "Simon He",
+                "gamesWon": 1,
+                "gamesLost": 3,
+                "adj": -5,
+                "forfeit": false
+              },
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vishal Atreja",
+                "gamesWon": 3,
+                "gamesLost": 1,
+                "adj": 30,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vince Rafe",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 6,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Miles Rafe",
+            "wins": 1,
+            "losses": 4,
+            "gamesWon": 3,
+            "gamesLost": 12,
+            "ratingBefore": 386,
+            "ratingAfter": 408,
+            "ratingAdj": 22,
+            "matches": [
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "John Hasson",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -2,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vishal Atreja",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": 0,
+                "forfeit": false
+              },
+              {
+                "opponent": "Vince Rafe",
+                "gamesWon": 3,
+                "gamesLost": 0,
+                "adj": 25,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -1,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          },
+          {
+            "name": "Vince Rafe",
+            "wins": 1,
+            "losses": 4,
+            "gamesWon": 7,
+            "gamesLost": 14,
+            "ratingBefore": 500,
+            "ratingAfter": 515,
+            "ratingAdj": 15,
+            "matches": [
+              {
+                "opponent": "Vishal Atreja",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -1,
+                "forfeit": false
+              },
+              {
+                "opponent": "Alex Ignatov",
+                "gamesWon": 3,
+                "gamesLost": 2,
+                "adj": 50,
+                "forfeit": false
+              },
+              {
+                "opponent": "Simon He",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -3,
+                "forfeit": false
+              },
+              {
+                "opponent": "Miles Rafe",
+                "gamesWon": 0,
+                "gamesLost": 3,
+                "adj": -25,
+                "forfeit": false
+              },
+              {
+                "opponent": "John Hasson",
+                "gamesWon": 2,
+                "gamesLost": 3,
+                "adj": -6,
+                "forfeit": false
+              }
+            ],
+            "matchesUnavailable": false
+          }
+        ]
+      }
+    ]
+  },
+  {
     "date": "2026-11-18",
     "sessionId": "session-2026-11-18",
     "source": "app",
