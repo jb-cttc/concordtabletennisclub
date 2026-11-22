@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "d1d8ae51b29658d6eb60b4bb3f9d011fbf278747",
+  "commit": "b34858af57cf1d1ea694f7a67d6871b01c431a8f",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -266,7 +266,7 @@
        "happens": "Replies wait for the hourly sweep; the desk log records `app_wake_failed`.",
        "handling": "Nothing urgent; confirmations arrive within the hour.",
        "status": "partial",
-       "evidence": "docs/round-robin-operations.md:432"
+       "evidence": "docs/round-robin-operations.md:437"
       }
      ],
      "screen": {
@@ -536,7 +536,7 @@
        "happens": "The row says so.",
        "handling": "Find them under Show archived players, or add them under Add a player.",
        "status": "handled",
-       "evidence": "docs/round-robin-operations.md:492"
+       "evidence": "docs/round-robin-operations.md:497"
       }
      ],
      "screen": {
@@ -1008,7 +1008,7 @@
        "happens": "They are placed once; the RR button gives way to In RR.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "docs/round-robin-operations.md:465"
+       "evidence": "docs/round-robin-operations.md:470"
       }
      ],
      "screen": {
@@ -1034,7 +1034,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4419,
+        "line": 4429,
         "symbol": "POLL_DAYS",
         "note": "When the list refreshes by itself."
        }
@@ -1070,7 +1070,7 @@
      "detail": "The Tonight page guide (\"Add an Aliases row in the desk Sheet\") and the automatic answers section (\"or add an Aliases row\") send people to edit the Sheet by hand, against the club's rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.",
      "evidence": [
       "docs/turnout-flow.md:200",
-      "docs/round-robin-operations.md:537",
+      "docs/round-robin-operations.md:542",
       "apps-script/PlayerEdits.js:71"
      ],
      "confirmed": "read docs and code",
@@ -1084,7 +1084,7 @@
      "evidence": [
       "turnout.js:30",
       "apps-script/VoiceAutoReply.js:24",
-      "apps-script/Index.html:4419"
+      "apps-script/Index.html:4429"
      ],
      "confirmed": "read code only",
      "suggest": "One shared schedule file, or a check comparing the three."
@@ -1348,14 +1348,14 @@
        "happens": "The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**",
        "handling": "Add them under Add a player.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:4237"
+       "evidence": "apps-script/Index.html:4247"
       },
       {
        "when": "The coaching Sheet cannot be read",
        "happens": "The status bar is overwritten with **Coaching lessons unavailable:** and the error.",
        "handling": "Reload; check with the owner if it persists.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:4270"
+       "evidence": "apps-script/Index.html:4280"
       }
      ],
      "screen": {
@@ -1381,7 +1381,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4217,
+        "line": 4227,
         "symbol": "renderOpen",
         "note": "Lists lessons first, then players added with Open."
        }
@@ -1488,7 +1488,7 @@
      "title": "\"Coaching lessons unavailable\" writes over the status bar",
      "detail": "If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.",
      "evidence": [
-      "apps-script/Index.html:4270"
+      "apps-script/Index.html:4280"
      ],
      "confirmed": "read code only",
      "suggest": "Use the page's setStatus, or show it inside the Open Play / Coaching section."
@@ -1558,7 +1558,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2489,
+        "line": 2499,
         "symbol": "DESK_BUILD",
         "note": "The page keeps its own fingerprint for Refresh projector."
        }
@@ -1639,7 +1639,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1020,
+        "line": 1030,
         "symbol": "(club date)",
         "note": "Elsewhere the page uses Intl with timeZone America/Los_Angeles; the two can differ on a laptop not set to Pacific."
        },
@@ -1703,21 +1703,21 @@
        "happens": "The line reads **Promotion history unavailable:** with the error. Ratings stay as the desk last had them; the next load tries again.",
        "handling": "Carry on: groups build by rating without promotions. Move last week's winners up by hand with the arrows if needed.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1400"
+       "evidence": "apps-script/Index.html:1410"
       },
       {
        "when": "This is the first time this weekday has been played",
        "happens": "**No earlier Monday session found for promotions.**",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "apps-script/Organizer.html:262"
+       "evidence": "apps-script/Organizer.html:287"
       },
       {
        "when": "A winner's name changed since last week",
        "happens": "Winners are matched by exact display name, so a renamed winner is not promoted.",
        "handling": "Move them up by hand. A desk control to link old and new names would fix it for good.",
        "status": "gap",
-       "evidence": "apps-script/Index.html:1515"
+       "evidence": "apps-script/Index.html:1525"
       }
      ],
      "screen": {
@@ -1733,7 +1733,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1522,
+        "line": 1532,
         "symbol": "load",
         "note": "Starts fetchHistory in parallel, calls getAppState, then setGroups."
        },
@@ -1745,25 +1745,25 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1469,
+        "line": 1479,
         "symbol": "syncRatings",
         "note": "Calls syncRatingsFromPublicSite once per page; failures are silent."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1490,
+        "line": 1500,
         "symbol": "fetchHistory",
         "note": "sessions.json then session-details-YYYY.json from the site."
        },
        {
         "file": "apps-script/Organizer.html",
-        "line": 262,
+        "line": 287,
         "symbol": "previousSameWeekday",
         "note": "Latest earlier date with the same UTC weekday."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1501,
+        "line": 1511,
         "symbol": "loadHistory",
         "note": "Group winners by name: byName[name] (line 1515)."
        }
@@ -1923,7 +1923,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2504,
+        "line": 2514,
         "symbol": "startFollow",
         "note": "Follow mode on the projector's desk."
        }
@@ -1971,7 +1971,7 @@
      "detail": "today() uses the browser's own time zone while the rest of the page uses Pacific time, and nothing moves the picker at midnight. A desk left open from Monday and used on Wednesday adds Wednesday's players to Monday's night if Monday was not finalized.",
      "evidence": [
       "apps-script/Index.html:568",
-      "apps-script/Index.html:1020"
+      "apps-script/Index.html:1030"
      ],
      "confirmed": "read code only",
      "suggest": "Default the picker with the Pacific formatter at line 1003, and warn when loadedDate is not today on the first sign-in of a page loaded more than 12 hours ago."
@@ -1982,7 +1982,7 @@
      "title": "Promotions match last week's winners by display name",
      "detail": "If last week's Group 3 winner \"Dev M.\" is renamed \"Dev Malhotra\" in the directory, the promotion silently does not happen.",
      "evidence": [
-      "apps-script/Index.html:1515"
+      "apps-script/Index.html:1525"
      ],
      "confirmed": "read code only",
      "suggest": "Publish player ids with session details and match by id, falling back to name and aliases."
@@ -2004,6 +2004,7 @@
      "subtext": "Before printing, every sign-in can move other players between groups. That is intended: the board says \"Signing in · groups can still change\".",
      "caveats": [
       "Choosing **Groups of 5 / 6 / 7** rebuilds like **Rebuild by rating**.",
+      "On **7**, Groups 1–3 (tables 1–3) hold at most 6 and the other groups up to 7, the larger groups at the bottom: 39 players are 6, 6, 6, 7, 7, 7.",
       "**Open** puts the player on Open Play / Coaching instead of the round robin."
      ],
      "exceptions": [
@@ -2012,14 +2013,14 @@
        "happens": "The desk no longer rebuilds: a new player slots in by rating without reshuffling anyone, and promoted players are never bumped down.",
        "handling": "Use **Rebuild by rating** if a clean rebuild is wanted; it asks first.",
        "status": "handled",
-       "evidence": "apps-script/Organizer.html:79"
+       "evidence": "apps-script/Organizer.html:104"
       },
       {
        "when": "Two people with the same name",
        "happens": "Both can sign in; standings tell them apart by id.",
        "handling": "Check the rating shown beside the name before clicking RR.",
        "status": "partial",
-       "evidence": "apps-script/Organizer.html:193"
+       "evidence": "apps-script/Organizer.html:218"
       }
      ],
      "screen": {
@@ -2034,37 +2035,37 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1140,
+        "line": 1150,
         "symbol": "addToRoster",
         "note": "Refuses while locked, pending recovery or following."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1108,
+        "line": 1118,
         "symbol": "organize",
         "note": "O.organize then O.applyPromotions, then setGroups."
        },
        {
         "file": "apps-script/Organizer.html",
-        "line": 36,
+        "line": 61,
         "symbol": "organize",
         "note": "Sort by rating, cut into sizes from sizeGroups."
        },
        {
         "file": "apps-script/Organizer.html",
-        "line": 17,
+        "line": 28,
         "symbol": "sizeGroups",
-        "note": "Fewest groups of the preferred size or one smaller."
+        "note": "Fewest groups of the preferred size or one smaller; on 7, sizeCapped keeps Groups 1-3 at 6 or fewer."
        },
        {
         "file": "apps-script/Organizer.html",
-        "line": 49,
+        "line": 74,
         "symbol": "applyPromotions",
         "note": "Each winner one group up; the overfull group passes its lowest non-winner down."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1070,
+        "line": 1080,
         "symbol": "keepArrangement",
         "note": "arrangedByHand() or playAfterPrint() switches to insert."
        }
@@ -2080,6 +2081,7 @@
       "reads": [],
       "invariants": [
        "Before print and with no hand moves, groups equal Rebuild by rating.",
+       "On groups of 7, Rebuild and sign-ins before print never put more than 6 in Groups 1-3.",
        "After a hand move, a sign-in moves nobody already placed.",
        "A promoted player is never bumped below the group they were promoted to."
       ],
@@ -2326,7 +2328,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 3850,
+        "line": 3860,
         "symbol": "arrivalsOf",
         "note": "Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open."
        },
@@ -2446,7 +2448,7 @@
        "happens": "A confirm names what would be lost (\"Manual moves are replaced; promotions are reapplied.\").",
        "handling": "Cancel it.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:1074"
+       "evidence": "apps-script/Index.html:1084"
       }
      ],
      "screen": {
@@ -2460,13 +2462,13 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1182,
+        "line": 1192,
         "symbol": "move",
         "note": "Moves within groupArrays and records movedUp."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1074,
+        "line": 1084,
         "symbol": "rebuildQuestion",
         "note": "The confirm text before a rebuild."
        }
@@ -2520,7 +2522,7 @@
        "happens": "The print waits for a save; offline, the device copy is used.",
        "handling": "Reconnect and print again if the sheets must carry records.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1979"
+       "evidence": "apps-script/Index.html:1989"
       },
       {
        "when": "The print dialog is cancelled",
@@ -2709,19 +2711,19 @@
       "entry": [
        {
         "file": "apps-script/Organizer.html",
-        "line": 79,
+        "line": 104,
         "symbol": "insert",
         "note": "stay = true after print: joins the target group, nobody bumped."
        },
        {
         "file": "apps-script/Organizer.html",
-        "line": 113,
+        "line": 138,
         "symbol": "keptPairs",
         "note": "Printed pairs keep order and sides; new pairs follow."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1120,
+        "line": 1130,
         "symbol": "buildMatches",
         "note": "Uses keptPairs whenever a print mark exists."
        }
@@ -2778,7 +2780,7 @@
        "happens": "Their matches and scores are dropped from the night.",
        "handling": "Use a forfeit instead if the results should count.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:1164"
+       "evidence": "apps-script/Index.html:1174"
       }
      ],
      "screen": {
@@ -2793,7 +2795,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1164,
+        "line": 1174,
         "symbol": "removeFromRoster",
         "note": "After print: setGroups with the player filtered out (no reorganize)."
        },
@@ -2894,7 +2896,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1289,
+        "line": 1299,
         "symbol": "renderPrintLabels",
         "note": "Shows the note only while a label exists."
        }
@@ -3115,7 +3117,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2526,
+        "line": 2536,
         "symbol": "followCheck",
         "note": "Reads getDeskStamps, then only the changed areas."
        },
@@ -3181,7 +3183,7 @@
        "happens": "Older pages keep running until reloaded and may not carry the new field when they save.",
        "handling": "Reload every device right after a release.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:2489"
+       "evidence": "apps-script/Index.html:2499"
       }
      ],
      "screen": {
@@ -3202,7 +3204,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2489,
+        "line": 2499,
         "symbol": "DESK_BUILD",
         "note": "Compared with refresh.build."
        },
@@ -3281,14 +3283,14 @@
        "happens": "Tap the right numbers on both lines; the last value wins.",
        "handling": "Watch the standings change as you enter.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:2127"
+       "evidence": "apps-script/Index.html:2137"
       },
       {
        "when": "A player did not play a match",
        "happens": "Choose **Forfeit** for that player, or for both if the match was never played.",
        "handling": "",
        "status": "handled",
-       "evidence": "apps-script/Organizer.html:168"
+       "evidence": "apps-script/Organizer.html:193"
       }
      ],
      "screen": {
@@ -3302,25 +3304,25 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1373,
+        "line": 1383,
         "symbol": "data-score",
         "note": "Each ball carries the match's index in state.matches."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 2127,
+        "line": 2137,
         "symbol": "(click handler)",
         "note": "Reads state.matches[Number(dataset.score)]."
        },
        {
         "file": "apps-script/Organizer.html",
-        "line": 138,
+        "line": 163,
         "symbol": "matchWinner",
         "note": "Winner from games, forfeit or wonBy."
        },
        {
         "file": "apps-script/Organizer.html",
-        "line": 168,
+        "line": 193,
         "symbol": "applyForfeit",
         "note": "A player id or both."
        }
@@ -3370,7 +3372,7 @@
        "happens": "**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**",
        "handling": "Reconnect, wait for \"Changes saved to Google Sheets\", then finalize.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:3346"
+       "evidence": "apps-script/Index.html:3356"
       },
       {
        "when": "Finalize stopped partway (Google timed out)",
@@ -3567,7 +3569,7 @@
        "happens": "Shows starting rating = the new rating, and a second, smaller change on top.",
        "handling": "Trust the site.",
        "status": "gap",
-       "evidence": "apps-script/Organizer.html:197"
+       "evidence": "apps-script/Organizer.html:222"
       }
      ],
      "screen": {
@@ -3582,7 +3584,7 @@
       "entry": [
        {
         "file": "apps-script/Organizer.html",
-        "line": 188,
+        "line": 213,
         "symbol": "standings",
         "note": "startRating from player(id).currentRating, not the session's starting rating."
        }
@@ -3622,7 +3624,7 @@
      "title": "A finalized night shows wrong rating changes on a fresh page",
      "detail": "After finalizing, the same tab shows Ana 2100 → 1997 (−103). A reload or another device shows Ana 1997 → 1966 (−31): it uses the new rating as the start and computes again.",
      "evidence": [
-      "apps-script/Organizer.html:197"
+      "apps-script/Organizer.html:222"
      ],
      "confirmed": "reproduced with simulator (docs/storyboard/repro/finalized-standings.cjs).",
      "suggest": "Use each player's saved starting rating (SessionPlayers) for standings when the session has one."
@@ -3679,7 +3681,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1635,
+        "line": 1645,
         "symbol": "save",
         "note": "saveSessionDraft with the revision."
        },
@@ -3740,7 +3742,7 @@
        "happens": "**Checking Google Sheets before saving again...** then it either confirms or merges.",
        "handling": "Keep going.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:1745"
+       "evidence": "apps-script/Index.html:1755"
       }
      ],
      "screen": {
@@ -3755,19 +3757,19 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 1723,
+        "line": 1733,
         "symbol": "withSaveTimeout",
         "note": "Slow-reply message."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1745,
+        "line": 1755,
         "symbol": "reconcile",
         "note": "Asks Google what it holds before sending again."
        },
        {
         "file": "apps-script/Index.html",
-        "line": 1738,
+        "line": 1748,
         "symbol": "contentKey",
         "note": "Compares groups and matches ignoring order."
        },
@@ -3844,7 +3846,7 @@
       "entry": [
        {
         "file": "apps-script/Index.html",
-        "line": 2440,
+        "line": 2450,
         "symbol": "quietForRefresh",
         "note": "The once-a-minute refresh."
        },
@@ -3892,7 +3894,7 @@
      "evidence": [
       "apps-script/SessionService.js:235",
       "apps-script/SessionService.js:188",
-      "apps-script/Index.html:1738"
+      "apps-script/Index.html:1748"
      ],
      "confirmed": "read code only",
      "suggest": "Accept, or save the match order with the matches once printed."

@@ -23,7 +23,7 @@ const phases = [
         X('Someone opened the /dev link by mistake', 'It works, on the real Sheet, with untested code. The header pill and tab title say DEV.', 'Close it and open the /exec bookmark. Changes already made are in the real Sheet either way.', 'partial', 'apps-script/Code.js:166')],
       screen: { kind: 'desk', highlight: ['header-date'], status: 'Loading player directory...', note: 'The header, with the /exec pill and the date picker.' },
       tech: {
-        entry: [E('apps-script/Code.js', 146, 'doGet', 'Routes ?view=cash|clover|volunteers, otherwise the desk.'), E('apps-script/Code.js', 153, 'deskPage_', 'Builds the page from Index.html, passing initialDate, deskMode and deskBuild.'), E('apps-script/Code.js', 174, 'deskBuild_', 'MD5 of Index.html plus every included file, 12 hex characters.'), E(I, 2489, 'DESK_BUILD', 'The page keeps its own fingerprint for Refresh projector.')],
+        entry: [E('apps-script/Code.js', 146, 'doGet', 'Routes ?view=cash|clover|volunteers, otherwise the desk.'), E('apps-script/Code.js', 153, 'deskPage_', 'Builds the page from Index.html, passing initialDate, deskMode and deskBuild.'), E('apps-script/Code.js', 174, 'deskBuild_', 'MD5 of Index.html plus every included file, 12 hex characters.'), E(I, 2499, 'DESK_BUILD', 'The page keeps its own fingerprint for Refresh projector.')],
         state: ['deskMode: dev | live | unknown', 'DESK_BUILD (this page\'s code fingerprint)'], writes: ['None.'], reads: ['ScriptApp.getService().getUrl() to tell /dev from /exec'],
         invariants: ['The main desk on a night runs /exec.', 'A page\'s DESK_BUILD equals deskBuild_ of the code that served it; it never changes without a reload.'],
         limits: ['Google web app: executes as the club account, access MYSELF.'],
@@ -39,7 +39,7 @@ const phases = [
         X('The laptop\'s clock or time zone is wrong', 'The desk opens on the date the laptop believes it is.', 'Set the laptop to Pacific time with automatic time.', 'partial', 'apps-script/Index.html:568')],
       screen: { kind: 'desk', highlight: ['header-date', 'status-bar'], status: 'No session exists for this date. Add players to begin.', note: 'The date picker and the status bar on a fresh night.' },
       tech: {
-        entry: [E(I, 568, 'today', 'new Date(now - getTimezoneOffset) .toISOString().slice(0,10): the browser\'s local date.'), E(I, 1020, '(club date)', 'Elsewhere the page uses Intl with timeZone America/Los_Angeles; the two can differ on a laptop not set to Pacific.'), E('apps-script/Code.js', 156, 'initialDate', '?date=YYYY-MM-DD overrides the default.'), E(S, 156, 'getSessionByDate', 'Looks up session-<date>.')],
+        entry: [E(I, 568, 'today', 'new Date(now - getTimezoneOffset) .toISOString().slice(0,10): the browser\'s local date.'), E(I, 1030, '(club date)', 'Elsewhere the page uses Intl with timeZone America/Los_Angeles; the two can differ on a laptop not set to Pacific.'), E('apps-script/Code.js', 156, 'initialDate', '?date=YYYY-MM-DD overrides the default.'), E(S, 156, 'getSessionByDate', 'Looks up session-<date>.')],
         state: ['date.value (the picker)', 'loadedDate (the night the page holds)'], writes: ['None until the first change.'], reads: ['getAppState(date)'],
         invariants: ['The date the desk is on equals the club\'s calendar date in Pacific time while the club is open.', 'loadedDate moves only after a load of that date has finished.'],
         limits: [],
@@ -51,12 +51,12 @@ const phases = [
       subtext: 'Promotions come from the public site, matched to tonight\'s players by name. The ratings line tells you whether last session was finalized.',
       caveats: ['Promotions skip an Equalizer and look only at the same weekday.', 'If the ratings date is older than the last club night, that night was never finalized: its rating changes are not in tonight\'s groups.'],
       exceptions: [
-        X('The club site cannot be reached', 'The line reads **Promotion history unavailable:** with the error. Ratings stay as the desk last had them; the next load tries again.', 'Carry on: groups build by rating without promotions. Move last week\'s winners up by hand with the arrows if needed.', 'partial', 'apps-script/Index.html:1400'),
-        X('This is the first time this weekday has been played', '**No earlier Monday session found for promotions.**', 'Nothing to do.', 'handled', 'apps-script/Organizer.html:262'),
-        X('A winner\'s name changed since last week', 'Winners are matched by exact display name, so a renamed winner is not promoted.', 'Move them up by hand. A desk control to link old and new names would fix it for good.', 'gap', 'apps-script/Index.html:1515')],
+        X('The club site cannot be reached', 'The line reads **Promotion history unavailable:** with the error. Ratings stay as the desk last had them; the next load tries again.', 'Carry on: groups build by rating without promotions. Move last week\'s winners up by hand with the arrows if needed.', 'partial', 'apps-script/Index.html:1410'),
+        X('This is the first time this weekday has been played', '**No earlier Monday session found for promotions.**', 'Nothing to do.', 'handled', 'apps-script/Organizer.html:287'),
+        X('A winner\'s name changed since last week', 'Winners are matched by exact display name, so a renamed winner is not promoted.', 'Move them up by hand. A desk control to link old and new names would fix it for good.', 'gap', 'apps-script/Index.html:1525')],
       screen: { kind: 'desk', highlight: ['toolbar', 'status-bar'], status: 'Session loaded. Changes are stored in Google Sheets.', note: 'The workspace header with "ratings current through" and the promotions line.' },
       tech: {
-        entry: [E(I, 1522, 'load', 'Starts fetchHistory in parallel, calls getAppState, then setGroups.'), E(S, 161, 'getAppState', 'players, session, ratingsSyncedThrough, ratingsFinalizedThrough, print and move marks.'), E(I, 1469, 'syncRatings', 'Calls syncRatingsFromPublicSite once per page; failures are silent.'), E(I, 1490, 'fetchHistory', 'sessions.json then session-details-YYYY.json from the site.'), E(O, 262, 'previousSameWeekday', 'Latest earlier date with the same UTC weekday.'), E(I, 1501, 'loadHistory', 'Group winners by name: byName[name] (line 1515).')],
+        entry: [E(I, 1532, 'load', 'Starts fetchHistory in parallel, calls getAppState, then setGroups.'), E(S, 161, 'getAppState', 'players, session, ratingsSyncedThrough, ratingsFinalizedThrough, print and move marks.'), E(I, 1479, 'syncRatings', 'Calls syncRatingsFromPublicSite once per page; failures are silent.'), E(I, 1500, 'fetchHistory', 'sessions.json then session-details-YYYY.json from the site.'), E(O, 287, 'previousSameWeekday', 'Latest earlier date with the same UTC weekday.'), E(I, 1511, 'loadHistory', 'Group winners by name: byName[name] (line 1515).')],
         state: ['state.players, state.session, state.winners, state.previousDate, state.ratingsSyncedThrough'], writes: ['Players.current_rating when the site has newer results (RatingSync).'], reads: ['getAppState', 'syncRatingsFromPublicSite', 'site: data/sessions.json, data/session-details-YYYY.json, data/players.json'],
         invariants: ['A winner of group N (N > 1) last week starts tonight in group N-1 or higher, unless absent.', 'Starting ratings equal the latest finalized results.'],
         limits: ['RatingSync also runs hourly on a timer.'],
@@ -88,7 +88,7 @@ const phases = [
         X('The projector laptop opened before the main desk started the night', 'The board waits and starts following once the main desk saves.', 'Nothing to do.', 'handled', 'apps-script/check-player-board.cjs:473')],
       screen: { kind: 'board', highlight: ['chooser'], note: 'The one-time question on a new computer.' },
       tech: {
-        entry: [E(B, 1787, 'open', 'Opens or reuses the named window and writes the board page when its fingerprint differs.'), E(I, 2504, 'startFollow', 'Follow mode on the projector\'s desk.')],
+        entry: [E(B, 1787, 'open', 'Opens or reuses the named window and writes the board page when its fingerprint differs.'), E(I, 2514, 'startFollow', 'Follow mode on the projector\'s desk.')],
         state: ['board settings in localStorage (cttc-player-board-settings-v1): concept, follow, asked'], writes: ['None (following is read-only).'], reads: ['getDeskStamps every 10 s, getFollowState when a stamp moves'],
         invariants: ['A following desk never writes the session.', 'The board window\'s code matches its desk page after a Player board click.'],
         limits: ['Follow checks every 10 s, once a minute after 20 quiet minutes, end at finalize or after 6 hours (docs/round-robin-operations.md).'],
@@ -97,8 +97,8 @@ const phases = [
         simulate: 'Preview + Playwright: click Player board, wait for the popup page, click #choose-follow; assert document.fullscreenElement.' } }
   ],
   findings: [
-    { severity: 'low', kind: 'fragile', title: 'The default date depends on the laptop, and an open page never rolls over', detail: 'today() uses the browser\'s own time zone while the rest of the page uses Pacific time, and nothing moves the picker at midnight. A desk left open from Monday and used on Wednesday adds Wednesday\'s players to Monday\'s night if Monday was not finalized.', evidence: [I + ':568', I + ':1020'], confirmed: 'read code only', suggest: 'Default the picker with the Pacific formatter at line 1003, and warn when loadedDate is not today on the first sign-in of a page loaded more than 12 hours ago.' },
-    { severity: 'low', kind: 'design-gap', title: 'Promotions match last week\'s winners by display name', detail: 'If last week\'s Group 3 winner "Dev M." is renamed "Dev Malhotra" in the directory, the promotion silently does not happen.', evidence: [I + ':1515'], confirmed: 'read code only', suggest: 'Publish player ids with session details and match by id, falling back to name and aliases.' }
+    { severity: 'low', kind: 'fragile', title: 'The default date depends on the laptop, and an open page never rolls over', detail: 'today() uses the browser\'s own time zone while the rest of the page uses Pacific time, and nothing moves the picker at midnight. A desk left open from Monday and used on Wednesday adds Wednesday\'s players to Monday\'s night if Monday was not finalized.', evidence: [I + ':568', I + ':1030'], confirmed: 'read code only', suggest: 'Default the picker with the Pacific formatter at line 1003, and warn when loadedDate is not today on the first sign-in of a page loaded more than 12 hours ago.' },
+    { severity: 'low', kind: 'design-gap', title: 'Promotions match last week\'s winners by display name', detail: 'If last week\'s Group 3 winner "Dev M." is renamed "Dev Malhotra" in the directory, the promotion silently does not happen.', evidence: [I + ':1525'], confirmed: 'read code only', suggest: 'Publish player ids with session details and match by id, falling back to name and aliases.' }
   ]
 },
 {
@@ -108,15 +108,15 @@ const phases = [
     { id: 'signin-1-rr', title: 'Sign a player in to the round robin', who: 'Desk volunteer', when: 'From about 6:45 PM',
       summary: 'Search the directory and click **RR** beside the name. The player joins the roster and the groups rebuild by rating in groups of 6 (or 5 where the numbers do not divide), with last week\'s winners moved up. The row shows **In RR**.',
       subtext: 'Before printing, every sign-in can move other players between groups. That is intended: the board says "Signing in · groups can still change".',
-      caveats: ['Choosing **Groups of 5 / 6 / 7** rebuilds like **Rebuild by rating**.', '**Open** puts the player on Open Play / Coaching instead of the round robin.'],
+      caveats: ['Choosing **Groups of 5 / 6 / 7** rebuilds like **Rebuild by rating**.', 'On **7**, Groups 1–3 (tables 1–3) hold at most 6 and the other groups up to 7, the larger groups at the bottom: 39 players are 6, 6, 6, 7, 7, 7.', '**Open** puts the player on Open Play / Coaching instead of the round robin.'],
       exceptions: [
-        X('Someone was already moved by hand', 'The desk no longer rebuilds: a new player slots in by rating without reshuffling anyone, and promoted players are never bumped down.', 'Use **Rebuild by rating** if a clean rebuild is wanted; it asks first.', 'handled', 'apps-script/Organizer.html:79'),
-        X('Two people with the same name', 'Both can sign in; standings tell them apart by id.', 'Check the rating shown beside the name before clicking RR.', 'partial', 'apps-script/Organizer.html:193')],
+        X('Someone was already moved by hand', 'The desk no longer rebuilds: a new player slots in by rating without reshuffling anyone, and promoted players are never bumped down.', 'Use **Rebuild by rating** if a clean rebuild is wanted; it asks first.', 'handled', 'apps-script/Organizer.html:104'),
+        X('Two people with the same name', 'Both can sign in; standings tell them apart by id.', 'Check the rating shown beside the name before clicking RR.', 'partial', 'apps-script/Organizer.html:218')],
       screen: { kind: 'desk', highlight: ['directory', 'groups'], note: 'The directory with RR and Open buttons, and the groups rebuilding.' },
       tech: {
-        entry: [E(I, 1140, 'addToRoster', 'Refuses while locked, pending recovery or following.'), E(I, 1108, 'organize', 'O.organize then O.applyPromotions, then setGroups.'), E(O, 36, 'organize', 'Sort by rating, cut into sizes from sizeGroups.'), E(O, 17, 'sizeGroups', 'Fewest groups of the preferred size or one smaller.'), E(O, 49, 'applyPromotions', 'Each winner one group up; the overfull group passes its lowest non-winner down.'), E(I, 1070, 'keepArrangement', 'arrangedByHand() or playAfterPrint() switches to insert.')],
+        entry: [E(I, 1150, 'addToRoster', 'Refuses while locked, pending recovery or following.'), E(I, 1118, 'organize', 'O.organize then O.applyPromotions, then setGroups.'), E(O, 61, 'organize', 'Sort by rating, cut into sizes from sizeGroups.'), E(O, 28, 'sizeGroups', 'Fewest groups of the preferred size or one smaller; on 7, sizeCapped keeps Groups 1-3 at 6 or fewer.'), E(O, 74, 'applyPromotions', 'Each winner one group up; the overfull group passes its lowest non-winner down.'), E(I, 1080, 'keepArrangement', 'arrangedByHand() or playAfterPrint() switches to insert.')],
         state: ['state.roster', 'state.groups', 'state.promotions'], writes: ['saveSessionDraft (autosave, Sessions, SessionPlayers, Matches)'], reads: [],
-        invariants: ['Before print and with no hand moves, groups equal Rebuild by rating.', 'After a hand move, a sign-in moves nobody already placed.', 'A promoted player is never bumped below the group they were promoted to.'],
+        invariants: ['Before print and with no hand moves, groups equal Rebuild by rating.', 'On groups of 7, Rebuild and sign-ins before print never put more than 6 in Groups 1-3.', 'After a hand move, a sign-in moves nobody already placed.', 'A promoted player is never bumped below the group they were promoted to.'],
         limits: [],
         tests: [T('apps-script/check-organizer.cjs', '', 'Sizes, promotions, insert; 459 real groups cross-checked.'), T(PB, 'roundRobinNight', 'Sign-ins on the desk reach the board.')],
         untested: [],
@@ -163,7 +163,7 @@ const phases = [
         X('A paid player is removed or moves to Open Play', 'unconfirmed: the payment stays recorded for the player and night.', 'Check the payment still shows where they now are.', 'partial', '')],
       screen: { kind: 'desk', highlight: ['clover', 'zeffy', 'group-row'], note: 'A row\'s Payment button beside the Clover and Zeffy lists.' },
       tech: {
-        entry: [E('apps-script/CloverPayments.js', 319, 'cloverMatchNight_', 'Matches the night\'s card payments to players.'), E('apps-script/CloverPayments.js', 249, 'cloverByName_', 'Name match, with learned card links first.'), E('apps-script/NightFees.js', 1, '', 'Night fees and the Friday/Saturday special.'), E(I, 3850, 'arrivalsOf', 'Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open.'), E('apps-script/CloverPayments.js', 392, 'cloverCreditClues_', 'Credit marked by hand as the clue for payments no card fits: likely player, pairs, and the one case matched by itself.'), E('apps-script/CloverPayments.js', 937, 'cloverPaysForOffers_', 'Offers to save "X pays for Y" once a card has covered the same player twice.'), E('apps-script/CloverPayments.js', 970, 'addCloverPaysFor', 'Saves the offer after Confirm, with the pencil window\'s link checks.'), E('apps-script/CloverPayments.js', 1409, 'unlinkCloverCard', 'The Clover page\'s Unlink, after Review and Confirm: forgets a card and undoes the ticked matches made through it.'), E('apps-script/LinkedNames.js', 115, 'linkPlan_', 'Junior and pays-for links from the pencil window: one active player per name, a junior on one account.')],
+        entry: [E('apps-script/CloverPayments.js', 319, 'cloverMatchNight_', 'Matches the night\'s card payments to players.'), E('apps-script/CloverPayments.js', 249, 'cloverByName_', 'Name match, with learned card links first.'), E('apps-script/NightFees.js', 1, '', 'Night fees and the Friday/Saturday special.'), E(I, 3860, 'arrivalsOf', 'Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open.'), E('apps-script/CloverPayments.js', 392, 'cloverCreditClues_', 'Credit marked by hand as the clue for payments no card fits: likely player, pairs, and the one case matched by itself.'), E('apps-script/CloverPayments.js', 937, 'cloverPaysForOffers_', 'Offers to save "X pays for Y" once a card has covered the same player twice.'), E('apps-script/CloverPayments.js', 970, 'addCloverPaysFor', 'Saves the offer after Confirm, with the pencil window\'s link checks.'), E('apps-script/CloverPayments.js', 1409, 'unlinkCloverCard', 'The Clover page\'s Unlink, after Review and Confirm: forgets a card and undoes the ticked matches made through it.'), E('apps-script/LinkedNames.js', 115, 'linkPlan_', 'Junior and pays-for links from the pencil window: one active player per name, a junior on one account.')],
         state: ['window.cttcPayments.status(id)'], writes: ['Payment rows (PrivatePayments.js); CloverLinks', 'NameLinks pays_for rows (the offer, or the pencil window)'], reads: ['Clover API through the desk (token in Script Properties)'],
         invariants: ['A payment belongs to a player id and a date, not to a group or a position.', 'Adding a card payer from Clover only puts them in this device\'s draft or Open Play, as the directory\'s buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.', 'A Credit marked by hand matches a card payment by itself only when each is the only one at that amount, within 15 minutes, on a payment the organizer never undid; no card is learned from it.', 'A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?), and forgotten only by Undo or by Unlink after Confirm.', 'A card\'s history and who usually pays by card only order and tick suggestions; neither matches a payment by itself.'],
         limits: ['Clover requests: at most 3 at once, 4 retries.'],
@@ -175,10 +175,10 @@ const phases = [
       subtext: '"Moved by hand" is read off the groups themselves (they differ from what Rebuild would make), so it survives a reload and another device.',
       caveats: ['Rebuild by rating and changing the group size replace hand moves and reapply promotions.'],
       exceptions: [
-        X('Rebuild clicked by mistake after moves', 'A confirm names what would be lost ("Manual moves are replaced; promotions are reapplied.").', 'Cancel it.', 'handled', 'apps-script/Index.html:1074')],
+        X('Rebuild clicked by mistake after moves', 'A confirm names what would be lost ("Manual moves are replaced; promotions are reapplied.").', 'Cancel it.', 'handled', 'apps-script/Index.html:1084')],
       screen: { kind: 'desk', highlight: ['group-row'], note: 'The ↑ ↓ × controls on a row.' },
       tech: {
-        entry: [E(I, 1182, 'move', 'Moves within groupArrays and records movedUp.'), E(I, 1074, 'rebuildQuestion', 'The confirm text before a rebuild.')],
+        entry: [E(I, 1192, 'move', 'Moves within groupArrays and records movedUp.'), E(I, 1084, 'rebuildQuestion', 'The confirm text before a rebuild.')],
         state: ['movedUp (shared via saveSessionMoves)'], writes: ['saveSessionMoves (document property cttc-moves:<session>)', 'autosave'], reads: [],
         invariants: ['Arrangement by hand is detected from the groups, not a flag that can go stale.'],
         limits: [], tests: [T(PB, 'roundRobinNight', 'Moves reach the board with ▲.')], untested: [],
@@ -195,7 +195,7 @@ const phases = [
       subtext: 'Printing makes the **print mark**: who was in which group, and the match order on each sheet. Everything after the print is placed relative to it.',
       caveats: ['Records that take longer than 8 seconds print as --/--. The sheet is still correct for play.', 'A group of 7 (21 matches) uses tighter rows to fit one page.'],
       exceptions: [
-        X('The save before printing fails', 'The print waits for a save; offline, the device copy is used.', 'Reconnect and print again if the sheets must carry records.', 'partial', 'apps-script/Index.html:1979'),
+        X('The save before printing fails', 'The print waits for a save; offline, the device copy is used.', 'Reconnect and print again if the sheets must carry records.', 'partial', 'apps-script/Index.html:1989'),
         X('The print dialog is cancelled', 'unconfirmed: whether the mark is made before or after the dialog.', 'If no sheets came out, use **Undo the print** in Print labels.', 'partial', 'apps-script/Print.html:294')],
       screen: { kind: 'sheet', highlight: ['register', 'schedule'], note: 'One table\'s sheet: players on the left, the match schedule on the right.' },
       tech: {
@@ -228,7 +228,7 @@ const phases = [
         X('Several late adds land in the same group', 'The group grows; nobody is passed down.', 'Use the arrows if a group gets too big; moving someone after print changes two sheets.', 'handled', 'apps-script/check-player-board.cjs:137')],
       screen: { kind: 'desk', highlight: ['print-labels', 'group-row'], status: 'Ana Reyes added to Group 2 as a late add. Nobody else moved.', note: 'A Late add badge on Group 2 and the Print labels note.' },
       tech: {
-        entry: [E(O, 79, 'insert', 'stay = true after print: joins the target group, nobody bumped.'), E(O, 113, 'keptPairs', 'Printed pairs keep order and sides; new pairs follow.'), E(I, 1120, 'buildMatches', 'Uses keptPairs whenever a print mark exists.')],
+        entry: [E(O, 104, 'insert', 'stay = true after print: joins the target group, nobody bumped.'), E(O, 138, 'keptPairs', 'Printed pairs keep order and sides; new pairs follow.'), E(I, 1130, 'buildMatches', 'Uses keptPairs whenever a print mark exists.')],
         state: ['state.groups', 'state.matches'], writes: ['autosave'], reads: [],
         invariants: ['After print, no printed player changes group because of a sign-in.', 'The printed matches of a group keep their relative order and sides; new matches come after them.'],
         limits: [], tests: [T(PB, 'lateAddAfterPrint', 'Late adds move nobody and carry labels.'), T(PB, 'playOrderAfterPrint', 'A late add\'s matches go at the end.')], untested: [],
@@ -239,10 +239,10 @@ const phases = [
       caveats: ['Strike the player\'s matches through on the paper sheet.'],
       exceptions: [
         X('Everyone in one group leaves', 'That group goes; every other group keeps its printed number, so Table #3\'s sheet is still Group 3 on the desk, the board and the results. No sheet is named to replace. (Before Nov 11, 2026 the later groups were renumbered.)', 'Nothing to do; the table is free for open play.', 'handled', 'apps-script/Index.html:964'),
-        X('A player with scores is removed', 'Their matches and scores are dropped from the night.', 'Use a forfeit instead if the results should count.', 'partial', 'apps-script/Index.html:1164')],
+        X('A player with scores is removed', 'Their matches and scores are dropped from the night.', 'Use a forfeit instead if the results should count.', 'partial', 'apps-script/Index.html:1174')],
       screen: { kind: 'desk', highlight: ['group-row', 'scoring'], note: 'A removed row, and the scoring list with the remaining matches in printed order.' },
       tech: {
-        entry: [E(I, 1164, 'removeFromRoster', 'After print: setGroups with the player filtered out (no reorganize).'), E(I, 964, 'setGroups', 'With KEEP_NUMBERS after the print, each group keeps its number and an emptied group goes; numbers from Google, device copies and merges are kept too. Before the print, groups are numbered 1, 2, 3.'), E(B, 1254, 'groupsByNumber', 'Group N at index N - 1, [] for a gap: how the print mark records groups.'), E(B, 1261, 'changedGroups', 'Compares each group with the printed sheet of the same number; a gone group has no sheet to replace.')],
+        entry: [E(I, 1174, 'removeFromRoster', 'After print: setGroups with the player filtered out (no reorganize).'), E(I, 964, 'setGroups', 'With KEEP_NUMBERS after the print, each group keeps its number and an emptied group goes; numbers from Google, device copies and merges are kept too. Before the print, groups are numbered 1, 2, 3.'), E(B, 1254, 'groupsByNumber', 'Group N at index N - 1, [] for a gap: how the print mark records groups.'), E(B, 1261, 'changedGroups', 'Compares each group with the printed sheet of the same number; a gone group has no sheet to replace.')],
         state: ['state.groups (groupNumber can skip one after the print)', 'state.matches'], writes: ['autosave (SessionPlayers.group_number keeps the printed number)'], reads: [],
         invariants: ['After print, a group keeps its printed number for the rest of the night, on every device and after reload.', 'Removing a player removes only matches that include them.'],
         limits: [], tests: [T(PB, 'playOrderAfterPrint', 'Removals keep the printed order and scores.'), T(PB, 'groupEmptiedAfterPrint', 'An emptied group keeps every other number: desk, scores, Google, another device, Clear labels; no sheet named to replace.')],
@@ -255,7 +255,7 @@ const phases = [
       exceptions: [X('Clear after a print', 'Clear also undoes the sheets print.', 'Only clear the roster when starting over.', 'handled', 'apps-script/check-player-board.cjs:244')],
       screen: { kind: 'desk', highlight: ['print-labels'], status: 'Print labels cleared: the groups as they are now count as printed.', note: 'The Print labels note with Clear labels and Undo the print.' },
       tech: {
-        entry: [E(B, 1922, 'labels', 'Late and updated, or null.'), E(B, 1932, 'keepAsPrinted', 'Rewrites the mark with the current groups and order.'), E(B, 1941, 'forgetPrint', 'Shares { undone: true }.'), E(I, 1289, 'renderPrintLabels', 'Shows the note only while a label exists.')],
+        entry: [E(B, 1922, 'labels', 'Late and updated, or null.'), E(B, 1932, 'keepAsPrinted', 'Rewrites the mark with the current groups and order.'), E(B, 1941, 'forgetPrint', 'Shares { undone: true }.'), E(I, 1299, 'renderPrintLabels', 'Shows the note only while a label exists.')],
         state: ['print mark'], writes: ['saveSessionPrint'], reads: [],
         invariants: ['The note is visible exactly while some group differs from its printed sheet.'],
         limits: [], tests: [T(PB, 'printLabels', 'Labels, Clear labels, Undo the print.')], untested: [], simulate: 'desk-sim: print, add late, call keepAsPrinted(); assert labels() is null.' } }
@@ -305,7 +305,7 @@ const phases = [
         X('The projector\'s desk tab is closed or reloaded', '**Not connected to the desk. Click Player board on the desk to reconnect.**', 'Reopen the desk tab and click Player board.', 'handled', 'apps-script/PlayerBoard.html:977')],
       screen: { kind: 'board', highlight: ['stage-pill', 'panels'], status: 'Sheets printed · live scores', note: 'Live standings on the projector.' },
       tech: {
-        entry: [E(I, 2526, 'followCheck', 'Reads getDeskStamps, then only the changed areas.'), E(ID, 94, 'getDeskStamps', 'Stamps s, p, e, d plus ev, screen, refresh.'), E(ID, 77, 'touchDeskSession_', 'Bumped on every session save.')],
+        entry: [E(I, 2536, 'followCheck', 'Reads getDeskStamps, then only the changed areas.'), E(ID, 94, 'getDeskStamps', 'Stamps s, p, e, d plus ev, screen, refresh.'), E(ID, 77, 'touchDeskSession_', 'Bumped on every session save.')],
         state: ['follow { on, lastOk, lastCheck, refreshAt, screenAt }'], writes: ['logFollowMode stats'], reads: ['getDeskStamps every 10 s', 'getFollowState / getAppState on change'],
         invariants: ['The projector never shows a state the main desk has not saved.', 'Worst case lag ≈ autosave delay + 10 s beat + one read.'],
         limits: ['10 s beat; 60 s after 20 quiet minutes; ends at finalize or 6 h.'],
@@ -315,10 +315,10 @@ const phases = [
       summary: '**Refresh projector** on the main desk makes the projector read the night again; if its code is older it says **This laptop is running an older version of the desk than the main desk. Reload this page on this laptop...** Someone must reload the desk page on the projector laptop, then click **Player board**: the open board window is rewritten with the new code.',
       subtext: 'Nothing on the main desk can reload the projector laptop. Until Monday\'s fix, a board window left open kept its old code even after that reload.',
       caveats: ['Avoid releasing during play. If you must, reload every open desk afterwards: main, projector, phones.'],
-      exceptions: [X('The release changes what the desk saves (a new field)', 'Older pages keep running until reloaded and may not carry the new field when they save.', 'Reload every device right after a release.', 'partial', 'apps-script/Index.html:2489')],
+      exceptions: [X('The release changes what the desk saves (a new field)', 'Older pages keep running until reloaded and may not carry the new field when they save.', 'Reload every device right after a release.', 'partial', 'apps-script/Index.html:2499')],
       screen: { kind: 'board', highlight: ['notice'], status: 'This laptop is running an older version of the desk than the main desk. Reload this page on this laptop, then click Player board.', note: 'The older-code notice on the projector.' },
       tech: {
-        entry: [E(ID, 61, 'requestFollowRefresh', 'Stores { at, build }.'), E(I, 2489, 'DESK_BUILD', 'Compared with refresh.build.'), E(B, 1753, 'VERSION', 'Fingerprint of the board page; open() rewrites a window with another.')],
+        entry: [E(ID, 61, 'requestFollowRefresh', 'Stores { at, build }.'), E(I, 2499, 'DESK_BUILD', 'Compared with refresh.build.'), E(B, 1753, 'VERSION', 'Fingerprint of the board page; open() rewrites a window with another.')],
         state: ['follow.oldCode'], writes: ['desk-stamp:<date>:refresh'], reads: [],
         invariants: ['After a reload and a Player board click, the board window runs the same code as its desk page.'],
         limits: [], tests: [T(PB, 'followRefresh', 'Refresh and the older-code message.'), T(PB, 'boardLeftOpenAcrossRelease', 'A board window is rewritten on new code.')], untested: ['Old and new code saving the same night at once.'],
@@ -337,11 +337,11 @@ const phases = [
       subtext: 'Each score saves within seconds, first to the laptop, then to Google.',
       caveats: ['A match cut short (best of 3 when time runs out) is entered as 2 games to the winner.', 'Check the player on the left of the screen is the player on the top line of the paper.'],
       exceptions: [
-        X('A score is entered on the wrong line', 'Tap the right numbers on both lines; the last value wins.', 'Watch the standings change as you enter.', 'handled', 'apps-script/Index.html:2127'),
-        X('A player did not play a match', 'Choose **Forfeit** for that player, or for both if the match was never played.', '', 'handled', 'apps-script/Organizer.html:168')],
+        X('A score is entered on the wrong line', 'Tap the right numbers on both lines; the last value wins.', 'Watch the standings change as you enter.', 'handled', 'apps-script/Index.html:2137'),
+        X('A player did not play a match', 'Choose **Forfeit** for that player, or for both if the match was never played.', '', 'handled', 'apps-script/Organizer.html:193')],
       screen: { kind: 'desk', highlight: ['scoring'], note: 'The scoring section: games-won balls for each player.' },
       tech: {
-        entry: [E(I, 1373, 'data-score', 'Each ball carries the match\'s index in state.matches.'), E(I, 2127, '(click handler)', 'Reads state.matches[Number(dataset.score)].'), E(O, 138, 'matchWinner', 'Winner from games, forfeit or wonBy.'), E(O, 168, 'applyForfeit', 'A player id or both.')],
+        entry: [E(I, 1383, 'data-score', 'Each ball carries the match\'s index in state.matches.'), E(I, 2137, '(click handler)', 'Reads state.matches[Number(dataset.score)].'), E(O, 163, 'matchWinner', 'Winner from games, forfeit or wonBy.'), E(O, 193, 'applyForfeit', 'A player id or both.')],
         state: ['state.matches'], writes: ['autosave'], reads: [],
         invariants: ['A tap changes the match drawn under the finger: every rebuild of state.matches re-renders before the next tap.'],
         limits: [], tests: [T('apps-script/check-forfeit.cjs', '', 'Forfeits.'), T('apps-script/check-best-of-3.cjs', '', 'Short matches.')],
@@ -352,7 +352,7 @@ const phases = [
       subtext: 'Finalize is the one step that changes ratings. Later nights start from them.',
       caveats: ['Finalize in date order. The desk does not stop you finalizing an earlier night after a later one (see findings).'],
       exceptions: [
-        X('The latest changes are not confirmed on Google', '**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**', 'Reconnect, wait for "Changes saved to Google Sheets", then finalize.', 'handled', 'apps-script/Index.html:3346'),
+        X('The latest changes are not confirmed on Google', '**Finalization requires a confirmed Google Sheets save. Reconnect and save to Sheets first.**', 'Reconnect, wait for "Changes saved to Google Sheets", then finalize.', 'handled', 'apps-script/Index.html:3356'),
         X('Finalize stopped partway (Google timed out)', 'On the next load: **An earlier finalize or reopen of this session did not finish. Check the scores, then click Finalize RR Results: it repairs the earlier attempt, so no rating change counts twice.**', 'Do as it says.', 'handled', 'apps-script/SessionService.js:447'),
         X('An earlier night is finalized after a later one', 'Allowed. Its rating changes are applied on top of the later night\'s ratings.', 'Do not do it; reopen the later night first.', 'gap', 'apps-script/SessionService.js:378')],
       screen: { kind: 'desk', highlight: ['finalize-button'], status: 'Session finalized. Ratings are now authoritative.', note: 'The Finalize RR Results button.' },
@@ -384,10 +384,10 @@ const phases = [
       summary: 'Anyone can load the finalized night to check results. The page that finalized shows the right ratings. A fresh page, or another device, shows each player\'s rating column using today\'s rating as the starting point, so the changes shown are wrong.',
       subtext: 'The results saved are correct; only the display on a fresh page is off.',
       caveats: ['Use the club site\'s results page to check rating changes, not the desk.'],
-      exceptions: [X('Checking rating changes on a phone after finalize', 'Shows starting rating = the new rating, and a second, smaller change on top.', 'Trust the site.', 'gap', 'apps-script/Organizer.html:197')],
+      exceptions: [X('Checking rating changes on a phone after finalize', 'Shows starting rating = the new rating, and a second, smaller change on top.', 'Trust the site.', 'gap', 'apps-script/Organizer.html:222')],
       screen: { kind: 'phone', highlight: ['status-bar'], status: 'Session loaded. Changes are stored in Google Sheets.', note: 'A finalized night on a second device.' },
       tech: {
-        entry: [E(O, 188, 'standings', 'startRating from player(id).currentRating, not the session\'s starting rating.')],
+        entry: [E(O, 213, 'standings', 'startRating from player(id).currentRating, not the session\'s starting rating.')],
         state: [], writes: [], reads: ['getAppState'],
         invariants: ['A finalized night shows the same rating column on every device and after reload.'],
         limits: [], tests: [], untested: ['Standings of a finalized night on a fresh page.'],
@@ -395,7 +395,7 @@ const phases = [
   ],
   findings: [
     { severity: 'medium', kind: 'bug', title: 'An earlier night can be finalized after a later one', detail: 'Monday Oct 12 is finalized; Monday Oct 5 was left open. Finalizing Oct 5 now is allowed, and its rating changes are applied on top of the ratings after Oct 12, while the site takes ratings from the latest-dated night.', evidence: [S + ':378'], confirmed: 'reproduced with simulator: latest finalized 2026-10-12, 2026-10-05 finalized; ledger 2100→2067, 2006→2039 (docs/storyboard/repro/out-of-order-finalize.cjs).', suggest: 'Refuse finalizing a date before latestFinalizedSessionDate_ with a message naming the later night.' },
-    { severity: 'medium', kind: 'bug', title: 'A finalized night shows wrong rating changes on a fresh page', detail: 'After finalizing, the same tab shows Ana 2100 → 1997 (−103). A reload or another device shows Ana 1997 → 1966 (−31): it uses the new rating as the start and computes again.', evidence: [O + ':197'], confirmed: 'reproduced with simulator (docs/storyboard/repro/finalized-standings.cjs).', suggest: 'Use each player\'s saved starting rating (SessionPlayers) for standings when the session has one.' }
+    { severity: 'medium', kind: 'bug', title: 'A finalized night shows wrong rating changes on a fresh page', detail: 'After finalizing, the same tab shows Ana 2100 → 1997 (−103). A reload or another device shows Ana 1997 → 1966 (−31): it uses the new rating as the start and computes again.', evidence: [O + ':222'], confirmed: 'reproduced with simulator (docs/storyboard/repro/finalized-standings.cjs).', suggest: 'Use each player\'s saved starting rating (SessionPlayers) for standings when the session has one.' }
   ]
 },
 {
@@ -409,7 +409,7 @@ const phases = [
       exceptions: [X('Google is busy with another change', '**The desk is still finishing another change (from this or another device). Wait a few seconds, then try again.**', 'It retries by itself.', 'handled', 'apps-script/SessionService.js:580')],
       screen: { kind: 'desk', highlight: ['status-bar', 'save-button'], status: 'Changes saved to Google Sheets at 7:42 PM.', note: 'The status bar after a save.' },
       tech: {
-        entry: [E(I, 687, 'persistDeviceDraft', 'localStorage first.'), E(I, 634, 'canAutoSync', 'When autosave may run.'), E(I, 1635, 'save', 'saveSessionDraft with the revision.'), E(S, 276, 'saveSessionDraft', 'Under withDeskLock_; writes only this session\'s rows.'), E(S, 583, 'withDeskLock_', 'Script lock, 30 s wait.')],
+        entry: [E(I, 687, 'persistDeviceDraft', 'localStorage first.'), E(I, 634, 'canAutoSync', 'When autosave may run.'), E(I, 1645, 'save', 'saveSessionDraft with the revision.'), E(S, 276, 'saveSessionDraft', 'Under withDeskLock_; writes only this session\'s rows.'), E(S, 583, 'withDeskLock_', 'Script lock, 30 s wait.')],
         state: ['state.session.revision', 'saveInFlight', 'unconfirmedSaves'], writes: ['Sessions, SessionPlayers, Matches rows'], reads: [],
         invariants: ['A save based on an older revision is never written over a newer one.', 'The device copy holds every change not yet confirmed by Google.'],
         limits: ['Script lock wait 30 s.'], tests: [T('scripts/check-desk-nights.js', '', 'Whole nights with slow Google, drops, reloads and a second tab.')], untested: [],
@@ -418,10 +418,10 @@ const phases = [
       summary: 'The desk keeps working on the laptop: **Draft saved on this device only. It will sync to Google Sheets automatically when the connection returns.** Slow replies say **Google Sheets is slow to answer; still saving. Your changes are kept on this device, so keep entering scores.**',
       subtext: 'The projector and other devices see nothing new until the main desk reconnects.',
       caveats: ['Do not close the tab while it says device only.', 'Finalize needs a confirmed save.'],
-      exceptions: [X('A save was sent but no answer came back', '**Checking Google Sheets before saving again...** then it either confirms or merges.', 'Keep going.', 'handled', 'apps-script/Index.html:1745')],
+      exceptions: [X('A save was sent but no answer came back', '**Checking Google Sheets before saving again...** then it either confirms or merges.', 'Keep going.', 'handled', 'apps-script/Index.html:1755')],
       screen: { kind: 'desk', highlight: ['status-bar'], status: 'Draft saved on this device only. It will sync to Google Sheets automatically when the connection returns.', note: 'Offline status.' },
       tech: {
-        entry: [E(I, 1723, 'withSaveTimeout', 'Slow-reply message.'), E(I, 1745, 'reconcile', 'Asks Google what it holds before sending again.'), E(I, 1738, 'contentKey', 'Compares groups and matches ignoring order.'), E(I, 324, 'AUTO_RETRY_LIMIT', 'Autosave retries before stopping.'), E(I, 275, 'cttcOutbox', 'Print mark, moves and similar small writes, retried across reloads.')],
+        entry: [E(I, 1733, 'withSaveTimeout', 'Slow-reply message.'), E(I, 1755, 'reconcile', 'Asks Google what it holds before sending again.'), E(I, 1748, 'contentKey', 'Compares groups and matches ignoring order.'), E(I, 324, 'AUTO_RETRY_LIMIT', 'Autosave retries before stopping.'), E(I, 275, 'cttcOutbox', 'Print mark, moves and similar small writes, retried across reloads.')],
         state: ['unconfirmedSaves', 'syncFailures'], writes: [], reads: ['getAppState'],
         invariants: ['A save that may have arrived is never sent again blindly.'],
         limits: [], tests: [T('apps-script/check-offline-draft.cjs', '', 'Offline drafts.'), T('apps-script/check-offline-actions.cjs', '', 'Offline adds and outbox.')], untested: [],
@@ -433,14 +433,14 @@ const phases = [
       exceptions: [X('Finalized elsewhere while this page had edits', '**This session was finalized in Google Sheets (on another device or tab) before these edits were saved. Nothing was overwritten...**', 'Reload and check; reopen only if the edits matter and the site does not list the night yet.', 'handled', 'apps-script/Index.html')],
       screen: { kind: 'devices', highlight: ['main-desk', 'phone', 'google'], note: 'Two desks saving to the same night.' },
       tech: {
-        entry: [E(I, 2440, 'quietForRefresh', 'The once-a-minute refresh.'), E(I, 869, 'applyCopy', 'Applies Google\'s version.')],
+        entry: [E(I, 2450, 'quietForRefresh', 'The once-a-minute refresh.'), E(I, 869, 'applyCopy', 'Applies Google\'s version.')],
         state: ['syncConflict', 'saveNeedsReload'], writes: [], reads: ['getAppState'],
         invariants: ['No device\'s confirmed change is silently reverted by another\'s save.'],
         limits: ['Refresh about once a minute.'], tests: [T('scripts/check-desk-nights.js', '', 'Second tab scenarios.')], untested: ['The print mark changed on one device while the other has unsaved group changes.'],
         simulate: 'desk-sim: two devices, both add players within the same minute.' } }
   ],
   findings: [
-    { severity: 'low', kind: 'design-gap', title: 'The printed play order is saved only with the print mark', detail: 'Matches are saved without an order; the printed order lives in the print mark (a document property kept 21 days). Undo the print, or a lost mark, puts every group back to the plain order. Reasonable, but nothing records which order the paper had if the mark is lost.', evidence: [S + ':235', S + ':188', I + ':1738'], confirmed: 'read code only', suggest: 'Accept, or save the match order with the matches once printed.' }
+    { severity: 'low', kind: 'design-gap', title: 'The printed play order is saved only with the print mark', detail: 'Matches are saved without an order; the printed order lives in the print mark (a document property kept 21 days). Undo the print, or a lost mark, puts every group back to the plain order. Reasonable, but nothing records which order the paper had if the mark is lost.', evidence: [S + ':235', S + ':188', I + ':1748'], confirmed: 'read code only', suggest: 'Accept, or save the match order with the matches once printed.' }
   ]
 },
 {
@@ -492,7 +492,7 @@ const phases = [
 ];
 
 const meta = {
-  commit: 'd1d8ae51b29658d6eb60b4bb3f9d011fbf278747',
+  commit: 'b34858af57cf1d1ea694f7a67d6871b01c431a8f',
   intro: 'A round robin night at the club, from opening the desk to results on the site: what each person does, what the screen shows, what can go wrong at each step, and the code underneath.',
   source: 'Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
   findingsNote: 'Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement.'
