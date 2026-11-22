@@ -306,11 +306,11 @@
         renderCard();
       });
     });
-    // The home page's pilot link opens Pay now and then this (index.html).
+    // The home page's pilot link opens Pay now (index.html, which shows its top: who's playing and the fee come first)
+    // and then this: the card option open, below.
     document.addEventListener("cttc-pay-card", function () {
       if (root !== document.querySelector("[data-pay]") || card.hidden) return;
       if (panel.hidden) openCard();
-      if (card.scrollIntoView) card.scrollIntoView({ block: "start", behavior: "smooth" });
     });
     openToday.then(function (open) {
       card.hidden = !open;
