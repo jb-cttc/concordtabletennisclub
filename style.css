@@ -2025,6 +2025,28 @@ tr.hof-gold td:nth-child(2) {
   white-space: nowrap;
 }
 
+/* The pay-ahead pilot's link (pay.js shows it on round robin days until 8:30 PM). */
+.tonight-text-box .tonight-pilot {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.tonight-text-box .tonight-pilot-text {
+  text-decoration: underline;
+}
+
+.tonight-text-box .tonight-pilot[hidden] {
+  display: none;
+}
+
+.tonight-pilot .pay-pilot-tag {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+
 .tonight-launch .live-dot {
   background: #1f6b3a;
 }

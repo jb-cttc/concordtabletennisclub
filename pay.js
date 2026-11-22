@@ -356,6 +356,12 @@
     render();
   }
 
+  // The pilot's small links elsewhere on the site ("Want to be included?" on the home and Round Robins pages) show only
+  // while paying ahead is open.
+  openToday.then(function (open) {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-prepay-link]"), function (link) { link.hidden = !open; });
+  });
+
   var accounts = unlock();
   // Scanned while this page was already open: only the # part changes, so start again to read the key.
   window.addEventListener("hashchange", function () {

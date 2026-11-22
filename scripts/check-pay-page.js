@@ -166,6 +166,21 @@ const SUNDAY = '2027-01-10T19:30:00-08:00';
   assert.match(home, /<script src="turnout\.js"><\/script>\s*<script src="pay\.js/, 'so does the home page');
   assert.match(site.read('text.html'), /<a class="text-cttc-pay" href="pay\.html#card">/);
 
+  // The pilot's small link in "Want to be included?" on the home and Round Robins pages: only while paying ahead is open.
+  const rr = site.read('roundrobins.html');
+  for (const html of [home, rr]) {
+    assert.match(html, /<a class="tonight-pilot" href="pay\.html#card" data-prepay-link hidden>/);
+    assert.match(html, /<script src="turnout\.js"><\/script>\s*<script src="pay\.js\?v=\d+"><\/script>/);
+  }
+  for (const [when, shown] of [[SUNDAY, false], ['2026-11-23T10:00:00-08:00', true], ['2026-11-23T20:30:00-08:00', false]]) {
+    win = open(rr, when, { url: 'https://concordtabletennisclub.com/roundrobins.html' });
+    await settle();
+    assert.equal(win.document.querySelector('[data-prepay-link]').hidden, !shown, 'Round Robins page at ' + when);
+  }
+  win = open(home, '2026-11-23T10:00:00-08:00', { url: 'https://concordtabletennisclub.com/' });
+  await settle();
+  assert.equal(win.document.querySelector('[data-prepay-link]').hidden, false, 'home page on a round robin morning');
+
   // Not a round robin day: no card button, just when it works.
   win = open(payPage, SUNDAY);
   await settle();
