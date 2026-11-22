@@ -62,8 +62,10 @@
   "use strict";
 
   // Groups of the preferred size or one smaller, as few groups as possible: 13 players in groups of 4 are 4, 3, 3, 3.
+  // Groups of 7 keep Groups 1-3 at 6 or fewer (see sizeCapped).
   function sizeGroups(count, preferred) {
     if (!count) return [];
+    if (preferred === 7) return sizeCapped(count);
     var min = Math.ceil(count / preferred);
     var max = Math.floor(count / (preferred - 1));
     var groupCount = min <= max ? min : Math.max(1, min);
@@ -71,6 +73,19 @@
     var larger = count % groupCount;
     var sizes = [];
     for (var i = 0; i < groupCount; i += 1) sizes.push(base + (i < larger ? 1 : 0));
+    return sizes;
+  }
+
+  // Groups of 7 with Groups 1-3 at most 6: as few groups as hold everyone, as even as possible, and the larger groups
+  // from the lowest-rated up. 40 players are 5, 5, 6, 6, 6, 6, 6; 39 are 6, 6, 6, 7, 7, 7.
+  function sizeCapped(count) {
+    var groupCount = 1;
+    var room = 6;
+    while (room < count) { room += groupCount < 3 ? 6 : 7; groupCount += 1; }
+    var base = Math.floor(count / groupCount);
+    var larger = count % groupCount;
+    var sizes = [];
+    for (var i = 0; i < groupCount; i += 1) sizes.push(base + (i >= groupCount - larger ? 1 : 0));
     return sizes;
   }
 
