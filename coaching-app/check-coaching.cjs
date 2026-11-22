@@ -327,7 +327,7 @@ const addCoach = (name, email, phone = '', thread = true) => {
   if (phone && thread) inbound(name, 'COACH', clock - 60000);
   return grids.Coaches[grids.Coaches.length - 1][4];
 };
-const propose = (id, slots) => { cache = {}; return run('coachPropose', id, slots); };
+const propose = (id, slots, rates) => { cache = {}; return run('coachPropose', id, slots, rates); };
 const publish = (id, name, slots) => {
   const result = propose(id, slots);
   assert.equal(result.ok, true, result.message);
@@ -407,7 +407,7 @@ assert.deepEqual(timers(), ['sweep every 60']);
 activeEmail = '';
 assert.equal(properties.COACHING_DB_ID, 'private-book-id');
 assert.equal(properties.COACHING_PUBLIC_ID, 'public-book-id');
-assert.equal(grids.Requests[0].length, 27);
+assert.equal(grids.Requests[0].length, 28);
 assert.deepEqual(grids.Schedule[0], ['date', 'day', 'start', 'end', 'coach', 'status', 'student', 'summary']);
 assert.match(grids.About[0][0], /does not change any booking/);
 
@@ -473,6 +473,12 @@ assert.match(grids.About[0][0], /does not change any booking/);
   assert.doesNotMatch(page, /reply(ing)? YES to the email \(or text\) we send, and the lesson is booked/, 'the page no longer asks for a YES to book');
   assert.match(page, /any time that has not started yet can be requested/);
   assert.match(page, /'Privacy: your request gives the coach your name, email, mobile number \(if given\) and note/);
+  // Lesson rates: the rate the confirm box shows is the rate sent with the request; a changed rate is shown before anything is sent.
+  assert.match(page, /dialog\.querySelector\('#confirmRate'\)\.textContent = slot\.rate \? rateText\(slot\) : '';/, 'the confirm box shows the rate');
+  assert.match(page, /website: form\.querySelector\('#website'\)\.value, rate: slot\.rate \|\| ''\n/, 'and sends the rate it showed');
+  assert.match(page, /if \(!result\.ok && result\.rateChanged && onRates\) onRates\(result\.coachId, result\.rates\);/, 'a rate changed since the page loaded is shown');
+  assert.match(page, /chosen = withRate\(result, entry\);/, 'the picked time carries its rate');
+  assert.match(page, /guarded\(submit, 'coachPropose', \[data\.id, wanted, wantedRates\(\)\]/, 'the coach page sends rates with the times');
 }
 
 // HTML replies are read with their own line breaks; the quoted earlier message is never read.
@@ -490,7 +496,8 @@ assert.match(grids.About[0][0], /does not change any booking/);
 }
 
 // ---- Coaches: only the ones the owner listed, picked from a list; no sign-in ----
-assert.deepEqual(grids.Coaches[0], ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at'], 'the owner types the first three columns');
+assert.deepEqual(grids.Coaches[0], ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at',
+  'rate_50', 'rate_25', 'ask_rates'], 'the owner types the first three columns');
 assert.deepEqual(run('coachList'), { ok: true, coaches: [] }, 'nobody is a coach until the owner lists them');
 const annId = addCoach('Ann Coach', 'ann@example.com', '(925) 555-0101');
 assert.match(annId, /^[a-f0-9]{16}$/);
@@ -1680,6 +1687,18 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   answerMail('cy@example.com', 'no', cyRemove);
   assert.equal(mailTo('cy@example.com').pop().body.split('\n')[0], 'OK, nothing was changed. Your coaching times stay as they were.');
   assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach Cy').length, 2);
+  // Rates sent on their own and answered late are offered again the same way; the next YES publishes them.
+  assert.equal(propose(cyId, mine(cyId), { 50: '40', 25: '' }).ok, true);
+  const cyRates = askedBy('cy@example.com', /^Confirm your lesson rates/);
+  clock += hours(49);
+  answerMail('cy@example.com', 'YES', cyRates);
+  const ratesAgain = mailTo('cy@example.com').pop();
+  assert.match(ratesAgain.subject, /^Confirm your lesson rates \[CTTC ref [0-9A-F]{10}\]$/);
+  assert.match(ratesAgain.body, /\nTo publish them now, reply YES to this email by /);
+  assert.match(ratesAgain.body, /\nRates: 50 minute lesson: \$40 \(was not listed\)\.\n/);
+  assert.equal(cell('Coaches', coachRow(cyId), 'rate_50'), '', 'not published by the late YES itself');
+  replyTo('cy@example.com', 'YES', /^Confirm your lesson rates/);
+  assert.equal(cell('Coaches', coachRow(cyId), 'rate_50'), '40');
   // Back to where the checks below expect the clock (Cy's lists are all answered, so nothing is left waiting).
   clock = beforeLate;
   cache = {};
@@ -1936,6 +1955,91 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   sent.length = 0;
   context.sweep();
   assert.equal(grids.Waitlist.length, 1, 'a withdrawn time drops its waitlist');
+}
+
+// ---- Lesson rates: set with the times, published by the coach's YES, shown to students, kept on the request, quoted in emails ----
+{
+  [['45', '45'], ['$45', '45'], [' $ 45.00 ', '45'], ['45.0', '45'], ['', ''], [null, ''], [undefined, ''], ['45.50', null], ['0', null], ['501', null], ['forty', null],
+    ['-5', null], ['4 5', null]].forEach(([typed, clean]) => assert.equal(context.cleanRate_(typed), clean, 'a rate is whole dollars from $1 to $500: ' + JSON.stringify(typed)));
+  cache = {};
+  const raeId = addCoach('Rae Coach', 'rae@example.com', '(925) 555-0161');
+  const rae = () => textsTo('Rae Coach');
+  const rates = () => ['rate_50', 'rate_25', 'ask_rates'].map(name => cell('Coaches', coachRow(raeId), name));
+  const date = '2026-10-30';
+  publish(raeId, 'Rae Coach', [slot(date, '21:00', 60), slot(date, '20:00', 30)]);
+  assert.deepEqual(run('coachBoard', raeId).rates, { 50: '', 25: '' }, 'no rates until the coach lists them');
+  assert.equal(run('openSlots').rates[raeId], undefined, 'and students see none');
+  assert.deepEqual(propose(raeId, mine(raeId), { 50: '45.50', 25: '' }), { ok: false, field: 'rate50',
+    message: 'Please enter your 50 minute rate in whole dollars, from $1 to $500, or leave it blank.' }, 'the page is told which rate to fix');
+  const texted = rae().length;
+  const mailed = mailTo('rae@example.com').length;
+
+  // Rates on their own: one email and one text, like a list of times, and nothing is published before the YES.
+  assert.equal(propose(raeId, mine(raeId), { 50: '$45', 25: '25' }).message,
+    'Sent. Reply YES to the email and the text we just sent to publish these changes, or NO to cancel. Nothing changes until you reply.');
+  const raeMail = mailTo('rae@example.com', 0).pop();
+  assert.equal(mailTo('rae@example.com').length, mailed + 1);
+  assert.match(raeMail.subject, /^Confirm your lesson rates \[CTTC ref [0-9A-F]{10}\]$/);
+  assert.match(raeMail.body, /Reply YES: Publish these changes to Coach Rae's lesson rates\.\nReply NO: Cancel\. Your lesson rates stay as they are\./);
+  assert.match(raeMail.body, /Rates: 50 minute lesson: \$45 \(was not listed\); 25 minute lesson: \$25 \(was not listed\)\. Students see your rates/);
+  assert.equal(rae().length, texted + 1);
+  assert.match(rae().pop(), /to update Coach Rae's lesson rates, or NO to cancel\. Rates: 50 minute lesson: \$45 \(was not listed\); 25 minute lesson: \$25 \(was not listed\)\. Nothing changes until you reply\.$/);
+  assert.deepEqual(rates(), ['', '', '{"25":"25","50":"45"}'], 'nothing is published before the YES');
+  assert.deepEqual(run('coachBoard', raeId).pendingRates, { 50: '45', 25: '25' }, 'the coach page shows the rates waiting for the YES');
+  assert.equal(run('openSlots').rates[raeId], undefined, 'students see no rate before the YES');
+  say('Rae Coach', 'YES');
+  assert.match(rae().pop(), /^CTTC: Done\. Coach Rae now has 2 upcoming coaching times \(0 added, 0 removed\)\. Your lesson rates: \$45 for 50 minutes, \$25 for 25 minutes\. Students can request/);
+  assert.deepEqual(rates(), ['45', '25', ''], 'published by the YES, and the list is done with');
+  assert.deepEqual(run('openSlots').rates[raeId], { 50: '45', 25: '25' }, 'students see them');
+  assert.match(propose(raeId, mine(raeId), { 50: '45', 25: '$25' }).message, /^Nothing changed yet/, 'the same rates again change nothing');
+  assert.equal(propose(raeId, mine(raeId)).ok, false, 'a page from before rates sends none, and leaves them as they are');
+  // A NO leaves them.
+  assert.equal(propose(raeId, mine(raeId), { 50: '60', 25: '25' }).ok, true);
+  say('Rae Coach', 'NO');
+  assert.deepEqual(rates(), ['45', '25', '']);
+
+  // A student books at the rate the page showed. A rate changed since the page loaded is shown again, and nothing is sent.
+  const hour = () => run('openSlots').slots.find(entry => entry.coach === 'Coach Rae' && entry.minutes === 50);
+  const stale = run('requestSlot', { key: hour().key, name: 'Tia Student', email: 'tia.rates@example.com', rate: '40' });
+  assert.deepEqual(stale, { ok: false, rateChanged: true, coachId: raeId, rates: { 50: '45', 25: '25' },
+    message: 'Coach Rae\'s rate for a 50 minute lesson is now $45. Nothing was sent. Please check it and press Send request again.' });
+  assert.equal(run('requestSlot', { key: hour().key, name: 'Tia Student', email: 'tia.rates@example.com', rate: '' }).rateChanged, true, 'a rate listed since the page loaded too');
+  assert.equal(requestBy('tia.rates@example.com').length, 0, 'nothing is saved or sent');
+  book({ key: hour().key, name: 'Tia Student', email: 'tia.rates@example.com', rate: '45' });
+  assert.equal(cell('Requests', latestRequest('tia.rates@example.com'), 'rate'), '45', 'the request keeps the rate the student confirmed');
+  assert.match(mailTo('tia.rates@example.com').pop().body, /\nCoach: Coach Rae\nRate: \$45 for this 50 minute lesson, paid directly to Coach Rae\n/);
+  const raeAsked = mailTo('rae@example.com').pop();
+  assert.match(raeAsked.subject, /^Lesson request from Tia Student/);
+  assert.match(raeAsked.body, /Rate: \$45 for this 50 minute lesson \(your listed rate, as the student saw it when they asked\)/, 'the coach sees the rate the student was shown');
+
+  // The coach raises the rate after the request: the request keeps the rate its student agreed to.
+  assert.equal(propose(raeId, mine(raeId), { 50: '55', 25: '25' }).ok, true);
+  replyTo('rae@example.com', 'YES', /^Confirm your lesson rates/);
+  assert.deepEqual(rates(), ['55', '25', '']);
+  replyTo('rae@example.com', 'YES', /^Lesson request from Tia Student/);
+  assert.equal(statusOf('tia.rates@example.com'), 'confirmed');
+  const tiaConfirmed = mailTo('tia.rates@example.com').pop();
+  assert.match(tiaConfirmed.subject, /^Lesson confirmed:/);
+  assert.match(tiaConfirmed.body, /\nRate: \$45 for this 50 minute lesson, paid directly to your coach\n/);
+  assert.match(tiaConfirmed.htmlBody, /<strong>\$45<\/strong> for this 50 minute lesson/, 'shown in bold in the email');
+  assert.match(mailTo('rae@example.com').pop().body, /Rate: \$45 for this 50 minute lesson/);
+  assert.equal(run('openSlots').rates[raeId][50], '55', 'new students see the new rate');
+
+  // A move: the email shows the new time's rate, and the new request keeps it.
+  const half = run('openSlots').slots.find(entry => entry.coach === 'Coach Rae' && entry.minutes === 25);
+  assert.equal(run('studentChange', { key: keyOf('tia.rates@example.com'), action: 'move', to: half.key, contact: 'tia.rates@example.com' }).ok, true);
+  assert.match(mailTo('tia.rates@example.com').pop().body, /\nNew rate: \$25 for a 25 minute lesson, paid directly to Coach Rae\n/);
+  replyTo('tia.rates@example.com', 'YES', /^Confirm: move your lesson/);
+  const moved = latestRequest('tia.rates@example.com');
+  assert.deepEqual([cell('Requests', moved, 'start'), cell('Requests', moved, 'status'), cell('Requests', moved, 'rate')], ['20:00', 'pending', '25']);
+
+  // Blank boxes take the rates down.
+  assert.equal(propose(raeId, mine(raeId), { 50: '', 25: '' }).ok, true);
+  assert.match(mailTo('rae@example.com').pop().body, /Rates: 50 minute lesson: not listed \(was \$55\); 25 minute lesson: not listed \(was \$25\)\./);
+  replyTo('rae@example.com', 'YES', /^Confirm your lesson rates/);
+  assert.deepEqual(rates(), ['', '', '']);
+  assert.equal(run('openSlots').rates[raeId], undefined);
+  assertPublicIsAnonymous();
 }
 
 // ---- Coach initials, and students who opt in to texts by texting STUDENT ----
