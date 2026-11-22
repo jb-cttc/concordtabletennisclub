@@ -306,10 +306,13 @@ properties.DESK_SHEET_ID = 'desk-sheet-id';
 const setupResult = JSON.parse(JSON.stringify(context.setup()));
 assert.equal(setupResult.players, PLAYERS.filter(player => player[2] === true || /^true$/i.test(player[2])).length + ' active players', 'inactive rows are left out of the player list');
 assert.equal(setupResult.mode, 'directory', 'v1 signs up from the player list only');
-assert.deepEqual(books['private-book-id'].names(), ['AdminChanges', 'Batches', 'Bundles', 'Closures', 'Emails', 'Log', 'MemberEmailReport', 'People', 'SeedLinks', 'SeedReport', 'Signups', 'Training']);
+assert.deepEqual(books['private-book-id'].names(), ['AdminChanges', 'Batches', 'Bundles', 'Closures', 'Contacts', 'Emails', 'Log', 'MemberEmailReport', 'People', 'SeedLinks', 'SeedReport', 'Signups', 'Training']);
 assert.deepEqual(grids.Emails[0], ['player_id', 'name', 'email', 'phone', 'source', 'status', 'requested_at', 'decided_at', 'batch_id']);
 // Emails on file, as the owner would type them, for everyone but NO_EMAIL.
 PLAYERS.forEach(([id, name]) => { if (!NO_EMAIL.includes(name) && !/Queue$/.test(name)) grids.Emails.push([id, name, emailOf(name), '', 'owner', 'approved', '', '', '']); });
+// Points of contact, as Volunteer Admin saves them (checked there, below): Monday, Wednesday and Friday; Saturday has none yet.
+assert.deepEqual(grids.Contacts[0], ['weekday', 'day', 'player_id', 'name', 'updated_at']);
+grids.Contacts.push(['1', 'Monday', 'p03', 'Ada Park', ''], ['3', 'Wednesday', 'p04', 'Ben Ortiz', ''], ['5', 'Friday', 'p07', 'Eve Stone', '']);
 assert.deepEqual(grids.Training[0], ['player_id', 'name', 'keys', 'open', 'front_desk', 'updated_at']);
 // The owner's training list: everyone in these checks may open and run the Front Desk, except Cal (tables and closing only)
 // and Dee (keys but no opening training).
@@ -333,6 +336,9 @@ assert.equal(properties.STAFFING_DB_ID, 'private-book-id');
   assert.equal(night('2026-10-19').bookable, true, 'tonight can be picked in the morning');
   assert.equal(night('2026-10-24').time, '3:00 PM to 6:00 PM', 'Saturday is 3 to 6');
   assert.equal(night('2026-10-21').time, '7:00 PM to 10:00 PM');
+  // Each night's point of contact: the same person every week for its weekday (Contacts tab), by first name only.
+  const byDay = { 1: 'Ada', 3: 'Ben', 5: 'Eve', 6: '' };
+  assert.ok(view.nights.every(entry => entry.contact === byDay[new Date(entry.date + 'T12:00:00Z').getUTCDay()]), 'first names only; a weekday with nobody shows nobody');
   clock = pacificAt('2026-10-31', '23:59');
   assert.deepEqual(board().months.map(month => month.title), ['October 2026', 'November 2026', 'December 2026']);
   clock = pacificAt('2026-11-01', '00:01');
@@ -443,6 +449,10 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   const done = mailTo('hal.reed@example.com').pop();
   assert.equal(done.subject, 'You are on the CTTC staff schedule');
   assert.match(done.body, /3 nights are confirmed/);
+  assert.ok(done.body.includes('Get in touch with:\n\nPoint of contact for ALL Mondays: Ada Park, ada.park@example.com\n' +
+    'Point of contact for ALL Wednesdays: Ben Ortiz, ben.ortiz@example.com\nPoint of contact for ALL Fridays: Eve Stone, eve.stone@example.com\n'),
+    'the confirmation gives the full name and email on file of the point of contact for each weekday confirmed, and only those');
+  assert.ok(!done.body.includes('ALL Saturdays'));
   assert.equal(night('2026-10-26').slots.desk[0].pending, false);
   assert.match(night('2026-10-26').slots.desk[0].id, /^[0-9a-f]{16}$/, 'a confirmed slot carries an id for "This is me"');
   const count = sent.length;
@@ -557,6 +567,7 @@ assert.equal(context.ownWords_('Sure\n[CTTC shift 0123456789]\nReply YES'), 'Sur
   grids.Closures.push(['2026-10-24', 'Gym closed for an event'], [new Date(pacificAt('2026-10-31', '00:00')), 'Halloween'], ['11/14/2026', ''], ['not a date', 'ignored']);
   assert.equal(night('2026-10-24').status, 'closed');
   assert.equal(night('2026-10-24').note, 'Gym closed for an event');
+  assert.equal(night('2026-10-24').contact, '', 'a closed night needs no point of contact');
   assert.equal(night('2026-10-24').bookable, false);
   assert.equal(night('2026-10-31').status, 'closed', 'a cell the Sheet turned into a date still works');
   assert.equal(night('2026-11-14').status, 'closed', 'as does 11/14/2026');
@@ -1231,6 +1242,7 @@ const seedCheck = () => {
   assert.equal(reminders.length, 1);
   assert.equal(reminders[0].subject, 'Reminder: your CTTC shift tomorrow, Mon, Nov 23');
   assert.match(reminders[0].body, /Put tables and barriers away \(closing, 10:00 PM\)/);
+  assert.ok(reminders[0].body.includes('\nPoint of contact for ALL Mondays: Ada Park, ada.park@example.com'), 'the reminder gives Monday\'s point of contact and their email');
   context.sweep();
   clock += 3600000;
   context.sweep();
@@ -2023,6 +2035,66 @@ seedCheck();
   assert.deepEqual(view.nights.find(night => night.date === W2).slots.tables.map(slot => [slot.name, slot.status]), [['Cal Diaz', 'confirmed']]);
   assert.ok(view.withEmail.includes(idOf(lone)));
 
+  // Points of contact: one per weekday, the same person every week, assigned from the desk's player list. The board lists them
+  // with what volunteers are sent; a change is checked like the rest of a bucket, recorded, emails nobody, and shows on the
+  // public calendar at once (first name only).
+  const dayOf = date => new Date(date + 'T12:00:00Z').getUTCDay();
+  assert.deepEqual(view.contacts.map(day => [day.weekday, day.label, day.name, day.details, day.publicName]), [
+    [1, 'Point of contact for ALL Mondays', 'Ada Park', 'Ada Park, ada.park@example.com', 'Ada'],
+    [3, 'Point of contact for ALL Wednesdays', 'Ben Ortiz', 'Ben Ortiz, ben.new@example.com', 'Ben'], // his email on file now, changed above
+    [5, 'Point of contact for ALL Fridays', 'Eve Stone', 'Eve Stone, eve.stone@example.com', 'Eve'],
+    [6, 'Point of contact for ALL Saturdays', '', '', '']]);
+  const noEmail = PLAYERS.map(player => player[1]).find(name => NO_EMAIL.includes(name) && !approvedOf(name) && name !== lone);
+  assert.ok(noEmail, 'a player with no email on file');
+  const zoey = grids.Emails.slice(1).find(row => row[0] === idOf('Zoey Hart') && row[5] === 'approved');
+  assert.equal(zoey[3], '9255550188', 'Zoey has a mobile on file');
+  const contactsBefore = JSON.stringify([grids.Contacts, grids.AdminChanges]);
+  answer = admin('apply', { preview: true, changes: [
+    { kind: 'contact', weekday: 3, playerId: idOf('Ben Ortiz') },
+    { kind: 'contact', weekday: 2, playerId: idOf('Cal Diaz') },
+    { kind: 'contact', weekday: 6, playerId: 'player-unknown' },
+    { kind: 'contact', weekday: 1, playerId: idOf('Cal Diaz') },
+    { kind: 'contact', weekday: 1, playerId: idOf('Hal Reed') },
+    { kind: 'contact', weekday: 6, playerId: '' }] });
+  assert.deepEqual(answer.problems.map(problem => [problem.index, problem.reason]), [
+    [0, 'Ben Ortiz is already the point of contact for ALL Wednesdays.'],
+    [1, 'That point of contact change is not valid.'],
+    [2, 'That player is not on the desk\'s active player list.'],
+    [4, 'Two changes to the point of contact for ALL Mondays. Keep one.'],
+    [5, 'Two changes to the point of contact for ALL Saturdays. Keep one.']], 'Tuesday is not a club night');
+  const contactBucket = [{ kind: 'contact', weekday: 6, playerId: idOf('Zoey Hart') }, { kind: 'contact', weekday: 1, playerId: idOf(noEmail) },
+    { kind: 'contact', weekday: 5, playerId: '' }];
+  const sentContacts = sent.length;
+  answer = admin('apply', { preview: true, changes: contactBucket });
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+  assert.deepEqual(answer.emails, [], 'nobody is emailed about a point of contact');
+  assert.deepEqual(answer.contacts.map(item => [item.label, item.was, item.name, item.publicName, item.details, item.warning]), [
+    ['Point of contact for ALL Saturdays', '', 'Zoey Hart', 'Zoey', 'Zoey Hart, zoey.hart@example.com, (925) 555-0188', ''],
+    ['Point of contact for ALL Mondays', 'Ada Park', noEmail, noEmail.split(' ')[0], noEmail, noEmail + ' has no email on file, so volunteers are sent the name only.'],
+    ['Point of contact for ALL Fridays', 'Eve Stone', '', '', '', '']], 'the review shows what volunteers will see');
+  assert.equal(JSON.stringify([grids.Contacts, grids.AdminChanges]), contactsBefore, 'a preview saves nothing');
+  board(); // the shared public calendar, built and cached before the change
+  answer = admin('apply', { changes: contactBucket });
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+  assert.deepEqual([answer.changes, answer.emailed, answer.people], [3, 0, 0]);
+  assert.equal(sent.length, sentContacts, 'and no email went out');
+  assert.deepEqual(grids.Contacts.slice(1).map(row => row.slice(0, 4)), [
+    ['1', 'Monday', idOf(noEmail), noEmail], ['3', 'Wednesday', 'p04', 'Ben Ortiz'], ['5', 'Friday', '', ''], ['6', 'Saturday', idOf('Zoey Hart'), 'Zoey Hart']],
+    'one row per weekday; a cleared weekday keeps its row with nobody');
+  assert.deepEqual(grids.AdminChanges.slice(-3).map(row => [cell('AdminChanges', row, 'kind'), cell('AdminChanges', row, 'name'), cell('AdminChanges', row, 'before'),
+    cell('AdminChanges', row, 'after'), cell('AdminChanges', row, 'emailed')]), [
+    ['contact', 'Zoey Hart', 'Point of contact for ALL Saturdays: none', 'Point of contact for ALL Saturdays: Zoey Hart', '-'],
+    ['contact', noEmail, 'Point of contact for ALL Mondays: Ada Park', 'Point of contact for ALL Mondays: ' + noEmail, '-'],
+    ['contact', 'Eve Stone', 'Point of contact for ALL Fridays: Eve Stone', 'Point of contact for ALL Fridays: none', '-']], 'who changed what, before and after');
+  const open = board().nights.filter(entry => entry.status !== 'closed' && entry.status !== 'past');
+  assert.ok(open.some(entry => dayOf(entry.date) === 6) && open.filter(entry => dayOf(entry.date) === 6).every(entry => entry.contact === 'Zoey'), 'the public calendar updates at once');
+  assert.ok(open.filter(entry => dayOf(entry.date) === 5).every(entry => entry.contact === ''), 'a cleared weekday names nobody');
+  assert.doesNotMatch(JSON.stringify(board()), /Hart|zoey\.hart|555/, 'no last name, email or phone on the public calendar');
+  assert.equal(admin('board').contacts.find(day => day.weekday === 6).details, 'Zoey Hart, zoey.hart@example.com, (925) 555-0188');
+  // Put Monday and Friday back for the checks below.
+  answer = admin('apply', { changes: [{ kind: 'contact', weekday: 1, playerId: idOf('Ada Park') }, { kind: 'contact', weekday: 5, playerId: idOf('Eve Stone') }] });
+  assert.equal(answer.ok, true, JSON.stringify(answer));
+
   // Tidy up, so later checks see the calendar as before.
   signupRows().filter(row => [W1, F1, W2, SAT].includes(cell('Signups', row, 'date'))).forEach(row => { row[column('Signups', 'status')] = 'dropped'; });
   grids.Training.slice(1).forEach(row => { if (cell('Training', row, 'player_id') === idOf('Cal Diaz')) row[column('Training', 'keys')] = 'no'; });
@@ -2230,13 +2302,15 @@ for (const name of called) assert.ok(globals.includes(name), name + ' exists and
   cellFor('2026-12-02').click();
   const panel = document.getElementById('night');
   assert.match(panel.textContent, /Wednesday, December 2, 2026/);
+  assert.equal(panel.querySelector('.contact').textContent, 'Point of contact for ALL Wednesdays: Ben', 'the first name only');
   // Share to WhatsApp: the message is typed in WhatsApp, which opens straight away on a phone (no layout here: a desktop).
   const share = panel.querySelector('a.share');
   assert.equal(share.textContent, 'Share to WhatsApp');
   assert.match(share.href, /^https:\/\/wa\.me\/\?text=/);
   assert.equal(share.target, '_blank');
   const shared = decodeURIComponent(share.href.split('?text=')[1]);
-  assert.match(shared, /^🏓 \*CTTC volunteers: Wednesday, December 2, 2026\*\n7:00 PM to 10:00 PM\n\n⚠️ \*Still needed:\* a desk organizer, a money collector/);
+  assert.ok(shared.startsWith('🏓 *CTTC volunteers: Wednesday, December 2, 2026*\n7:00 PM to 10:00 PM\n🙋 Point of contact for ALL Wednesdays: Ben\n\n'), 'the message names the night\'s point of contact');
+  assert.match(shared, /^🏓 \*CTTC volunteers: Wednesday, December 2, 2026\*\n7:00 PM to 10:00 PM\n.*\n\n⚠️ \*Still needed:\* a desk organizer, a money collector/);
   assert.match(shared, /\*Opening, 7:00 PM\*\n• Nobody yet\n\n\*Closing, 10:00 PM\*\n• Nobody yet\n\nCan you help\? https:\/\/concordtabletennisclub\.com\/ → Volunteer signups$/);
   {
     // Confirmed names only, by position, first names as the calendar shows them; a waiting pick is left out.
