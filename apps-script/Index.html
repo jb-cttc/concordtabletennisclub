@@ -3505,6 +3505,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var state = null;
   var requestNumber = 0;
   // What the organizer has ticked so far, per payment, kept while the list refreshes: { ids: [...], remember: bool }.
+  // Remember this card starts off for a payment made ahead online: the card may be a parent's paying for a junior.
   var picks = {};
   // Matched players already put on their payment buttons, so a new match is shown there once.
   var shown = {};
@@ -3606,7 +3607,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   function pickFor(item) {
     // Waiting with a likely answer: that payer (or the players they paid for) is ticked to start with.
     // A payment no card fits, with one person marked Credit by hand at about that time: that person.
-    if (!picks[item.id]) picks[item.id] = { ids: item.state !== 'needs-action' || item.payerCovered ? item.likely ? [item.likely] : [] : item.playerIds.length ? item.playerIds.slice() : item.payerId ? [item.payerId] : [], remember: true, payer: item.payerId || '' };
+    if (!picks[item.id]) picks[item.id] = { ids: item.state !== 'needs-action' || item.payerCovered ? item.likely ? [item.likely] : [] : item.playerIds.length ? item.playerIds.slice() : item.payerId ? [item.payerId] : [], remember: !item.prepay, payer: item.payerId || '' };
     return picks[item.id];
   }
 

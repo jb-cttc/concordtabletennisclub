@@ -205,6 +205,16 @@ function boot(desk) {
   assert.match(page.$('[data-clover-arrival="p8"]').textContent, /Harper Lane.*Paid ahead online, \$5 \(Under 18\) at 10:05 AM/, 'paid ahead says so, with the fee they chose');
   assert.ok(page.$('[data-clover-rr="p8"]') && page.$('[data-clover-open="p8"]'), 'with RR and Open like the rest');
   assert.match(page.$('li[data-clover-payment="H"] .clover-card').textContent, /^Paid ahead online · VISA ••4242$/, 'the payment itself is marked paid ahead');
+  // Paid ahead with the wrong fee: waits with the player ticked, and Remember this card starts off (a parent's card?).
+  const wrongFee = tonight(true);
+  wrongFee.items.unshift(item('W', { state: 'needs-action', reason: 'prepay', payerId: 'p1', playerIds: ['p1'], notePlayerId: 'p1', note: 'Paid ahead online as \u201cAvery Park\u201d (Member): paid $10, {player}\u2019s fee is $15. Check it, then Match.', prepay: { kind: 'Member', name: 'Avery Park' } }));
+  const wrongPage = boot(wrongFee);
+  await tick();
+  const waiting = wrongPage.$('li[data-clover-payment="W"]');
+  assert.match(waiting.textContent, /Paid ahead online as “Avery Park” \(Member\): paid \$10, Avery Park’s fee is \$15\. Check it, then Match\./);
+  assert.equal(waiting.querySelector('input[type="checkbox"][value="p1"], input[type="checkbox"]').checked, true, 'the player is ticked');
+  const rememberBox = [...waiting.querySelectorAll('label')].find(label => /Remember this card/.test(label.textContent));
+  assert.equal(rememberBox.querySelector('input').checked, false, 'Remember this card starts off for a paid-ahead payment');
   page.$('[data-clover-open="p8"]').click();
   page.added.length = 0;
   assert.equal(page.$('[data-clover-rr="p5"]').title, 'Add Emery Fox to the RR draft');
