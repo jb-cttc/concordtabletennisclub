@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "d1dc67613a8d13ea4f40b3654be9718e0764851e",
+  "commit": "343cfa78a4e96d5c6ce3cf9c7202a91b8dd6f56e",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -150,6 +150,13 @@
     "Pay ahead: name, fee, date and amount; back, a checkout page",
     "When a player pays ahead",
     "Players pay at the desk instead"
+   ],
+   [
+    "Clover order (paid ahead)",
+    "Desk Clover section",
+    "The order's line: the night, the fee and the name picked",
+    "Every minute on the night, with the payments",
+    "The payment matches by card or name as before, or waits for the organizer"
    ]
   ]
  },
@@ -748,7 +755,7 @@
      "who": "Player",
      "when": "Round robin day, until 8:30 PM",
      "summary": "A pilot (November 2026), kept quiet on purpose. In the **Want to be included?** box on the home and Round Robins pages (and on the text page, seen after sending), a small **PILOT Or pay ahead by card** link opens **PILOT Pay ahead by card**, below Venmo and Zelle: on the home page in its own **Pay now: Venmo or Zelle** under Fees (which the **Pay in advance** tip also opens), elsewhere on the pay page, with *We're trying out paying online before you arrive. If anything looks off, pay at the desk as usual.* The player chooses who's playing (Member $10, Visitor $15, First visit $10, Under 18 $5, or the night's special), picks their name from the club's player list or types it with **Not in the list? I'm new**, checks the line *Ada Every · Member · round robin Mon, Nov 23* and presses **Pay $10 by card**. They pay on Clover's page and come back to **Paid for tonight by card. Just check in at the desk.**, which asks them to show the page or Clover's receipt if the desk does not show them as paid.",
-     "subtext": "The turnout app works out the price itself and asks Clover for the checkout; the desk later matches the payment by the name and the amount, so the player is Credit ✓ as soon as they are signed in.",
+     "subtext": "The turnout app works out the price itself and asks Clover for the checkout, writing the night, the fee and the name picked on the order. The desk reads that line with tonight's Clover payments and matches the payment to exactly that player, before any card it knows: they show under **Paid, not checked in** with RR and Open until signed in, then Credit ✓.",
      "caveats": [
       "Only on a round robin day the gym is open, until 8:30 PM (6 PM on Saturday, when the round robin ends); the links in the Want to be included? box show only then.",
       "Paying does not count them on the Tonight page; the Paid message offers the text for that.",
@@ -757,10 +764,10 @@
      "exceptions": [
       {
        "when": "The player chose the wrong fee, or typed a name the desk does not know",
-       "happens": "The payment is not matched by itself: it waits in the desk's Clover section with the name shown.",
-       "handling": "Match it there (ticking the player), as for any Clover payment.",
+       "happens": "The payment is not matched by itself: it waits in the desk's Clover section, saying it was paid ahead, as what and for whom, with the player ticked when the name is theirs.",
+       "handling": "Match it there, as for any Clover payment.",
        "status": "handled",
-       "evidence": "docs/clover-payments.md:99"
+       "evidence": "docs/clover-payments.md:100"
       },
       {
        "when": "Clover or the setup fails, or 150 checkouts were started today",
@@ -838,6 +845,7 @@
        "Script Properties: CLOVER_CHECKOUT_TOKEN, CLOVER_MERCHANT_ID"
       ],
       "invariants": [
+       "What the checkout writes on the order is what the desk reads back, for every fee and name.",
        "The amount charged is the turnout app's own price from the desk's fees; a page showing another amount, or another day, is refused and nothing is started.",
        "What the page sends is what the player confirmed: the name, the fee, today and the amount on the button.",
        "Paying ahead starts only on an open round robin day before 8:30 PM.",
@@ -853,7 +861,12 @@
        {
         "file": "turnout-app/check-turnout-app.cjs",
         "case": "",
-        "covers": "Price, open hours, closed nights, refusals, the request to Clover, the cap, no names in the log."
+        "covers": "Price, open hours, closed nights, refusals, the request to Clover, the cap, no names in the log, and that the desk reads the line back."
+       },
+       {
+        "file": "apps-script/check-clover-payments.cjs",
+        "case": "",
+        "covers": "The desk matching a paid-ahead payment by the name picked."
        },
        {
         "file": "scripts/check-pay-page.js",
@@ -862,7 +875,7 @@
        }
       ],
       "untested": [
-       "That Clover puts the checkout's customer name on the payment's order, which the desk's name match needs: confirm with one real payment on /dev, then refund it.",
+       "That Clover keeps the checkout's line (name and note) on the payment's order, which the desk reads to know who paid ahead: confirm with the first real payment.",
        "Clover's production address for Hosted Checkout (its docs give only the sandbox address)."
       ],
       "simulate": "check-pay-page.js (fake turnout app) and check-turnout-app.cjs (fake Clover); for real, one paid and refunded checkout from the pay page against the /dev turnout app."
@@ -1167,7 +1180,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4429,
+        "line": 4430,
         "symbol": "POLL_DAYS",
         "note": "When the list refreshes by itself."
        }
@@ -1217,7 +1230,7 @@
      "evidence": [
       "turnout.js:30",
       "apps-script/VoiceAutoReply.js:24",
-      "apps-script/Index.html:4429"
+      "apps-script/Index.html:4430"
      ],
      "confirmed": "read code only",
      "suggest": "One shared schedule file, or a check comparing the three."
@@ -1481,14 +1494,14 @@
        "happens": "The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**",
        "handling": "Add them under Add a player.",
        "status": "handled",
-       "evidence": "apps-script/Index.html:4247"
+       "evidence": "apps-script/Index.html:4248"
       },
       {
        "when": "The coaching Sheet cannot be read",
        "happens": "The status bar is overwritten with **Coaching lessons unavailable:** and the error.",
        "handling": "Reload; check with the owner if it persists.",
        "status": "partial",
-       "evidence": "apps-script/Index.html:4280"
+       "evidence": "apps-script/Index.html:4281"
       }
      ],
      "screen": {
@@ -1514,7 +1527,7 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 4227,
+        "line": 4228,
         "symbol": "renderOpen",
         "note": "Lists lessons first, then players added with Open."
        }
@@ -1621,7 +1634,7 @@
      "title": "\"Coaching lessons unavailable\" writes over the status bar",
      "detail": "If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.",
      "evidence": [
-      "apps-script/Index.html:4280"
+      "apps-script/Index.html:4281"
      ],
      "confirmed": "read code only",
      "suggest": "Use the page's setStatus, or show it inside the Open Play / Coaching section."
@@ -2386,7 +2399,7 @@
      "title": "Take payment",
      "who": "Desk volunteer",
      "when": "At sign-in",
-     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. Someone a known card paid for who is not signed in yet is listed at the top of that section under **Paid by card, not checked in**, with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button. Choosing **Credit** on the button is a clue too: a card payment the desk cannot place is ticked for whoever was marked Credit at about that time (\"Likely Drew: marked Credit at 7:03 PM\"), and one person paying for two gets pairs whose fees add up, then **Whose card?**. With no Credit mark, what the same card paid for on earlier nights is the next clue, and players who usually pay by card come first.",
+     "summary": "Each row has a **Payment** button. Monthly Zeffy pass holders show **Zeffy ✓** automatically; card payments taken on the Clover reader appear under **Clover card payments** and are matched to players by the name on the card. A payment made ahead online (the pay page's pilot) is matched by the name the player picked, before anything else. Someone a known card paid for, or who paid ahead, who is not signed in yet is listed at the top of that section under **Paid, not checked in** (\"Paid ahead online, $10 (Member) at 10:05 AM\" for the pilot), with **RR** and **Open** as for Voice signups. Cash, Venmo and Zelle are chosen on the button. Choosing **Credit** on the button is a clue too: a card payment the desk cannot place is ticked for whoever was marked Credit at about that time (\"Likely Drew: marked Credit at 7:03 PM\"), and one person paying for two gets pairs whose fees add up, then **Whose card?**. With no Credit mark, what the same card paid for on earlier nights is the next clue, and players who usually pay by card come first.",
      "subtext": "Payments are kept per player per night. The Clover list checks every minute while tonight is open.",
      "caveats": [
       "A card name that does not match a player waits under \"Cards to check\" on the Clover page; once linked, that card is remembered.",
@@ -2399,28 +2412,35 @@
        "happens": "Marked Credit at the desk, the player is ticked for the payment no card fits (\"Likely ...\"). A card the desk knows (the cardholder's) is asked about instead, with the cardholder ticked.",
        "handling": "Tick the right player and Match. When the same card has paid for them twice, save the offered \"pays for\" link.",
        "status": "handled",
-       "evidence": "apps-script/CloverPayments.js:392"
+       "evidence": "apps-script/CloverPayments.js:423"
       },
       {
        "when": "A Zeffy pass holder pays for someone else (their junior, a friend)",
        "happens": "The holder's fee never counts. With a junior or pays-for link that adds up, the other player is matched by itself. Otherwise: \"{holder} has a Zeffy play pass, so their card paid for someone else. Who?\", with the holder shown as whose card it is, never ticked.",
        "handling": "Tick who it was for and Match: the card is remembered as the holder's. After a second time, save the offered \"pays for\" link.",
        "status": "handled",
-       "evidence": "apps-script/CloverPayments.js:294"
+       "evidence": "apps-script/CloverPayments.js:320"
       },
       {
        "when": "One person pays for two",
        "happens": "A $20 payment from a card the desk does not know: **For two?** offers pairs whose fees add up, those marked Credit (or linked) first. Ticking two asks **Whose card?**.",
        "handling": "Press the pair, choose whose card, Match. The card is remembered as theirs; after a second time the desk offers to save that they pay for the other.",
        "status": "handled",
-       "evidence": "apps-script/CloverPayments.js:937"
+       "evidence": "apps-script/CloverPayments.js:968"
       },
       {
        "when": "A card was remembered for the wrong person (a match made by mistake)",
        "happens": "Each time that card pays, the desk marks the wrong player **Credit ✓** by itself.",
        "handling": "Tonight's match: **Undo** it under Matched (the card is forgotten). Any night: the player's pencil window shows **Clover cards** when they have one, or **Every night** opens the Clover payments page, where **Cards linked to players** lists every card the desk knows. **Unlink…** shows what changes and the matches made through the card (ticked to undo too), and **Confirm and unlink** does it and records it.",
        "status": "handled",
-       "evidence": "apps-script/CloverPayments.js:1409"
+       "evidence": "apps-script/CloverPayments.js:1440"
+      },
+      {
+       "when": "A player paid ahead online with the wrong fee, or a name the desk does not have",
+       "happens": "The payment waits: \"Paid ahead online as “Dana Chen” (Member): paid $10, Dana Chen’s fee is $15. Check it, then Match.\" with the player ticked; or \"… no player has that name yet. Add them, then tick who it is for.\"",
+       "handling": "Collect the difference or add the new player, then tick and Match.",
+       "status": "handled",
+       "evidence": "apps-script/CloverPayments.js:354"
       },
       {
        "when": "A paid player is removed or moves to Open Play",
@@ -2443,13 +2463,13 @@
       "entry": [
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 319,
+        "line": 345,
         "symbol": "cloverMatchNight_",
         "note": "Matches the night's card payments to players."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 249,
+        "line": 268,
         "symbol": "cloverByName_",
         "note": "Name match, with learned card links first."
        },
@@ -2461,31 +2481,31 @@
        },
        {
         "file": "apps-script/Index.html",
-        "line": 3860,
+        "line": 3861,
         "symbol": "arrivalsOf",
         "note": "Card payers on this date not yet in RR, Open Play or Coaching, offered with RR and Open."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 392,
+        "line": 423,
         "symbol": "cloverCreditClues_",
         "note": "Credit marked by hand as the clue for payments no card fits: likely player, pairs, and the one case matched by itself."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 937,
+        "line": 968,
         "symbol": "cloverPaysForOffers_",
         "note": "Offers to save \"X pays for Y\" once a card has covered the same player twice."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 970,
+        "line": 1001,
         "symbol": "addCloverPaysFor",
         "note": "Saves the offer after Confirm, with the pencil window's link checks."
        },
        {
         "file": "apps-script/CloverPayments.js",
-        "line": 1409,
+        "line": 1440,
         "symbol": "unlinkCloverCard",
         "note": "The Clover page's Unlink, after Review and Confirm: forgets a card and undoes the ticked matches made through it."
        },
@@ -2509,6 +2529,7 @@
       "invariants": [
        "A payment belongs to a player id and a date, not to a group or a position.",
        "Adding a card payer from Clover only puts them in this device's draft or Open Play, as the directory's buttons do; it changes nothing on Clover, and only a payment the desk knows the player for (matched, or a payer whose amount needs a look) suggests anyone.",
+       "A payment made ahead online matches only the player whose name or alias is exactly the one picked, and only at that player's fee; the picked name comes before any card the desk knows.",
        "A Credit marked by hand matches a card payment by itself only when each is the only one at that amount, within 15 minutes, on a payment the organizer never undid; no card is learned from it.",
        "A card is remembered only for the person the organizer says it is (the one player ticked, or Whose card?), and forgotten only by Undo or by Unlink after Confirm.",
        "A card's history and who usually pays by card only order and tick suggestions; neither matches a payment by itself."
@@ -2530,7 +2551,7 @@
        {
         "file": "apps-script/check-clover-payments.cjs",
         "case": "",
-        "covers": "Matching rules, including Credit clues and juniors as paid for."
+        "covers": "Matching rules, including Credit clues, juniors as paid for, and paid ahead online."
        },
        {
         "file": "apps-script/check-clover-links.cjs",
