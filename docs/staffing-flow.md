@@ -40,6 +40,14 @@ references are to [`staffing-app/Code.js`](../staffing-app/Code.js).
     filled.)
   - **Closed** (`×`): the gym is closed that night (section 8). A closed
     night asks for no volunteers, is not counted and gets no reminders.
+- **Each night has a point of contact**, the same person every week for that
+  weekday: Mondays Raymond, Wednesdays JB, Fridays Bryan, Saturdays Ngai Chi
+  (`DAY_CONTACTS`). Any volunteer that night asks them for help or about
+  anything to do with the night. The night's panel says "Need help, or have a
+  question about Monday nights? Point of contact: Raymond", its Share to
+  WhatsApp message names them, and so do the confirmation email (one line per
+  weekday confirmed) and the day-before reminder. A closed night shows none.
+  To change a person, change `DAY_CONTACTS` in a PR and release `/exec`.
 - **The page opens on a night.** On opening, the next night still open for
   sign-ups is selected and its panel shown: tonight until sign-ups close an
   hour before opening, then the next club night. It is not scrolled to or

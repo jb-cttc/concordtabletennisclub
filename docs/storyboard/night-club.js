@@ -21,14 +21,14 @@ const phases = [
         X('Two people pick the last spot at once', 'The server checks capacity; a submission is all or nothing, and the page marks the pick that failed and why.', 'Pick another night or position.', 'handled', SF + ':274')],
       screen: { kind: 'calendar', highlight: ['night'], note: 'The volunteer calendar: each night marked Needs people, Minimum crew, Fully staffed or Closed.' },
       tech: {
-        entry: [E(SA, 96, 'POSITIONS', 'Each position, its capacity, opening or closing, and what counts as full.'), E(SA, 914, 'canTake_', 'Directory, training and sign-up mode.'), E(SA, 1426, '(submit)', 'Validates every pick; all or nothing.'), E(SA, 201, 'doPost', 'The website calls the app with fetch, no cookies.')],
+        entry: [E(SA, 100, 'POSITIONS', 'Each position, its capacity, opening or closing, and what counts as full.'), E(SA, 926, 'canTake_', 'Directory, training and sign-up mode.'), E(SA, 1438, '(submit)', 'Validates every pick; all or nothing.'), E(SA, 205, 'doPost', 'The website calls the app with fetch, no cookies.')],
         state: ['Signups rows: date, position, player_id, status (pending, confirmed, released, expired, dropped)'], writes: ['Staffing Sheet: Signups, Batches'], reads: ['Desk Sheet: Players (by DESK_SHEET_ID, cached 10 minutes)'],
         invariants: ['A sign-up is confirmed only by a reply from the player\'s email on file.', 'No night ever has two people in a one-person position.'],
         limits: ['At most 40 picks per submission, 3 submissions waiting per email address.'],
         tests: [T('staffing-app/check-staffing.cjs', '', 'Sign-up rules, replies, free spots, closures, both sign-up modes.')], untested: [],
         simulate: 'staffing-app/check-staffing.cjs loads Code.js with stubbed Google services; add a case there.' } },
     { id: 'staff-2-confirm', title: 'The volunteer confirms by email', who: 'Player', when: 'Within 24 hours',
-      summary: 'One email lists every pick: *Please confirm your CTTC volunteer nights*. Replying **YES** confirms them all; **YES except Nov 4** leaves that night out; the **My nights** link lets them untick nights instead. Confirmed volunteers get a reminder the day before.',
+      summary: 'One email lists every pick: *Please confirm your CTTC volunteer nights*. Replying **YES** confirms them all; **YES except Nov 4** leaves that night out; the **My nights** link lets them untick nights instead. Confirmed volunteers get a reminder the day before. The confirmation and the reminder name each night\'s **point of contact**.',
       subtext: 'A hold expires 24 hours after picking, or 1 hour before the night, whichever is first; the spot opens again at once.',
       caveats: ['Replies are read when the desk\'s mail reader wakes the volunteer app, within about 5 minutes by day.', 'A volunteer whose mobile is on file and who texted STAFF also gets the question by text (reply CONFIRM or RELEASE).'],
       exceptions: [
@@ -36,13 +36,13 @@ const phases = [
         X('The mail reader stops waking the app', 'Replies wait for the hourly sweep; the desk log records `app_wake_failed`.', 'Nothing urgent; confirmations arrive within the hour.', 'partial', OPS + ':437')],
       screen: { kind: 'email', status: 'Please confirm your CTTC volunteer nights', note: 'The confirm email listing each pick.' },
       tech: {
-        entry: [E(SA, 3857, 'sweep', 'Hourly: expiries, retries, free spots, closures.'), E('apps-script/MailReader.js', 433, 'wakeApps_', 'Calls the staffing and coaching apps\' /exec when a text or a reply arrives.')],
+        entry: [E(SA, 3869, 'sweep', 'Hourly: expiries, retries, free spots, closures.'), E('apps-script/MailReader.js', 433, 'wakeApps_', 'Calls the staffing and coaching apps\' /exec when a text or a reply arrives.')],
         state: ['Signups.status', 'Batches.expires_at'], writes: ['Signups status changes', 'emails (MailApp)'], reads: ['Gmail replies tagged [CTTC shift …]', 'VoiceTexts (desk Sheet)'],
         invariants: ['Only a reply from the address the question went to, quoting the shift code, changes anything.', 'A reply naming dates never counts as a plain YES or NO.'],
         limits: ['Emails count against the club account\'s daily send quota, shared by every app.'], tests: [T('staffing-app/check-staffing.cjs', '', 'Reply parsing, YES except, late YES.')], untested: [],
         simulate: 'check-staffing.cjs fixtures.' } },
     { id: 'staff-3-status', title: 'The calendar shows which nights still need people', who: 'Club site', when: 'All week',
-      summary: 'Each night is marked **Needs people** (!), **Minimum crew** (+), **Fully staffed** (✓) or **Closed** (×), counted from confirmed sign-ups only. **Share to WhatsApp** on a night types a message for the club group saying what is still needed.',
+      summary: 'Each night is marked **Needs people** (!), **Minimum crew** (+), **Fully staffed** (✓) or **Closed** (×), counted from confirmed sign-ups only. **Share to WhatsApp** on a night types a message for the club group saying what is still needed. Each open night names its **point of contact**, the same person every week for that weekday: "Need help, or have a question about Monday nights? Point of contact: …".',
       subtext: 'A night marked Needs people the day before is the club\'s real risk: no one with the key, or no one to lock up.',
       caveats: ['Closed nights come from data/closures.json on the site; the app re-reads it at most hourly and keeps the last good copy.',
         'The home page asks for the calendar as soon as it loads, so it is usually there on the tap. Every visitor gets one shared copy, rebuilt after any sign-up change and kept at most 10 minutes.'],
@@ -52,24 +52,26 @@ const phases = [
       screen: { kind: 'calendar', highlight: ['legend', 'night'], note: 'Night markers: ! needs people, + minimum crew, ✓ fully staffed, × closed.' },
       tech: {
         entry: [E('index.html', 334, 'prefetchBoard', 'Asks for the calendar once the home page has loaded; the app\'s page picks it up.'),
-          E('staffing-app/Index.html', 900, 'firstBoard', 'Draws the early answer, or asks itself; a second request after 6 seconds.'),
-          E(SA, 1151, 'cachedBoard_', 'One shared calendar in the script cache; save_ starts a new one on every Signups write.'),
-          E(SA, 1189, 'boardLapse_', 'When the clock alone changes the calendar: tonight\'s cutoff, a pending deadline, midnight.'),
-          E(SA, 638, 'closures_', 'Reads closures.json hourly, keeps the last good copy.'), E(SA, 96, 'POSITIONS', '`full` counts for Fully staffed.')],
+          E('staffing-app/Index.html', 905, 'firstBoard', 'Draws the early answer, or asks itself; a second request after 6 seconds.'),
+          E(SA, 1163, 'cachedBoard_', 'One shared calendar in the script cache; save_ starts a new one on every Signups write.'),
+          E(SA, 1201, 'boardLapse_', 'When the clock alone changes the calendar: tonight\'s cutoff, a pending deadline, midnight.'),
+          E(SA, 642, 'closures_', 'Reads closures.json hourly, keeps the last good copy.'), E(SA, 100, 'POSITIONS', '`full` counts for Fully staffed.'),
+          E(SA, 25, 'DAY_CONTACTS', 'Each weekday\'s point of contact; a change of person is a change here, through a PR.')],
         state: [], writes: [], reads: ['site data/closures.json'],
         invariants: ['A night\'s status counts only confirmed sign-ups.', 'A closed night asks for nobody and sends no reminders.',
-          'A sign-up, YES, drop or Volunteer Admin change shows on the next calendar load; a night never shows as open for sign-ups after its cutoff.'],
+          'A sign-up, YES, drop or Volunteer Admin change shows on the next calendar load; a night never shows as open for sign-ups after its cutoff.',
+          'Every club night has a point of contact (DAY_CONTACTS, by weekday); a closed night shows none. First names only, as the calendar shows volunteers.'],
         limits: ['One page call per home page visit; no daily allowance (see docs/google-limits.md).'],
-        tests: [T('scripts/check-closures.js', '', 'Closures read by the site and the app.'), T('staffing-app/check-staffing.cjs', '', 'The shared calendar: rebuilt after a write, lapses at the cutoff; the page\'s early answer and second request.'),
+        tests: [T('scripts/check-closures.js', '', 'Closures read by the site and the app.'), T('staffing-app/check-staffing.cjs', '', 'The shared calendar: rebuilt after a write, lapses at the cutoff; the page\'s early answer and second request; each night\'s point of contact on the panel, in the WhatsApp message and in the emails.'),
           T('scripts/check-volunteer-signups.js', '', 'The home page asks early, once, with no cookies.')], untested: [], simulate: 'check-staffing.cjs.' } },
     { id: 'staff-4-free', title: 'Friday and Saturday: early volunteers play free', who: 'Player', when: 'Nov 13 – Dec 31, 2026',
       summary: 'On the special nights everyone pays **$5**, and the first 2 people to sign up to open and the first 2 to close play free, in sign-up order. Their emails say *You play free*; the calendar shows a ★ on nights with a free spot left.',
       subtext: 'The volunteer app and the desk each work out who plays free with the same rule, copied word for word (`freeSpots_`), from the same Signups rows and the desk\'s Zeffy pass list.',
       caveats: ['Zeffy pass holders already play free, so they never take a free spot.', 'A pick waiting for its YES holds its place but is free only once confirmed.', 'The special\'s dates are typed in three places (see findings).'],
-      exceptions: [X('Someone ahead drops or never confirms', 'The next person moves up; the hourly sweep emails them *Good news: you play free*.', 'Nothing to do.', 'handled', SA + ':1105')],
+      exceptions: [X('Someone ahead drops or never confirms', 'The next person moves up; the hourly sweep emails them *Good news: you play free*.', 'Nothing to do.', 'handled', SA + ':1118')],
       screen: { kind: 'calendar', highlight: ['free'], note: 'A ★ on special nights with a free spot left.' },
       tech: {
-        entry: [E(SA, 85, 'PERK_NIGHTS', 'The special\'s dates and fee in the volunteer app.'), E('apps-script/NightFees.js', 21, 'SPECIAL_NIGHTS', 'The same dates in the desk.'), E('index.html', 81, 'data-until', 'The same end date on the home page.'), E(SA, 1013, 'freeSpots_', 'Who plays free.'), E('apps-script/Volunteers.js', 46, 'freeSpots_', 'The desk\'s copy.')],
+        entry: [E(SA, 89, 'PERK_NIGHTS', 'The special\'s dates and fee in the volunteer app.'), E('apps-script/NightFees.js', 21, 'SPECIAL_NIGHTS', 'The same dates in the desk.'), E('index.html', 81, 'data-until', 'The same end date on the home page.'), E(SA, 1025, 'freeSpots_', 'Who plays free.'), E('apps-script/Volunteers.js', 46, 'freeSpots_', 'The desk\'s copy.')],
         state: ['Signups.free_night'], writes: ['FreeNightPasses tab (desk, hourly)'], reads: ['FreeNightPasses (volunteer app, cached 10 minutes)'],
         invariants: ['The desk and the volunteer app agree on who plays free each night.', 'The special\'s dates are the same in the volunteer app, the desk and the home page.'],
         limits: [], tests: [T('staffing-app/check-staffing.cjs', '', 'freeSpots_ is the same in both apps.'), T('apps-script/check-free-night-passes.cjs', '', 'Pass holders passed over.')],
@@ -91,13 +93,13 @@ const phases = [
       caveats: ['Some older steps in docs/staffing-flow.md still describe editing the Emails and Closures tabs: treat them as forms still to build.'],
       exceptions: [], screen: { kind: 'calendar', highlight: ['night'], note: 'Volunteer Admin: nights by position.' },
       tech: {
-        entry: [E('apps-script/VolunteerAdmin.js', 21, '(admin key)', 'A long random value in the desk\'s hidden AppWake tab.'), E(SA, 4417, 'adminApply_', 'Applies a reviewed change.')],
+        entry: [E('apps-script/VolunteerAdmin.js', 21, '(admin key)', 'A long random value in the desk\'s hidden AppWake tab.'), E(SA, 4434, 'adminApply_', 'Applies a reviewed change.')],
         state: [], writes: ['Staffing Sheet via the app'], reads: [],
         invariants: ['Every change made here is reviewed and logged.'], limits: [],
         tests: [T('apps-script/check-volunteer-admin.cjs', '', 'The admin page.'), T('scripts/check-volunteer-admin-page.js', '', 'The site page.')], untested: [], simulate: 'check-volunteer-admin.cjs.' } }
   ],
   findings: [
-    { severity: 'medium', kind: 'fragile', title: 'The Friday/Saturday special\'s dates are typed in three places, and no test compares them', detail: 'The dates live in the volunteer app (PERK_NIGHTS), the desk (SPECIAL_NIGHTS) and the home page (data-until). Today they agree. Extend the special into January in the desk only, and volunteers would be told they pay $5 and play free while the desk charges a different fee, or the reverse.', evidence: [SA + ':85', 'apps-script/NightFees.js:21', 'index.html:81', 'firstvisit.html:53'], confirmed: 'read code only; checked the three values agree today and that no check compares them.', suggest: 'Add a check in npm test that loads PERK_NIGHTS and SPECIAL_NIGHTS and the data-until dates and asserts they match.' }
+    { severity: 'medium', kind: 'fragile', title: 'The Friday/Saturday special\'s dates are typed in three places, and no test compares them', detail: 'The dates live in the volunteer app (PERK_NIGHTS), the desk (SPECIAL_NIGHTS) and the home page (data-until). Today they agree. Extend the special into January in the desk only, and volunteers would be told they pay $5 and play free while the desk charges a different fee, or the reverse.', evidence: [SA + ':90', 'apps-script/NightFees.js:21', 'index.html:81', 'firstvisit.html:53'], confirmed: 'read code only; checked the three values agree today and that no check compares them.', suggest: 'Add a check in npm test that loads PERK_NIGHTS and SPECIAL_NIGHTS and the data-until dates and asserts they match.' }
   ]
 },
 {

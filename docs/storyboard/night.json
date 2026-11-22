@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "fec690ae5301563a40b1d58fdb61fc8e6f09e6ae",
+  "commit": "d017a4cfb2bfc570fd1d04d82868ab1741176f21",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -206,25 +206,25 @@
       "entry": [
        {
         "file": "staffing-app/Code.js",
-        "line": 96,
+        "line": 100,
         "symbol": "POSITIONS",
         "note": "Each position, its capacity, opening or closing, and what counts as full."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 914,
+        "line": 926,
         "symbol": "canTake_",
         "note": "Directory, training and sign-up mode."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 1426,
+        "line": 1438,
         "symbol": "(submit)",
         "note": "Validates every pick; all or nothing."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 201,
+        "line": 205,
         "symbol": "doPost",
         "note": "The website calls the app with fetch, no cookies."
        }
@@ -261,7 +261,7 @@
      "title": "The volunteer confirms by email",
      "who": "Player",
      "when": "Within 24 hours",
-     "summary": "One email lists every pick: *Please confirm your CTTC volunteer nights*. Replying **YES** confirms them all; **YES except Nov 4** leaves that night out; the **My nights** link lets them untick nights instead. Confirmed volunteers get a reminder the day before.",
+     "summary": "One email lists every pick: *Please confirm your CTTC volunteer nights*. Replying **YES** confirms them all; **YES except Nov 4** leaves that night out; the **My nights** link lets them untick nights instead. Confirmed volunteers get a reminder the day before. The confirmation and the reminder name each night's **point of contact**.",
      "subtext": "A hold expires 24 hours after picking, or 1 hour before the night, whichever is first; the spot opens again at once.",
      "caveats": [
       "Replies are read when the desk's mail reader wakes the volunteer app, within about 5 minutes by day.",
@@ -292,7 +292,7 @@
       "entry": [
        {
         "file": "staffing-app/Code.js",
-        "line": 3857,
+        "line": 3869,
         "symbol": "sweep",
         "note": "Hourly: expiries, retries, free spots, closures."
        },
@@ -338,7 +338,7 @@
      "title": "The calendar shows which nights still need people",
      "who": "Club site",
      "when": "All week",
-     "summary": "Each night is marked **Needs people** (!), **Minimum crew** (+), **Fully staffed** (✓) or **Closed** (×), counted from confirmed sign-ups only. **Share to WhatsApp** on a night types a message for the club group saying what is still needed.",
+     "summary": "Each night is marked **Needs people** (!), **Minimum crew** (+), **Fully staffed** (✓) or **Closed** (×), counted from confirmed sign-ups only. **Share to WhatsApp** on a night types a message for the club group saying what is still needed. Each open night names its **point of contact**, the same person every week for that weekday: \"Need help, or have a question about Monday nights? Point of contact: …\".",
      "subtext": "A night marked Needs people the day before is the club's real risk: no one with the key, or no one to lock up.",
      "caveats": [
       "Closed nights come from data/closures.json on the site; the app re-reads it at most hourly and keeps the last good copy.",
@@ -378,33 +378,39 @@
        },
        {
         "file": "staffing-app/Index.html",
-        "line": 900,
+        "line": 905,
         "symbol": "firstBoard",
         "note": "Draws the early answer, or asks itself; a second request after 6 seconds."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 1151,
+        "line": 1163,
         "symbol": "cachedBoard_",
         "note": "One shared calendar in the script cache; save_ starts a new one on every Signups write."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 1189,
+        "line": 1201,
         "symbol": "boardLapse_",
         "note": "When the clock alone changes the calendar: tonight's cutoff, a pending deadline, midnight."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 638,
+        "line": 642,
         "symbol": "closures_",
         "note": "Reads closures.json hourly, keeps the last good copy."
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 96,
+        "line": 100,
         "symbol": "POSITIONS",
         "note": "`full` counts for Fully staffed."
+       },
+       {
+        "file": "staffing-app/Code.js",
+        "line": 25,
+        "symbol": "DAY_CONTACTS",
+        "note": "Each weekday's point of contact; a change of person is a change here, through a PR."
        }
       ],
       "state": [],
@@ -415,7 +421,8 @@
       "invariants": [
        "A night's status counts only confirmed sign-ups.",
        "A closed night asks for nobody and sends no reminders.",
-       "A sign-up, YES, drop or Volunteer Admin change shows on the next calendar load; a night never shows as open for sign-ups after its cutoff."
+       "A sign-up, YES, drop or Volunteer Admin change shows on the next calendar load; a night never shows as open for sign-ups after its cutoff.",
+       "Every club night has a point of contact (DAY_CONTACTS, by weekday); a closed night shows none. First names only, as the calendar shows volunteers."
       ],
       "limits": [
        "One page call per home page visit; no daily allowance (see docs/google-limits.md)."
@@ -429,7 +436,7 @@
        {
         "file": "staffing-app/check-staffing.cjs",
         "case": "",
-        "covers": "The shared calendar: rebuilt after a write, lapses at the cutoff; the page's early answer and second request."
+        "covers": "The shared calendar: rebuilt after a write, lapses at the cutoff; the page's early answer and second request; each night's point of contact on the panel, in the WhatsApp message and in the emails."
        },
        {
         "file": "scripts/check-volunteer-signups.js",
@@ -459,7 +466,7 @@
        "happens": "The next person moves up; the hourly sweep emails them *Good news: you play free*.",
        "handling": "Nothing to do.",
        "status": "handled",
-       "evidence": "staffing-app/Code.js:1105"
+       "evidence": "staffing-app/Code.js:1118"
       }
      ],
      "screen": {
@@ -473,7 +480,7 @@
       "entry": [
        {
         "file": "staffing-app/Code.js",
-        "line": 85,
+        "line": 89,
         "symbol": "PERK_NIGHTS",
         "note": "The special's dates and fee in the volunteer app."
        },
@@ -491,7 +498,7 @@
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 1013,
+        "line": 1025,
         "symbol": "freeSpots_",
         "note": "Who plays free."
        },
@@ -630,7 +637,7 @@
        },
        {
         "file": "staffing-app/Code.js",
-        "line": 4417,
+        "line": 4434,
         "symbol": "adminApply_",
         "note": "Applies a reviewed change."
        }
@@ -668,7 +675,7 @@
      "title": "The Friday/Saturday special's dates are typed in three places, and no test compares them",
      "detail": "The dates live in the volunteer app (PERK_NIGHTS), the desk (SPECIAL_NIGHTS) and the home page (data-until). Today they agree. Extend the special into January in the desk only, and volunteers would be told they pay $5 and play free while the desk charges a different fee, or the reverse.",
      "evidence": [
-      "staffing-app/Code.js:85",
+      "staffing-app/Code.js:90",
       "apps-script/NightFees.js:21",
       "index.html:81",
       "firstvisit.html:53"
