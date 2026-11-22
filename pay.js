@@ -126,7 +126,7 @@
     '</div>' +
     '<div class="pay-step">' +
       '<p class="pay-label">2. Pay <span class="pay-amount">$10</span><span class="pay-with" hidden> with</span></p>' +
-      '<p class="pay-locked" hidden><strong>Venmo</strong> or <strong>Zelle</strong>: scan the QR code at the front desk once, and they show here. Cash and card work at the desk too.</p>' +
+      '<p class="pay-locked" hidden>Scan the QR code at the front desk to pay by <strong>Venmo</strong> or <strong>Zelle</strong>. Cash and card work at the desk too.</p>' +
       '<a class="pay-method pay-venmo" href="#" hidden>' +
         '<span class="pay-method-name">Venmo</span><span class="pay-method-what">Opens the app, amount filled in</span></a>' +
       '<p class="pay-note pay-venmo-note" hidden></p>' +

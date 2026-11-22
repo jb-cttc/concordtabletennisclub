@@ -213,8 +213,8 @@ PM, if sooner), a player can pay tonight's fee by card before they arrive.
 It starts as a **pilot** (November 2026), kept quiet on purpose: the **Want to
 be included?** box on the home and Round Robins pages has a small **PILOT Or
 pay ahead by card** link (shown only while paying ahead is open; on the home
-page it opens **Pay now** under Fees with the card open, as the **Pay in
-advance** tip opens Pay now), so does the text page (seen after sending the
+page it opens **Pay now: Venmo or Zelle** under Fees with the card open, as
+the **Pay in advance** tip does), so does the text page (seen after sending the
 text), and the pay page (`pay.html`, and **Pay now** under Fees on the home
 page) has an outlined **PILOT Pay ahead by card** option below Venmo and
 Zelle, with *We're trying out paying online before you arrive. If anything

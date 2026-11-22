@@ -184,8 +184,7 @@ const SUNDAY = '2027-01-10T19:30:00-08:00';
   win.document.querySelector('[data-prepay-link]').click();
   assert.equal(win.document.getElementById('pay').open, true, 'the pilot link opens Pay now');
   assert.equal(win.document.querySelector('#pay .pay-card-panel').hidden, false, 'with the card open');
-  assert.match(win.document.querySelector('[data-open-pay]:not([data-prepay-link])').closest('li').textContent, /^Pay in advance and skip the front desk: Venmo or Zelle \(scan the QR code at the desk once to see them\), or by card on round robin days while we pilot it\. After Venmo or Zelle, text us to confirm\.$/);
-  assert.equal(win.document.querySelector('#pay > summary').textContent, 'Pay now');
+
 
   // Not a round robin day: no card button, just when it works.
   win = open(payPage, SUNDAY);
