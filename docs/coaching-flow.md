@@ -456,9 +456,45 @@ it has not changed for more than an hour, the check is not running.
 | --- | --- |
 | **Coaches** `ask_slots` (JSON) and `ask_made` (ms) | The coach submitted times on the page and we are waiting for their YES (email *Confirm your coaching times [CTTC ref …]* and/or a text). Nothing is published until then. The email and text say when the coach must reply by: 48 hours after sending (`ASK_TTL_MS`). A lapsed list is kept another 14 days (`LATE_ASK_MS`) so a late reply is answered, never ignored (below). |
 | **Coaches** `registered_at` | The coach's texts work (they texted the club number). Empty means texting them fails. |
+| **Coaches** `rate_50`, `rate_25` | The coach's published lesson rates in whole dollars; empty means no rate listed. Set by the coach on the page and published by their YES (below), never typed in the Sheet. |
+| **Coaches** `ask_rates` (JSON) | The rates in the list waiting for the coach's YES, only when that list changes them. Cleared with `ask_slots`. |
+| **Requests** `rate` | The rate the student saw and confirmed for that lesson; empty when the coach listed none (and for requests made before rates). Every email about the lesson quotes this, even after the coach changes their rates. |
 | **Coaches** `status = disabled` | The coach and all their times are hidden. The hourly sweep sets this for anyone not in `CLUB_COACHES` in `coaching-app/Code.js`, and for a club coach the coaching page does not show (Pending at USATT and not one of the owner's `showWhilePending` exceptions in `data/coach-certifications.json`). It clears it for a club coach the page shows. The desk copies who is shown from the site to the hidden `CoachList` tab of its Sheet every hour; until that tab exists, or when it cannot be read, club coaches stay as they are. Add or remove a coach in `CLUB_COACHES` and the table on `coaching.html`, not in the Sheet. |
 | **Availability** rows with `confirmed = yes` | Published times. A row is one slot: `minutes` 30 or 60, `table` 1 to 3. A 25-minute booking on a 60-minute slot splits it into two 30-minute rows. Two open 30-minute rows of one coach, back to back at one table, can be booked together as one 50-minute lesson: the request (`minutes` 60) covers both rows, which stay as they are and reopen as 30-minute times if it is cancelled, declined or expires. Past rows are deleted by the sweep. |
 | **Waitlist** | People emailed (*A coaching time you wanted is open*) when a held time frees up; each is removed once told. |
+
+**Lesson rates (from late November 2026).** A coach may list what they charge
+for a 50-minute and for a 25-minute lesson, in the **Your lesson rates
+(optional)** box at the top of their page (whole dollars, $1 to $500; an empty
+box means no rate shown). Rates go out with the times: the same **Email me to
+confirm** button, the same *Confirm your coaching times* list (*Confirm your
+coaching times and rates*, or *Confirm your lesson rates* when only rates
+change) with a line such as *Rates: 50 minute lesson: $… (was not listed)*,
+the same text, and the same YES publishes both. So a stranger who picks a
+coach on the page changes nothing, and rates cost no extra email or text. The
+coach's *Done* reply ends *Your lesson rates: $… for 50 minutes, $… for 25
+minutes.*
+
+Students see a listed rate:
+
+- in a **Lesson rates** box under the length buttons (each coach with times on
+  the board, and *Coaches not listed here have not posted a rate* when some have
+  none), and on each open time on the board (*$…*);
+- under the time they pick (*Rate: $… for this 50 minute lesson, paid directly
+  to Coach …*, or *Coach … has not listed a rate on the site*) and in the
+  confirm box;
+- in their emails: *Coaching request sent to …* and *Lesson confirmed* (and
+  *Lesson back on*) have a **Rate** row; the *Confirm: move your lesson* email
+  has a **New rate** row for the new time; the *confirmed* text adds *Rate: $…,
+  paid to your coach.* The coach's request and confirmation emails have the same
+  rate (*your listed rate, as the student saw it when they asked*).
+
+The page sends the rate its confirm box showed. If the coach changed it since
+the page loaded, nothing is sent and the page shows the new rate (§7). The
+request keeps that rate (`Requests.rate`); a later change by the coach applies
+to new requests only. A move takes the new time's rate when the student says
+YES to it. The general *Payment* line (*Pay the lesson fee directly to your
+coach…*) is unchanged.
 
 **A late reply to a list** (after its 48 hours, within 14 more days), by email or text:
 
@@ -518,6 +554,8 @@ screen, so a refused request looked like nothing happened.
 | "Did you mean …?" under the email box or in the confirm box | A likely typo in the address (§1). Nothing is sent or blocked; **Keep mine** keeps what was typed. |
 | "Request sent to Coach … It is not booked until Coach … accepts. We emailed a copy to …" | Saved as `pending`. Waiting for the coach. |
 | "Almost done: we emailed you… Reply YES… within 2 hours" | Only from an app released before November 2026 (the site's page can be a release ahead of the app): saved as `unverified`, waiting for the student. |
+| "Coach …'s rate for a 50 minute lesson is now $… Nothing was sent." (or "…no longer lists a rate…") | The coach changed their rate after the page loaded. The page now shows the new rate; pressing Send request again sends the request at that rate. |
+| Coach page: "Please enter your 50 minute rate in whole dollars, from $1 to $500, or leave it blank." | The rate box holds cents, words or a number out of range. Nothing was sent. |
 | "Student … already has a lesson (or a request) at that time…" | The same student (email and name) already holds an overlapping time. Use Move on that time instead. |
 | "That time is no longer available. Please pick another." | Someone holds that time, **including the same student's own earlier request**. Look for an existing row before assuming a bug. |
 | "Please enter the parent or guardian's name…" / "Please check the parent or guardian name…" | "The student is under 18" is ticked and the guardian name is blank, or has numbers or symbols. Names may use letters, spaces and `- ' . , & / ( )`. |

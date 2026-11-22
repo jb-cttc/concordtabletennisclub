@@ -118,6 +118,17 @@
   .typo .actions { margin-top: 6px; }
   .typo button { padding: 6px 12px; font-size: 0.9rem; }
   input.typo-clear { border-color: #c98a00; box-shadow: 0 0 0 2px #f6e3b0; }
+  /* Lesson rates: a coach's own price for 50 and 25 minutes, shown on the board, under the picked time and in the confirm box. */
+  .tbl .rate { font-size: 0.78rem; font-weight: 700; }
+  .rates { margin: 4px 0 0; padding: 0; list-style: none; }
+  .rates li { padding: 3px 0; font-size: 0.95rem; }
+  .rateline { margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid #1f6b3a; border-radius: 4px; background: #f2f8f4; color: #1c1c1c; font-size: 0.98rem; }
+  .rateline.none { border-left-color: #c9c4b8; background: #f6f5f1; color: #555; }
+  .money { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .money .field-error { flex: 1 0 100%; margin: 0; }
+  #coachRates h2 { margin-top: 4px; }
+  .money span { font-weight: 700; color: #555; }
+  .money input[type=text] { max-width: 120px; }
   input.typo-soft { border-color: #7d98b8; box-shadow: 0 0 0 2px #dbe5f0; }
 </style>
 </head>
@@ -257,7 +268,28 @@
       var length = openOf(50) || !openOf(25) ? 50 : 25;
       var chosen = null;
       var moving = null;
-      var form = requestForm(function () { return chosen; }, function () { return length; });
+      var form = requestForm(function () { return chosen; }, function () { return length; }, function (coachId, rates) {
+        // The coach changed a rate since the page loaded: show the new one before anything is sent.
+        result.rates = result.rates || {};
+        if (rates && (rates[50] || rates[25])) result.rates[coachId] = rates;
+        else delete result.rates[coachId];
+        drawRates();
+        if (chosen && chosen.coachId === coachId) { chosen.rate = rateOf(result, chosen); describe(chosen); }
+      });
+      var rateBox = el('div');
+      function drawRates() {
+        clear2(rateBox);
+        var card = ratesCard(result);
+        if (card) rateBox.appendChild(card);
+      }
+      // What the student is asking for, under the form's heading, with the coach's rate for it (or that none is listed).
+      function describe(entry) {
+        form.querySelector('#picked').textContent = 'Requesting a ' + entry.minutes + ' minute lesson on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + '.' +
+          (entry.whole ? ' The other half of that hour stays open for someone else.' : '');
+        var line = form.querySelector('#pickedRate');
+        line.textContent = rateText(entry);
+        line.className = entry.rate ? 'rateline' : 'rateline none';
+      }
       var waitForm = waitlistForm();
       var changeForm = changeLessonForm(function (entry) {
         moving = entry;
@@ -292,19 +324,18 @@
       function pick(entry, button) {
         if (moving) {
           // A move keeps the length the coach offered.
-          changeForm.open(moving, entry.whole || entry);
+          changeForm.open(moving, withRate(result, entry.whole || entry));
           moving = null;
           return;
         }
-        chosen = entry;
+        chosen = withRate(result, entry);
         changeForm.hidden = true;
         Array.prototype.forEach.call(grids.querySelectorAll('button.tbl.mine'), function (other) { other.className = 'tbl free'; });
         button.className = 'tbl mine';
         waitForm.hidden = true;
         resetStatus(form);
         form.hidden = false;
-        form.querySelector('#picked').textContent = 'Requesting a ' + entry.minutes + ' minute lesson on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' at Table ' + entry.table + '.' +
-          (entry.whole ? ' The other half of that hour stays open for someone else.' : '');
+        describe(chosen);
         form.scrollIntoView({ block: 'nearest' });
       }
       function watch(entry) {
@@ -323,6 +354,8 @@
       }
       list.appendChild(el('h2', { text: 'Lesson length' }));
       list.appendChild(picker);
+      list.appendChild(rateBox);
+      drawRates();
       list.appendChild(el('p', { 'class': 'legend', text: 'Dashed green: open, tap to pick it. Grey: a student has it; if it is yours, tap Mine to cancel or move it, or tap Notify me to join its waitlist (offered only when no other table is open at that time). Faded: a lesson of the other length.' }));
       list.appendChild(grids);
       list.appendChild(form);
@@ -331,6 +364,33 @@
       list.appendChild(scheduleBoard(result));
       draw();
     });
+  }
+  // A coach's listed rate for a board time ('' for none): result.rates holds { coachId: { 50: '45', 25: '' } } for coaches who list one.
+  function rateOf(result, entry) {
+    var rates = result.rates && result.rates[entry.coachId];
+    return rates ? rates[entry.minutes] || '' : '';
+  }
+  function withRate(result, entry) { return Object.assign({}, entry, { rate: rateOf(result, entry) }); }
+  function rateText(entry) {
+    return entry.rate ? 'Rate: $' + entry.rate + ' for this ' + entry.minutes + ' minute lesson, paid directly to ' + entry.coach + '.' :
+      entry.coach + ' has not listed a rate on the site.';
+  }
+  // Every rate listed, under the length buttons, so students can compare before picking a time. Only coaches with times on the board.
+  function ratesCard(result) {
+    var names = {};
+    result.board.forEach(function (entry) { names[entry.coachId] = entry.coach; });
+    var ids = Object.keys(names).filter(function (id) { return result.rates && result.rates[id]; }).sort(function (a, b) { return names[a].localeCompare(names[b]); });
+    if (!ids.length) return null;
+    var unlisted = Object.keys(names).length > ids.length;
+    return el('div', { 'class': 'card', id: 'rates' }, [el('b', { text: 'Lesson rates' }),
+      el('ul', { 'class': 'rates' }, ids.map(function (id) {
+        var rates = result.rates[id];
+        return el('li', {}, [el('strong', { text: names[id] + ': ' }), document.createTextNode([50, 25].filter(function (length) { return rates[length]; }).map(function (length) {
+          return '$' + rates[length] + ' for ' + length + ' minutes';
+        }).join(', '))]);
+      })),
+      el('p', { 'class': 'legend', text: 'Each coach sets their own rate, paid directly to the coach. The regular session fee is paid at the front desk.' +
+        (unlisted ? ' Coaches not listed here have not posted a rate.' : '') })]);
   }
   function dayGrid(day, result, length, pick, watch, change) {
     var begin = toMinutes(day.start);
@@ -346,10 +406,10 @@
       var span = entry.slot / 30;
       for (var step = 0; step < span; step += 1) used[entry.table + ':' + (first + step)] = true;
       if (entry.status === 'open' && length === 25 && entry.minutes === 50) {
-        halves(entry).forEach(function (half, index) { grid.appendChild(boardCell(half, length, place(first + index, 1, entry.table), pick, watch, change)); });
+        halves(entry).forEach(function (half, index) { grid.appendChild(boardCell(half, length, place(first + index, 1, entry.table), pick, watch, change, rateOf(result, half))); });
         return;
       }
-      grid.appendChild(boardCell(entry, length, place(first, span, entry.table), pick, watch, change));
+      grid.appendChild(boardCell(entry, length, place(first, span, entry.table), pick, watch, change, rateOf(result, entry)));
     });
     for (table = 1; table <= day.tables; table += 1) {
       for (row = 0; row < rows; row += 1) {
@@ -385,14 +445,15 @@
   function halves(entry) {
     return [0, 30].map(function (offset) {
       var start = fromMinutes(toMinutes(entry.start) + offset);
-      return { whole: entry, key: entry.key, date: entry.date, day: entry.day, start: start, slot: 30, minutes: 25, table: entry.table, coach: entry.coach,
+      return { whole: entry, key: entry.key, date: entry.date, day: entry.day, start: start, slot: 30, minutes: 25, table: entry.table, coach: entry.coach, coachId: entry.coachId,
         status: 'open', time: time12(start) + ' to ' + time12(fromMinutes(toMinutes(start) + 25)) };
     });
   }
-  function boardCell(entry, length, style, pick, watch, change) {
+  function boardCell(entry, length, style, pick, watch, change, rate) {
     var when = entry.time.replace(/ (AM|PM) to /, ' to ');
     if (entry.status === 'open' && entry.minutes === length) {
-      var button = el('button', { type: 'button', 'class': 'tbl free', style: style, 'aria-label': 'Table ' + entry.table + ', ' + entry.coach + ', ' + entry.time + ', open' }, [el('b', { text: entry.coach }), el('span', { text: when })]);
+      var button = el('button', { type: 'button', 'class': 'tbl free', style: style, 'aria-label': 'Table ' + entry.table + ', ' + entry.coach + ', ' + entry.time + (rate ? ', $' + rate : '') + ', open' },
+        [el('b', { text: entry.coach }), el('span', { text: when }), rate ? el('span', { 'class': 'rate', text: '$' + rate }) : null]);
       button.addEventListener('click', function () { pick(entry, button); });
       return button;
     }
@@ -514,7 +575,11 @@
       source = entry;
       target = to || null;
       resetStatus(form);
-      if (target) { ask('Move ' + entry.student + '\'s lesson on ' + entry.day + ', ' + entry.time + ' to ' + to.day + ', ' + to.time + ' with ' + to.coach + ' at Table ' + to.table + '. The new time goes to the coach to accept.'); return; }
+      if (target) {
+        ask('Move ' + entry.student + '\'s lesson on ' + entry.day + ', ' + entry.time + ' to ' + to.day + ', ' + to.time + ' with ' + to.coach + ' at Table ' + to.table +
+          (to.rate ? ' ($' + to.rate + ', paid directly to the coach)' : '') + '. The new time goes to the coach to accept.');
+        return;
+      }
       form.querySelector('#changeWhat').textContent = waitingRequest() ?
         'Is ' + entry.student + '\'s request for ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' yours? ' + entry.coach + ' has not answered it yet.' :
         'Is ' + entry.student + ' on ' + entry.day + ', ' + entry.time + ' with ' + entry.coach + ' your lesson?';
@@ -605,7 +670,7 @@
     return null;
   }
 
-  function requestForm(getChosen, getLength) {
+  function requestForm(getChosen, getLength, onRates) {
     var minor = el('input', { type: 'checkbox', id: 'minor' });
     var guardianBox = el('div', { id: 'guardianBox', hidden: 'hidden' }, field('Parent or guardian name (required)', el('input', { type: 'text', id: 'guardian', name: 'guardian', maxlength: '60', autocomplete: 'off' })));
     var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -634,7 +699,8 @@
     var submit = el('button', { type: 'submit', text: 'Send request' });
     var form = el('form', { id: 'request', hidden: 'hidden', novalidate: 'novalidate' }, [
       el('h2', { text: 'Your request' }),
-      el('p', { id: 'picked' })
+      el('p', { id: 'picked' }),
+      el('p', { id: 'pickedRate', 'class': 'rateline' })
     ].concat(
       field('Student name', el('input', { type: 'text', id: 'name', name: 'name', maxlength: '60', autocomplete: 'name' })),
       field('Email address', el('input', { type: 'email', id: 'email', name: 'email', maxlength: '254', autocomplete: 'email' })),
@@ -737,7 +803,7 @@
     var lead = el('span', { 'class': 'lead', id: 'confirmLead', text: 'We will email the coach’s answer to:' });
     var emailBox = el('div', { id: 'confirmEmail', 'class': 'emailcheck' }, [lead, addrButton, editBox, confirmHint, editActions]);
     var dialog = el('dialog', { id: 'confirmRequest', 'aria-labelledby': 'confirmTitle', 'aria-describedby': 'confirmWhat confirmLead confirmAddr confirmHint' }, [
-      el('h2', { id: 'confirmTitle' }), el('p', { id: 'confirmWhat' }), emailBox, el('p', { id: 'confirmGives' }), el('ul', { id: 'confirmSend', 'class': 'sendlist' }),
+      el('h2', { id: 'confirmTitle' }), el('p', { id: 'confirmWhat' }), el('p', { id: 'confirmRate', 'class': 'rateline', hidden: 'hidden' }), emailBox, el('p', { id: 'confirmGives' }), el('ul', { id: 'confirmSend', 'class': 'sendlist' }),
       el('div', { 'class': 'actions' }, [sendNow, goBack])]);
     document.body.appendChild(dialog);
     dialog.addEventListener('input', clearInvalid);
@@ -865,6 +931,9 @@
       resetStatus(form);
       dialog.querySelector('#confirmTitle').textContent = 'Send this request to ' + slot.coach + '?';
       dialog.querySelector('#confirmWhat').textContent = 'A ' + slot.minutes + ' minute lesson on ' + slot.day + ', ' + slot.time + ', at Table ' + slot.table + '. It is not booked until ' + slot.coach + ' accepts.';
+      // The rate the student agrees to here is the rate sent with the request, and the one their emails quote.
+      dialog.querySelector('#confirmRate').textContent = slot.rate ? rateText(slot) : '';
+      dialog.querySelector('#confirmRate').hidden = !slot.rate;
       dialog.querySelector('#confirmGives').textContent = 'Clicking Confirm submission sends a message to ' + slot.coach + ' to confirm the lesson and gives ' + slot.coach + ' your contact information: the email address above and these details:';
       var list = dialog.querySelector('#confirmSend');
       while (list.firstChild) list.removeChild(list.firstChild);
@@ -882,7 +951,7 @@
       if (typeof dialog.showModal === 'function') {
         dialog.showModal();
         sendNow.focus();
-      } else if (window.confirm(dialog.querySelector('#confirmTitle').textContent + '\n\n' + dialog.querySelector('#confirmWhat').textContent + '\n\nWe will email the coach\'s answer to: ' +
+      } else if (window.confirm(dialog.querySelector('#confirmTitle').textContent + '\n\n' + dialog.querySelector('#confirmWhat').textContent + (slot.rate ? '\n' + rateText(slot) : '') + '\n\nWe will email the coach\'s answer to: ' +
           email + (typo ? '\nDid you mean ' + typo.suggestion + '? Press Cancel to fix it.' : '') + '\n\n' + dialog.querySelector('#confirmGives').textContent + '\n' + list.textContent)) {
         send(slot);
       }
@@ -901,8 +970,9 @@
       report(form, 'Sending...');
       guarded(submit, 'requestSlot', [{
         key: slot.key, start: slot.start, length: getLength(), name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value, minor: minor.checked,
-        guardian: form.querySelector('#guardian').value, note: form.querySelector('#note').value, website: form.querySelector('#website').value
+        guardian: form.querySelector('#guardian').value, note: form.querySelector('#note').value, website: form.querySelector('#website').value, rate: slot.rate || ''
       }], function (result) {
+        if (!result.ok && result.rateChanged && onRates) onRates(result.coachId, result.rates);
         if (!result.ok) { report(form, result.message, 'error', result.field, fields); return; }
         remember('cttc-student', keep.checked ? { name: form.querySelector('#name').value, email: form.querySelector('#email').value, phone: form.querySelector('#phone').value,
           minor: minor.checked, guardian: form.querySelector('#guardian').value } : null);
@@ -993,6 +1063,44 @@
     if (data.pending) {
       app.appendChild(el('p', { 'class': 'card', text: 'We sent you a list by ' + by + ' ' + data.pendingSince + '. Reply YES to publish it, or NO to cancel. That list is shown below; change it and submit again to send a new one.' }));
     }
+    // Lesson rates: optional, whole dollars, sent with the times and published by the same YES. A page from before rates sends
+    // none, which leaves them as they are.
+    var published = data.rates || { 50: '', 25: '' };
+    var shownRates = data.pendingRates || published;
+    var rateInputs = {};
+    var rateFields = { rate50: '#rate50', rate25: '#rate25' };
+    var rateNote = el('p', { 'class': 'legend', id: 'rateNote' });
+    var rateForm = el('form', { 'class': 'card', id: 'coachRates', novalidate: 'novalidate' }, [
+      el('h2', { text: 'Your lesson rates (optional)' }),
+      el('p', { text: 'Students see your rate when they pick one of your times, in the confirm step and in their emails. Whole dollars, paid directly to you. Leave a box empty to show no rate.' }),
+      el('div', { 'class': 'row' }, [50, 25].map(function (minutes) {
+        var input = el('input', { type: 'text', id: 'rate' + minutes, inputmode: 'numeric', maxlength: '7', autocomplete: 'off', placeholder: 'not listed' });
+        input.value = shownRates[minutes] || '';
+        input.addEventListener('input', function () { draw(); });
+        rateInputs[minutes] = input;
+        return el('div', {}, [el('label', { text: minutes + ' minute lesson', 'for': input.id }), el('div', { 'class': 'money' }, [el('span', { text: '$', 'aria-hidden': 'true' }), input])]);
+      })),
+      rateNote]);
+    rateForm.addEventListener('input', clearInvalid);
+    rateForm.addEventListener('submit', function (event) { event.preventDefault(); });
+    app.appendChild(rateForm);
+    // '$45', ' 45.00' -> '45'; anything else is left as typed for the check below (and the server's).
+    function rateValue(minutes) {
+      var text = rateInputs[minutes].value.trim().replace(/^\$\s*/, '').replace(/\.00?$/, '');
+      return /^\d+$/.test(text) ? String(Number(text)) : text;
+    }
+    function wantedRates() { return { 50: rateValue(50), 25: rateValue(25) }; }
+    function ratesChanged() { return [50, 25].some(function (minutes) { return rateValue(minutes) !== (published[minutes] || ''); }); }
+    function rateWords(rates) {
+      var listed = [50, 25].filter(function (minutes) { return rates[minutes]; }).map(function (minutes) { return '$' + rates[minutes] + ' for ' + minutes + ' minutes'; });
+      return listed.length ? listed.join(', ') : 'none listed';
+    }
+    function badRate() {
+      return [50, 25].filter(function (minutes) {
+        var value = rateValue(minutes);
+        return value && !(/^\d{1,3}$/.test(value) && Number(value) >= 1 && Number(value) <= 500);
+      })[0];
+    }
     app.appendChild(el('p', { text: 'Coaching is on Fridays 7 to 10 PM and Saturdays 3 to 6 PM, up to four weeks ahead. Pick a slot length, then tap Offer at a table to add a time; tap a time again to remove it. With 60 minutes, Offer covers the time you tap and the half hour after it. A 30 minute slot is booked as a 25 minute lesson and a 60 minute slot as a 50 minute lesson. A student may also ask for 25 minutes in either half of a 60 minute slot; that splits it into two 30 minute slots and the other half stays open. Two 30 minute slots in a row at one table can also be booked together as one 50 minute lesson. Times with a student on them cannot be changed here.' }));
     var picker = el('div', { 'class': 'lengths', role: 'group', 'aria-label': 'Slot length' });
     [30, 60].forEach(function (minutes) {
@@ -1009,9 +1117,16 @@
     app.appendChild(summary);
     app.appendChild(el('div', { 'class': 'actions' }, [submit]));
     submit.addEventListener('click', function () {
+      var bad = badRate();
+      if (bad) {
+        report(rateForm, 'Please enter your ' + bad + ' minute rate in whole dollars, from $1 to $500, or leave it blank.', 'error', 'rate' + bad, rateFields);
+        return;
+      }
+      resetStatus(rateForm);
       show('Sending...');
-      guarded(submit, 'coachPropose', [data.id, wanted], function (result) {
+      guarded(submit, 'coachPropose', [data.id, wanted, wantedRates()], function (result) {
         if (result.ok) { coachBoard(data.id, result.message); window.scrollTo(0, 0); }
+        else if (rateFields[result.field]) { show(''); report(rateForm, result.message, 'error', result.field, rateFields); }
         else { show(result.message, 'error'); messageBox.scrollIntoView({ block: 'nearest' }); }
       });
     });
@@ -1030,10 +1145,14 @@
       var wantedKeys = wanted.map(slotKey);
       var adds = wantedKeys.filter(function (key) { return baseKeys.indexOf(key) < 0; }).length;
       var removes = baseKeys.filter(function (key) { return wantedKeys.indexOf(key) < 0; }).length;
-      summary.textContent = adds || removes ?
-        'Ready to send: ' + adds + ' to add, ' + removes + ' to remove. Tap the button and we will send you the list by ' + by + '. Nothing changes until you reply YES.' :
-        'No changes yet. Tap Offer to add a time, or tap one of your times to remove it.';
-      submit.disabled = !data.ready || !(adds || removes);
+      var rates = ratesChanged() && !badRate();
+      var changes = (adds || removes ? [adds + ' to add, ' + removes + ' to remove'] : []).concat(rates ? ['your new rates (' + rateWords(wantedRates()) + ')'] : []);
+      summary.textContent = changes.length ?
+        'Ready to send: ' + changes.join(', and ') + '. Tap the button and we will send you the list by ' + by + '. Nothing changes until you reply YES.' :
+        'No changes yet. Tap Offer to add a time, tap one of your times to remove it, or change your rates above.';
+      submit.disabled = !data.ready || !(changes.length || ratesChanged());
+      rateNote.textContent = ratesChanged() ? 'Not published yet: tap "' + submit.textContent + '" at the bottom of the page, then reply YES.' :
+        'Published: ' + rateWords(published) + '.';
     }
 
     // Cells on one day, as {table, first, span, entry or slot, kind}.

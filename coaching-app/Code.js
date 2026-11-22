@@ -109,7 +109,11 @@ var TABS = {
   // The owner types name, email and mobile number (columns A to C); the rest is filled in by the app. The name must match the
   // contact name saved in Google Voice, which is how a text from a coach is recognised. ask_ref is the one question last texted
   // ('slots' or a request id), so a YES or NO always answers it; ask_slots is the submitted list of times (JSON) until answered.
-  Coaches: ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at'],
+  // rate_50 and rate_25 are the coach's published lesson rates (whole dollars, '' for none listed); ask_rates (JSON) is the
+  // rates in the waiting list of times, only when that list changes them. Both are set from the coaching page and published
+  // by the coach's YES, like times (see "Lesson rates"), never typed here.
+  Coaches: ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at',
+    'rate_50', 'rate_25', 'ask_rates'],
   // texts is 'yes' after the student texts STUDENT from the phone below, and '' after STOP; texts_at is that text's time.
   // ask_ref is the one question last texted to them ('v:' or 'c:' and a request id).
   Students: ['label', 'email', 'created_at', 'name', 'phone', 'texts', 'texts_at', 'ask_ref', 'ask_at'],
@@ -131,7 +135,10 @@ var TABS = {
     // A lesson the student cancelled on the page (from November 2026, at once, with no YES): 'open:' and the cancel time (ms)
     // while they can still reply UNDO to the email that told them (see "Cancelling a lesson, and UNDO"), 'done:' and the time
     // once an UNDO put it back. Empty otherwise.
-    'undo'],
+    'undo',
+    // The coach's rate for this lesson (whole dollars) as the student saw and confirmed it on the page; '' when the coach lists
+    // none. Every email about the lesson quotes this, even if the coach changes their rates later.
+    'rate'],
   // One row per email that asked a student about everything waiting for their YES at once (see "Everything waiting, in one
   // email"). trigger is what that email was sent about ('' for a follow-up that only lists what is waiting); items is every
   // question it listed, space separated: 'v:' and a request id (confirm a new request) or 'c:', a request id and the change's
@@ -160,7 +167,7 @@ function doPost(e) {
     var name = String(request && request.fn || '');
     // The desk's mail reader, when texts or an email reply came in (wake_).
     if (name === 'wake') result = wake_(request);
-    else result = Object.prototype.hasOwnProperty.call(calls, name) ? calls[name].apply(null, Array.isArray(request.args) ? request.args.slice(0, 2) : []) : fail_('Unknown request.');
+    else result = Object.prototype.hasOwnProperty.call(calls, name) ? calls[name].apply(null, Array.isArray(request.args) ? request.args.slice(0, 3) : []) : fail_('Unknown request.');
   } catch (error) {
     logError_('answer a request from the club site', error);
     result = fail_('Something went wrong. Please try again.');
@@ -673,6 +680,8 @@ function openSlots() {
     days: days,
     board: board,
     slots: slots.map(publicSlot_),
+    // Each coach's listed lesson rates, by coachId (board entries carry it), for coaches who list one.
+    rates: ratesOf_(coaches),
     schedule: scheduleEntries_(slots, coaches, requests, now).filter(function (entry) { return entry.status !== 'Open'; }).map(function (entry) {
       return { day: dayLabel_(entry.date), time: rangeLabel_(entry.start, entry.minutes), status: entry.status, summary: entry.summary };
     }),
@@ -720,7 +729,8 @@ function requestSlot(form) {
     var now = Date.now();
     var requests = rows_('Requests');
     if (requests.length >= MAX_REQUESTS) return fail_('Requests are closed for now. Please contact the club.');
-    var slot = openTime_(openSlots_(rows_('Coaches'), rows_('Availability'), requests, now), form.key);
+    var coaches = rows_('Coaches');
+    var slot = openTime_(openSlots_(coaches, rows_('Availability'), requests, now), form.key);
     if (!slot) return fail_('That time is no longer available. Please pick another.');
     // A 25 minute lesson on a 60 minute time splits it for good into two 30 minute times; the request takes the half asked for.
     // Two 30 minute times booked as one hour (a pair) are only ever a 50 minute lesson: for 25 minutes, pick one of them.
@@ -728,6 +738,16 @@ function requestSlot(form) {
     if (!minutes) return fail_('That time is a ' + lessonMinutes_(slot.minutes) + ' minute lesson. Please pick another.');
     var start = minutes === 30 && slot.minutes === 60 && String(form.start) === endOf_(slot.start, 30) ? endOf_(slot.start, 30) : slot.start;
     coachLabel = slot.coach;
+    // The page sends the rate its confirm box showed ('' for none). If the coach has changed it since the page loaded, nothing
+    // is sent: the page shows the new rate, so the rate in the student's emails is always the one they confirmed. A page from
+    // before rates sends none, and is not checked.
+    var slotCoach = coaches.filter(function (coach) { return coach.coach_id === slot.coachId; })[0];
+    var rate = rateFor_(slotCoach, minutes);
+    if (form.rate !== undefined && form.rate !== null && cleanRate_(form.rate) !== rate) {
+      return { ok: false, rateChanged: true, coachId: slot.coachId, rates: coachRates_(slotCoach),
+        message: (rate ? slot.coach + '\'s rate for a ' + lessonMinutes_(minutes) + ' minute lesson is now $' + rate + '.' : slot.coach + ' no longer lists a rate for a ' + lessonMinutes_(minutes) + ' minute lesson.') +
+          ' Nothing was sent. Please check it and press Send request again.' };
+    }
     var open = requests.filter(function (request) {
       var status = effectiveStatus_(request, now);
       return request.student_email === email && (status === 'unverified' || status === 'pending' || status === 'proposed');
@@ -752,7 +772,7 @@ function requestSlot(form) {
       request_id: id_(), coach_id: slot.coachId, date: slot.date, start: start, minutes: minutes, student_label: label, student_name: name,
       student_email: email, guardian_name: guardian, note: cleanNote_(form.note), status: 'pending', created_at: nowIso_(),
       expires_at: expiryFor_(slot.date, start), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(), table: slot.table,
-      verified_at: nowIso_()
+      verified_at: nowIso_(), rate: rate
     };
     save_('Requests', created);
     logStep_(created, 'booked on the page');
@@ -881,6 +901,81 @@ function coachList() {
   };
 }
 
+// ---------- Lesson rates ----------
+// A coach may list what they charge for a 50 minute and for a 25 minute lesson (whole dollars, paid to the coach), on the coaching
+// page beside their times. Like times, rates are published only by the coach's YES to the list we send, in the same email or
+// text, so a stranger picking the coach on the page changes nothing. Students see a listed rate on the booking board, under the
+// time they picked and in the confirm box; the request keeps the rate the student confirmed (Requests.rate), and every email about
+// that lesson quotes it, even if the coach changes their rates later. A coach who lists none is shown without one, as before.
+var RATE_LENGTHS = [50, 25];
+var MAX_RATE = 500;
+
+// '45', '$45', ' 45.00 ' -> '45'; '' -> ''; anything else (cents, words, 0, more than MAX_RATE) -> null.
+function cleanRate_(value) {
+  var text = String(value == null ? '' : value).trim().replace(/^\$\s*/, '');
+  if (!text) return '';
+  var match = /^(\d{1,4})(?:\.00?)?$/.exec(text);
+  var dollars = match ? Number(match[1]) : 0;
+  return dollars >= 1 && dollars <= MAX_RATE ? String(dollars) : null;
+}
+
+// The coach's published rates by lesson length: { 50: '45', 25: '' }.
+function coachRates_(coach) { return { 50: (coach && cleanRate_(coach.rate_50)) || '', 25: (coach && cleanRate_(coach.rate_25)) || '' }; }
+
+// The coach's rate for a lesson on a slot of `minutes` (a 60 minute slot is a 50 minute lesson, a 30 minute one 25), or ''.
+function rateFor_(coach, minutes) { return coachRates_(coach)[lessonMinutes_(minutes)]; }
+
+// The rates the waiting list of times asks to publish, or null when it leaves them as they are.
+function proposalRates_(coach) {
+  var rates = null;
+  try {
+    rates = coach.ask_rates ? JSON.parse(coach.ask_rates) : null;
+  } catch (error) {
+    return null;
+  }
+  return rates && typeof rates === 'object' ? { 50: cleanRate_(rates[50]) || '', 25: cleanRate_(rates[25]) || '' } : null;
+}
+
+// "50 minute lesson: $45 (was not listed); 25 minute lesson: not listed (was $25)": only the lengths that change.
+function rateChanges_(from, to) {
+  return RATE_LENGTHS.filter(function (length) { return from[length] !== to[length]; }).map(function (length) {
+    return length + ' minute lesson: ' + (to[length] ? '$' + to[length] : 'not listed') + ' (was ' + (from[length] ? '$' + from[length] : 'not listed') + ')';
+  }).join('; ');
+}
+
+// "$45 for 50 minutes, $25 for 25 minutes", or "none listed".
+function rateSummary_(rates) {
+  var listed = RATE_LENGTHS.filter(function (length) { return rates[length]; }).map(function (length) { return '$' + rates[length] + ' for ' + length + ' minutes'; });
+  return listed.length ? listed.join(', ') : 'none listed';
+}
+
+// Every active coach's published rates, for the booking page: { coach_id: { 50: '45', 25: '' } }, only coaches who list one.
+function ratesOf_(coaches) {
+  var out = {};
+  coaches.filter(active_).forEach(function (coach) {
+    var rates = coachRates_(coach);
+    if (coach.coach_id && (rates[50] || rates[25])) out[coach.coach_id] = rates;
+  });
+  return out;
+}
+
+// A waiting list of times, with its rates, is done with (published, declined or lapsed).
+function clearProposal_(coach) {
+  coach.ask_slots = '';
+  coach.ask_made = '';
+  coach.ask_rates = '';
+}
+
+// The rate the student confirmed, as a row for their emails ([] for a coach who lists none, or a request made before rates).
+function rateRow_(request, payee) {
+  return request.rate ? [['Rate', '**$' + request.rate + '** for this ' + lessonMinutes_(request.minutes) + ' minute lesson, paid directly to ' + payee]] : [];
+}
+
+// The same rate in the coach's emails, so both sides have the number the student agreed to.
+function coachRateRow_(request) {
+  return request.rate ? [['Rate', '$' + request.rate + ' for this ' + lessonMinutes_(request.minutes) + ' minute lesson (your listed rate, as the student saw it when they asked)']] : [];
+}
+
 // The green check: the club has the coach's email and mobile, and the coach has texted the club number.
 function verified_(coach) { return !!(coach.registered_at && cleanEmail_(coach.email) && phoneDigits_(coach.phone)); }
 
@@ -943,15 +1038,27 @@ function coachBoard(coachId) {
       return { date: entry.date, start: entry.start, slot: entry.slot, table: entry.table, coach: entry.coach, mine: entry.coachId === coach.coach_id, status: entry.status, student: entry.student, waiting: entry.waiting,
         change: entry.change };
     }),
-    pending: pending, pendingSince: pending ? momentLabel_(Number(coach.ask_made)) : ''
+    pending: pending, pendingSince: pending ? momentLabel_(Number(coach.ask_made)) : '',
+    // The published rates, and those in the waiting list when it changes them (shown in the rate boxes until answered).
+    rates: coachRates_(coach), pendingRates: pending ? proposalRates_(coach) : null
   };
 }
 
-// slots is the coach's whole set of upcoming times as they want it, [{date, start, minutes, table}]. Nothing changes until the
-// coach replies YES to the list we email to the address on the club's list (or text to the mobile number on it), so a stranger
-// picking the coach changes nothing.
-function coachPropose(coachId, slots) {
+// slots is the coach's whole set of upcoming times as they want it, [{date, start, minutes, table}]; rates, their lesson rates as
+// they want them, { 50: '45', 25: '' } ('' for none listed), or missing to leave them as they are (a page from before rates).
+// Nothing changes until the coach replies YES to the list we email to the address on the club's list (or text to the mobile
+// number on it), so a stranger picking the coach changes nothing.
+function coachPropose(coachId, slots, rates) {
   if (!Array.isArray(slots) || slots.length > MAX_SLOTS_PER_COACH) return fail_('That is too many times. Remove some first.');
+  var wantedRates = null;
+  if (rates && typeof rates === 'object') {
+    wantedRates = {};
+    for (var r = 0; r < RATE_LENGTHS.length; r += 1) {
+      var rate = cleanRate_(rates[RATE_LENGTHS[r]]);
+      if (rate === null) return fail_('Please enter your ' + RATE_LENGTHS[r] + ' minute rate in whole dollars, from $1 to $' + MAX_RATE + ', or leave it blank.', 'rate' + RATE_LENGTHS[r]);
+      wantedRates[RATE_LENGTHS[r]] = rate;
+    }
+  }
   var current = nowMinutes_();
   var last = addDays_(pacificNow_().date, HORIZON_DAYS);
   var wanted = [];
@@ -985,16 +1092,21 @@ function coachPropose(coachId, slots) {
     if (Number(cache.get(daily) || 0) >= MAX_PROPOSALS_PER_DAY) return fail_('That is the most changes for one day. Please try again tomorrow.');
     var plan = planChanges_(coach, wanted, rows_('Availability'), rows_('Coaches'), rows_('Requests'), now);
     if (typeof plan === 'string') return fail_(plan);
-    if (!plan.add.length && !plan.remove.length) return fail_('Nothing changed yet. Tap times to add or remove them, then submit.');
+    var published = coachRates_(coach);
+    var rateChange = wantedRates && rateChanges_(published, wantedRates) ? wantedRates : null;
+    var timesChange = !!(plan.add.length || plan.remove.length);
+    if (!timesChange && !rateChange) return fail_('Nothing changed yet. Tap times to add or remove them, or change your rates, then submit.');
+    var what = proposalWhat_(timesChange, !!rateChange);
     cache.put(daily, String(Number(cache.get(daily) || 0) + 1), 86400);
     var email = cleanEmail_(coach.email);
     if (email && mailAvailable_()) {
       try {
-        sendMail_(email, 'Confirm your coaching times ' + refTag_(proposalCode_(coach.coach_id, now)), [
+        sendMail_(email, 'Confirm your ' + what + ' ' + refTag_(proposalCode_(coach.coach_id, now)), [
           { callout: '**Action needed:** reply to this email by **' + replyBy_(now) + '**. **Nothing changes until you reply.**', tone: 'action' },
-          { choices: [['YES', 'Publish these changes to ' + coachName_(coach) + '\'s coaching times.'], ['NO', 'Cancel. Your coaching times stay as they are.']] },
+          { choices: [['YES', 'Publish these changes to ' + coachName_(coach) + '\'s ' + what + '.'], ['NO', 'Cancel. Your ' + what + ' stay as they are.']] },
           plan.add.length ? 'Add: ' + slotList_(plan.add) : '',
           plan.remove.length ? 'Remove: ' + slotList_(plan.remove) : '',
+          rateChange ? 'Rates: ' + rateChanges_(published, rateChange) + '. Students see your rates when they pick your times, and in their emails.' : '',
           phoneDigits_(coach.phone) ? 'We also texted your mobile. You can answer either one.' :
             'Want to confirm by text instead? Ask the club to add your mobile number to the coach list.',
           'If you did not ask for this, ignore this email and nothing will change.'
@@ -1006,7 +1118,7 @@ function coachPropose(coachId, slots) {
     }
     if (phoneDigits_(coach.phone)) {
       try {
-        sendText_(coach, proposalText_(coach, plan, now), ['coach-times-confirm', coach.coach_id]);
+        sendText_(coach, proposalText_(coach, plan, now, rateChange && rateChanges_(published, rateChange)), ['coach-times-confirm', coach.coach_id]);
         sent.text = true;
       } catch (error) {
         logError_('text a coach to confirm times', error, coach.coach_id);
@@ -1019,6 +1131,7 @@ function coachPropose(coachId, slots) {
     }
     coach.ask_slots = JSON.stringify(plan.wanted);
     coach.ask_made = String(now);
+    coach.ask_rates = rateChange ? JSON.stringify(rateChange) : '';
     if (sent.text) {
       coach.ask_ref = 'slots';
       coach.ask_at = String(now);
@@ -1029,7 +1142,7 @@ function coachPropose(coachId, slots) {
   }
   var where = sent.email && sent.text ? 'the email and the text we just sent' : sent.email ? 'the email we just sent' : 'the text we just sent';
   return {
-    ok: true, message: 'Sent. Reply YES to ' + where + ' to publish these times, or NO to cancel. Nothing changes until you reply.' +
+    ok: true, message: 'Sent. Reply YES to ' + where + ' to publish ' + (what === 'coaching times' ? 'these times' : 'these changes') + ', or NO to cancel. Nothing changes until you reply.' +
       (sent.email && phoneDigits_(coach.phone) && !sent.text ? ' (We could not text you: from your mobile, text COACH to ' + TEXT_NUMBER + ' once to get texts too.)' : '')
   };
 }
@@ -1076,11 +1189,15 @@ function slotList_(slots) {
   }).join('; ');
 }
 
-function proposalText_(coach, plan, made) {
-  return 'CTTC: Reply YES by ' + shortMoment_(Number(made) + ASK_TTL_MS) + ' to update ' + coachName_(coach) + '\'s coaching times, or NO to cancel.' +
+function proposalText_(coach, plan, made, rateLine) {
+  return 'CTTC: Reply YES by ' + shortMoment_(Number(made) + ASK_TTL_MS) + ' to update ' + coachName_(coach) + '\'s ' +
+    proposalWhat_(!!(plan.add.length || plan.remove.length), !!rateLine) + ', or NO to cancel.' +
     (plan.add.length ? ' Add: ' + slotList_(plan.add) + '.' : '') + (plan.remove.length ? ' Remove: ' + slotList_(plan.remove) + '.' : '') +
-    ' Nothing changes until you reply.';
+    (rateLine ? ' Rates: ' + rateLine + '.' : '') + ' Nothing changes until you reply.';
 }
+
+// What a list changes, for its subject and answers: 'coaching times', 'coaching times and rates' or 'lesson rates'.
+function proposalWhat_(times, rates) { return times && rates ? 'coaching times and rates' : rates ? 'lesson rates' : 'coaching times'; }
 
 // Call while holding the lock, after the coach replied YES. Times another coach took in the meantime are skipped.
 // Call while holding the lock. A YES or NO that came after a list's 48 hours. NO: nothing changes. YES, every time still free:
@@ -1088,6 +1205,8 @@ function proposalText_(coach, plan, made) {
 // another coach since: the coach is told which, and to pick times again on the page. Returns what happened, for the log.
 function lateProposal_(coach, answer, channel, now) {
   var wanted = expiredProposal_(coach, now) || [];
+  var rates = proposalRates_(coach);
+  var rateLine = rates ? rateChanges_(coachRates_(coach), rates) : '';
   var sent = momentLabel_(Number(coach.ask_made));
   var email = cleanEmail_(coach.email);
   var texts = !!phoneDigits_(coach.phone);
@@ -1104,8 +1223,7 @@ function lateProposal_(coach, answer, channel, now) {
       logError_('text a coach about a late reply', error, coach.coach_id);
     }
   };
-  coach.ask_slots = '';
-  coach.ask_made = '';
+  clearProposal_(coach);
   if (coach.ask_ref === 'slots') {
     coach.ask_ref = '';
     coach.ask_at = '';
@@ -1126,18 +1244,24 @@ function lateProposal_(coach, answer, channel, now) {
     if (wallMinutes_(slot.date, slot.start) <= current || mine.some(function (entry) { return sameSlot_(entry, slot); })) return;
     (freeTable_(availability, coaches, coach.coach_id, slot.date, slot.start, slot.minutes, Number(slot.table)) ? open : gone).push(slot);
   });
-  if (typeof plan !== 'string' && !gone.length && (plan.add.length || plan.remove.length)) {
+  var timesChange = typeof plan !== 'string' && !!(plan.add.length || plan.remove.length);
+  if (typeof plan !== 'string' && !gone.length && (timesChange || rateLine)) {
+    var what = proposalWhat_(timesChange, !!rateLine);
     coach.ask_slots = JSON.stringify(plan.wanted);
     coach.ask_made = String(now);
-    send('Confirm your coaching times ' + refTag_(proposalCode_(coach.coach_id, now)), [
+    coach.ask_rates = rateLine ? JSON.stringify(rates) : '';
+    send('Confirm your ' + what + ' ' + refTag_(proposalCode_(coach.coach_id, now)), [
       { callout: lateLine, tone: 'action' },
-      { callout: '**Good news: these times are all still open.** To publish them, reply **YES** to this email by **' + replyBy_(now) + '**.', tone: 'good' },
-      { choices: [['YES', 'Publish these changes to ' + coachName_(coach) + '\'s coaching times.'], ['NO', 'Cancel. Your coaching times stay as they are.']] },
+      { callout: timesChange ? '**Good news: these times are all still open.** To publish them, reply **YES** to this email by **' + replyBy_(now) + '**.' :
+        'To publish them now, reply **YES** to this email by **' + replyBy_(now) + '**.', tone: 'good' },
+      { choices: [['YES', 'Publish these changes to ' + coachName_(coach) + '\'s ' + what + '.'], ['NO', 'Cancel. Your ' + what + ' stay as they are.']] },
       plan.add.length ? 'Add: ' + slotList_(plan.add) : '',
       plan.remove.length ? 'Remove: ' + slotList_(plan.remove) : '',
+      rateLine ? 'Rates: ' + rateLine + '.' : '',
       texts ? 'We also texted your mobile. You can answer either one.' : ''
-    ], 'CTTC: Your reply came after the 48-hour window, so nothing was published yet. Good news: those times are all still open. ' +
-      'Reply YES by ' + shortMoment_(now + ASK_TTL_MS) + ' to publish them, or NO to cancel.', 'coach-times-late');
+    ], 'CTTC: Your reply came after the 48-hour window, so nothing was published yet. ' + (timesChange ? 'Good news: those times are all still open. ' : '') +
+      'Reply YES by ' + shortMoment_(now + ASK_TTL_MS) + ' to publish ' + (timesChange ? 'them' : 'your new rates') + ', or NO to cancel.' +
+      (rateLine ? ' Rates: ' + rateLine + '.' : ''), 'coach-times-late');
     if (texts && channel === 'text') {
       coach.ask_ref = 'slots';
       coach.ask_at = String(now);
@@ -1149,7 +1273,8 @@ function lateProposal_(coach, answer, channel, now) {
     gone.length ? 'Since then, another coach has taken: ' + slotList_(gone) + '.' : 'Since then, the schedule has changed, so that list can no longer be published as it was.',
     { callout: '**Please pick your times again:** open ' + PAGE_URL.replace('https://', '') + ', tap **I am a coach**, choose your name and select your times. ' +
       'Then reply YES to the new email or text within 48 hours.', tone: 'action' },
-    open.length ? 'Still open when we checked: ' + slotList_(open) + '.' : ''
+    open.length ? 'Still open when we checked: ' + slotList_(open) + '.' : '',
+    rateLine ? 'Your lesson rates were not changed either. Set them again on the same page.' : ''
   ], 'CTTC: Your reply came after the 48-hour window, so nothing was published, and another coach has since taken ' +
     (gone.length ? slotList_(gone) : 'some of those times') + '. Please pick your times again at ' + PAGE_URL.replace('https://', '') + '.', 'coach-times-taken');
   return 'late, taken';
@@ -1179,8 +1304,14 @@ function applyProposal_(coach, now) {
   });
   drop.sort(function (a, b) { return b._row - a._row; }).forEach(function (entry) { tab_('Availability').deleteRow(entry._row); });
   result.total = keep.length;
-  coach.ask_slots = '';
-  coach.ask_made = '';
+  // Rates are published with the times. A request already made keeps the rate its student confirmed (Requests.rate).
+  var rates = proposalRates_(coach);
+  if (rates) {
+    coach.rate_50 = rates[50];
+    coach.rate_25 = rates[25];
+    result.rates = rates;
+  }
+  clearProposal_(coach);
   return result;
 }
 
@@ -1264,7 +1395,8 @@ function studentChange(form) {
     request.change_at = String(now);
     save_('Requests', request);
     var coach = coaches.filter(function (candidate) { return candidate.coach_id === request.coach_id; })[0];
-    question = { request: request, student: student, coach: coach, target: target };
+    var targetCoach = target ? coaches.filter(function (candidate) { return candidate.coach_id === target.coachId; })[0] : null;
+    question = { request: request, student: student, coach: coach, target: target, targetRate: target ? rateFor_(targetCoach, target.minutes) : '' };
   } finally {
     lock.releaseLock();
     // Saved: the emails and texts go out now, and the hourly sweep retries any that fail.
@@ -1292,7 +1424,8 @@ function askStudentChange_(question) {
         { choices: move ? [['YES', 'Move the lesson to the new time. The new time goes to the coach to accept, and your current time is released.'], ['NO', 'Keep the lesson as it is.']] :
           [['YES', 'Cancel the lesson and release the time.'], ['NO', 'Keep the lesson as it is.']] },
         { heading: move ? 'The change' : 'The lesson to cancel' },
-        { rows: move ? [['Now', when + ', ' + coachLabel + ', Table ' + (Number(request.table) || 1)], ['New time', move]] :
+        { rows: move ? [['Now', when + ', ' + coachLabel + ', Table ' + (Number(request.table) || 1)], ['New time', move]].concat(question.targetRate ?
+          [['New rate', '**$' + question.targetRate + '** for a ' + lessonMinutes_(target.minutes) + ' minute lesson, paid directly to ' + target.coach]] : []) :
           lessonRows_(request).concat([['Coach', coachLabel]]) }].concat(
         scheduleBlocks_('On the schedule', move ? [current, { date: target.date, coachId: target.coachId, start: target.start, minutes: target.minutes, kind: 'to' }] : [current]), [
         'If you did not ask for this, ignore this email.', bookingLine_(request)]), 'c:' + request.request_id + ':' + request.change_at, ['student-change-confirm', request.request_id]);
@@ -1391,7 +1524,8 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt, quiet) {
         request.status = 'cancelled';
         request.cancelled_by = 'student';
       } else {
-        var slot = openTime_(openSlots_(rows_('Coaches'), rows_('Availability'), requests, now), change.slice(5));
+        var coachRows = rows_('Coaches');
+        var slot = openTime_(openSlots_(coachRows, rows_('Availability'), requests, now), change.slice(5));
         if (!slot) {
           reply = 'That new time was taken before you replied, so nothing changed. Your lesson on ' + whenLabel_(request.date, request.start, request.minutes) + ' stays as it is.';
           applied = false;
@@ -1402,7 +1536,9 @@ function studentAnswer_(requestId, kind, answer, channel, answeredAt, quiet) {
             request_id: id_(), coach_id: slot.coachId, date: slot.date, start: slot.start, minutes: slot.minutes, student_label: request.student_label,
             student_name: request.student_name, student_email: request.student_email, guardian_name: request.guardian_name, note: request.note, status: 'pending',
             created_at: nowIso_(), expires_at: expiryFor_(slot.date, slot.start), cancelled_by: '', student_emailed: '', coach_emailed: '', updated_at: nowIso_(),
-            table: slot.table, verified_at: nowIso_()
+            table: slot.table, verified_at: nowIso_(),
+            // The new time's rate, as the move email showed it (the coach's rate now, if they changed it since).
+            rate: rateFor_(coachRows.filter(function (coach) { return coach.coach_id === slot.coachId; })[0], slot.minutes)
           });
         }
       }
@@ -2163,7 +2299,7 @@ function studentMail_(request, coach) {
     return { to: to, subject: 'Coaching request sent to ' + coachShown + ' (not confirmed yet)', lines: [who,
       { callout: 'Thanks. Your request went to ' + coachShown + ', with your contact details. It is **NOT confirmed until the coach accepts.** Nothing more is needed from you.', tone: 'action' },
       { heading: 'Your request' },
-      { rows: details.concat([['Coach', coachShown]]) },
+      { rows: details.concat([['Coach', coachShown]], rateRow_(request, coachShown)) },
       { heading: 'What happens next' },
       { steps: [coachShown + ' has until **' + expires + '** to accept. If the coach has not answered by then, the request expires and the time is released.',
         'We email you as soon as the coach answers, with your coach\'s contact details once it is accepted.'] },
@@ -2181,7 +2317,7 @@ function studentMail_(request, coach) {
     return { to: to, subject: (back ? 'Lesson back on: ' : 'Lesson confirmed: ') + request.date + ' ' + request.start, lines: [who,
       { callout: back ? '**Done: your lesson is back on**, as it was before you cancelled it. ' + coachShown + ' has been told.' : '**Your lesson is confirmed.**', tone: 'good' },
       { heading: 'Lesson details' },
-      { rows: details.concat([['Coach', String(coach.name).trim()]]) },
+      { rows: details.concat([['Coach', String(coach.name).trim()]], rateRow_(request, 'your coach')) },
       { heading: 'Your coach\'s contact' },
       reach.length ? { rows: reach } : 'Find your coach at the club when you arrive.',
       'Your coach has the contact details from your request and may get in touch about details.',
@@ -2246,7 +2382,7 @@ function coachMail_(request, coach, studentRow) {
   if (request.status === 'pending') {
     return { to: to, subject: 'Lesson request from ' + request.student_name + ' ' + refTag_(requestCode_(request)), lines: [
       request.student_name + (request.guardian_name ? ' (under 18)' : '') + ' asked for ' + when + ' at Table ' + (Number(request.table) || 1) + (request.note ? '. Note: ' + request.note : '') + '.',
-      { rows: [['Student', studentContact_(request, studentRow)]] },
+      { rows: [['Student', studentContact_(request, studentRow)]].concat(coachRateRow_(request)) },
       'You can contact the student about the lesson before you answer.',
       { callout: '**Action needed:** reply to this email by **' + momentLabel_(Number(request.expires_at)) + '**, or the request expires, the time is released and the club is told.', tone: 'action' },
       { choices: [['YES', 'Confirm the lesson.'], ['NO', 'Decline it. The student is told and the time opens again.']] },
@@ -2257,7 +2393,7 @@ function coachMail_(request, coach, studentRow) {
     return { to: to, subject: (back ? 'Lesson back on: ' : 'Lesson confirmed: ') + request.date + ' ' + request.start, lines: [
       { callout: back ? '**' + request.student_name + ' undid their cancellation: the lesson is back on**, as you confirmed it.' : '**You confirmed this lesson.**', tone: 'good' },
       { heading: 'Lesson details' },
-      { rows: [['Student', studentContact_(request, studentRow)]].concat(lessonRows_(request)) },
+      { rows: [['Student', studentContact_(request, studentRow)]].concat(lessonRows_(request), coachRateRow_(request)) },
       'On the club site it appears as "' + studentName_(request) + ' has session with ' + coachName_(coach) + '".',
       { heading: 'Reminders' },
       { rows: [['Arrival', property_('COACHING_ARRIVAL_TEXT', DEFAULT_ARRIVAL)], ['Payment', property_('COACHING_PAYMENT_TEXT', DEFAULT_PAYMENT)],
@@ -2319,7 +2455,8 @@ function studentText_(request, coach, student) {
   var when = shortWhen_(request.date, request.start);
   var again = ' Pick another time at ' + PAGE_URL.replace('https://', '') + '.';
   var text = {
-    confirmed: 'your lesson with ' + coachName_(coach) + ' on ' + when + ' is ' + (/^done:/.test(request.undo) ? 'back on' : 'confirmed') + '. Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + '.',
+    confirmed: 'your lesson with ' + coachName_(coach) + ' on ' + when + ' is ' + (/^done:/.test(request.undo) ? 'back on' : 'confirmed') + '. Coach: ' + contactLabel_(coach.name, coach.email, coach.phone) + '.' +
+      (request.rate ? ' Rate: $' + request.rate + ', paid to your coach.' : ''),
     declined: coachName_(coach) + ' cannot do ' + when + '. You are not booked.' + again,
     expired: 'your request for ' + when + ' expired without an answer. You are not booked.' + again
   }[request.status];
@@ -2532,8 +2669,7 @@ function askCoaches_(coaches, requests, now) {
     if (!coach.coach_id || !active_(coach)) return;
     var changed = false;
     if (coach.ask_slots && !proposalOf_(coach, now) && !expiredProposal_(coach, now)) {
-      coach.ask_slots = '';
-      coach.ask_made = '';
+      clearProposal_(coach);
       changed = true;
     }
     if (!phoneDigits_(coach.phone)) {
@@ -2592,11 +2728,12 @@ function answer_(coachId, ref, answer, channel) {
     if (ref === 'slots') {
       if (answer === 'yes' && proposalOf_(coach, now)) {
         var done = applyProposal_(coach, now);
+        var rateLine = done.rates ? ' Your lesson rates: ' + rateSummary_(done.rates) + '.' : '';
         reply = !done.added && !done.removed && done.skipped ?
-          'CTTC: Nothing changed: by the time you replied, other coaches had taken every table at those times. Please pick other times on the coaching page.' :
+          'CTTC: ' + (rateLine ? 'Your rates are updated, but no times were added' : 'Nothing changed') + ': by the time you replied, other coaches had taken every table at those times. Please pick other times on the coaching page.' + rateLine :
           'CTTC: Done. ' + coachName_(coach) + ' now has ' + done.total + ' upcoming coaching time' + (done.total === 1 ? '' : 's') +
           ' (' + done.added + ' added, ' + done.removed + ' removed).' +
-          (done.skipped ? ' ' + done.skipped + ' could not be added because another coach took the table or it overlapped a lesson request.' : '') +
+          (done.skipped ? ' ' + done.skipped + ' could not be added because another coach took the table or it overlapped a lesson request.' : '') + rateLine +
           ' Students can request them at ' + PAGE_URL.replace('https://', '') + '.';
       } else if (expiredProposal_(coach, now)) {
         applied = false;
@@ -2605,8 +2742,7 @@ function answer_(coachId, ref, answer, channel) {
         applied = answer !== 'yes';
         reply = answer === 'yes' ? 'CTTC: That list expired, so nothing changed. Please submit your times again.' :
           'CTTC: OK, nothing was changed. Your coaching times stay as they were.';
-        coach.ask_slots = '';
-        coach.ask_made = '';
+        clearProposal_(coach);
       }
     } else {
       var request = rows_('Requests').filter(function (entry) { return entry.request_id === ref; })[0];

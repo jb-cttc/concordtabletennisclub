@@ -159,7 +159,7 @@ function answerEmail(message, word) {
   cache = {};
   call('checkTexts');
 }
-function demoCoach(name, email, plan, phone) {
+function demoCoach(name, email, plan, phone, rates) {
   grids.Coaches.push([name, email, phone, '', '', '', '', '', '', '', '']);
   call('coachList');
   const id = grids.Coaches[grids.Coaches.length - 1][4];
@@ -169,15 +169,15 @@ function demoCoach(name, email, plan, phone) {
   const slots = [];
   days.slice(0, 4).forEach(day => (plan[new Date(day.date + 'T00:00:00Z').getUTCDay()] || []).forEach(([start, minutes]) => slots.push({ date: day.date, start, minutes, table: 1 })));
   cache = {};
-  call('coachPropose', id, slots);
+  call('coachPropose', id, slots, rates);
   yes(name, digits);
 }
 // Made-up coaches and bookings, only with DEMO=1. Without it the preview shows what setup() gives the real app: the five club coaches.
 if (process.env.DEMO === '1') {
 // Only coaches on the club's list stay switched on, so the made-up ones join it here (never in Code.js).
 context.CLUB_COACHES.push(['Olaf Demo', 'olaf.demo@example.com'], ['Mia Demo', 'mia.demo@example.com'], ['Kai Demo', 'kai.demo@example.com']);
-demoCoach('Olaf Demo', 'olaf.demo@example.com', { 5: [['19:00', 60], ['20:00', 30], ['20:30', 30], ['21:00', 60]], 6: [['15:00', 60], ['16:00', 30], ['16:30', 30], ['17:00', 60]] }, '925-555-0142');
-demoCoach('Mia Demo', 'mia.demo@example.com', { 5: [['19:00', 60], ['20:00', 30], ['20:30', 30]], 6: [['15:30', 30], ['16:00', 60]] }, '925-555-0143');
+demoCoach('Olaf Demo', 'olaf.demo@example.com', { 5: [['19:00', 60], ['20:00', 30], ['20:30', 30], ['21:00', 60]], 6: [['15:00', 60], ['16:00', 30], ['16:30', 30], ['17:00', 60]] }, '925-555-0142', { 50: '45', 25: '25' });
+demoCoach('Mia Demo', 'mia.demo@example.com', { 5: [['19:00', 60], ['20:00', 30], ['20:30', 30]], 6: [['15:30', 30], ['16:00', 60]] }, '925-555-0143', { 50: '50', 25: '' });
 // A third coach at Friday 7 PM fills both tables, so only that time shows Table 3.
 demoCoach('Kai Demo', 'kai.demo@example.com', { 5: [['19:00', 60]] }, '925-555-0144');
 const first = call('openSlots').slots[0];
