@@ -35,6 +35,7 @@
     "check:desk": "node scripts/check-desk-page.js",
     "check:cash-page": "node scripts/check-cash-page.js",
     "check:pay-page": "node scripts/check-pay-page.js",
+    "build:pay-lock": "node scripts/pay-lock.js",
     "check:membership": "node scripts/check-membership-page.js",
     "check:volunteer": "node scripts/check-volunteer-signups.js",
     "check:volunteer-admin": "node scripts/check-volunteer-admin-page.js",

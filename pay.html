@@ -4,22 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pay for Tonight - Concord Table Tennis Club</title>
-  <meta name="description" content="Pay tonight's Concord Table Tennis Club fee with Venmo, Zelle, or a card on Zeffy.">
+  <meta name="description" content="Pay tonight's Concord Table Tennis Club fee with Venmo or Zelle, or sign up for the members' monthly pass.">
   <meta name="robots" content="noindex">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Concord Table Tennis Club">
   <meta property="og:title" content="Pay for Tonight - Concord Table Tennis Club">
-  <meta property="og:description" content="Venmo, Zelle, or card (Zeffy): pick one and pay tonight's fee.">
+  <meta property="og:description" content="Venmo or Zelle: pick one and pay tonight's fee.">
   <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
   <link rel="stylesheet" href="style.css?v=20261122">
-  <!-- The page the QR code at the front desk opens (assets/pay-qr.svg is that code). No site header and not in the menu:
-       the home page offers the same options under Fees. scripts/sync-nav.js leaves this page alone. -->
+  <!-- The page the QR code at the front desk opens; that code's link also carries the key to Venmo and Zelle (pay.js).
+       No site header and not in the menu: the home page offers the same options under Fees. scripts/sync-nav.js leaves
+       this page alone. -->
   <link rel="icon" href="assets/logo.png" type="image/png">
   <meta name="theme-color" content="#FAF8F3">
 </head>
 <body>
 
-<!-- Arriving from the desk QR code: the logo and that code, then they shrink away to the options. Pure CSS, so it ends on
+<!-- Arriving from the desk QR code: the logo and a QR code for this page (assets/pay-qr.svg, without the desk key), then
+     they shrink away to the options. Pure CSS, so it ends on
      time even if the script never runs; a tap skips it, and it is left out for anyone who asks for reduced motion. -->
 <div class="pay-intro" aria-hidden="true">
   <div class="pay-intro-mark">
