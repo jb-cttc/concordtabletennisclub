@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pay for Tonight - Concord Table Tennis Club</title>
+  <meta name="description" content="Pay tonight's Concord Table Tennis Club fee with Venmo, Zelle, or a card on Zeffy.">
+  <meta name="robots" content="noindex">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Concord Table Tennis Club">
+  <meta property="og:title" content="Pay for Tonight - Concord Table Tennis Club">
+  <meta property="og:description" content="Venmo, Zelle, or card (Zeffy): pick one and pay tonight's fee.">
+  <meta property="og:image" content="https://concordtabletennisclub.com/assets/logo.png">
+  <link rel="stylesheet" href="style.css?v=20261122">
+  <!-- The page the QR code at the front desk opens (pay-sign.html prints it). No site header: it is one job, on a phone.
+       scripts/sync-nav.js leaves this page alone. -->
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <meta name="theme-color" content="#FAF8F3">
+</head>
+<body>
+
+<main class="pay">
+  <a class="pay-logo" href="index.html"><img src="assets/logo-transparent.png" alt="Concord Table Tennis Club"></a>
+  <h1>Pay for tonight</h1>
+
+  <section class="pay-step" aria-labelledby="pay-who">
+    <h2 id="pay-who" class="pay-label">1. Who&rsquo;s playing?</h2>
+    <div class="pay-kinds" role="radiogroup" aria-labelledby="pay-who">
+      <button type="button" role="radio" class="pay-kind" data-kind="member">Member <span class="pay-price">$10</span></button>
+      <button type="button" role="radio" class="pay-kind" data-kind="visitor">Visitor <span class="pay-price">$15</span></button>
+      <button type="button" role="radio" class="pay-kind" data-kind="intro">First visit <span class="pay-price">$10</span></button>
+      <button type="button" role="radio" class="pay-kind" data-kind="junior">Under 18 <span class="pay-price">$5</span></button>
+    </div>
+    <p class="pay-special" hidden><strong>$5 tonight for everyone.</strong> Fridays and Saturdays through December 31.</p>
+  </section>
+
+  <section class="pay-step" aria-labelledby="pay-how">
+    <h2 id="pay-how" class="pay-label">2. Pay <span id="pay-amount">$10</span> with</h2>
+
+    <a id="pay-venmo" class="pay-method pay-venmo" href="#" hidden>
+      <span class="pay-method-name">Venmo</span>
+      <span class="pay-method-what">Opens Venmo with the amount filled in</span>
+    </a>
+    <p id="pay-venmo-note" class="pay-note" hidden></p>
+
+    <button id="pay-zelle" type="button" class="pay-method pay-zelle" aria-expanded="false" aria-controls="pay-zelle-panel" hidden>
+      <span class="pay-method-name">Zelle</span>
+      <span class="pay-method-what">From your bank&rsquo;s app</span>
+    </button>
+    <div id="pay-zelle-panel" class="pay-zelle-panel" hidden>
+      <p>In your bank app, choose <strong>Zelle</strong> and send <strong class="pay-zelle-amount">$10</strong> to:</p>
+      <p class="pay-zelle-to"><span id="pay-zelle-to"></span> <button id="pay-zelle-copy" type="button" class="pay-copy">Copy</button></p>
+      <p id="pay-zelle-name" class="pay-note"></p>
+    </div>
+
+    <a id="pay-zeffy" class="pay-method pay-zeffy" href="#" target="_blank" rel="noopener" hidden>
+      <span class="pay-method-name">Card, Apple Pay, Google Pay</span>
+      <span class="pay-method-what">Secure checkout on Zeffy</span>
+    </a>
+    <p id="pay-zeffy-note" class="pay-note" hidden>Zeffy suggests an optional tip to Zeffy. You can set it to $0.</p>
+  </section>
+
+  <p class="pay-done">Paid? Show the desk your confirmation screen.</p>
+  <p class="pay-links"><a href="membership.html">Membership</a> <span aria-hidden="true">&middot;</span> <a href="index.html">CTTC website</a></p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  // ---- The club's payment accounts. Leave one empty to hide that option. ----
+  var PAY = {
+    venmo: "",          // Venmo username, without the @
+    venmoLast4: "",     // last 4 digits of the phone on that Venmo account, shown in case Venmo asks
+    zelle: "",          // the email or phone number the club receives Zelle at
+    zelleName: "",      // the name Zelle shows for it, so people know they have the right one
+    zeffy: ""           // the Zeffy page for paying a night by card (not the monthly play pass)
+  };
+
+  // The same fees and special as apps-script/NightFees.js (NIGHT_FEES, SPECIAL_NIGHTS); scripts/check-pay-page.js checks.
+  var FEES = { member: 10, visitor: 15, intro: 10, junior: 5 };
+  var NAMES = { member: "member", visitor: "visitor", intro: "first visit", junior: "under 18" };
+  var SPECIAL_NIGHTS = [{ from: "2026-11-13", to: "2026-12-31", weekdays: [5, 6], fee: 5 }];
+  var KIND_KEY = "cttc-pay-kind";
+
+  // Today in Pacific time, as the desk counts nights.
+  function today() {
+    var parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    return parts.slice(0, 10);
+  }
+  function special(date) {
+    var weekday = new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10))).getUTCDay();
+    return SPECIAL_NIGHTS.filter(function (s) { return date >= s.from && date <= s.to && s.weekdays.indexOf(weekday) >= 0; })[0] || null;
+  }
+  function stored() { try { return localStorage.getItem(KIND_KEY); } catch (e) { return null; } }
+  function store(kind) { try { localStorage.setItem(KIND_KEY, kind); } catch (e) { /* private window: not remembered */ } }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var kinds = Array.prototype.slice.call(document.querySelectorAll(".pay-kind"));
+  var tonight = special(today());
+  var kind = FEES[stored()] ? stored() : "member";
+
+  if (tonight) {
+    $("pay-who").textContent = "1. Tonight";
+    document.querySelector(".pay-kinds").hidden = true;
+    document.querySelector(".pay-special").hidden = false;
+  }
+
+  function render() {
+    var amount = tonight ? tonight.fee : FEES[kind];
+    var dollars = "$" + amount;
+    var note = "CTTC " + (tonight ? "night" : NAMES[kind] + " night");
+    kinds.forEach(function (button) {
+      var on = button.getAttribute("data-kind") === kind;
+      button.classList.toggle("is-on", on);
+      button.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    $("pay-amount").textContent = dollars;
+    document.querySelector(".pay-zelle-amount").textContent = dollars;
+    if (PAY.venmo) {
+      // Venmo's payment link: on a phone with Venmo it opens the app's Pay screen with the amount and note filled in.
+      $("pay-venmo").href = "https://venmo.com/" + encodeURIComponent(PAY.venmo) + "?txn=pay&amount=" + amount + "&note=" + encodeURIComponent(note);
+    }
+  }
+
+  kinds.forEach(function (button) {
+    button.addEventListener("click", function () {
+      kind = button.getAttribute("data-kind");
+      store(kind);
+      render();
+    });
+  });
+
+  if (PAY.venmo) {
+    $("pay-venmo").hidden = false;
+    $("pay-venmo-note").hidden = false;
+    $("pay-venmo-note").textContent = "To @" + PAY.venmo + (PAY.venmoLast4 ? ". If Venmo asks for the last 4 digits of the phone number, they are " + PAY.venmoLast4 + "." : ".");
+  }
+  if (PAY.zelle) {
+    $("pay-zelle").hidden = false;
+    $("pay-zelle-to").textContent = PAY.zelle;
+    $("pay-zelle-name").textContent = PAY.zelleName ? "Zelle shows it as " + PAY.zelleName + "." : "";
+    $("pay-zelle").addEventListener("click", function () {
+      var open = $("pay-zelle-panel").hidden;
+      $("pay-zelle-panel").hidden = !open;
+      $("pay-zelle").setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    $("pay-zelle-copy").addEventListener("click", function () {
+      var button = this;
+      function done() { button.textContent = "Copied"; setTimeout(function () { button.textContent = "Copy"; }, 2000); }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(PAY.zelle).then(done, function () {});
+    });
+  }
+  if (PAY.zeffy) {
+    $("pay-zeffy").hidden = false;
+    $("pay-zeffy-note").hidden = false;
+    $("pay-zeffy").href = PAY.zeffy;
+  }
+  render();
+})();
+</script>
+
+</body>
+</html>
