@@ -3037,6 +3037,307 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
   color: #1f5a2e;
 }
 
+/* ---- Pay for tonight (pay.html): the page the front desk QR code opens; pick who's playing, then Venmo, Zelle or card ---- */
+
+.pay {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 28px 16px 32px;
+  text-align: center;
+}
+
+.pay-logo img {
+  width: 80px;
+  height: auto;
+}
+
+.pay h1 {
+  margin: 8px 0 20px;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.pay-step {
+  margin-bottom: 24px;
+}
+
+.pay-label {
+  margin-bottom: 10px;
+  color: var(--red);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.pay-kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pay-kind {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  padding: 10px;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.pay-price {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.pay-kind.is-on {
+  border-color: var(--red);
+  background: #f6e9e6;
+  box-shadow: inset 0 0 0 1px var(--red);
+}
+
+.pay-kind:focus-visible,
+.pay-method:focus-visible,
+.pay-copy:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+
+.pay-special {
+  padding: 14px;
+  border-radius: 14px;
+  background: #fbf3df;
+  border: 1px solid #e8d49a;
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+
+.pay-method {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 76px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.pay-method:hover,
+.pay-method:focus-visible {
+  color: #fff;
+  filter: brightness(0.9);
+}
+
+.pay-method-name {
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pay-method-what {
+  font-size: 1rem;
+  opacity: 0.92;
+}
+
+.pay-venmo { background: #0a6cc9; }
+.pay-zelle { background: #6d1ed4; }
+
+/* The monthly pass is a sign-up, not tonight's payment: set apart below, outlined in club red. */
+.pay-pass {
+  margin-top: 20px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.pay-method.pay-zeffy {
+  border: 2px solid var(--red);
+  background: #fff;
+  color: var(--red);
+  box-shadow: none;
+}
+
+.pay-method.pay-zeffy:hover,
+.pay-method.pay-zeffy:focus-visible {
+  background: #f6e9e6;
+  color: var(--red);
+  filter: none;
+}
+
+.pay-note {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.pay-zelle-panel {
+  margin-top: 8px;
+  padding: 14px;
+  border: 2px solid #6d1ed4;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.pay-zelle-to {
+  margin-top: 8px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.pay-copy {
+  margin-left: 6px;
+  padding: 6px 14px;
+  border: 1px solid #6d1ed4;
+  border-radius: 999px;
+  background: #fff;
+  color: #6d1ed4;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pay-locked {
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: #fff;
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.pay-done {
+  margin: 8px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.pay-links {
+  margin-top: 24px;
+}
+
+.pay-links a {
+  color: var(--muted);
+}
+
+/* The intro on pay.html: the club logo and the desk QR code hold for a moment, then shrink and fade into the options. */
+.pay-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  animation: pay-intro-out 0.3s ease-in 1.3s forwards;
+}
+
+.pay-intro-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  animation: pay-mark-in 0.5s ease-out both, pay-mark-out 0.5s cubic-bezier(0.5, 0, 0.75, 0) 0.9s forwards;
+}
+
+.pay-intro-logo {
+  width: 120px;
+  height: auto;
+}
+
+.pay-intro-qr {
+  width: min(56vw, 220px);
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.pay-intro ~ .pay {
+  animation: pay-rise 0.45s ease-out 1.45s both;
+}
+
+@keyframes pay-mark-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pay-mark-out {
+  to { opacity: 0; transform: translateY(-32vh) scale(0.35); }
+}
+
+@keyframes pay-intro-out {
+  to { opacity: 0; visibility: hidden; }
+}
+
+@keyframes pay-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+.pay-skip .pay-intro { display: none; }
+.pay-skip .pay-intro ~ .pay { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pay-intro { display: none; }
+  .pay-intro ~ .pay { animation: none; }
+}
+
+/* The same options on the home page, folded away under Fees until someone opens them. */
+.pay-details {
+  margin: 12px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.pay-details > summary {
+  padding: 14px 16px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--red);
+  cursor: pointer;
+  list-style: none;
+}
+
+.pay-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pay-details > summary::before {
+  content: "\25B8";
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 0.15s;
+}
+
+.pay-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.pay-details > .pay-widget {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 4px 12px;
+  text-align: center;
+}
+
 /* The Equalizer on the Round Robins page: pilot banner, group tables, and the Finals bracket. */
 .eq-results {
   margin: 28px 0;
