@@ -19,7 +19,9 @@
 //   closing,
 //   names: { 'As checked in': 'Name to show' }   optional: how someone checked in under a short name is shown
 // }
-// Every value is text: it is escaped here, so nothing in a meeting can add markup to the email.
+// Every value is text: it is escaped here, so nothing in a meeting can add markup to the email. Below the cut line
+// everything is plain text the secretary can copy and edit (no badges or images): "draft" is said in the subject and
+// the note only.
 
 const GREEN = '#145a3c';
 const ORANGE = '#f58220';
@@ -78,7 +80,6 @@ function html(meeting, summary) {
   const header = `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${GREEN};border-radius:8px 8px 0 0;border-bottom:4px solid ${ORANGE}">
     <tr><td style="padding:18px 22px;color:#fff;font-family:Arial,Helvetica,sans-serif">
-      <div style="display:inline-block;background:${ORANGE};color:#2b1300;font:800 11px Arial,sans-serif;letter-spacing:.12em;padding:3px 9px;border-radius:999px;margin-bottom:8px">DRAFT</div>
       <div style="font:700 22px/1.25 Arial,Helvetica,sans-serif">${esc(meeting.title || 'CTTC Executive Committee Meeting')}</div>
       <div style="font:15px Arial,Helvetica,sans-serif;color:#d8eadf;margin-top:4px">${esc(longDate(meeting.date))}</div>
     </td></tr>
