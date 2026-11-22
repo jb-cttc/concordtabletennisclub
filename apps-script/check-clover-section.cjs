@@ -180,14 +180,15 @@ function boot(desk) {
   assert.match(page.$('li[data-clover-payment="A"]').textContent, /Avery Park was matched to this payment, then marked Venmo by hand/);
   assert.ok(page.$('li[data-clover-payment="A"] .clover-undo'));
 
-  // Paid by a known card but not on tonight's lists: offered at the top of the section with RR and Open, as Voice signups
-  // are. A match (made or, in the dry run, would be) and a payer whose amount needs a look count; a payment no single player
-  // fits does not.
+  // Paid by a known card, or ahead online, but not on tonight's lists: offered at the top of the section with RR and Open,
+  // as Voice signups are. A match (made or, in the dry run, would be) and a payer whose amount needs a look count; a
+  // payment no single player fits does not.
   const arriving = enabled => {
     const desk = tonight(enabled);
-    Object.assign(desk.names, { p5: 'Emery Fox', p6: 'Finley Reyes', p7: 'Gray Moss' });
-    Object.assign(desk.fees, { p5: 10, p6: 15, p7: 10 });
+    Object.assign(desk.names, { p5: 'Emery Fox', p6: 'Finley Reyes', p7: 'Gray Moss', p8: 'Harper Lane' });
+    Object.assign(desk.fees, { p5: 10, p6: 15, p7: 10, p8: 5 });
     desk.items.unshift(
+      item('H', { state: 'matched', reason: 'prepay', playerIds: ['p8'], notCheckedIn: ['p8'], recorded: enabled, clock: '10:05 AM', net: 5, card: 'VISA ••4242', prepay: { kind: 'Under 18', name: 'Harper Lane' } }),
       item('E', { state: 'matched', reason: 'card', playerIds: ['p5'], notCheckedIn: ['p5'], recorded: enabled, clock: '7:10 PM' }),
       item('F', { state: 'needs-action', reason: 'name', payerId: 'p6', playerIds: ['p6'], note: 'Paid $10, fee is $15', clock: '7:08 PM' }),
       item('G', { note: 'No player found', suggestions: ['p7'], clock: '7:06 PM' }));
@@ -198,9 +199,14 @@ function boot(desk) {
   const arrivals = page.$('.clover-arrivals');
   assert.equal(arrivals.previousElementSibling.tagName, 'H2', 'at the top of the section');
   assert.equal(arrivals.hidden, false);
-  assert.equal(arrivals.querySelector('.clover-arrivals-title').textContent, 'Paid by card, not checked in (2)');
-  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5', 'p6']);
+  assert.equal(arrivals.querySelector('.clover-arrivals-title').textContent, 'Paid, not checked in (3)');
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p8', 'p5', 'p6']);
   assert.match(page.$('[data-clover-arrival="p5"]').textContent, /Emery Fox.*Paid \$10 by card at 7:10 PM/);
+  assert.match(page.$('[data-clover-arrival="p8"]').textContent, /Harper Lane.*Paid ahead online, \$5 \(Under 18\) at 10:05 AM/, 'paid ahead says so, with the fee they chose');
+  assert.ok(page.$('[data-clover-rr="p8"]') && page.$('[data-clover-open="p8"]'), 'with RR and Open like the rest');
+  assert.match(page.$('li[data-clover-payment="H"] .clover-card').textContent, /^Paid ahead online · VISA ••4242$/, 'the payment itself is marked paid ahead');
+  page.$('[data-clover-open="p8"]').click();
+  page.added.length = 0;
   assert.equal(page.$('[data-clover-rr="p5"]').title, 'Add Emery Fox to the RR draft');
   page.$('[data-clover-rr="p5"]').click();
   assert.deepEqual(plain(page.added), [['rr', 'p5', 'Clover payment']]);
@@ -212,10 +218,10 @@ function boot(desk) {
   // The dry run offers them too: adding a player records nothing on Clover.
   page = boot(arriving(false));
   await tick();
-  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5', 'p6']);
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p8', 'p5', 'p6']);
   // Someone already saved on the night is never offered, even before the desk has drawn its lists.
   const saved = arriving(true);
-  saved.onNight = ['p1', 'p2', 'p3', 'p4', 'p6'];
+  saved.onNight = ['p1', 'p2', 'p3', 'p4', 'p6', 'p8'];
   page = boot(saved);
   await tick();
   assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p5']);
@@ -224,7 +230,7 @@ function boot(desk) {
   // A payment being set aside is not anyone's.
   page.window.cttcOutbox.enqueue('clover:' + DATE + ':E', 'setAsideCloverPayment', [DATE, 'E']);
   await tick();
-  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p6']);
+  assert.deepEqual(plain(page.$$('[data-clover-arrival]').map(li => li.getAttribute('data-clover-arrival'))), ['p8', 'p6']);
 
   // The organizer's Credit marks. A payment no card fits is ticked for the person marked Credit at about that time, with
   // why; a $20 one offers pairs whose fees add up; players marked Credit by hand come first among everyone else.

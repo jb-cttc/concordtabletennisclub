@@ -49,6 +49,7 @@ one player, in this order:
 
 | # | Evidence | Learned from |
 | --- | --- | --- |
+| 0 | Paid ahead online: the name the player picked on the pay page, exactly one player's name or saved alias (below) | The order's line, written by the turnout app |
 | 1 | A card (brand, first 6 and last 4 digits), Clover customer, phone or email already linked to one player | A match by hand with **Remember this card**, a match by the name on the card, or a card saved on the Clover page |
 | 2 | The name on the card, or on the Clover customer, is exactly one player's name or saved alias | `Players`, `Aliases` |
 | 3 | The same last name, with a first name or initial only one active player fits ("J SMITH", "Rob"/"Robert") | `Players`, `Aliases` |
@@ -97,17 +98,37 @@ $5 for their junior matches the junior by itself, on a $5 special night too.
 A refund, a void, a decline, or cash typed into Clover is never matched.
 
 **Paid ahead online.** A player who paid on the pay page before coming
-([Paying ahead by card](turnout-flow.md#7-paying-ahead-by-card)) has a Clover
-payment like any other, with no card swiped at the desk. Its Clover customer
-is the name they picked from the club's player list (or typed, if new), so
-rule 2 above matches it by that name, and the amount must be that player's
-fee as usual. A player who chose the wrong fee, or a new player not yet in
-the directory, waits for the organizer with that name shown.
+([Paying ahead by card](turnout-flow.md#7-paying-ahead-by-card)) picked their
+name as the round robin results show it (or typed it, if new) and the fee.
+The turnout app writes both on the Clover order's one line: the name *CTTC
+round robin, Mon Nov 23* and the note *Member: Ada Every*. The desk reads that
+line with the orders it already reads (no extra call to Clover), and rule 0
+matches the payment to the one player whose name or saved alias is exactly
+the name picked, before any card it knows (a parent may pay ahead for their
+junior on their own card). The amount must be that player's fee. No card is
+remembered from it. Otherwise it waits for the organizer, saying so:
+
+- *Paid ahead online as "Dana Chen" (Member): paid $10, Dana Chen's fee is
+  $15. Check it, then Match.*, with Dana ticked;
+- *Paid ahead online as "Zed Newcomer" (First visit): no player has that name
+  yet. Add them, then tick who it is for.*;
+- a name only close to one player's (*close to the name of the player
+  suggested*), with that player suggested.
+
+It counts even if Clover does not record it as a card swipe. On the desk the
+payment says **Paid ahead online** beside the card.
 
 ## 3. At the desk
 
 The **Clover card payments** section sits in the sidebar above the Zeffy play
 passes. Its count is the number of payments waiting for the organizer.
+
+- **Paid, not checked in.** At the top: everyone a payment tonight is matched
+  to (or whose payment needs a look, with them ticked) who is on none of the
+  night's lists yet, newest first, with **RR** and **Open** buttons like Voice
+  signups. *Paid $10 by card at 7:10 PM*, or *Paid ahead online, $10 (Member)
+  at 10:05 AM*. A press only adds them to this device's draft or Open Play;
+  once signed in they show Credit ✓.
 
 - **Waiting payments.** Each shows the amount, the card, the time, any name on
   the card, and why it is waiting. Tick who it is for. The likely payer is

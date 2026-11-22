@@ -3477,8 +3477,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   allNights.title = 'The Clover payments page: every night, and the cards learned from your records';
   allNights.hidden = true;
   footer.append(refresh, allNights);
-  // At the top: players a known card paid for on this date who are not on tonight's lists yet, with RR and Open buttons,
-  // as Voice signups have. A press only adds them to this device's draft or Open Play, like the directory's buttons.
+  // At the top: players a known card paid for on this date (or who paid ahead online, picking their name) who are not on
+  // tonight's lists yet, with RR and Open buttons, as Voice signups have. A press only adds them to this device's draft or Open Play, like the directory's buttons.
   var arrivals = document.createElement('div');
   arrivals.className = 'clover-arrivals';
   arrivals.hidden = true;
@@ -3498,7 +3498,8 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
   var REASONS = {
     credit: 'Credit marked at the same time', card: 'card used before', customer: 'Clover customer before', phone: 'phone used before', email: 'email used before',
     name: 'name on card', initial: 'initial and last name on card', 'customer-name': 'Clover customer name',
-    'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays for', hand: 'matched at the desk'
+    'customer-initial': 'Clover customer initial and last name', 'pays-for': 'pays for', hand: 'matched at the desk',
+    prepay: 'paid ahead online'
   };
   var REJECTED = /Clover matching is off|already matched|Already has a Clover payment|Not a completed card payment|no such payment|undo the match first|Choose who this Clover payment|Unknown or inactive player|Zeffy play pass covers|CLOVER_|Session date must/;
   var state = null;
@@ -3557,7 +3558,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
     amount.textContent = money(item.net);
     var card = document.createElement('span');
     card.className = 'clover-card';
-    card.textContent = item.card;
+    card.textContent = item.prepay ? 'Paid ahead online' + (item.card ? ' \u00b7 ' + item.card : '') : item.card;
     var time = document.createElement('time');
     time.dateTime = new Date(item.time).toISOString();
     time.textContent = item.clock;
@@ -3880,7 +3881,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       var name = document.createElement('strong');
       name.textContent = nameOf(entry.id);
       var paid = document.createElement('span');
-      paid.textContent = 'Paid ' + money(entry.item.net) + ' by card at ' + entry.item.clock + (entry.item.playerIds.length > 1 ? ' for ' + entry.item.playerIds.length : '');
+      paid.textContent = (entry.item.prepay ? 'Paid ahead online, ' + money(entry.item.net) + ' (' + entry.item.prepay.kind + ') at ' : 'Paid ' + money(entry.item.net) + ' by card at ') + entry.item.clock + (entry.item.playerIds.length > 1 ? ' for ' + entry.item.playerIds.length : '');
       who.append(name, paid);
       var actions = document.createElement('div');
       actions.className = 'clover-arrival-actions';
@@ -3893,7 +3894,7 @@ button.winner-badge:focus-visible{outline:2px solid var(--green);outline-offset:
       return li;
     }));
     arrivals.hidden = !found.length;
-    arrivalsTitle.textContent = 'Paid by card, not checked in (' + found.length + ')';
+    arrivalsTitle.textContent = 'Paid, not checked in (' + found.length + ')';
   }
 
   function addArrival(id, where) {

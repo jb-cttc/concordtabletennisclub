@@ -242,14 +242,19 @@ looks off, pay at the desk as usual.* On other days it is not shown at all.
    tonight by card. Just check in at the desk*, with a link to text the club
    so they count on the Tonight page. Cancelled or declined, the page says
    nothing was charged.
-6. The desk's Clover section reads the payment with every other Clover
-   payment and matches it by the checkout's customer name and the amount
-   (`docs/clover-payments.md`): a player who paid ahead shows **Credit ✓** as
-   soon as they are signed in. A wrong fee (a visitor who chose Member), or a
-   name the desk cannot place, waits for the organizer like any payment.
+6. The checkout's one line carries the night, the fee and the name picked
+   (*CTTC round robin, Mon Nov 23*, *Member: Ada Every*). The desk's Clover
+   section reads that line with tonight's payments and matches the payment to
+   exactly that player, before any card it knows (`docs/clover-payments.md`,
+   rule 0): they are listed under **Paid, not checked in** with **RR** and
+   **Open** until signed in, then show **Credit ✓**. A wrong fee (a visitor
+   who chose Member), or a name the desk cannot place, waits for the organizer
+   saying it was paid ahead, as what and for whom.
 
 The page never learns whether a name is in the directory or what anyone's
 status is: the app does not look names up, and the desk checks the amount.
+`check-turnout-app.cjs` checks that what the app writes on the order reads
+back at the desk (`cloverPrepayOf_`) for every fee.
 
 **Setup (owner, done November 2026).** In this project's **Project Settings
 > Script properties**: `CLOVER_CHECKOUT_TOKEN`, the Clover Ecommerce private

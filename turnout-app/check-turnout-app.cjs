@@ -452,6 +452,18 @@ assert.deepEqual(prepay(ada), { ok: false, reason: 'busy', error: 'Paying ahead 
 assert.equal(startedCount(), n);
 assert.equal(rowsOf('prepay_cap_reached').length, 1);
 
+// What the checkout writes on Clover's order is what the desk reads back (apps-script/CloverPayments.js, cloverPrepayOf_):
+// every fee, and names as players pick or type them.
+const deskSource = fs.readFileSync(__dirname + '/../apps-script/CloverPayments.js', 'utf8');
+const deskReader = {};
+vm.runInNewContext(/var CLOVER_PREPAY_LINE_ = [^\n]+\nvar CLOVER_PREPAY_NOTE_ = [^\n]+\nfunction cloverPrepayOf_\([\s\S]*?\n}\n/.exec(deskSource)[0], deskReader);
+Object.keys(context.PREPAY_KINDS).forEach(kind => {
+  ['Ada Every', 'José Núñez', "Mary-Kate O'Neil", 'Prince'].forEach(name => {
+    const line = JSON.parse(JSON.stringify(context.prepayCheckout_(name, kind, '2026-11-23', 10))).shoppingCart.lineItems[0];
+    assert.deepEqual(JSON.parse(JSON.stringify(deskReader.cloverPrepayOf_({ lineItems: { elements: [line] } }))), { kind: context.PREPAY_KINDS[kind], name }, kind + ' ' + name + ' reads back at the desk');
+  });
+});
+
 // The log never holds a name or the token.
 const allLog = JSON.stringify(logRows());
 ['Ada', 'Every', 'José', 'Prince', 'tok-secret'].forEach(word => assert.ok(!allLog.includes(word), word + ' is not in the log'));
