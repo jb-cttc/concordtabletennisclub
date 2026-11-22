@@ -58,12 +58,17 @@ permissions. `ratingSyncStatus` reports the installed trigger and last check.
 `apps-script/Organizer.html` holds the rules, tested by `check-organizer.cjs`:
 
 - Groups by rating in the organizer's chosen size: **Groups of 5, 6 or 7** in the
-  desk toolbar (6 by default) means groups of that size or one smaller, as few
-  groups as possible. Choosing a size rebuilds the groups like **Rebuild by
-  rating**; late arrivals then fill groups up to that size. The desk flags any
-  group outside the range. The choice is kept per night on that device; another
-  device reads it off the saved groups (all 7 or 6 means 7, all 5 or 4 means 5),
-  and a new night starts at 6. A sheet for a group of 7 (21 matches) uses
+  desk toolbar (6 by default). On 5 or 6 it means groups of that size or one
+  smaller, as few groups as possible. On 7, Groups 1–3 (tables 1–3) hold at
+  most 6 and the other groups up to 7 (executive committee, November 2026): as
+  few groups as hold everyone, as even as possible, with the larger groups from
+  the lowest-rated up. 39 players are 6, 6, 6, 7, 7, 7; 40 are 5, 5, 6, 6, 6,
+  6, 6. It never makes more groups than 6 would. Choosing a size rebuilds the
+  groups like **Rebuild by rating**; late arrivals then fill groups up to those
+  sizes. The desk flags any group outside the range (on 7: 5 or 6 in Groups
+  1–3, 5 to 7 below). The choice is kept per night on that device; another
+  device reads it off the saved groups (the size whose Rebuild gives those
+  groups; failing that, all 5 or 4 means 5), and a new night starts at 6. A sheet for a group of 7 (21 matches) uses
   tighter match rows so it still prints on one page.
 - Promotions: each winner (except Group 1) of the previous session on the same
   weekday, read from the public site, is guaranteed one group above the group

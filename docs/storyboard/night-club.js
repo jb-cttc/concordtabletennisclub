@@ -33,7 +33,7 @@ const phases = [
       caveats: ['Replies are read when the desk\'s mail reader wakes the volunteer app, within about 5 minutes by day.', 'A volunteer whose mobile is on file and who texted STAFF also gets the question by text (reply CONFIRM or RELEASE).'],
       exceptions: [
         X('The reply can\'t be read ("yes except when it rains")', 'Nothing changes; the volunteer is told once, with their nights and My nights link.', 'They use My nights, or the club uses **Correct a volunteer\'s answer** on the setup page.', 'handled', SF + ':265'),
-        X('The mail reader stops waking the app', 'Replies wait for the hourly sweep; the desk log records `app_wake_failed`.', 'Nothing urgent; confirmations arrive within the hour.', 'partial', OPS + ':432')],
+        X('The mail reader stops waking the app', 'Replies wait for the hourly sweep; the desk log records `app_wake_failed`.', 'Nothing urgent; confirmations arrive within the hour.', 'partial', OPS + ':437')],
       screen: { kind: 'email', status: 'Please confirm your CTTC volunteer nights', note: 'The confirm email listing each pick.' },
       tech: {
         entry: [E(SA, 3857, 'sweep', 'Hourly: expiries, retries, free spots, closures.'), E('apps-script/MailReader.js', 433, 'wakeApps_', 'Calls the staffing and coaching apps\' /exec when a text or a reply arrives.')],
@@ -51,7 +51,7 @@ const phases = [
         X('Nobody signs up for lock-up or the desk', 'The night stays at Needs people; the owner\'s daily summary lists it.', 'Share to WhatsApp, or ask someone trained directly.', 'partial', SF + ':359')],
       screen: { kind: 'calendar', highlight: ['legend', 'night'], note: 'Night markers: ! needs people, + minimum crew, ✓ fully staffed, × closed.' },
       tech: {
-        entry: [E('index.html', 333, 'prefetchBoard', 'Asks for the calendar once the home page has loaded; the app\'s page picks it up.'),
+        entry: [E('index.html', 334, 'prefetchBoard', 'Asks for the calendar once the home page has loaded; the app\'s page picks it up.'),
           E('staffing-app/Index.html', 900, 'firstBoard', 'Draws the early answer, or asks itself; a second request after 6 seconds.'),
           E(SA, 1151, 'cachedBoard_', 'One shared calendar in the script cache; save_ starts a new one on every Signups write.'),
           E(SA, 1189, 'boardLapse_', 'When the clock alone changes the calendar: tonight\'s cutoff, a pending deadline, midnight.'),
@@ -78,7 +78,7 @@ const phases = [
       summary: 'Under **Tonight\'s volunteers** the desk lists everyone signed up to open or close tonight, with their roles. Each has **RR** and **Open** buttons, because volunteers are busy setting up and often forget to sign in. Free volunteers carry a gold **★** and their payment button reads **★ FREE**.',
       subtext: 'The desk only reads the volunteer app\'s Sheet. A volunteer is at the gym, not necessarily playing: they count on the Tonight page only once added to RR.',
       caveats: ['The section needs the owner-set script property `CTTC_STAFFING_DB_ID`; without it, it says it is not connected.'],
-      exceptions: [X('A volunteer\'s name is not an active directory player', 'The row says so.', 'Find them under Show archived players, or add them under Add a player.', 'handled', OPS + ':492')],
+      exceptions: [X('A volunteer\'s name is not an active directory player', 'The row says so.', 'Find them under Show archived players, or add them under Add a player.', 'handled', OPS + ':497')],
       screen: { kind: 'desk', highlight: ['volunteers'], note: 'Tonight\'s volunteers with RR and Open beside each name.' },
       tech: {
         entry: [E('apps-script/Volunteers.js', 142, 'listVolunteers', 'Reads Signups for the date by header name; never emails or phones.'), E('apps-script/Volunteers.js', 17, 'staffingSignups_', 'Opens the staffing Sheet by CTTC_STAFFING_DB_ID.')],
@@ -114,6 +114,23 @@ const phases = [
         entry: [E('text.html', 1, '', 'The Text CTTC home screen icon.'), E('apps-script/VoiceSuggestions.js', 15, 'VOICE_JOINING_', 'What counts as "coming".'), E('apps-script/VoiceSuggestions.js', 18, 'VOICE_COMMAND_', 'Commands for other apps.')],
         state: [], writes: [], reads: [], invariants: ['A command for another app is never counted as joining.'], limits: [],
         tests: [T('apps-script/check-voice-service.cjs', '', 'Joining, not coming, commands.')], untested: [], simulate: 'check-voice-service.cjs fixtures.' } },
+    { id: 'text-1-prepay', title: 'A player pays for tonight ahead, by card', who: 'Player', when: 'Round robin day, until 8:30 PM',
+      summary: 'A pilot (November 2026), kept quiet on purpose. In the **Want to be included?** box on the home and Round Robins pages (and on the text page, seen after sending), a small **PILOT Or pay ahead by card** link opens **PILOT Pay ahead by card**, below Venmo and Zelle: on the home page in its own **Pay now: Venmo or Zelle** under Fees (which the **Pay in advance** tip also opens), elsewhere on the pay page, with *We\'re trying out paying online before you arrive. If anything looks off, pay at the desk as usual.* The player chooses who\'s playing (Member $10, Visitor $15, First visit $10, Under 18 $5, or the night\'s special), picks their name from the club\'s player list or types it with **Not in the list? I\'m new**, checks the line *Ada Every · Member · round robin Mon, Nov 23* and presses **Pay $10 by card**. They pay on Clover\'s page and come back to **Paid for tonight by card. Just check in at the desk.**, which asks them to show the page or Clover\'s receipt if the desk does not show them as paid.',
+      subtext: 'The turnout app works out the price itself and asks Clover for the checkout, writing the night, the fee and the name picked on the order. The desk reads that line with tonight\'s Clover payments and matches the payment to exactly that player, before any card it knows: they show under **Paid, not checked in** with RR and Open until signed in, then Credit ✓.',
+      caveats: ['Only on a round robin day the gym is open, until 8:30 PM (6 PM on Saturday, when the round robin ends); the links in the Want to be included? box show only then.', 'Paying does not count them on the Tonight page; the Paid message offers the text for that.', 'A Zeffy pass holder or a volunteer playing free has nothing to pay.'],
+      exceptions: [
+        X('The player chose the wrong fee, or typed a name the desk does not know', 'The payment is not matched by itself: it waits in the desk\'s Clover section, saying it was paid ahead, as what and for whom, with the player ticked when the name is theirs.', 'Match it there, as for any Clover payment.', 'handled', 'docs/clover-payments.md:100'),
+        X('Clover or the setup fails, or 150 checkouts were started today', '*Card payment is not available right now* (or *not available right now* for the cap); nothing is charged, and the turnout log says why.', 'Pay at the desk.', 'handled', 'turnout-app/Prepay.js:37'),
+        X('The page was left open from another day, or shows an old price', '*This page is out of date* / *Tonight\'s price is $10. Reload the page and try again.*', 'Reload.', 'handled', 'turnout-app/Prepay.js:37')],
+      screen: { kind: 'site', note: 'The pay page: who\'s playing, the Pilot card option, the name picker and Pay $10 by card.' },
+      tech: {
+        entry: [E('text.html', 28, 'text-cttc-pay', 'The link under the Text button.'), E('pay.js', 217, 'Card, ahead of time', 'The pilot option: name picker, review, the request.'), E('pay.js', 167, 'returned', 'Back from Clover: paid, cancelled, declined.'), E('turnout-app/Code.js', 44, 'doGet', '?prepay=1 goes to Prepay.js.'), E('turnout-app/Prepay.js', 37, 'prepay_', 'Checks, price, the Clover checkout, the log.'), E('turnout-app/Prepay.js', 107, 'prepayOpen_', 'Round robin day, open, before 8:30 PM.'), E('turnout-app/Prepay.js', 112, 'prepayFee_', 'The desk\'s fees and specials.')],
+        state: ['PREPAY_COUNT_<date> (turnout app Script Properties)', 'cttc-pay-name (the phone remembers the name)'], writes: ['Turnout log: prepay_started, prepay_failed, prepay_cap_near, prepay_cap_reached'], reads: ['site data/player-index.json, data/closures.json', 'Script Properties: CLOVER_CHECKOUT_TOKEN, CLOVER_MERCHANT_ID'],
+        invariants: ['What the checkout writes on the order is what the desk reads back, for every fee and name.', 'The amount charged is the turnout app\'s own price from the desk\'s fees; a page showing another amount, or another day, is refused and nothing is started.', 'What the page sends is what the player confirmed: the name, the fee, today and the amount on the button.', 'Paying ahead starts only on an open round robin day before 8:30 PM.', 'No card number reaches the site or Google, and the app answers only a Clover address.', 'The turnout log never holds a name or the token.', 'At most 150 checkouts are started a day.'],
+        limits: ['1 Google web call per checkout, 150 a day at most (docs/google-limits.md).', 'A Clover checkout page lasts 15 minutes.'],
+        tests: [T('turnout-app/check-turnout-app.cjs', '', 'Price, open hours, closed nights, refusals, the request to Clover, the cap, no names in the log, and that the desk reads the line back.'), T('apps-script/check-clover-payments.cjs', '', 'The desk matching a paid-ahead payment by the name picked.'), T('scripts/check-pay-page.js', '', 'The name picker, the review, what is sent, refusals, the way back from Clover.')],
+        untested: ['That Clover keeps the checkout\'s line (name and note) on the payment\'s order, which the desk reads to know who paid ahead: confirm with the first real payment.', 'Clover\'s production address for Hosted Checkout (its docs give only the sandbox address).'],
+        simulate: 'check-pay-page.js (fake turnout app) and check-turnout-app.cjs (fake Clover); for real, one paid and refunded checkout from the pay page against the /dev turnout app.' } },
     { id: 'text-2-read', title: 'The mail reader collects the text', who: 'Timer', when: 'Within a minute near sign-up',
       summary: 'One job in the desk reads new mail and saves forwarded texts to the private **VoiceTexts** tab. It runs every minute in the 4 hours before sign-up closes, every 5 minutes otherwise, every 30 at night. Every other app reads texts from that tab, never from Gmail.',
       subtext: 'Before October 2026 each app searched Gmail on its own every minute and the club ran out of its daily Gmail allowance on round robin nights. One reader fixed that; it is now a single point everything depends on.',
@@ -144,11 +161,11 @@ const phases = [
       subtext: 'It shows counts only, never a name. Players use it to decide whether to come; the desk can use it to expect how many groups.',
       caveats: ['Someone whose text could not be matched shows at the front desk ("New faces") and, after signing in, is counted twice until the next day.', 'After sign-up closes (7:15 PM, 3:15 PM Saturday) the forecast drops and only players are shown.'],
       exceptions: [
-        X('The turnout app cannot be reached', '**Live sign-ins are not showing right now**, with the forecast from the site\'s own files.', 'Nothing at the desk is affected.', 'handled', TF + ':195'),
-        X('A texter shows at the front desk instead of their zone', 'Their Voice contact name does not match one player.', 'Link the name with the directory pencil\'s **Other names**. (The guide still says to add an Aliases row in the Sheet: see findings.)', 'partial', TF + ':200')],
+        X('The turnout app cannot be reached', '**Live sign-ins are not showing right now**, with the forecast from the site\'s own files.', 'Nothing at the desk is affected.', 'handled', TF + ':201'),
+        X('A texter shows at the front desk instead of their zone', 'Their Voice contact name does not match one player.', 'Link the name with the directory pencil\'s **Other names**. (The guide still says to add an Aliases row in the Sheet: see findings.)', 'partial', TF + ':206')],
       screen: { kind: 'tonight', note: 'The gym floor: one court per rating zone, solid, ghost and chalk figures.' },
       tech: {
-        entry: [E('tonight.html', 114, 'TURNOUT_URL', 'Asks the turnout app every 60 s.'), E('turnout-app/Code.js', 46, 'turnout', 'Counts by zone, cached 60 s; no names.'), E('turnout.js', 97, 'likelihood', 'Weighted attendance over the last 8 same-weekday nights.'), E('turnout.js', 126, 'expectedTotal', 'The usual turnout for the weekday.'), E('turnout.js', 30, 'NIGHTS', 'Which days and times count.')],
+        entry: [E('tonight.html', 114, 'TURNOUT_URL', 'Asks the turnout app every 60 s.'), E('turnout-app/Code.js', 52, 'turnout', 'Counts by zone, cached 60 s; no names.'), E('turnout.js', 97, 'likelihood', 'Weighted attendance over the last 8 same-weekday nights.'), E('turnout.js', 126, 'expectedTotal', 'The usual turnout for the weekday.'), E('turnout.js', 30, 'NIGHTS', 'Which days and times count.')],
         state: [], writes: ['Turnout log'], reads: ['Desk Sheet: Sessions, SessionPlayers, VoiceTexts, Players, Aliases', 'site data/session-roster.json'],
         invariants: ['The page never shows a name, number, player id or text.', 'Each person counts once, at their firmest status: signed in, then texted, then likely.'],
         limits: ['60 s cache on Google; the page asks every minute.'],
@@ -158,17 +175,17 @@ const phases = [
       summary: 'The desk lists every text received today, grouped by sender, with likely directory matches. **✓** means the text says they are coming and the contact name is exactly one player; **?** means look first. **Add all ✓** signs in every ✓ sender not already placed; each sender also has **RR**.',
       subtext: 'From 6:45 to 7:30 PM (2:45 to 3:30 PM Saturday) the list refreshes itself every minute and highlights anyone new.',
       caveats: ['Texts from coaches and students with a lesson today are left out; they are under Open Play / Coaching.', 'Signing someone in sends them **Confirmed.** unless the automatic answer already went.'],
-      exceptions: [X('The same person texts and also signs in at the desk', 'They are placed once; the RR button gives way to In RR.', 'Nothing to do.', 'handled', OPS + ':465')],
+      exceptions: [X('The same person texts and also signs in at the desk', 'They are placed once; the RR button gives way to In RR.', 'Nothing to do.', 'handled', OPS + ':470')],
       screen: { kind: 'desk', highlight: ['voice'], note: 'Voice signups with ✓ and ? marks and Add all ✓.' },
       tech: {
-        entry: [E('apps-script/VoiceSuggestions.js', 109, 'voiceSenders_', 'Texts for the date, by sender.'), E('apps-script/VoiceSuggestions.js', 129, 'voiceMatcher_', 'Contact name to player, through Aliases and name links.'), E('apps-script/Index.html', 4419, 'POLL_DAYS', 'When the list refreshes by itself.')],
+        entry: [E('apps-script/VoiceSuggestions.js', 109, 'voiceSenders_', 'Texts for the date, by sender.'), E('apps-script/VoiceSuggestions.js', 129, 'voiceMatcher_', 'Contact name to player, through Aliases and name links.'), E('apps-script/Index.html', 4430, 'POLL_DAYS', 'When the list refreshes by itself.')],
         state: [], writes: ['Confirmed. reply'], reads: ['VoiceTexts'],
         invariants: ['Add all never adds a ? sender.'], limits: [],
         tests: [T('apps-script/check-voice-service.cjs', '', 'Matching and marks.')], untested: [], simulate: 'check-voice-service.cjs.' } }
   ],
   findings: [
-    { severity: 'low', kind: 'doc-mismatch', title: 'Two guides tell people to add an Aliases row in the Sheet', detail: 'The Tonight page guide ("Add an Aliases row in the desk Sheet") and the automatic answers section ("or add an Aliases row") send people to edit the Sheet by hand, against the club\'s rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.', evidence: [TF + ':200', OPS + ':537', 'apps-script/PlayerEdits.js:71'], confirmed: 'read docs and code', suggest: 'Change both lines to point to the directory pencil\'s Other names.' },
-    { severity: 'low', kind: 'fragile', title: 'The round robin schedule is copied in three places', detail: 'NIGHTS in turnout.js, VOICE_REPLY_DAYS in the desk\'s automatic answers and POLL_DAYS in the desk page each hold the days and sign-up times. The guide says to change all three together; nothing checks it. A new Friday round robin added to one would leave texts unanswered or the Tonight page on the wrong night.', evidence: ['turnout.js:30', 'apps-script/VoiceAutoReply.js:24', 'apps-script/Index.html:4419'], confirmed: 'read code only', suggest: 'One shared schedule file, or a check comparing the three.' }
+    { severity: 'low', kind: 'doc-mismatch', title: 'Two guides tell people to add an Aliases row in the Sheet', detail: 'The Tonight page guide ("Add an Aliases row in the desk Sheet") and the automatic answers section ("or add an Aliases row") send people to edit the Sheet by hand, against the club\'s rule. A desk control already does this: the pencil beside a name in the directory, **Other names**, with Review and Confirm.', evidence: [TF + ':206', OPS + ':542', 'apps-script/PlayerEdits.js:71'], confirmed: 'read docs and code', suggest: 'Change both lines to point to the directory pencil\'s Other names.' },
+    { severity: 'low', kind: 'fragile', title: 'The round robin schedule is copied in three places', detail: 'NIGHTS in turnout.js, VOICE_REPLY_DAYS in the desk\'s automatic answers and POLL_DAYS in the desk page each hold the days and sign-up times. The guide says to change all three together; nothing checks it. A new Friday round robin added to one would leave texts unanswered or the Tonight page on the wrong night.', evidence: ['turnout.js:30', 'apps-script/VoiceAutoReply.js:24', 'apps-script/Index.html:4430'], confirmed: 'read code only', suggest: 'One shared schedule file, or a check comparing the three.' }
   ]
 },
 {
@@ -206,11 +223,11 @@ const phases = [
       subtext: 'Coaching students are club players at a club night; they pay the night\'s fee at the desk and their texts are left out of Voice signups.',
       caveats: ['Needs the owner-set script property `CTTC_COACHING_DB_ID`; without it the list is simply empty.', 'The desk shows the coach and the time, not the table number the lesson was booked on.'],
       exceptions: [
-        X('A student\'s name is not in the directory', 'The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**', 'Add them under Add a player.', 'handled', 'apps-script/Index.html:4237'),
-        X('The coaching Sheet cannot be read', 'The status bar is overwritten with **Coaching lessons unavailable:** and the error.', 'Reload; check with the owner if it persists.', 'partial', 'apps-script/Index.html:4270')],
+        X('A student\'s name is not in the directory', 'The row has no player link; hovering says **Not matched to the directory. Add them under Add a player to track payment.**', 'Add them under Add a player.', 'handled', 'apps-script/Index.html:4248'),
+        X('The coaching Sheet cannot be read', 'The status bar is overwritten with **Coaching lessons unavailable:** and the error.', 'Reload; check with the owner if it persists.', 'partial', 'apps-script/Index.html:4281')],
       screen: { kind: 'desk', highlight: ['open-play'], note: 'Open Play / Coaching with the night\'s confirmed lessons.' },
       tech: {
-        entry: [E('apps-script/Coaching.js', 3, 'coachingLessons_', 'Confirmed Requests for the date, with coach and student; reads by CTTC_COACHING_DB_ID.'), E('apps-script/Coaching.js', 44, 'getCoachingParticipants', 'Matches each name to one directory player.'), E('apps-script/Index.html', 4217, 'renderOpen', 'Lists lessons first, then players added with Open.')],
+        entry: [E('apps-script/Coaching.js', 3, 'coachingLessons_', 'Confirmed Requests for the date, with coach and student; reads by CTTC_COACHING_DB_ID.'), E('apps-script/Coaching.js', 44, 'getCoachingParticipants', 'Matches each name to one directory player.'), E('apps-script/Index.html', 4228, 'renderOpen', 'Lists lessons first, then players added with Open.')],
         state: ['coaching (per page)'], writes: ['None (read-only).'], reads: ['Coaching Sheet: Requests, Coaches, Students'],
         invariants: ['Every lesson confirmed for tonight appears at the desk.', 'The desk never writes to the coaching Sheet.'],
         limits: [], tests: [T('apps-script/check-open-play.cjs', '', 'Open Play and the coaching list.')],
@@ -229,7 +246,7 @@ const phases = [
   ],
   findings: [
     { severity: 'medium', kind: 'design-gap', title: 'The desk does not show which table a lesson is booked on', detail: 'A lesson is booked on table 1, 2 or 3 (Availability.table), but the desk\'s lesson rows carry only the coach and time. On a Saturday the round robin and lessons share the 3–6 PM window: the organizer can print groups onto a table a coach expects at 3:30.', evidence: ['apps-script/Coaching.js:29', CA + ':117'], confirmed: 'read code only', suggest: 'Carry the table into coachingLessons_ and show "Table 2, 3:30–4:30 PM" on the desk; on Saturdays, note lesson tables beside Print RR Sheets.' },
-    { severity: 'low', kind: 'fragile', title: '"Coaching lessons unavailable" writes over the status bar', detail: 'If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.', evidence: ['apps-script/Index.html:4270'], confirmed: 'read code only', suggest: 'Use the page\'s setStatus, or show it inside the Open Play / Coaching section.' }
+    { severity: 'low', kind: 'fragile', title: '"Coaching lessons unavailable" writes over the status bar', detail: 'If the coaching Sheet cannot be read, the page writes the error straight into the status bar, replacing whatever it said (for example the offline warning), and nothing clears it.', evidence: ['apps-script/Index.html:4281'], confirmed: 'read code only', suggest: 'Use the page\'s setStatus, or show it inside the Open Play / Coaching section.' }
   ]
 }
 ];
@@ -246,7 +263,7 @@ const map = {
     { id: 'turnout', label: 'Tonight page', sub: 'tonight.html + turnout-app/' },
     { id: 'board', label: 'Projector', sub: 'Player board, follow mode' },
     { id: 'site', label: 'Club site', sub: 'GitHub Pages, data/*.json' },
-    { id: 'pay', label: 'Clover and Zeffy', sub: 'card reader, monthly passes' }
+    { id: 'pay', label: 'Clover and Zeffy', sub: 'card reader, online checkout, monthly passes' }
   ],
   links: [
     ['Players', 'Google Voice → Club Gmail', 'Texts: "I\'ll join", STAFF, COACH, CONFIRM, YES/NO', 'As sent', 'Nobody learns who is coming'],
@@ -260,7 +277,9 @@ const map = {
     ['Club site', 'Desk', 'Ratings (players.json), last week\'s winners (session details), closures', 'On load and hourly', 'Stale ratings; no promotions'],
     ['Desk', 'Projector', 'Every saved change, via stamps', 'Every 10 s', 'The projector shows the last picture'],
     ['Desk (finalize)', 'GitHub workflow → Club site', 'The finalized night, ratings, the results email', '2 minutes after finalize', 'Results not on the site; next week\'s promotions missing'],
-    ['Clover, Zeffy', 'Desk', 'Card payments and monthly passes', 'Every minute on the night; Zeffy by email', 'Payments to check by hand']
+    ['Clover, Zeffy', 'Desk', 'Card payments and monthly passes', 'Every minute on the night; Zeffy by email', 'Payments to check by hand'],
+    ['Players (pay page)', 'Turnout app → Clover Hosted Checkout', 'Pay ahead: name, fee, date and amount; back, a checkout page', 'When a player pays ahead', 'Players pay at the desk instead'],
+    ['Clover order (paid ahead)', 'Desk Clover section', 'The order\'s line: the night, the fee and the name picked', 'Every minute on the night, with the payments', 'The payment matches by card or name as before, or waits for the organizer']
   ]
 };
 module.exports = { phases, map };

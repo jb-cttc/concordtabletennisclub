@@ -105,14 +105,31 @@ function cloverList_(config, path, filters, expand) {
   throw new Error('Clover returned more records than the desk reads at once; choose a shorter range.');
 }
 
+// Paying ahead on the site (turnout-app/Prepay.js, prepayCheckout_) puts one line on its Clover order: the name
+// 'CTTC round robin, Mon Nov 23' and the note '<fee>: <name picked>', the name as the round robin results show it (or
+// typed by a new player). check-turnout-app.cjs checks that what Prepay.js sends reads back here.
+var CLOVER_PREPAY_LINE_ = /^CTTC round robin, /;
+var CLOVER_PREPAY_NOTE_ = /^(Member|Visitor|First visit|Under 18): (.+)$/;
+function cloverPrepayOf_(order) {
+  var lines = (order && order.lineItems && order.lineItems.elements) || [];
+  for (var i = 0; i < lines.length; i += 1) {
+    var note = CLOVER_PREPAY_NOTE_.exec(String(lines[i].note || '').trim());
+    if (CLOVER_PREPAY_LINE_.test(String(lines[i].name || '')) && note) return { kind: note[1], name: note[2].trim() };
+  }
+  return null;
+}
+
 // Customer records hold the name, phone and email a payer gave for a receipt. Orders say which customer, so the
 // orders are read for the same window (from a few hours earlier, as a sale is opened before it is paid), then each
-// customer once.
+// customer once. The same read brings each order's lines, for paying ahead (cloverPrepayOf_): byOrder.prepays.
 function cloverCustomersByOrder_(config, fromMs, toMs) {
-  var orders = cloverList_(config, '/orders', ['createdTime>=' + (fromMs - 6 * 3600000), 'createdTime<' + toMs], 'customers');
+  var orders = cloverList_(config, '/orders', ['createdTime>=' + (fromMs - 6 * 3600000), 'createdTime<' + toMs], 'customers,lineItems');
   var customerOfOrder = {};
   var wanted = {};
+  var prepays = {};
   orders.forEach(function (order) {
+    var prepay = cloverPrepayOf_(order);
+    if (order.id && prepay) prepays[order.id] = prepay;
     var first = ((order.customers && order.customers.elements) || [])[0];
     if (!order.id || !first || !first.id) return;
     customerOfOrder[order.id] = first.id;
@@ -145,6 +162,7 @@ function cloverCustomersByOrder_(config, fromMs, toMs) {
   }
   var byOrder = {};
   Object.keys(customerOfOrder).forEach(function (orderId) { if (customers[customerOfOrder[orderId]]) byOrder[orderId] = customers[customerOfOrder[orderId]]; });
+  Object.defineProperty(byOrder, 'prepays', { value: prepays, enumerable: false });
   return byOrder;
 }
 
@@ -156,13 +174,13 @@ function cloverPaymentsBetween_(config, fromDate, toDate) {
   var toMs = Date.parse(toDate + 'T00:00:00Z') + 2 * 86400000;
   var raw = cloverList_(config, '/payments', ['createdTime>=' + fromMs, 'createdTime<' + toMs], 'cardTransaction,refunds');
   var customers = raw.length ? cloverCustomersByOrder_(config, fromMs, toMs) : {};
-  return raw.map(function (payment) { return cloverPayment_(payment, customers, timeZone); })
+  return raw.map(function (payment) { return cloverPayment_(payment, customers, timeZone, customers.prepays); })
   .filter(function (payment) { return payment.date >= fromDate && payment.date <= toDate; })
   .sort(function (left, right) { return left.time - right.time; });
 }
 
-// The parts of a Clover payment the desk uses. Amounts stay in cents.
-function cloverPayment_(raw, customersByOrder, timeZone) {
+// The parts of a Clover payment the desk uses. Amounts stay in cents. prepaysByOrder: paid ahead on the site.
+function cloverPayment_(raw, customersByOrder, timeZone, prepaysByOrder) {
   var card = raw.cardTransaction || null;
   var amount = Number(raw.amount) || 0;
   var refunded = ((raw.refunds && raw.refunds.elements) || []).reduce(function (sum, refund) { return sum + (Number(refund.amount) || 0); }, 0);
@@ -187,7 +205,8 @@ function cloverPayment_(raw, customersByOrder, timeZone) {
     first6: card ? digits(card.first6) : '',
     last4: card ? digits(card.last4) : '',
     cardholder: card ? normalizeName_(card.cardholderName) : '',
-    customer: (raw.order && raw.order.id && customersByOrder[raw.order.id]) || null
+    customer: (raw.order && raw.order.id && customersByOrder[raw.order.id]) || null,
+    prepay: (raw.order && raw.order.id && prepaysByOrder && prepaysByOrder[raw.order.id]) || null
   };
 }
 
@@ -265,6 +284,13 @@ function cloverByName_(name, index) {
 }
 
 function cloverIdentify_(payment, context) {
+  // Paid ahead on the site: the player picked their name, so that name decides, before any card, and only an exact
+  // name or alias counts.
+  if (payment.prepay) {
+    var picked = cloverByName_(payment.prepay.name, context.index);
+    if (picked.playerId && picked.reason === 'name') return { playerId: picked.playerId, reason: 'prepay' };
+    return { playerId: '', candidates: picked.playerId ? [picked.playerId] : picked.candidates, prepay: true };
+  }
   var ambiguousLink = false;
   var keys = cloverPaymentKeys_(payment);
   for (var i = 0; i < keys.length; i += 1) {
@@ -322,29 +348,34 @@ function cloverMatchNight_(payments, context) {
   var rows = payments.slice().sort(function (left, right) { return left.time - right.time; }).map(function (payment) {
     var row = { payment: payment, state: '', reason: '', payerId: '', playerIds: [], note: '', suggestions: [], notCheckedIn: [] };
     var dollars = payment.net / 100;
-    if (payment.kind !== 'card') return Object.assign(row, { state: 'ignored', note: payment.kind === 'cash' ? 'Cash entered on Clover' : 'Not a card payment' });
+    if (payment.kind !== 'card' && !payment.prepay) return Object.assign(row, { state: 'ignored', note: payment.kind === 'cash' ? 'Cash entered on Clover' : 'Not a card payment' });
     if (payment.state !== 'paid') return Object.assign(row, { state: 'ignored', note: { refunded: 'Refunded', voided: 'Voided', failed: 'Declined', pending: 'Not completed' }[payment.state] });
     var who = cloverIdentify_(payment, context);
+    var ahead = payment.prepay ? 'Paid ahead online as \u201c' + payment.prepay.name + '\u201d (' + payment.prepay.kind + ')' : '';
     if (!who.playerId) {
       row.state = 'unmatched';
-      row.note = who.candidates.length ? 'The name fits more than one player' : who.ambiguousLink ? 'This card has paid for more than one player' : 'No player found';
+      row.note = ahead ? ahead + (who.candidates.length ? ': close to the name of the player suggested. Check who it is.' : ': no player has that name yet. Add them, then tick who it is for.')
+        : who.candidates.length ? 'The name fits more than one player' : who.ambiguousLink ? 'This card has paid for more than one player' : 'No player found';
       row.suggestions = who.candidates.length ? who.candidates : [];
       return row;
     }
     row.payerId = who.playerId;
     row.reason = who.reason;
-    var group = cloverCoveredGroup_(who.playerId, dollars, context);
+    // Paid ahead covers the player who picked their name, at their fee; anything else is the organizer's to decide.
+    var group = who.reason === 'prepay' ? (cloverFee_(who.playerId, context) === dollars ? [who.playerId] : null) : cloverCoveredGroup_(who.playerId, dollars, context);
     // A Zeffy pass holder's own card, with no link that adds up: it paid for someone else. The card's owner is shown, never
     // ticked (Credit cannot be recorded for them), and the organizer chooses who it was for.
-    if (!group && context.covered[who.playerId]) {
+    if (!group && context.covered[who.playerId] && who.reason !== 'prepay') {
       return Object.assign(row, { state: 'needs-action', payerCovered: true, note: '{player} has a Zeffy play pass, so their card paid for someone else. Who?', notePlayerId: who.playerId });
     }
     if (!group) {
       var fee = cloverFee_(who.playerId, context);
       row.state = 'needs-action';
       row.playerIds = [who.playerId];
-      row.note = dollars > fee ? 'Paid ' + cloverMoney_(dollars) + ', fee is ' + cloverMoney_(fee) + ': ' + cloverMoney_(dollars - fee) + ' more. Who else does it cover?'
+      row.note = ahead ? ahead + ': paid ' + cloverMoney_(dollars) + ', {player}\u2019s fee is ' + cloverMoney_(fee) + '. Check it, then Match.'
+        : dollars > fee ? 'Paid ' + cloverMoney_(dollars) + ', fee is ' + cloverMoney_(fee) + ': ' + cloverMoney_(dollars - fee) + ' more. Who else does it cover?'
         : 'Paid ' + cloverMoney_(dollars) + ', fee is ' + cloverMoney_(fee);
+      if (ahead) row.notePlayerId = who.playerId;
       return row;
     }
     row.playerIds = group;
@@ -818,7 +849,7 @@ function cloverRecent_(sessionDate) {
   return sessionDate === today || sessionDate === yesterday;
 }
 var CLOVER_REASON_WORDS_ = { credit: 'a Credit marked by hand at the same time', card: 'a card used before', customer: 'a Clover customer seen before', phone: 'a phone used before', email: 'an email used before', name: 'the name on the card',
-  initial: 'the initial and last name on the card', 'customer-name': 'the Clover customer name', 'customer-initial': 'the Clover customer\'s initial and last name', 'pays-for': 'a pays_for link' };
+  prepay: 'the name picked when paying ahead online', initial: 'the initial and last name on the card', 'customer-name': 'the Clover customer name', 'customer-initial': 'the Clover customer\'s initial and last name', 'pays-for': 'a pays_for link' };
 
 // What the Clover section shows for the night, newest payment first. Each item's state:
 //   matched     recorded as Credit (or, before CLOVER_ENABLED, would be); changed lists players since marked otherwise;
@@ -1485,6 +1516,8 @@ function cloverReportRow_(row) {
     likelyAt: row.likelyAt || 0,
     pairs: row.pairs || [],
     notCheckedIn: row.notCheckedIn,
-    verdicts: row.verdicts || []
+    verdicts: row.verdicts || [],
+    // Paid ahead on the site: the fee and name the player picked.
+    prepay: payment.prepay || null
   };
 }

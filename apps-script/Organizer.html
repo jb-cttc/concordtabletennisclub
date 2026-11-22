@@ -1,22 +1,34 @@
 <script>
 (function (root) {
-  // The organizer's group size preference: 5, 6 (the default) or 7. Groups are that size or one smaller, as few groups as
-  // possible; a night too small for that gets smaller groups.
+  // The organizer's group size preference: 5, 6 (the default) or 7. On 5 or 6, groups are that size or one smaller, as
+  // few groups as possible; a night too small for that gets smaller groups. On 7, Groups 1-3 (tables 1-3) hold at most
+  // 6 and the others up to 7 (executive committee, 21 November 2026): see sizeGroups.
   var GROUP_SIZES = [5, 6, 7];
   var DEFAULT_GROUP_SIZE = 6;
+  var TOP_TABLES = 3;
   function groupSize(preferred) {
     return GROUP_SIZES.indexOf(Number(preferred)) >= 0 ? Number(preferred) : DEFAULT_GROUP_SIZE;
   }
 
-  // Whether a group of this size is outside the preferred range (the desk flags it for a rebalance).
-  function outOfRange(size, preferred) {
+  // The most players the group at this index (0 is Group 1) takes before passing one down. Without an index, a group
+  // below the top tables.
+  function largestGroup(preferred, index) {
     preferred = groupSize(preferred);
+    return preferred === 7 && index < TOP_TABLES ? 6 : preferred;
+  }
+
+  // Whether a group of this size is outside the preferred range (the desk flags it for a rebalance). On 7, 5 is in
+  // range anywhere: a night of 26 is 5, 5, 5, 5, 6.
+  function outOfRange(size, preferred, index) {
+    preferred = groupSize(preferred);
+    if (preferred === 7) return size < 5 || size > largestGroup(preferred, index);
     return size < preferred - 1 || size > preferred;
   }
 
   function sizeGroups(count, preferred) {
     if (!count) return [];
     preferred = groupSize(preferred);
+    if (preferred === 7) return sizeCapped(count);
     var min = Math.ceil(count / preferred);
     var max = Math.floor(count / (preferred - 1));
     var groupCount = min <= max ? min : Math.max(1, min);
@@ -24,6 +36,19 @@
     var larger = count % groupCount;
     var sizes = [];
     for (var i = 0; i < groupCount; i += 1) sizes.push(base + (i < larger ? 1 : 0));
+    return sizes;
+  }
+
+  // Groups of 7 with the top tables at 6: as few groups as hold everyone, as even as possible, and the larger groups
+  // from the lowest-rated up. 40 players are 5, 5, 6, 6, 6, 6, 6; 39 are 6, 6, 6, 7, 7, 7.
+  function sizeCapped(count) {
+    var groupCount = 1;
+    var room = largestGroup(7, 0);
+    while (room < count) { room += largestGroup(7, groupCount); groupCount += 1; }
+    var base = Math.floor(count / groupCount);
+    var larger = count % groupCount;
+    var sizes = [];
+    for (var i = 0; i < groupCount; i += 1) sizes.push(base + (i >= groupCount - larger ? 1 : 0));
     return sizes;
   }
 
@@ -74,16 +99,16 @@
   }
 
   // Adds a late arrival by rating rank without reshuffling anyone already placed; promoted players are never bumped down.
-  // A group pushed past the preferred size passes its lowest-rated player down, unless stay is set (play has started):
+  // A group pushed past its largest size (largestGroup) passes its lowest-rated player down, unless stay is set (play has started):
   // then the arrival simply joins the group and nobody else moves.
   function insert(groups, id, allIds, player, keep, preferred, stay) {
     keep = keep || {};
-    var largest = stay ? Infinity : groupSize(preferred);
+    var largest = function (index) { return stay ? Infinity : largestGroup(preferred, index); };
     if (!groups.length) return [[id]];
     var ordered = byRating(allIds, player);
     var target = Math.min(groups.length - 1, Math.floor(ordered.indexOf(id) * groups.length / ordered.length));
     groups[target] = byRating(groups[target].concat(id), player);
-    for (var i = target; i < groups.length && groups[i].length > largest; i += 1) {
+    for (var i = target; i < groups.length && groups[i].length > largest(i); i += 1) {
       var at = groups[i].length - 1;
       while (at > 0 && keep[groups[i][at]]) at -= 1;
       var bumped = groups[i].splice(at, 1)[0];
@@ -287,6 +312,7 @@
     GROUP_SIZES: GROUP_SIZES,
     DEFAULT_GROUP_SIZE: DEFAULT_GROUP_SIZE,
     groupSize: groupSize,
+    largestGroup: largestGroup,
     outOfRange: outOfRange,
     sizeGroups: sizeGroups,
     byRating: byRating,

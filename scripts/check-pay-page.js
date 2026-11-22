@@ -60,13 +60,30 @@ const TEST = { venmo: 'Test-Club', venmoLast4: '1234', zelle: '5105550123', zell
 const settle = () => new Promise(resolve => setTimeout(resolve, 50));
 
 // A page opened at a given moment (Pacific), with pay.js sealed for TEST under testKey, from url, with a key kept or not.
-function open(html, isoInstant, { sealedFor, url = 'https://concordtabletennisclub.com/pay.html', kept } = {}) {
+// The site's files and the turnout app are faked: fetch answers closures.json, the player list and the turnout app's
+// checkout (answer), and keeps every request. A move to Clover is caught as jsdom's navigation notice.
+const DIRECTORY = ['Ada Every', 'Adam Evans', 'Bo Mondays', 'José Núñez'];
+const PREPAY_URL = /var PREPAY_URL = "([^"]+)"/.exec(script)[1];
+function open(html, isoInstant, { sealedFor, url = 'https://concordtabletennisclub.com/pay.html', kept, closures = { days: {} }, answer = { ok: true, href: 'https://checkout.clover.com/pay/abc' } } = {}) {
   const code = sealedFor ? lock.setLocked(script, sealedFor) : script;
-  const dom = new JSDOM(html.replace(/<script src="pay\.js\?v=\d+"><\/script>/, () => '<script>' + code + '</script>'), {
+  const turnout = site.read('turnout.js');
+  const requests = [];
+  const navigations = [];
+  const virtualConsole = new VirtualConsole(); // the home page's other scripts fetch live data, which is not here
+  virtualConsole.on('jsdomError', error => { if (/navigation/i.test(error.message)) navigations.push(error.message); });
+  const dom = new JSDOM(html.replace(/<script src="pay\.js\?v=\d+"><\/script>/, () => '<script>' + code + '</script>')
+    .replace('<script src="turnout.js"></script>', () => '<script>' + turnout + '</script>'), {
     runScripts: 'dangerously',
-    virtualConsole: new VirtualConsole(), // the home page's other scripts fetch live data, which is not here
+    virtualConsole,
     url,
     beforeParse(window) {
+      window.fetch = (address, options) => {
+        requests.push({ address: String(address), options });
+        const body = /closures\.json$/.test(address) ? closures : /player-index\.json$/.test(address) ? DIRECTORY
+          : String(address).indexOf(PREPAY_URL) === 0 ? answer : null;
+        if (body === null) return Promise.reject(new Error('offline'));
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(JSON.parse(JSON.stringify(body))) });
+      };
       const RealDate = window.Date;
       const fixed = new RealDate(isoInstant).getTime();
       window.Date = class extends RealDate { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } };
@@ -75,6 +92,8 @@ function open(html, isoInstant, { sealedFor, url = 'https://concordtabletenniscl
       if (kept) window.localStorage.setItem('cttc-pay-key', kept);
     }
   });
+  dom.window.requests = requests;
+  dom.window.navigations = navigations;
   return dom.window;
 }
 const venmo = doc => new URL(doc.querySelector('.pay-venmo').href);
@@ -138,6 +157,146 @@ const SUNDAY = '2027-01-10T19:30:00-08:00';
   await settle();
   assert.equal(win.document.querySelector('.pay-locked').hidden, false);
   assert.equal(win.localStorage.getItem('cttc-pay-key'), null);
+
+
+  // ---- Card, ahead of time ----
+  // The page asks the same turnout app as the Tonight page, and the text page offers it.
+  assert.equal(PREPAY_URL, /var TURNOUT_URL = "([^"]+)"/.exec(site.read('tonight.html'))[1], 'pay.js asks the released turnout app');
+  assert.match(payPage, /<script src="turnout\.js"><\/script>\s*<script src="pay\.js/, 'pay.html knows the round robin days');
+  assert.match(home, /<script src="turnout\.js"><\/script>\s*<script src="pay\.js/, 'so does the home page');
+  assert.match(site.read('text.html'), /<a class="text-cttc-pay" href="pay\.html#card">/);
+
+  // The pilot's small link in "Want to be included?" on the home and Round Robins pages: only while paying ahead is open.
+  // On the home page it opens Pay now there, with the card open; the Round Robins page has no Pay now, so it goes to pay.html.
+  const rr = site.read('roundrobins.html');
+  assert.match(home, /<a class="tonight-pilot" href="#pay" data-open-pay data-open-card data-prepay-link hidden>/);
+  assert.match(rr, /<a class="tonight-pilot" href="pay\.html#card" data-prepay-link hidden>/);
+  for (const html of [home, rr]) assert.match(html, /<script src="turnout\.js"><\/script>\s*<script src="pay\.js\?v=\d+"><\/script>/);
+  for (const [when, shown] of [[SUNDAY, false], ['2026-11-23T10:00:00-08:00', true], ['2026-11-23T20:30:00-08:00', false]]) {
+    win = open(rr, when, { url: 'https://concordtabletennisclub.com/roundrobins.html' });
+    await settle();
+    assert.equal(win.document.querySelector('[data-prepay-link]').hidden, !shown, 'Round Robins page at ' + when);
+  }
+  win = open(home, '2026-11-23T10:00:00-08:00', { url: 'https://concordtabletennisclub.com/' });
+  await settle();
+  assert.equal(win.document.querySelector('[data-prepay-link]').hidden, false, 'home page on a round robin morning');
+  assert.equal(win.document.getElementById('pay').open, false);
+  win.document.querySelector('[data-prepay-link]').click();
+  assert.equal(win.document.getElementById('pay').open, true, 'the pilot link opens Pay now');
+  assert.equal(win.document.querySelector('#pay .pay-card-panel').hidden, false, 'with the card open');
+
+
+  // Not a round robin day: no card button, just when it works.
+  win = open(payPage, SUNDAY);
+  await settle();
+  assert.equal(win.document.querySelector('.pay-card').hidden, true);
+  assert.equal(win.document.querySelector('.pay-card-pilot').hidden, true, 'and no pilot note');
+
+  // Monday morning: pick a name from the directory, see what you pay, confirm.
+  const MONDAY = '2026-11-23T10:00:00-08:00';
+  win = open(payPage, MONDAY);
+  await settle();
+  doc = win.document;
+  const cardButton = doc.querySelector('.pay-card');
+  assert.equal(cardButton.hidden, false);
+  assert.equal(doc.querySelector('.pay-card-pilot').hidden, false, 'marked as a pilot');
+  assert.match(cardButton.textContent, /^Pilot Pay ahead by card$/);
+  assert.ok(doc.querySelector('.pay-pilot').compareDocumentPosition(doc.querySelector('.pay-locked')) & win.Node.DOCUMENT_POSITION_PRECEDING, 'after Venmo and Zelle, not before');
+  cardButton.click();
+  await settle();
+  const typeName = text => {
+    const input = doc.querySelector('.pay-card-name');
+    input.value = text;
+    input.dispatchEvent(new win.Event('input'));
+  };
+  typeName('ada ev');
+  await settle();
+  assert.deepEqual([...doc.querySelectorAll('.pay-card-match')].map(b => b.textContent), ['Ada Every', 'Adam Evans'], 'every word starts a word of the name');
+  assert.equal(doc.querySelector('.pay-card-new').hidden, false, 'not an exact name: they may be new');
+  assert.equal(doc.querySelector('.pay-card-review').hidden, true, 'nothing to pay until a name is chosen');
+  doc.querySelector('.pay-card-match').click();
+  assert.equal(doc.querySelector('.pay-card-review').hidden, false);
+  assert.equal(doc.querySelector('.pay-card-who').textContent, 'Ada Every · Member · round robin Mon, Nov 23 Change');
+  assert.equal(doc.querySelector('.pay-card-go').textContent, 'Pay $10 by card');
+  doc.querySelector('[data-kind="visitor"]').click();
+  assert.equal(doc.querySelector('.pay-card-who').textContent, 'Ada Every · Visitor · round robin Mon, Nov 23 Change');
+  assert.equal(doc.querySelector('.pay-card-go').textContent, 'Pay $15 by card');
+  doc.querySelector('.pay-card-go').click();
+  assert.equal(doc.querySelector('.pay-card-go').disabled, true, 'pressed once');
+  await settle();
+  // What the page sends is what the player confirmed: the name, the fee, today and the amount on the button.
+  const asked = win.requests.filter(r => r.address.indexOf(PREPAY_URL) === 0);
+  assert.equal(asked.length, 1);
+  const sentParams = new URL(asked[0].address).searchParams;
+  assert.deepEqual(Object.fromEntries(sentParams), { prepay: '1', name: 'Ada Every', kind: 'visitor', date: '2026-11-23', amount: '15' });
+  assert.equal(asked[0].options.credentials, 'omit');
+  assert.equal(win.navigations.length, 1, 'then off to Clover');
+  assert.equal(win.localStorage.getItem('cttc-pay-name'), 'Ada Every', 'the name is kept for next time');
+
+  // Next time the name is already chosen; a new player types theirs.
+  win = open(payPage, MONDAY, { answer: { ok: false, reason: 'changed', error: 'Tonight’s price is $10. Reload the page and try again.' } });
+  win.localStorage.setItem('cttc-pay-name', 'Ada Every');
+  await settle();
+  doc = win.document;
+  doc.querySelector('.pay-card').click();
+  await settle();
+  assert.equal(doc.querySelector('.pay-card-who').textContent.indexOf('Ada Every'), 0);
+  doc.querySelector('.pay-card-change').click();
+  typeName('  Zed   Newcomer ');
+  await settle();
+  assert.equal(doc.querySelectorAll('.pay-card-match').length, 0);
+  assert.equal(doc.querySelector('.pay-card-new').textContent, 'Not in the list? I’m new: use “Zed Newcomer”');
+  doc.querySelector('[data-kind="intro"]').click();
+  doc.querySelector('.pay-card-new').click();
+  assert.equal(doc.querySelector('.pay-card-who').textContent, 'Zed Newcomer · First visit · round robin Mon, Nov 23 Change');
+  doc.querySelector('.pay-card-go').click();
+  await settle();
+  assert.equal(new URL(win.requests.filter(r => r.address.indexOf(PREPAY_URL) === 0)[0].address).searchParams.get('name'), 'Zed Newcomer');
+  // The turnout app said no: its reason is shown, nothing opens, and the button works again.
+  assert.equal(doc.querySelector('.pay-card-error').hidden, false);
+  assert.match(doc.querySelector('.pay-card-error').textContent, /Tonight’s price is \$10/);
+  assert.equal(win.navigations.length, 0);
+  assert.equal(doc.querySelector('.pay-card-go').disabled, false);
+
+  // Only a Clover address is followed.
+  win = open(payPage, MONDAY, { answer: { ok: true, href: 'https://example.com/clover.com/' } });
+  win.localStorage.setItem('cttc-pay-name', 'Ada Every');
+  await settle();
+  win.document.querySelector('.pay-card').click();
+  win.document.querySelector('.pay-card-go').click();
+  await settle();
+  assert.equal(win.navigations.length, 0);
+  assert.match(win.document.querySelector('.pay-card-error').textContent, /not available right now/);
+
+  // From the text page (#card), the card opens by itself.
+  win = open(payPage, MONDAY, { url: 'https://concordtabletennisclub.com/pay.html#card' });
+  await settle();
+  assert.equal(win.document.querySelector('.pay-card-panel').hidden, false);
+
+  // 8:30 PM, a closed night, or a Friday: no card. A Saturday special: $5.
+  for (const [when, days, why] of [['2026-11-23T20:30:00-08:00', {}, '8:30 PM'], [MONDAY, { '2026-11-23': 'full' }, 'closed'], ['2026-11-27T10:00:00-08:00', {}, 'Friday']]) {
+    win = open(payPage, when, { closures: { days } });
+    await settle();
+    assert.equal(win.document.querySelector('.pay-card').hidden, true, why);
+  }
+  win = open(payPage, '2026-11-28T10:00:00-08:00');
+  win.localStorage.setItem('cttc-pay-name', 'Ada Every');
+  await settle();
+  win.document.querySelector('.pay-card').click();
+  assert.equal(win.document.querySelector('.pay-card-go').textContent, 'Pay $5 by card');
+  assert.match(win.document.querySelector('.pay-card-who').textContent, /Tonight’s special · round robin Sat, Nov 28/);
+
+  // Back from Clover.
+  win = open(payPage, MONDAY, { url: 'https://concordtabletennisclub.com/pay.html?paid=2026-11-23' });
+  await settle();
+  assert.match(win.document.querySelector('.pay-back-paid').textContent, /^Paid for tonight by card\. Just check in at the desk\./);
+  assert.match(win.document.querySelector('.pay-back-paid a').getAttribute('href'), /^sms:/, 'and a reminder to text, so they count on the Tonight page');
+  win = open(payPage, MONDAY, { url: 'https://concordtabletennisclub.com/pay.html?prepay=cancelled' });
+  await settle();
+  assert.equal(win.document.querySelector('.pay-back').textContent, 'Card payment cancelled. Nothing was charged.');
+  win = open(payPage, MONDAY, { url: 'https://concordtabletennisclub.com/pay.html?prepay=failed' });
+  await settle();
+  assert.match(win.document.querySelector('.pay-back').textContent, /did not go through/);
 
   console.log('Pay for tonight: fees match the desk; Venmo and Zelle open only with the desk key; the Venmo link carries the amount; on pay.html and under Fees.');
 })().catch(error => { console.error(error); process.exit(1); });

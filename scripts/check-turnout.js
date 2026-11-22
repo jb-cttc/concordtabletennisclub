@@ -177,7 +177,10 @@ assert.match(published('index.html'), /href="tonight\.html"/, 'the home page lin
   const teaser = new JSDOM(published(file)).window.document.querySelector('.tonight-teaser');
   assert.equal(teaser.querySelector('.tonight-launch').textContent, 'See who’s playing tonight', file);
   const box = teaser.querySelector('.tonight-text-box');
-  assert.equal(box.textContent, 'Want to be included? (925) 238-3505 Text us', file);
+  const pilot = box.querySelector('[data-prepay-link]');
+  assert.ok(pilot && pilot.hidden, file + ': the pay-ahead pilot link starts hidden (pay.js shows it while paying ahead is open)');
+  pilot.remove();
+  assert.equal(box.textContent.trim(), 'Want to be included? (925) 238-3505 Text us', file);
   assert.equal(box.querySelector('a').getAttribute('href'), 'sms:+19252383505?&body=' + encodeURIComponent('I\'ll join CTTC\'s RR today'), file);
 });
 assert.ok(!html.includes('sms:+19252383505'), 'the Tonight page itself no longer carries the join link');

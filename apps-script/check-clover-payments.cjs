@@ -118,6 +118,43 @@ assert.deepEqual(rows[0].playerIds, ['p1']);
 assert.equal(rows[0].reason, 'name');
 rows = night([payment('2026-10-07', 15, { cardholderName: 'PARK/AVERY' })]);
 assert.equal(rows[0].state, 'needs-action', 'an overpayment waits for the organizer');
+
+// ---- Paid ahead online (turnout-app/Prepay.js): the order's line says who, and that decides ----
+const prepayOrder = (name, note) => ({ id: 'ORD-P', lineItems: { elements: [{ name: 'Something else', note: '' }, { name, note }] } });
+assert.deepEqual(plain(context.cloverPrepayOf_(prepayOrder('CTTC round robin, Wed Oct 7', 'Member: Avery Park'))), { kind: 'Member', name: 'Avery Park' });
+assert.deepEqual(plain(context.cloverPrepayOf_(prepayOrder('CTTC round robin, Wed Oct 7', 'First visit:  Zed  Newcomer '))), { kind: 'First visit', name: 'Zed  Newcomer' });
+assert.equal(context.cloverPrepayOf_(prepayOrder('T-shirt', 'Member: Avery Park')), null, 'only the round robin line');
+assert.equal(context.cloverPrepayOf_(prepayOrder('CTTC round robin, Wed Oct 7', 'Avery Park')), null, 'the note must say the fee');
+assert.equal(context.cloverPrepayOf_({ id: 'X' }), null);
+const ahead = (dollars, kind, name, card, extra) => {
+  const raw = payment('2026-10-07', dollars, card === undefined ? {} : card, extra);
+  return { raw, prepays: { [raw.order.id]: { kind, name } } };
+};
+const nightAhead = (items, extra) => plain(context.cloverMatchNight_(items.map(item => context.cloverPayment_(item.raw, {}, tz, item.prepays)), {
+  index, links: {}, paysFor: {}, statuses: context.getMemberStatuses().statuses, covered: {}, roster: { p3: true }, hand: {}, ...extra
+}));
+rows = nightAhead([ahead(10, 'Member', 'Avery Park')]);
+assert.deepEqual([rows[0].state, rows[0].reason, rows[0].playerIds], ['matched', 'prepay', ['p1']], 'matched by the name picked, though no card or customer says so');
+assert.deepEqual(rows[0].notCheckedIn, ['p1'], 'and not checked in yet: the desk lists them with RR and Open');
+rows = nightAhead([ahead(10, 'Member', 'Avery Park', { cardholderName: 'ROBERT LEE' })], { links: { 'card:VISA|411111|1234': 'p3' } });
+assert.deepEqual([rows[0].reason, rows[0].playerIds], ['prepay', ['p1']], 'the name picked comes before a card known as someone else\'s (a parent paying for a junior)');
+assert.deepEqual(nightAhead([ahead(10, 'Member', 'Bobby Lee')])[0].playerIds, ['p3'], 'a saved alias counts');
+rows = nightAhead([ahead(10, 'Member', 'Dana Chen')]);
+assert.equal(rows[0].state, 'needs-action', 'a visitor who chose Member waits');
+assert.deepEqual([rows[0].playerIds, rows[0].notePlayerId], [['p2'], 'p2'], 'with the player ticked');
+assert.equal(rows[0].note, 'Paid ahead online as “Dana Chen” (Member): paid $10, {player}’s fee is $15. Check it, then Match.');
+rows = nightAhead([ahead(10, 'First visit', 'Zed Newcomer')]);
+assert.deepEqual([rows[0].state, rows[0].playerIds], ['unmatched', []]);
+assert.equal(rows[0].note, 'Paid ahead online as “Zed Newcomer” (First visit): no player has that name yet. Add them, then tick who it is for.');
+rows = nightAhead([ahead(10, 'Member', 'Rob Lee')]);
+assert.equal(rows[0].state, 'unmatched', 'only an exact name or alias matches by itself');
+assert.match(rows[0].note, /close to the name of the player suggested/);
+assert.ok(rows[0].suggestions.includes('p3'));
+rows = nightAhead([ahead(10, 'Member', 'Avery Park', null, { tender: { label: 'Online' } })]);
+assert.deepEqual([rows[0].state, rows[0].reason], ['matched', 'prepay'], 'counted even when Clover does not call it a card payment');
+assert.deepEqual(plain(context.cloverReportRow_(rows[0])).prepay, { kind: 'Member', name: 'Avery Park' }, 'the desk page is told it was paid ahead');
+assert.equal(nightAhead([ahead(10, 'Member', 'Avery Park', {}, { result: 'VOIDED' })])[0].state, 'ignored', 'a void is still a void');
+rows = night([payment('2026-10-07', 15, { cardholderName: 'PARK/AVERY' })]);
 assert.equal(rows[0].payerId, 'p1');
 assert.match(rows[0].note, /Paid \$15, fee is \$10: \$5 more/);
 rows = night([payment('2026-10-07', 5, { cardholderName: 'AVERY PARK' })]);
@@ -377,7 +414,8 @@ sheets.AuditLog = [
   { action: 'session_payment_updated', entity_id: 'session-2026-10-07', event_time: new Date(openPlayPayment.createdTime), details_json: JSON.stringify({ playerId: 'p3', method: 'unpaid' }) },
   { action: 'player_created', entity_id: 'p9', event_time: new Date(), details_json: '{}' }
 ];
-clover.orders = [{ id: 'ORD-C', customers: { elements: [{ id: 'C9' }] } }];
+clover.orders = [{ id: 'ORD-C', customers: { elements: [{ id: 'C9' }] } }, { id: 'ORD-AHEAD', lineItems: { elements: [{ name: 'CTTC round robin, Wed Oct 7', note: 'Under 18: Kai Park' }] } }];
+clover.payments[3].order = { id: 'ORD-AHEAD' };
 clover.customers = { C9: { firstName: 'Robert', lastName: 'Lee', phoneNumbers: { elements: [{ phoneNumber: '925-555-0199' }] }, emailAddresses: { elements: [] } } };
 clover.payments[1].order = { id: 'ORD-C' };
 throttle = 2;
@@ -388,14 +426,16 @@ assert.equal(slept.length, 2, 'Clover asking to slow down is waited out and trie
 assert.equal(fetched.filter(call => /\/customers\//.test(call.url)).length, 1, 'each customer is read once');
 assert.ok(fetched.every(call => call.auth === 'Bearer test-token'));
 const paymentsCall = fetched.find(call => /\/payments\?/.test(call.url));
+assert.match(fetched.find(call => /\/orders\?/.test(call.url)).url, /expand=customers%2ClineItems/, 'orders are read with their lines, in the same call');
 assert.match(paymentsCall.url, /^https:\/\/api\.clover\.com\/v3\/merchants\/ABC123DEF4567\/payments\?filter=createdTime%3E%3D\d+&filter=createdTime%3C\d+&expand=cardTransaction%2Crefunds&limit=1000&offset=0$/);
 assert.deepEqual(report.nights.map(n => n.date), ['2026-10-07', '2026-10-05'], 'newest night first; a payment after the range is left out');
 const oct5 = report.nights[1];
 assert.equal(oct5.rows[1].customer, 'Robert Lee · 925-555-0199', 'the Clover customer is shown');
 assert.deepEqual(oct5.rows.map(row => [row.state, row.verdicts.map(v => v.verdict).join()]), [['matched', 'agrees'], ['needs-action', '']], 'matched by the name on the card; the Zeffy holder paying is asked about');
 const oct7 = report.nights[0];
-assert.deepEqual(oct7.rows.map(row => [row.state, row.reason, row.playerIds.join()]), [['unmatched', '', ''], ['matched', 'card', 'p6'], ['ignored', '', ''], ['matched', 'card', 'p4']],
-  'the card Avery used on Oct 5 is not linked: Oct 7 records Cash for Avery; the learned cards match; the refund is left alone');
+assert.deepEqual(oct7.rows.map(row => [row.state, row.reason, row.playerIds.join()]), [['unmatched', '', ''], ['matched', 'prepay', 'p6'], ['ignored', '', ''], ['matched', 'card', 'p4']],
+  'the card Avery used on Oct 5 is not linked: Oct 7 records Cash for Avery; Kai\'s $5 was paid ahead online (its order\'s line, read with the orders) and the learned card matches; the refund is left alone');
+assert.deepEqual(oct7.rows[1].prepay, { kind: 'Under 18', name: 'Kai Park' });
 assert.equal(oct7.rosterCount, 4, 'Open Play players count as checked in');
 assert.equal(oct7.rows[1].card, 'VISA ••6666');
 const learnedCards = Object.fromEntries(report.cards.map(c => [c.card, c]));

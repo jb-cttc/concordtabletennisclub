@@ -91,8 +91,8 @@ const cloverNights = {};
 // Junior and pays-for links by player id, as the pencil window shows them (made up; LinkedNames.js keeps real ones).
 const playerLinks = {};
 // A night's made-up Clover payments: one matched by a card used before, one overpaid (a member covering a second
-// player), one with no name to go on, a refund, and a card used before by a player not checked in yet (offered at the top
-// with RR and Open). Players are the saved roster's, when the date has one.
+// player), one with no name to go on, a refund, a card used before by a player not checked in yet (offered at the top
+// with RR and Open), and two paid ahead online (one not checked in yet, one with the wrong fee). Players are the saved roster's, when the date has one.
 function cloverPreview(date) {
   const session = sessions['session-' + date];
   const roster = session ? [].concat.apply([], session.groups.map(function (group) { return group.players.map(function (entry) { return entry.playerId; }); })) : [];
@@ -107,7 +107,13 @@ function cloverPreview(date) {
     };
     // Not on the roster, and not the preview's coach (players[0]).
     const away = players.slice(1).find(function (player) { return ids.indexOf(player.playerId) < 0; });
+    // Paid ahead online that morning (the pay page's pilot): one matched by the name picked, not checked in yet, and one
+    // who chose Member but is a visitor.
+    const ahead = players.slice(1).filter(function (player) { return ids.indexOf(player.playerId) < 0 && player !== away; })[0];
     cloverNights[date] = [
+      item('cv9', -535, 10, 'VISA \u2022\u20224242', { state: 'matched', reason: 'prepay', playerIds: [ahead.playerId], notCheckedIn: [ahead.playerId], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN, prepay: { kind: 'Member', name: ahead.name } }),
+      item('cv10', -480, 10, 'MC \u2022\u20228810', { state: 'needs-action', reason: 'prepay', payerId: ids[2], playerIds: [ids[2]], notePlayerId: ids[2], prepay: { kind: 'Member', name: (players.find(function (player) { return player.playerId === ids[2]; }) || {}).name },
+        note: 'Paid ahead online as \u201c' + (players.find(function (player) { return player.playerId === ids[2]; }) || {}).name + '\u201d (Member): paid $10, {player}\u2019s fee is $15. Check it, then Match.' }),
       item('cv5', 16, 10, 'VISA \u2022\u20226610', { state: 'matched', reason: 'card', playerIds: [away.playerId], notCheckedIn: [away.playerId], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN }),
       item('cv4', 14, 10, 'AMEX \u2022\u20223005', { state: 'ignored', note: 'Refunded' }),
       item('cv7', 20, 20, 'VISA \u2022\u20225150', { state: 'matched', reason: 'hand', playerIds: [ids[7], ids[8]], recorded: !process.env.PREVIEW_CLOVER_DRY_RUN, offer: { payerId: ids[7], playerIds: [ids[8]], times: 2 } }),

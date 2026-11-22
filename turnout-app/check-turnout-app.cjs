@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const manifest = JSON.parse(fs.readFileSync(__dirname + '/appsscript.json', 'utf8'));
 assert.deepEqual(manifest.oauthScopes, [
   'https://www.googleapis.com/auth/spreadsheets',
-  // Only to read the site's session-roster.json and closures.json.
+  // To read the site's session-roster.json and closures.json, and to start Clover checkouts (Prepay.js).
   'https://www.googleapis.com/auth/script.external_request',
   'https://www.googleapis.com/auth/userinfo.email'
 ]);
@@ -17,8 +17,11 @@ assert.equal(manifest.timeZone, 'America/Los_Angeles');
 assert.equal(fs.readFileSync(__dirname + '/.claspignore', 'utf8').trim(), 'check-*', 'the test is never pushed to Google');
 
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
-const globals = [...source.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(match => match[1]);
+const prepaySource = fs.readFileSync(__dirname + '/Prepay.js', 'utf8');
+const globals = [...(source + prepaySource).matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), ['doGet', 'setup', 'turnout'], 'a public web app exposes every non-private function: only these may exist');
+assert.doesNotMatch(prepaySource, /=>|`|^\s*(let|const|class)\s/m, 'Prepay.js is ES5 style too');
+assert.doesNotMatch(prepaySource, /HtmlService|\.setValue|\.appendRow|insertSheet|sendEmail|deleteRow|table_\(/, 'paying ahead never reads the directory or writes the Sheet (its log lines go through log_)');
 assert.doesNotMatch(source, /=>|`|^\s*(let|const|class)\s/m, 'Code.js is ES5 style, like the other Apps Script projects');
 // The one write is the log (log_ appends to LOG_TAB in the desk Sheet); nothing else in the app writes, replies or sends.
 const logWriter = /\nfunction log_\([\s\S]*?\n}\n/.exec(source)[0];
@@ -132,10 +135,20 @@ mondays.map(d => new Date(Date.parse(d) + 2 * 86400000).toISOString().slice(0, 1
 siteRoster['2024-01-01'] = Array.from({ length: 4000 }, (_, i) => 'Long Ago Player ' + i);
 const fetched = [];
 let siteDown = false;
+let closures = { days: {} };
+// Clover's Hosted Checkout: each request kept, and the next reply as set.
+const CLOVER_URL = 'https://api.clover.com/invoicingcheckoutservice/v1/checkouts';
+const checkouts = [];
+let cloverReply = { code: 200, body: { href: 'https://checkout.clover.com/pay/abc123', checkoutSessionId: 'abc123' } };
 const UrlFetchApp = {
-  fetch(url) {
+  fetch(url, options) {
+    if (url === CLOVER_URL) {
+      checkouts.push({ options, payload: JSON.parse(options.payload) });
+      if (cloverReply.code === 'throw') throw new Error('Address unavailable: ' + url);
+      return { getResponseCode: () => cloverReply.code, getContentText: () => JSON.stringify(cloverReply.body) };
+    }
     fetched.push(url);
-    const body = url.endsWith('/data/session-roster.json') ? siteRoster : url.endsWith('/data/closures.json') ? { days: {} } : null;
+    const body = url.endsWith('/data/session-roster.json') ? siteRoster : url.endsWith('/data/closures.json') ? closures : null;
     return { getResponseCode: () => (siteDown || !body ? 503 : 200), getContentText: () => JSON.stringify(body) };
   }
 };
@@ -143,7 +156,13 @@ let properties = { DESK_SHEET_ID: 'desk-sheet' };
 const context = {
   Date: FakeDate, JSON, Math, Object, Array, String, Number, RegExp, Error, isFinite, console: { error() {}, warn() {}, log() {} },
   Utilities, SpreadsheetApp, GmailApp, CacheService, UrlFetchApp,
-  PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null }) },
+  PropertiesService: { getScriptProperties: () => ({
+    getProperty: key => properties[key] === undefined ? null : properties[key],
+    getProperties: () => Object.assign({}, properties),
+    setProperty: (key, value) => { properties[key] = String(value); },
+    deleteProperty: key => { delete properties[key]; }
+  }) },
+  LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: body => ({ body, setMimeType() { return this; } }) },
   Session: { getActiveUser: () => ({ getEmail: () => '' }), getEffectiveUser: () => ({ getEmail: () => 'club@example.com' }) }
 };
@@ -151,6 +170,7 @@ context.globalThis = context;
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(__dirname + '/Turnout.js', 'utf8'), context);
 vm.runInContext(source, context);
+vm.runInContext(prepaySource, context);
 // Answers cross from the script's realm as JSON, the way the page receives them.
 const call = (name, ...args) => JSON.parse(JSON.stringify(context[name](...args)));
 
@@ -322,5 +342,132 @@ const countsOn = (date, iso) => {
   ['2026-11-02', '2026-11-02T08:00:00Z', 1, 'and Monday 12:00 AM PST is']
 ].forEach(([date, iso, count, why]) => assert.equal(countsOn(date, iso), count, why));
 messages = [];
+
+// ---- Paying ahead by card (Prepay.js) ----
+// The fees are the desk's (apps-script/NightFees.js).
+const fees = {};
+vm.runInNewContext(fs.readFileSync(__dirname + '/../apps-script/NightFees.js', 'utf8'), fees);
+assert.deepEqual({ ...context.PREPAY_FEES }, { ...fees.NIGHT_FEES }, 'Prepay.js PREPAY_FEES match NIGHT_FEES');
+assert.deepEqual(JSON.parse(JSON.stringify(context.PREPAY_SPECIAL_NIGHTS)), JSON.parse(JSON.stringify(fees.SPECIAL_NIGHTS)), 'Prepay.js PREPAY_SPECIAL_NIGHTS match the desk');
+
+properties = { DESK_SHEET_ID: 'desk-sheet', CLOVER_CHECKOUT_TOKEN: 'tok-secret-123', CLOVER_MERCHANT_ID: 'MERCHANT123' };
+cache = {};
+clock = at('10:00');
+const prepay = params => JSON.parse(context.doGet({ parameter: Object.assign({ prepay: '1' }, params) }).body);
+const ada = { name: 'Ada Every', kind: 'member', date: '2026-10-26', amount: '10' };
+const logsBefore = logRows().length;
+const started = prepay(ada);
+assert.deepEqual(started, { ok: true, href: 'https://checkout.clover.com/pay/abc123', amount: 10 });
+assert.equal(checkouts.length, 1);
+const sent = checkouts[0];
+assert.equal(sent.options.method, 'post');
+assert.equal(sent.options.headers.Authorization, 'Bearer tok-secret-123');
+assert.equal(sent.options.headers['X-Clover-Merchant-Id'], 'MERCHANT123');
+assert.deepEqual(sent.payload, {
+  customer: { firstName: 'Ada', lastName: 'Every' },
+  shoppingCart: { lineItems: [{ name: 'CTTC round robin, Mon Oct 26', price: 1000, unitQty: 1, note: 'Member: Ada Every' }] },
+  redirectUrls: {
+    success: 'https://concordtabletennisclub.com/pay.html?paid=2026-10-26',
+    failure: 'https://concordtabletennisclub.com/pay.html?prepay=failed',
+    cancel: 'https://concordtabletennisclub.com/pay.html?prepay=cancelled'
+  }
+}, 'the customer name the desk matches on, the night, and the price in cents');
+assert.equal(properties['PREPAY_COUNT_2026-10-26'], '1');
+const startedRow = rowsOf('prepay_started')[0];
+assert.equal(startedRow[3], '2026-10-26');
+assert.match(startedRow[4], /^P[0-9A-F]{6}$/);
+assert.equal(startedRow[5], 'kind=member amount=$10 count=1');
+assert.equal(logRows().length, logsBefore + 1);
+
+// The price is the app's own: a page that shows another amount, or another day, is told to reload, and nothing is
+// started.
+assert.deepEqual(prepay(Object.assign({}, ada, { amount: '15' })), { ok: false, reason: 'changed', error: 'Tonight\'s price is $10. Reload the page and try again.', amount: 10 });
+assert.equal(prepay(Object.assign({}, ada, { date: '2026-10-25' })).reason, 'changed', 'a page left open from yesterday');
+['visitor', 'intro', 'junior'].forEach(kind => assert.equal(prepay(Object.assign({}, ada, { kind, amount: String(fees.NIGHT_FEES[kind]) })).ok, true, kind));
+assert.equal(checkouts[checkouts.length - 1].payload.shoppingCart.lineItems[0].price, 500, 'Under 18 is $5');
+assert.equal(checkouts[checkouts.length - 1].payload.shoppingCart.lineItems[0].note, 'Under 18: Ada Every');
+// What the page sends is checked before anything else.
+[{ name: '' }, { name: 'A' }, { name: 'R2D2 Droid' }, { name: 'x@y.com' }, { name: '<b>Ada</b>' }, { name: 'Ada'.repeat(21) }, { kind: 'volunteer' }, { date: 'today' }]
+  .forEach(bad => assert.equal(prepay(Object.assign({}, ada, bad)).reason, 'invalid', JSON.stringify(bad)));
+const one = prepay(Object.assign({}, ada, { name: '  José   Núñez ' }));
+assert.equal(one.ok, true, 'accented names are names');
+assert.deepEqual(checkouts[checkouts.length - 1].payload.customer, { firstName: 'José', lastName: 'Núñez' }, 'spaces tidied');
+prepay(Object.assign({}, ada, { name: 'Prince' }));
+assert.deepEqual(checkouts[checkouts.length - 1].payload.customer, { firstName: 'Prince' }, 'one name is a first name');
+
+// Open on round robin days only, until 8:30 PM, and never on a day the gym is closed.
+const startedCount = () => checkouts.length;
+let n = startedCount();
+clock = at('20:29');
+assert.equal(prepay(ada).ok, true, '8:29 PM is still open');
+clock = at('20:30');
+assert.deepEqual(prepay(ada), { ok: false, reason: 'closed', error: 'Paying ahead works on round robin days until 8:30 PM. You can pay at the desk.' });
+clock = Date.parse('2026-10-27T17:00:00Z');
+assert.equal(prepay(Object.assign({}, ada, { date: '2026-10-27' })).reason, 'closed', 'Tuesday has no round robin');
+clock = at('10:00');
+cache = {};
+closures = { days: { '2026-10-26': 'full' } };
+assert.equal(prepay(ada).reason, 'closed', 'a closed night');
+closures = { days: {} };
+cache = {};
+assert.equal(startedCount(), n + 1, 'only the open one reached Clover');
+// A Saturday special: $5 for everyone, and Saturday's round robin ends at 6 PM.
+clock = Date.parse('2026-11-14T18:00:00Z');
+const saturday = Object.assign({}, ada, { kind: 'visitor', date: '2026-11-14' });
+assert.equal(prepay(Object.assign({}, saturday, { amount: '15' })).amount, 5);
+assert.equal(prepay(Object.assign({}, saturday, { amount: '5' })).ok, true);
+assert.equal(checkouts[checkouts.length - 1].payload.shoppingCart.lineItems[0].price, 500);
+assert.equal(checkouts[checkouts.length - 1].payload.shoppingCart.lineItems[0].name, 'CTTC round robin, Sat Nov 14');
+assert.deepEqual(Object.keys(properties).filter(key => /^PREPAY_COUNT_/.test(key)), ['PREPAY_COUNT_2026-11-14'], 'yesterday\'s counter is removed');
+clock = Date.parse('2026-11-15T02:05:00Z'); // Saturday 6:05 PM Pacific
+assert.equal(prepay(Object.assign({}, saturday, { amount: '5' })).reason, 'closed', 'after Saturday\'s round robin has ended');
+
+// Trouble with Clover or the setup: a short message for the page, an error in the log, and no address.
+clock = at('11:00');
+cache = {};
+cloverReply = { code: 401, body: { message: 'Unauthorized for merchant MERCHANT123' } };
+assert.deepEqual(prepay(ada), { ok: false, reason: 'unavailable', error: 'Card payment is not available right now. You can pay at the desk.' });
+assert.match(rowsOf('prepay_failed').slice(-1)[0][5], /^HTTP 401 /);
+cloverReply = { code: 200, body: { href: 'https://evil.example.com/clover.com/' } };
+assert.equal(prepay(ada).reason, 'unavailable', 'only a Clover address is passed on');
+cloverReply = { code: 'throw' };
+assert.equal(prepay(ada).reason, 'unavailable');
+cloverReply = { code: 200, body: { href: 'https://checkout.clover.com/pay/abc123' } };
+delete properties.CLOVER_CHECKOUT_TOKEN;
+n = startedCount();
+assert.equal(prepay(ada).reason, 'unavailable');
+prepay(ada);
+assert.equal(startedCount(), n, 'nothing sent without a token');
+assert.equal(rowsOf('prepay_not_set_up').length, 1, 'logged once');
+properties.CLOVER_CHECKOUT_TOKEN = 'tok-secret-123';
+
+// The daily cap: a warning at 120, and nothing more after 150.
+properties['PREPAY_COUNT_2026-10-26'] = '119';
+assert.equal(prepay(ada).ok, true);
+assert.equal(rowsOf('prepay_cap_near').length, 1);
+properties['PREPAY_COUNT_2026-10-26'] = '149';
+assert.equal(prepay(ada).ok, true, 'the 150th');
+n = startedCount();
+assert.deepEqual(prepay(ada), { ok: false, reason: 'busy', error: 'Paying ahead is not available right now. You can pay at the desk.' });
+assert.equal(startedCount(), n);
+assert.equal(rowsOf('prepay_cap_reached').length, 1);
+
+// What the checkout writes on Clover's order is what the desk reads back (apps-script/CloverPayments.js, cloverPrepayOf_):
+// every fee, and names as players pick or type them.
+const deskSource = fs.readFileSync(__dirname + '/../apps-script/CloverPayments.js', 'utf8');
+const deskReader = {};
+vm.runInNewContext(/var CLOVER_PREPAY_LINE_ = [^\n]+\nvar CLOVER_PREPAY_NOTE_ = [^\n]+\nfunction cloverPrepayOf_\([\s\S]*?\n}\n/.exec(deskSource)[0], deskReader);
+Object.keys(context.PREPAY_KINDS).forEach(kind => {
+  ['Ada Every', 'José Núñez', "Mary-Kate O'Neil", 'Prince'].forEach(name => {
+    const line = JSON.parse(JSON.stringify(context.prepayCheckout_(name, kind, '2026-11-23', 10))).shoppingCart.lineItems[0];
+    assert.deepEqual(JSON.parse(JSON.stringify(deskReader.cloverPrepayOf_({ lineItems: { elements: [line] } }))), { kind: context.PREPAY_KINDS[kind], name }, kind + ' ' + name + ' reads back at the desk');
+  });
+});
+
+// The log never holds a name or the token.
+const allLog = JSON.stringify(logRows());
+['Ada', 'Every', 'José', 'Prince', 'tok-secret'].forEach(word => assert.ok(!allLog.includes(word), word + ' is not in the log'));
+// And the turnout answer is unchanged: doGet without prepay still answers the counts.
+assert.equal(JSON.parse(context.doGet({ parameter: {} }).body).ok, true);
 
 console.log('Turnout app checks passed');

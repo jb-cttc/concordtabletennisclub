@@ -2025,6 +2025,28 @@ tr.hof-gold td:nth-child(2) {
   white-space: nowrap;
 }
 
+/* The pay-ahead pilot's link (pay.js shows it on round robin days until 8:30 PM). */
+.tonight-text-box .tonight-pilot {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.tonight-text-box .tonight-pilot-text {
+  text-decoration: underline;
+}
+
+.tonight-text-box .tonight-pilot[hidden] {
+  display: none;
+}
+
+.tonight-pilot .pay-pilot-tag {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+
 .tonight-launch .live-dot {
   background: #1f6b3a;
 }
@@ -3155,6 +3177,188 @@ button.ball.zero.on { background: #e4ece6; border: 2px solid #1f6b3a; color: #1f
 
 .pay-venmo { background: #0a6cc9; }
 .pay-zelle { background: #6d1ed4; }
+/* Pay ahead by card (a pilot, November 2026): a quiet outlined option after Venmo and Zelle, tagged Pilot. Then pick your
+   name from the directory, check what you're paying, and go to Clover. */
+.pay-pilot {
+  margin-top: 16px;
+}
+
+.pay-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid #1f6b3a;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f6b3a;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pay-card[aria-expanded="true"] {
+  background: #eaf4ec;
+}
+
+.pay-card:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+
+.pay-pilot-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fbf3df;
+  border: 1px solid #e8d49a;
+  color: #7a5a00;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pay-card-panel {
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid #1f6b3a;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.pay-card-ask {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.pay-card-name {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 1.1rem;
+}
+
+.pay-card-name:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+
+.pay-card-matches {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pay-card-match,
+.pay-card-new {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f7f7f4;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.pay-card-new {
+  border-style: dashed;
+  background: #fff;
+}
+
+.pay-card-review {
+  margin-top: 12px;
+}
+
+.pay-card-who {
+  font-size: 1.1rem;
+}
+
+.pay-card-change {
+  margin-left: 4px;
+  padding: 2px 10px;
+  border: 1px solid #1f6b3a;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f6b3a;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.pay-card-go {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 14px;
+  background: #1f6b3a;
+  color: #fff;
+  font: inherit;
+  font-size: 1.3rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pay-card-go:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.pay-card-match:focus-visible,
+.pay-card-new:focus-visible,
+.pay-card-change:focus-visible,
+.pay-card-go:focus-visible {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}
+
+.pay-card-error {
+  margin-top: 10px;
+  color: var(--red);
+  font-weight: 700;
+}
+
+/* Back from Clover: paid, cancelled or declined. */
+.pay-back {
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.pay-back-paid {
+  border-color: #1f6b3a;
+  background: #eaf4ec;
+}
+
+.text-cttc-pay {
+  display: block;
+  margin: -12px 0 28px;
+  color: #1f5a2e;
+  font-size: 0.95rem;
+}
+
+.text-cttc-pay .pay-pilot-tag {
+  margin-right: 4px;
+  vertical-align: 1px;
+}
 
 /* The monthly pass is a sign-up, not tonight's payment: set apart below, outlined in club red. */
 .pay-pass {
