@@ -167,11 +167,11 @@ const SUNDAY = '2027-01-10T19:30:00-08:00';
   assert.match(site.read('text.html'), /<a class="text-cttc-pay" href="pay\.html#card">/);
 
   // The pilot's small link in "Want to be included?" on the home and Round Robins pages: only while paying ahead is open.
+  // On the home page it opens Pay now there, with the card open; the Round Robins page has no Pay now, so it goes to pay.html.
   const rr = site.read('roundrobins.html');
-  for (const html of [home, rr]) {
-    assert.match(html, /<a class="tonight-pilot" href="pay\.html#card" data-prepay-link hidden>/);
-    assert.match(html, /<script src="turnout\.js"><\/script>\s*<script src="pay\.js\?v=\d+"><\/script>/);
-  }
+  assert.match(home, /<a class="tonight-pilot" href="#pay" data-open-pay data-open-card data-prepay-link hidden>/);
+  assert.match(rr, /<a class="tonight-pilot" href="pay\.html#card" data-prepay-link hidden>/);
+  for (const html of [home, rr]) assert.match(html, /<script src="turnout\.js"><\/script>\s*<script src="pay\.js\?v=\d+"><\/script>/);
   for (const [when, shown] of [[SUNDAY, false], ['2026-11-23T10:00:00-08:00', true], ['2026-11-23T20:30:00-08:00', false]]) {
     win = open(rr, when, { url: 'https://concordtabletennisclub.com/roundrobins.html' });
     await settle();
@@ -180,6 +180,12 @@ const SUNDAY = '2027-01-10T19:30:00-08:00';
   win = open(home, '2026-11-23T10:00:00-08:00', { url: 'https://concordtabletennisclub.com/' });
   await settle();
   assert.equal(win.document.querySelector('[data-prepay-link]').hidden, false, 'home page on a round robin morning');
+  assert.equal(win.document.getElementById('pay').open, false);
+  win.document.querySelector('[data-prepay-link]').click();
+  assert.equal(win.document.getElementById('pay').open, true, 'the pilot link opens Pay now');
+  assert.equal(win.document.querySelector('#pay .pay-card-panel').hidden, false, 'with the card open');
+  assert.match(win.document.querySelector('[data-open-pay]:not([data-prepay-link])').closest('li').textContent, /^Pay in advance and skip the front desk: Venmo or Zelle \(scan the QR code at the desk once to see them\), or by card on round robin days while we pilot it\. After Venmo or Zelle, text us to confirm\.$/);
+  assert.equal(win.document.querySelector('#pay > summary').textContent, 'Pay now');
 
   // Not a round robin day: no card button, just when it works.
   win = open(payPage, SUNDAY);
