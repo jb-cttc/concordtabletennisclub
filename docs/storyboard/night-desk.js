@@ -19,11 +19,11 @@ const phases = [
       subtext: 'Both /dev and /exec use the same real Sheet. Only /exec is the released code; /dev is whatever was last pushed from a branch.',
       caveats: ['A tab titled "DEV - CTTC Desk" with an amber /dev pill is the test copy. Do not run a night from it.', 'Each page carries a fingerprint of its code, made when Google serves it. A page stays on the code it opened with until it is reloaded.'],
       exceptions: [
-        X('The laptop is not signed in to the club Google account', 'After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.', 'Click the button, sign in with the club account, then reopen /desk.', 'handled', 'README.md:371'),
-        X('Someone opened the /dev link by mistake', 'It works, on the real Sheet, with untested code. The header pill and tab title say DEV.', 'Close it and open the /exec bookmark. Changes already made are in the real Sheet either way.', 'partial', 'apps-script/Code.js:166')],
+        X('The laptop is not signed in to the club Google account', 'After about 10 seconds the /desk page covers the frame with a sign-in card whose button opens the desk directly.', 'Click the button, sign in with the club account, then reopen /desk.', 'handled', 'README.md:373'),
+        X('Someone opened the /dev link by mistake', 'It works, on the real Sheet, with untested code. The header pill and tab title say DEV.', 'Close it and open the /exec bookmark. Changes already made are in the real Sheet either way.', 'partial', 'apps-script/Code.js:167')],
       screen: { kind: 'desk', highlight: ['header-date'], status: 'Loading player directory...', note: 'The header, with the /exec pill and the date picker.' },
       tech: {
-        entry: [E('apps-script/Code.js', 146, 'doGet', 'Routes ?view=cash|clover|volunteers, otherwise the desk.'), E('apps-script/Code.js', 153, 'deskPage_', 'Builds the page from Index.html, passing initialDate, deskMode and deskBuild.'), E('apps-script/Code.js', 174, 'deskBuild_', 'MD5 of Index.html plus every included file, 12 hex characters.'), E(I, 2499, 'DESK_BUILD', 'The page keeps its own fingerprint for Refresh projector.')],
+        entry: [E('apps-script/Code.js', 147, 'doGet', 'Routes ?view=cash|clover|volunteers, otherwise the desk.'), E('apps-script/Code.js', 154, 'deskPage_', 'Builds the page from Index.html, passing initialDate, deskMode and deskBuild.'), E('apps-script/Code.js', 175, 'deskBuild_', 'MD5 of Index.html plus every included file, 12 hex characters.'), E(I, 2499, 'DESK_BUILD', 'The page keeps its own fingerprint for Refresh projector.')],
         state: ['deskMode: dev | live | unknown', 'DESK_BUILD (this page\'s code fingerprint)'], writes: ['None.'], reads: ['ScriptApp.getService().getUrl() to tell /dev from /exec'],
         invariants: ['The main desk on a night runs /exec.', 'A page\'s DESK_BUILD equals deskBuild_ of the code that served it; it never changes without a reload.'],
         limits: ['Google web app: executes as the club account, access MYSELF.'],
@@ -39,7 +39,7 @@ const phases = [
         X('The laptop\'s clock or time zone is wrong', 'The desk opens on the date the laptop believes it is.', 'Set the laptop to Pacific time with automatic time.', 'partial', 'apps-script/Index.html:568')],
       screen: { kind: 'desk', highlight: ['header-date', 'status-bar'], status: 'No session exists for this date. Add players to begin.', note: 'The date picker and the status bar on a fresh night.' },
       tech: {
-        entry: [E(I, 568, 'today', 'new Date(now - getTimezoneOffset) .toISOString().slice(0,10): the browser\'s local date.'), E(I, 1030, '(club date)', 'Elsewhere the page uses Intl with timeZone America/Los_Angeles; the two can differ on a laptop not set to Pacific.'), E('apps-script/Code.js', 156, 'initialDate', '?date=YYYY-MM-DD overrides the default.'), E(S, 156, 'getSessionByDate', 'Looks up session-<date>.')],
+        entry: [E(I, 568, 'today', 'new Date(now - getTimezoneOffset) .toISOString().slice(0,10): the browser\'s local date.'), E(I, 1030, '(club date)', 'Elsewhere the page uses Intl with timeZone America/Los_Angeles; the two can differ on a laptop not set to Pacific.'), E('apps-script/Code.js', 157, 'initialDate', '?date=YYYY-MM-DD overrides the default.'), E(S, 156, 'getSessionByDate', 'Looks up session-<date>.')],
         state: ['date.value (the picker)', 'loadedDate (the night the page holds)'], writes: ['None until the first change.'], reads: ['getAppState(date)'],
         invariants: ['The date the desk is on equals the club\'s calendar date in Pacific time while the club is open.', 'loadedDate moves only after a load of that date has finished.'],
         limits: [],
@@ -464,10 +464,10 @@ const phases = [
       summary: 'Code is reviewed in a pull request, pushed to /dev and checked, then a numbered version is made and the live /exec deployment is pointed at it. Every open desk keeps the code it loaded until it is reloaded.',
       subtext: 'A merge on GitHub deploys nothing to Google. A release reaches a device only when that device reloads.',
       caveats: ['After a release, reload every open desk, and on the projector click Player board again.', 'clasp can skip a push silently when the manifest changes: clone back and compare.'],
-      exceptions: [X('Released while a night is running', 'Devices run mixed versions until reloaded.', 'Release between nights. If it cannot wait, reload every device at once.', 'partial', 'apps-script/Code.js:174')],
+      exceptions: [X('Released while a night is running', 'Devices run mixed versions until reloaded.', 'Release between nights. If it cannot wait, reload every device at once.', 'partial', 'apps-script/Code.js:175')],
       screen: { kind: 'devices', highlight: ['github', 'google', 'main-desk', 'projector'], note: 'Code goes GitHub → Google; each device picks it up on reload.' },
       tech: {
-        entry: [E('apps-script/Code.js', 174, 'deskBuild_', 'Fingerprint used to spot old pages.'), E('.github/skills/cttc-dev-preview/SKILL.md', 1, '', 'The release procedure.')],
+        entry: [E('apps-script/Code.js', 175, 'deskBuild_', 'Fingerprint used to spot old pages.'), E('.github/skills/cttc-dev-preview/SKILL.md', 1, '', 'The release procedure.')],
         state: [], writes: ['Apps Script versions and the /exec deployment'], reads: [],
         invariants: ['/exec only runs merged code.', 'Google HEAD equals main after a release.'],
         limits: [], tests: [], untested: ['Old and new code on different devices during one night.'],
@@ -493,7 +493,7 @@ const phases = [
 ];
 
 const meta = {
-  commit: 'b3ea9f7a76ea1f6176f048828297c4e98f078e48',
+  commit: '3ba0ef1c0c4ce5f233f25a036460c11eaf32a6a0',
   intro: 'A round robin night at the club, from opening the desk to results on the site: what each person does, what the screen shows, what can go wrong at each step, and the code underneath.',
   source: 'Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked "reproduced" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.',
   findingsNote: 'Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement.'

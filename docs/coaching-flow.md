@@ -11,7 +11,14 @@ references are to [`coaching-app/Code.js`](../coaching-app/Code.js).
 
 ## 1. Two-minute triage
 
-**Start with the booking code.** Every email about a booking ends with
+**Start on Coach Admin's control center** (the lock button on the Coaching
+page, below the coaches). It lists every lesson and request, upcoming and from
+the last two weeks, with its steps: what was sent, who it waits on and until
+when, and anything **Stuck** (see *The control center* in section 5). Search
+it by booking code, student or coach. Its controls move a booking on through
+the app's own steps; nobody edits the Sheet.
+
+**Then the booking code.** Every email about a booking ends with
 *Booking code: 3F09A1*, the same six characters the log uses. Ask the student
 or coach for it (it is safe to share: it says nothing about the person), then
 open the web app's `/exec` address with `?log=3F09A1`. It needs no sign-in and
@@ -40,7 +47,7 @@ Sheet:
 | `confirmed` | Coach said YES. Done. With `undo = done:{ms}`, the student cancelled it on the page and then replied UNDO, which put it back. | Nobody | Both: *Lesson confirmed: {date} {start}*, with each other's contact details. Texts too if opted in. After an UNDO both get *Lesson back on: {date} {start}* instead. | n/a | "booked" |
 | `declined` | Coach said NO. | Nobody (student may pick another time) | Student: *Coaching request not accepted*. | n/a | time is open again |
 | `expired` with empty `verified_at` | (Before November 2026 only.) Student never replied YES. | Nobody | Student: *Coaching request expired: we did not get your YES*, with how to book now. Coach was never told. | n/a | time is open again |
-| `expired` with `verified_at` set | Coach never answered. | **Club** should follow up with the coach | Student and coach both, with the club cc'd (`ADMIN_EMAIL`): *…expired: the coach did not answer* / *Lesson request expired: no answer*. | n/a | time is open again |
+| `expired` with `verified_at` set | Coach never answered. | **Club** should follow up with the coach (while it waits, Coach Admin's **Remind the coach now**, or **Accept** / **Decline for the coach** once they told the club) | Student and coach both, with the club cc'd (`ADMIN_EMAIL`): *…expired: the coach did not answer* / *Lesson request expired: no answer*. | n/a | time is open again |
 | `cancelled`, `cancelled_by = student` | Student cancelled a confirmed lesson on the page (from late November 2026, at once; `undo = open:{ms}`, the cancel time), or confirmed a cancel by emailed YES (before then), or replied NO to the confirm email (before November 2026). | Nobody (the student may reply UNDO, §3) | Student: *Coaching lesson cancelled [CTTC ref …]* with an **UNDO** button when cancelled on the page, else *Coaching lesson cancelled*. Coach: *Lesson cancelled by {student}*, only if the coach had been asked (`verified_at` set). | UNDO counts until the lesson starts, at most 3 days (`UNDO_MS`) | time is open again |
 | `cancelled`, `cancelled_by = withdrawn` | Student cancelled the request on the page before the coach answered (from November 2026; no YES needed). | Nobody | Student: *Coaching request cancelled*. Coach: *Request withdrawn by {student}*, and a text if registered. | n/a | time is open again |
 | `cancelled`, `cancelled_by = move` | Student moved to another time; look for the new row (status `pending`). | See the new row | Coach of the old time: *Lesson cancelled by {student}* ("moved"). | n/a | old time open; new time "requested" |
@@ -565,6 +572,50 @@ records `coach-phone-set` with codes. A new number starts *untested*. Email
 addresses are not set there: they are public on `coaching.html` and change in
 `CLUB_COACHES` by a reviewed PR.
 
+### The control center (Coach Admin, below the coaches)
+
+The coach list folds away (**Coach management**, with how many are set up in
+its summary line), and below it the control center shows every lesson and
+request (`Requests` rows for lessons from 14 days ago on, and any still holding
+a time), from the coaching app's `admin` call `overview` (`adminOverview_`):
+
+- **Tiles:** waiting on coaches (requests to accept, lists of times to publish),
+  waiting on students (a YES to a change), stuck, upcoming lessons, emails left
+  today, and the app's health. A tile filters the list below.
+- **Needs attention:** everything stuck or waiting, stuck first, each with its
+  steps and controls. **All lessons:** by day, filtered (Upcoming, Waiting,
+  Stuck, Past and closed, All) and searchable by booking code, student or coach.
+- **Steps** (`lessonOverview_`): ✓ done, ● waiting on someone, ○ the app does it
+  at its next run, **!** stuck. A step is stuck when it should have happened
+  by now: an email or text for the booking's status still not sent 2 hours
+  after the status changed (or never, once the sweep stopped retrying after 3
+  days), a coach reminder overdue, or a deadline passed more than 2 hours ago
+  without the sweep recording the expiry.
+- **Today and yesterday:** the daily summary's counts (`dayCounts_`, shared
+  with the email), the waitlist, the app's health (last sweep and check,
+  failing steps, emails left, the summary, timer run time) and the latest 25
+  lines of the Log tab.
+
+Each control asks the coaching app first (**Review**: what it would do, and
+nothing changes), then does it on **Confirm** (`adminAct_`). Each one moves a
+booking only through the app's own steps, so the usual emails, texts, public
+schedule and Log lines follow. Each one done is a `club-action:<kind>` row in
+the Log tab (codes only) and a `coaching_<kind>` entry in the desk log with
+who, when, and the booking code or coach.
+
+| Control | When | What it does |
+| --- | --- | --- |
+| Accept / Decline for the coach | `pending` | The coach's YES or NO, applied by the club (channel `club`: it never ticks the coach's email or mobile). Use only when the coach told the club. |
+| Remind the coach now | `pending` | The coach's request email again, marked *Reminder* (and the text, if it is the question open by text). The automatic reminder still goes. |
+| Cancel for the coach | `confirmed`, not started | `cancelled_by = coach`. The coach's confirmation email tells them to reply to the club to cancel; this is how the club does it. The student gets *Lesson cancelled by your coach* (and a text if they get texts), the coach *Lesson cancelled*, and the time opens again. |
+| Apply / Drop the student's change | a cancel or move waiting for the student's YES | Their YES or NO, applied by the club; a move that lost its time is refused. |
+| Confirm for the student / Drop the request | `unverified` (before November 2026) | The student's YES or NO. |
+| Resend the student's / coach's email | any status with an email | The email for the step it is at, again, as it reads now. |
+| Publish / Drop for the coach | a list of times waiting for the coach's YES | Their YES (publishes times and rates; they get the usual email) or NO. |
+| Run the sweep and the check | any time | What the hourly run does, now: expiries, unsent messages, due reminders, the public schedule, then new replies. |
+| Send the daily summary now | any time | Today's summary email as it stands; the usual one still goes. |
+| Test email / text to a coach | a coach offered on the page | The test email the coaching page sends (its YES ticks the email step), or a text from the club number (only to a coach who has texted it). One every 10 minutes per coach; at most 3 test emails a day. |
+
 ## 6. How the website shows the app
 
 The **Coaching** page's button opens the site's own copy of the page,
@@ -620,11 +671,12 @@ screen, so a refused request looked like nothing happened.
 | Student replied UNDO but the lesson stayed cancelled | Too late (the lesson had started, or 3 days had passed), another student booked the time first, the coach no longer offers it, or the reply was not read (another address, edited subject, first line not UNDO). | `?log=<code>`: `reply:student-u:undo` with `not applied, now cancelled (…)` says why, and the student was emailed it. No such line: the reply was not read (§4). | They book the time again on the page if it is open. |
 | Student says they replied YES to a cancel or move but nothing changed (or, before November 2026, a request is still `unverified`) | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or ask again from the page. |
 | Student never got any email about their request | The address was mistyped (the confirm box shows it large and points out likely typos, but it can still be wrong), or it went to spam. | `student_email` on the row; `student_emailed = pending` means it went out. | The coach has the address the student typed in their request email; correct it by cancelling and booking again. |
-| Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | `coach_emailed = pending`? `coach_texted = pending`? `Coaches.ask_ref` = this `request_id`? | Remind the coach to reply `YES` to the email or text. |
+| Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | Coach Admin: the booking's steps show what was sent and when the reminder went. | **Remind the coach now** on Coach Admin; if they answered the club another way, **Accept** or **Decline for the coach**. |
 | Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | Coach Admin: the coach's **Mobile** step is not ticked, or no number is on file. | Have them text `COACH` to the club number; set or correct the number on Coach Admin (Review and Confirm). |
-| No emails at all for a while | Daily mail quota low (sending pauses at 10 left), or Gmail/MailApp errors. | Executions log; `student_emailed`/`coach_emailed` lagging behind `status`. | Wait for the quota reset; the sweep retries for 3 days. |
+| No emails at all for a while | Daily mail quota low (sending pauses at 10 left), or Gmail/MailApp errors. | Coach Admin: **Emails left today**, and bookings marked **Stuck** with an email not sent. | Wait for the quota reset; the sweep retries for 3 days. After that, **Resend** on the booking. |
+| A coach asks the club to cancel a confirmed lesson | Their confirmation email tells them to reply to the club. | The booking on Coach Admin. | **Cancel for the coach** on Coach Admin. |
 | A time is missing from the board | It has started (Pacific time), so it no longer takes requests. Expected. ("Closed (less than a day ahead)" is only shown by an app released before November 2026.) | `date`/`start`. | None in the app. |
-| Public Sheet out of date | It is rebuilt only after changes and hourly; a failed rebuild is logged, never fatal. | Executions log for "Could not update the public schedule". | Run `sweep` from the editor. |
+| Public Sheet out of date | It is rebuilt only after changes and hourly; a failed rebuild is logged, never fatal. | Executions log for "Could not update the public schedule". | **Run the sweep and the check** on Coach Admin. |
 
 ## 9. Timing reference
 
