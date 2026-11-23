@@ -44,6 +44,10 @@ environment gains a new kind of access, add it here and to
   looks, never clicks or saves; keep any extra checks read-only too. Uses the
   clasp sign-in `~/.clasprc.json`, written at session start from
   `CLASPRC_B64` (the club Google account).
+- **The coaching, volunteer and subscribe apps' own pages** (`/dev` and `/exec`):
+  `npm run desk:google -- --app coaching|staffing|subscribe [--exec] [--width 390] --out <scratchpad dir>`,
+  the same way. The Tonight page's app (`turnout-app/`) has no page of its own;
+  look at `tonight.html` on the site.
 - **The executive committee meeting app** (`meeting-app/`, its own Apps Script
   project): `clasp` from `meeting-app/` pushes to its `/dev`; look at it with
   `npm run desk:google -- --app meeting [--view board] --out <scratchpad dir>`.

@@ -36,6 +36,7 @@ fi
 echo "Access in this session (AGENTS.md, What this session can access):"
 if [ -n "$clasp_ok" ]; then
   echo "- The real Google desk, /dev and /exec: npm run desk:google"
+  echo "- The coaching, volunteer and subscribe apps' pages, /dev and /exec: npm run desk:google -- --app coaching|staffing|subscribe"
   echo "- Apps Script push to /dev and /exec release: clasp from apps-script/"
   echo "- The executive committee meeting app: clasp from meeting-app/, and npm run desk:google -- --app meeting [--view board]"
   echo "- Draft notes email after a meeting (only when the owner asks): npm run meeting:draft -- fetch|preview|send (docs/meeting-app.md)"
