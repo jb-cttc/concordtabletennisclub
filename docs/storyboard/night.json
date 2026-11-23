@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "3ba0ef1c0c4ce5f233f25a036460c11eaf32a6a0",
+  "commit": "e1893d5a1851ffb69571562b82b058af8b0e1756",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -101,6 +101,13 @@
     "FreeNightPasses (Zeffy holders) and the admin key",
     "Hourly, and on a pass change",
     "A pass holder could take a free spot for up to an hour"
+   ],
+   [
+    "Desk (Coach Admin)",
+    "GitHub workflow → Club site",
+    "A club exception (offer or end) or a USATT re-check, by the publishing token",
+    "When the club asks",
+    "The coaching page keeps its last list; after 30 minutes Coach Admin shows the request as skipped"
    ],
    [
     "Desk (Coach Admin)",
@@ -1275,24 +1282,24 @@
      "who": "Owner",
      "when": "Up to 28 days ahead",
      "summary": "A club coach picks times on the coaching page (Fridays 7–10 PM, Saturdays 3–6 PM, 30 or 60 minutes, on table 1 to 3) and confirms them by replying YES to *Confirm your coaching times*. Only then are the times published on the booking board. In **Your lesson rates (optional)** at the top of the page the coach can also list what they charge for a 50- and a 25-minute lesson; rates go in the same list (*Confirm your coaching times and rates*, or *Confirm your lesson rates*) and the same YES publishes them. A coach's button shows a green **✓** only when they are fully set up (an email answered from, a mobile texted from, both rates published); otherwise *Coach D · 2 steps left*, and picking the name shows **Your setup** with a button for each step left: **Send me a test email** (reply YES), **Text COACH now** (opens Messages with the club number filled in) and **Set my rates**.",
-     "subtext": "Which coaches can offer is set by the club site's coaching page (USATT certified); the desk copies that list to its Sheet every hour for the coaching app to read.",
+     "subtext": "Which coaches can offer is set by the club site's coaching page (USATT certified, or the club's exception); the desk copies that list to its Sheet every hour for the coaching app to read. Coach Admin shows each coach's USATT status and, for a coach not offered, why.",
      "caveats": [
       "A coach list not confirmed in 48 hours lapses; a late YES is answered and the list offered again if the times are still free."
      ],
      "exceptions": [
       {
        "when": "A coach is not shown on the coaching page",
-       "happens": "The hourly sweep disables them and hides their times.",
-       "handling": "Add or remove a coach, or change a coach's email, in CLUB_COACHES and coaching.html, not in the Sheet.",
+       "happens": "The hourly sweep disables them and hides their times. Their card on **Coach Admin** moves under *Not offered on the coaching page* and says why: *USATT certification pending*, not on the club's coach list, or not in the coaching page's table.",
+       "handling": "For a Pending coach the club wants offered: **Offer while pending** (Review, then Confirm). GitHub's data update lists them on the coaching page as Pending in about 10 minutes; **Sync now** then offers them at once. **Stop offering until certified** ends it, and the exception ends by itself once USATT certifies them; **Re-check USATT now** picks up a new certification without waiting. A coach off the club's coach list (CLUB_COACHES and coaching.html) comes back only by a reviewed pull request, never through the Sheet.",
        "status": "handled",
-       "evidence": "docs/coaching-flow.md:471"
+       "evidence": "docs/coaching-flow.md:575"
       },
       {
        "when": "A coach has a new mobile number",
        "happens": "Their texts go to the old number until it is changed.",
        "handling": "Set it on **Coach Admin** (the lock button on the Coaching page): Review, then Confirm. The mobile step shows untested until they text the club number from it.",
        "status": "handled",
-       "evidence": "apps-script/CoachAdmin.js:49"
+       "evidence": "apps-script/CoachAdmin.js:57"
       }
      ],
      "screen": {
@@ -1330,7 +1337,7 @@
        },
        {
         "file": "apps-script/CoachList.js",
-        "line": 14,
+        "line": 15,
         "symbol": "publishCoachList_",
         "note": "Hourly copy of the shown coaches."
        },
@@ -1354,9 +1361,27 @@
        },
        {
         "file": "apps-script/CoachAdmin.js",
-        "line": 38,
+        "line": 39,
         "symbol": "getCoachAdmin",
         "note": "The desk's Coach Admin page asks the coaching app with the admin key."
+       },
+       {
+        "file": "apps-script/CoachAdmin.js",
+        "line": 165,
+        "symbol": "coachOffer_",
+        "note": "Each coach's USATT status, why they are or are not offered, and the control that fits."
+       },
+       {
+        "file": "apps-script/CoachAdmin.js",
+        "line": 213,
+        "symbol": "coachOfferAction_",
+        "note": "Offer, end, sync or re-check: previewed, then done; one data update at a time."
+       },
+       {
+        "file": "scripts/coach-exception.js",
+        "line": 23,
+        "symbol": "applyException",
+        "note": "Run by the data update: adds or ends the club's exception and rebuilds coaching.html."
        }
       ],
       "state": [
@@ -1377,7 +1402,9 @@
        "Two lessons never share a table at the same time.",
        "A lesson rate is published only by the coach's YES, in the same list as their times; nobody types rates into the Sheet.",
        "The green ✓ shows only when the email, the mobile and both rates are done; a changed address or number is untested until the coach answers from it.",
-       "A mobile number is set only on Coach Admin, after Review and Confirm, and each change is in the desk log."
+       "A mobile number is set only on Coach Admin, after Review and Confirm, and each change is in the desk log.",
+       "A coach is offered only while USATT certifies them or the club has made them an exception on Coach Admin; an exception ends by itself once they are certified, and nobody types an exception into a Sheet.",
+       "Coach Admin starts one data update at a time (GitHub keeps one waiting run), and a change the coaching page still does not show after 30 minutes is shown as skipped, to be asked again."
       ],
       "limits": [
        "HORIZON_DAYS 28."
@@ -1406,10 +1433,22 @@
        {
         "file": "scripts/check-coach-admin-page.js",
         "case": "",
-        "covers": "The Coach Admin page: Confirm sends the number that was reviewed."
+        "covers": "The Coach Admin page: Confirm sends the number that was reviewed; the USATT line, why a coach is not offered, Offer while pending sent for the same coach."
+       },
+       {
+        "file": "apps-script/check-coach-admin.cjs",
+        "case": "Who is offered, and why",
+        "covers": "Each reason and control; Review starts nothing; the data update started once with the coach; one at a time; Sync now; a skipped request asked again; Re-check."
+       },
+       {
+        "file": "scripts/check-usatt-coaches-test.js",
+        "case": "The club's exception from Coach Admin",
+        "covers": "An exception added and ended from the stored statuses, kept by the USATT check, ended once certified; only a coach the check follows; the workflow passes the value as an environment variable."
        }
       ],
-      "untested": [],
+      "untested": [
+       "The data update started from the real desk with coach_exception (GitHub accepts the input only once this is on main)."
+      ],
       "simulate": "coaching-app/check-coaching.cjs."
      }
     },
@@ -1753,7 +1792,7 @@
        "happens": "The booking shows **Stuck** with the message not sent.",
        "handling": "**Run the sweep and the check** (it sends what is due), or **Resend** the email; after 3 days the sweep stops retrying and only Resend sends it.",
        "status": "handled",
-       "evidence": "docs/coaching-flow.md:588"
+       "evidence": "docs/coaching-flow.md:614"
       },
       {
        "when": "The coaching app has not got this release yet",
@@ -1801,13 +1840,13 @@
        },
        {
         "file": "apps-script/CoachAdmin.js",
-        "line": 70,
+        "line": 78,
         "symbol": "coachingAction_",
         "note": "The desk side: only known controls, logged in the desk log once done."
        },
        {
         "file": "apps-script/CoachAdminPage.html",
-        "line": 697,
+        "line": 793,
         "symbol": "renderCenter",
         "note": "The control center."
        }
