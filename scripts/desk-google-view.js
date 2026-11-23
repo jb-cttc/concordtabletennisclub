@@ -1,11 +1,11 @@
-// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers|subscribers] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
+// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers|subscribers|coaches] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
 //      npm run desk:google -- --app meeting [--view board] ...   the executive committee meeting app (meeting-app/) instead
 // Opens the real Google-hosted desk (/dev by default, /exec with --exec) in headless Chromium, signed in with the
 // club's clasp sign-in (~/.clasprc.json), so an agent can see what it pushed. It looks, it does not touch: the script
 // never clicks, types or saves. It only loads the page, optionally switches the date picker (which only reads), waits
 // for the page to settle, prints a short summary and saves screenshots: desk.png is the browser window (Google keeps the
 // desk in a frame the window's height, so raise --height to see further down), and --selector saves one part of the
-// page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover, ?view=volunteers, ?view=subscribers) instead, and waits
+// page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover, ?view=volunteers, ?view=subscribers, ?view=coaches) instead, and waits
 // for it to finish loading. --app meeting opens the meeting app's controller (or its projector board with --view board).
 //
 // Both URLs run against the real club Sheet, Gmail and member data. Screenshots therefore show real names: keep them
@@ -68,7 +68,7 @@ async function deployment(token, live, app) {
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('--date must be YYYY-MM-DD');
   if (!/^(desk|meeting)$/.test(app)) throw new Error('--app must be desk or meeting');
   if (app === 'meeting' && (date || (view && view !== 'board'))) throw new Error('The meeting app takes only --view board');
-  if (app === 'desk' && view && !/^(cash|clover|volunteers|subscribers)$/.test(view)) throw new Error('--view must be cash, clover, volunteers or subscribers');
+  if (app === 'desk' && view && !/^(cash|clover|volunteers|subscribers|coaches)$/.test(view)) throw new Error('--view must be cash, clover, volunteers, subscribers or coaches');
   if (view && date) throw new Error('--date is for the desk; leave it out with --view');
   fs.mkdirSync(out, { recursive: true, mode: 0o700 });
 
