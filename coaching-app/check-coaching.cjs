@@ -18,7 +18,7 @@ assert.equal(manifest.webapp.executeAs, 'USER_DEPLOYING', 'visitors never need G
 const source = fs.readFileSync(__dirname + '/Code.js', 'utf8');
 const globals = [...source.matchAll(/^function ([A-Za-z0-9]+)\(/gm)].map(match => match[1]);
 assert.deepEqual(globals.filter(name => !name.endsWith('_')).sort(), [
-  'checkTexts', 'checkTextsWatch', 'coachBoard', 'coachList', 'coachPropose', 'doGet', 'doPost', 'joinWaitlist', 'openSlots', 'requestSlot', 'setup', 'studentChange', 'sweep'
+  'checkTexts', 'checkTextsWatch', 'coachBoard', 'coachEmailCheck', 'coachList', 'coachPropose', 'doGet', 'doPost', 'joinWaitlist', 'openSlots', 'requestSlot', 'setup', 'studentChange', 'sweep'
 ], 'a public web app exposes every non-private function: only these may exist');
 
 // ---- Fakes ----
@@ -120,6 +120,7 @@ let readerStopped = false;
 let runtimeGrid = null;
 // The desk's key for waking the app (apps-script/MailReader.js wakeKey_), in a hidden tab of its Sheet.
 const WAKE_KEY = 'f'.repeat(64);
+const ADMIN_KEY = 'a'.repeat(64);
 let textReads = 0;
 // Who the coaching page shows, as the desk copies it to its hidden CoachList tab (apps-script/CoachList.js); absent until the
 // desk makes it.
@@ -139,7 +140,7 @@ books['desk-sheet-id'] = {
     MailReader: { getLastRow: () => 2, getRange: () => ({ getValues: () => [[String(readerStopped ? clock - 46 * 60000 : clock - 30 * 60000)]] }) },
     CoachList: coachListGrid && { getDataRange: () => ({ getValues: () => coachListGrid.map(line => line.slice()) }) },
     StaffingDigest: digestGrid && { getDataRange: () => ({ getValues: () => digestGrid.map(line => line.slice()) }) },
-    AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? WAKE_KEY : 'key']] }) },
+    AppWake: { getLastRow: () => 2, getRange: (row, column) => ({ getValues: () => [[row === 2 && column === 1 ? WAKE_KEY : row === 2 && column === 2 ? ADMIN_KEY : 'key']] }) },
     // Every app's timer run time for the day (the desk's apps-script/JobRuntime.js); absent until the desk makes it.
     JobRuntime: runtimeGrid && {
       getDataRange: () => ({ getValues: () => runtimeGrid.map(line => line.slice()) }),
@@ -253,8 +254,8 @@ const check = () => { delete cache['check-texts']; delete cache['verify-coaches'
 // A text from a phone. Each one arrives a minute after the last, the way real replies come after the question.
 const say = (name, body, from) => { clock += 60000; inbound(name, body, clock, from); check(); };
 const allTextsTo = (...names) => replies.filter(reply => names.some(name => reply.subject === 'New text message from ' + name)).map(reply => reply.body);
-// The one-time "you are verified" reply is checked on its own, so the other texts keep their order.
-const VERIFIED = /^CTTC: Thanks, you are verified as /;
+// The one-time "your mobile is confirmed" reply is checked on its own, so the other texts keep their order.
+const VERIFIED = /^CTTC: Thanks, your mobile is confirmed for /;
 const verifiedTo = (...names) => allTextsTo(...names).filter(body => VERIFIED.test(body));
 const textsTo = (...names) => allTextsTo(...names).filter(body => !VERIFIED.test(body));
 // An email reply, a minute after the last thing that happened. Only the From address, the subject and the first line matter.
@@ -508,20 +509,23 @@ assert.match(grids.About[0][0], /does not change any booking/);
 
 // ---- Coaches: only the ones the owner listed, picked from a list; no sign-in ----
 assert.deepEqual(grids.Coaches[0], ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at',
-  'rate_50', 'rate_25', 'ask_rates'], 'the owner types the first three columns');
+  'rate_50', 'rate_25', 'ask_rates', 'email_ok', 'phone_ok', 'phone_set_at', 'email_check_at'], 'the owner types the first three columns');
 assert.deepEqual(run('coachList'), { ok: true, coaches: [] }, 'nobody is a coach until the owner lists them');
 const annId = addCoach('Ann Coach', 'ann@example.com', '(925) 555-0101');
 assert.match(annId, /^[a-f0-9]{16}$/);
 assert.deepEqual([grids.Coaches[1][0], grids.Coaches[1][5]], ['Ann Coach', 'Coach A'], 'the owner only types a name: the app gives the coach an id and Coach A');
-assert.deepEqual(run('coachList'), { ok: true, coaches: [{ id: annId, label: 'Coach A', ready: true, registered: false }] }, 'no green check until the coach is verified');
+assert.deepEqual(run('coachList'), { ok: true, coaches: [{ id: annId, label: 'Coach A', ready: true, registered: false, left: 3 }] }, 'no green check until the coach is fully set up');
+assert.deepEqual(run('coachBoard', annId).steps, { email: 'untested', text: 'untested', rates: 'missing', left: 3 }, 'on file is not the same as tested');
 assert.equal(grids.Coaches.length, 2);
 assert.equal(sent.length + replies.length, 0, 'listing a coach sends nothing');
 const ann = () => textsTo('Ann Coach');
 // A coach on the list who has texted the club number (COACH, or anything) can be texted back: the next check verifies them.
 check();
-assert.equal(run('coachList').coaches[0].registered, true, "Ann's earlier text to the club number gives her the green check");
+assert.equal(run('coachBoard', annId).steps.text, 'done', "Ann's earlier text to the club number ticks her mobile");
+assert.deepEqual([run('coachList').coaches[0].registered, run('coachList').coaches[0].left], [false, 2], 'but no green check until her email and rates are done too');
+assert.equal(cell('Coaches', coachRow(annId), 'phone_ok'), '9255550101', 'the number that texted is kept');
 assert.ok(cell('Coaches', coachRow(annId), 'registered_at'));
-assert.deepEqual(verifiedTo('Ann Coach'), ['CTTC: Thanks, you are verified as Coach Ann. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
+assert.deepEqual(verifiedTo('Ann Coach'), ['CTTC: Thanks, your mobile is confirmed for Coach Ann. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
   'tap I am a coach and pick Coach A. We will text you here to confirm your times and lesson requests.'], 'told once, on her own thread');
 check();
 assert.equal(verifiedTo('Ann Coach').length, 1, 'and never again');
@@ -1660,7 +1664,9 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   const cyId = addCoach('Cy Coach', 'cy@example.com');
   const deeId = addCoach('Dee Coach', 'dee@example.com', '(925) 555-0142', false);
   assert.equal(coachRow(deeId)[5], 'Coach D', 'a coach is shown by the first letter of their first name');
-  assert.deepEqual(run('coachList').coaches.map(coach => [coach.label, coach.ready, coach.registered]), [['Coach A', true, true], ['Coach B', true, true], ['Coach C', true, false], ['Coach D', true, false]]);
+  assert.deepEqual(run('coachList').coaches.map(coach => [coach.label, coach.registered, coach.left, run('coachBoard', coach.id).steps.email, run('coachBoard', coach.id).steps.text]),
+    [['Coach A', false, 1, 'done', 'done'], ['Coach B', false, 2, 'untested', 'done'], ['Coach C', false, 3, 'untested', 'missing'], ['Coach D', false, 3, 'untested', 'untested']],
+    'each step on its own: an emailed answer ticks the email, a text the mobile, and nobody has rates yet');
   assert.doesNotMatch(JSON.stringify([run('coachList'), run('coachBoard', deeId)]), PRIVATE, "a coach's full name and number never reach the page");
   assert.deepEqual(['ready', 'email', 'text'].map(key => run('coachBoard', cyId)[key]), [true, true, false]);
 
@@ -1673,7 +1679,7 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   replyTo('cy@example.com', 'YES', /^Confirm your coaching times/);
   assert.equal(run('openSlots').slots.filter(entry => entry.coach === 'Coach Cy').length, 1, 'her emailed YES publishes it');
   assert.equal(mailTo('cy@example.com').pop().body.split('\n')[0], 'Done. Coach Cy now has 1 upcoming coaching time (1 added, 0 removed). Students can request them at concordtabletennisclub.com/coaching.html.');
-  assert.equal(run('coachList').coaches.find(coach => coach.id === cyId).registered, false, 'an email-only coach can publish but gets no green check without a mobile and a text');
+  assert.deepEqual(run('coachBoard', cyId).steps, { email: 'done', text: 'missing', rates: 'missing', left: 2 }, 'her emailed YES ticks her email; with no mobile she gets no green check');
   // An emailed YES after 48 hours gets an email offering the same times again, with a new reference; YES to that publishes them.
   const beforeLate = clock;
   assert.equal(propose(cyId, [slot('2026-10-30', '20:00', 60), slot('2026-10-10', '17:00', 60)]).ok, true);
@@ -1733,12 +1739,12 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.equal(deeLive().length, 0, 'times waiting for the YES are hidden from students');
   assert.ok(!grids.Schedule.some(line => line[4] === 'Coach Dee'), 'and from the public Sheet');
   assert.match(propose(deeId, deeSet.slice(0, 1)).message, /a few minutes ago/, 'a second list has to wait ten minutes, so a stranger cannot spam the phone');
-  assert.equal(run('coachList').coaches.find(coach => coach.id === deeId).registered, false, 'sending a list alone is not verification');
+  assert.equal(run('coachBoard', deeId).steps.text, 'untested', 'sending a list alone is not verification');
 
   // Her text to the club number verifies her at the next check. Only a YES from this coach's phone, sent after the question, counts.
   check();
-  assert.equal(run('coachList').coaches.find(coach => coach.id === deeId).registered, true, 'her COACH text gives Coach D the green check');
-  assert.deepEqual(verifiedTo('Dee Coach'), ['CTTC: Thanks, you are verified as Coach Dee. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
+  assert.equal(run('coachBoard', deeId).steps.text, 'done', 'her COACH text ticks Coach D\'s mobile');
+  assert.deepEqual(verifiedTo('Dee Coach'), ['CTTC: Thanks, your mobile is confirmed for Coach Dee. To offer coaching times, open concordtabletennisclub.com/coaching.html, ' +
     'tap I am a coach and pick Coach D. We will text you here to confirm your times and lesson requests.']);
   assert.equal(deeLive().length, 0, 'a YES sent before the question does not count');
   inbound('Dee Coach', 'Call me first', clock + 1000);
@@ -2053,6 +2059,106 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assertPublicIsAnonymous();
 }
 
+// ---- The setup checklist behind the green check: an email answered from, a mobile texted from, both rates ----
+{
+  cache = {};
+  const gusId = addCoach('Gus Coach', 'gus@example.com', '(925) 555-0171');
+  check();
+  const steps = () => run('coachBoard', gusId).steps;
+  const green = () => run('coachList').coaches.find(coach => coach.id === gusId);
+  const set = (name, value) => { coachRow(gusId)[column('Coaches', name)] = value; };
+  assert.deepEqual(steps(), { email: 'untested', text: 'done', rates: 'missing', left: 2 }, 'his COACH text ticks the mobile only');
+  assert.deepEqual([green().registered, green().left], [false, 2]);
+  // Times and both rates in one list, answered by email: the two remaining steps at once.
+  assert.equal(propose(gusId, [slot('2026-10-30', '19:00', 60)], { 50: '50', 25: '30' }).ok, true);
+  replyTo('gus@example.com', 'YES', /^Confirm your coaching times and rates/);
+  assert.deepEqual(steps(), { email: 'done', text: 'done', rates: 'done', left: 0 }, 'an emailed YES ticks the email, and publishes the rates');
+  assert.deepEqual([green().registered, green().left], [true, 0], 'all three done: the green check');
+  assert.equal(cell('Coaches', coachRow(gusId), 'email_ok'), 'gus@example.com', 'the address that answered is kept');
+  // One rate is not enough: a student may book either length.
+  set('rate_25', '');
+  assert.deepEqual([steps().rates, green().registered], ['missing', false]);
+  set('rate_25', '30');
+  // A different address on file (the club list changed it) is untested until he answers from it.
+  set('email', 'gus.new@example.com');
+  assert.deepEqual([steps().email, green().registered], ['untested', false], 'a changed address loses the check');
+  set('email', 'gus@example.com');
+  assert.equal(green().registered, true, 'the tested address again: the check is back');
+
+  // The email step's button: a test email to the address on file; a reply from that address ticks it.
+  set('email', 'gus.other@example.com');
+  assert.equal(steps().email, 'untested');
+  const before = mailTo('gus.other@example.com').length;
+  const asked = run('coachEmailCheck', gusId);
+  assert.equal(asked.ok, true, asked.message);
+  assert.equal(asked.message, 'Sent to g•••r@example.com. Reply YES to it, and Email turns green within a few minutes of your reply.', 'only a hint of the address');
+  const test = mailTo('gus.other@example.com').pop();
+  assert.equal(mailTo('gus.other@example.com').length, before + 1, 'one email, to the address on file');
+  assert.match(test.subject, /^Confirm your email for CTTC coaching \[CTTC ref [0-9A-F]{10}\]$/);
+  assert.match(run('coachEmailCheck', gusId).message, /a few minutes ago/, 'not again for 10 minutes');
+  answerMail('gus@example.com', 'YES', test.subject);
+  assert.equal(steps().email, 'untested', 'a reply from another address does not count');
+  replyTo('gus.other@example.com', 'YES', /^Confirm your email for CTTC coaching/);
+  assert.equal(steps().email, 'done', 'his YES from the address on file ticks it');
+  assert.equal(cell('Coaches', coachRow(gusId), 'email_ok'), 'gus.other@example.com');
+  assert.match(run('coachEmailCheck', gusId).message, /already confirmed/);
+  set('email', 'gus@example.com');
+  set('email_ok', 'gus@example.com');
+
+  // The desk's Coaches page: only with the desk's admin key; it lists every coach and sets a mobile after a preview.
+  const admin = body => JSON.parse(context.doPost({ postData: { contents: JSON.stringify(Object.assign({ fn: 'admin' }, body)) } }).text);
+  assert.equal(admin({ key: 'b'.repeat(64), action: 'coaches' }).ok, false, 'a wrong key gets nothing');
+  assert.equal(admin({ key: WAKE_KEY, action: 'coaches' }).ok, false, 'nor does the wake key');
+  const listed = admin({ key: ADMIN_KEY, action: 'coaches' });
+  const gus = listed.coaches.find(coach => coach.id === gusId);
+  assert.deepEqual([gus.name, gus.label, gus.email, gus.phone, gus.steps.left, gus.rates], ['Gus Coach', green().label, 'gus@example.com', '(925) 555-0171', 0, { 50: '50', 25: '30' }]);
+  const phone = (typed, preview) => admin({ key: ADMIN_KEY, action: 'phone', coachId: gusId, phone: typed, preview });
+  assert.match(phone('555-1234', true).message, /10 digit US mobile number/);
+  assert.match(phone('925 555 0171', true).message, /already Coach Gus's number/);
+  assert.match(phone('(925) 555-0101', true).message, /already on file for Coach Ann/, 'two coaches never share a number');
+  const unchanged = JSON.stringify(grids.Coaches);
+  const seen = phone('925.555.0177', true);
+  assert.deepEqual([seen.ok, seen.preview, seen.before, seen.after], [true, true, '(925) 555-0171', '(925) 555-0177']);
+  assert.match(seen.effect, /not yet confirmed until they text \(925\) 238-3505 from it/);
+  assert.equal(JSON.stringify(grids.Coaches), unchanged, 'a preview changes nothing');
+  const logged = grids.Log.length;
+  assert.equal(phone('925.555.0177', false).ok, true);
+  assert.equal(cell('Coaches', coachRow(gusId), 'phone'), '(925) 555-0177');
+  assert.deepEqual([steps().text, green().registered], ['untested', false], 'a new number is untested, so the check goes');
+  const setRow = grids.Log.slice(logged).find(line => line[2] === 'coach-phone-set');
+  assert.ok(setRow && /^from [0-9A-F]{6} to [0-9A-F]{6}$/.test(setRow[5]), 'logged once, as codes');
+  assert.ok(!JSON.stringify(grids.Log).includes('5550177'), 'never the number');
+  // His old COACH text (by his Voice contact name) does not confirm the new number; a text after the change does.
+  check();
+  assert.equal(steps().text, 'untested', 'a text from before the change does not count');
+  clock += 60000;
+  inbound('Gus Coach', 'COACH', clock - 1000);
+  check();
+  assert.deepEqual([steps().text, green().registered], ['done', true], 'his first text from the new number brings the check back');
+  assert.equal(cell('Coaches', coachRow(gusId), 'phone_ok'), '9255550177');
+
+  // The one-time look-back when the checklist arrives: an emailed answer already in the Log ticks that address, unless the
+  // sweep changed the address after it.
+  const hal = addCoach('Hal Coach', 'hal@example.com', '(925) 555-0181');
+  const ivy = addCoach('Ivy Coach', 'ivy@example.com', '(925) 555-0191');
+  check();
+  const row = id => coachRow(id);
+  [hal, ivy].forEach(id => { row(id)[column('Coaches', 'email_ok')] = ''; row(id)[column('Coaches', 'phone_ok')] = ''; });
+  const logLine = (kind, ref, at) => grids.Log.push([at, 'email', kind, ref, '-', 'applied']);
+  logLine('reply:coach-slots:yes', hal, '2026-10-01T10:00:00.000Z');
+  logLine('reply:coach-slots:yes', ivy, '2026-10-01T10:00:00.000Z');
+  grids.Log.push(['2026-10-02T10:00:00.000Z', '-', 'coach-email-set', ivy, '-', 'from AAAAAA to BBBBBB']);
+  delete properties.SETUP_STEPS_FILLED;
+  context.sweep();
+  assert.deepEqual([hal, ivy].map(id => run('coachBoard', id).steps.email), ['done', 'untested'], 'Hal answered from his address; Ivy answered from the one replaced since');
+  assert.deepEqual([hal, ivy].map(id => run('coachBoard', id).steps.text), ['done', 'done'], 'a coach verified before keeps the mobile they have');
+  assert.ok(properties.SETUP_STEPS_FILLED);
+  assert.ok(grids.Log.some(line => line[2] === 'setup-steps-filled'));
+  row(hal)[column('Coaches', 'email_ok')] = '';
+  context.sweep();
+  assert.equal(run('coachBoard', hal).steps.email, 'untested', 'it runs once');
+}
+
 // ---- Coach initials, and students who opt in to texts by texting STUDENT ----
 {
   const abeId = addCoach('Abe Coach', 'abe@example.com', '(925) 555-0161');
@@ -2211,7 +2317,7 @@ assert.match(page, /Which CTTC registered coach are you\?/);
 const script = /<script>([\s\S]*?)<\/script>/.exec(page)[1];
 new vm.Script(script);
 const called = new Set([...script.matchAll(/(?:call|guarded|load|preload)\((?:[a-z]+, )?'([A-Za-z]+)'/g)].map(match => match[1]));
-assert.deepEqual([...called].sort(), ['coachBoard', 'coachList', 'coachPropose', 'joinWaitlist', 'openSlots', 'requestSlot', 'studentChange']);
+assert.deepEqual([...called].sort(), ['coachBoard', 'coachEmailCheck', 'coachList', 'coachPropose', 'joinWaitlist', 'openSlots', 'requestSlot', 'studentChange']);
 for (const name of called) assert.ok(globals.includes(name) && !name.endsWith('_'), name + ' exists and is callable from the page');
 
 // ---- The site page that frames the app ----

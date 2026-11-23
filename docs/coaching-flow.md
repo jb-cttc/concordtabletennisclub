@@ -414,7 +414,7 @@ started collecting them. Emailed answers are searched from the last check (5
 minutes back), not from the oldest open question.
 
 - The app can only text someone who has **texted the club number first**:
-  coaches text `COACH` once (this sets `Coaches.registered_at`), students text
+  coaches text `COACH` once (this sets `Coaches.registered_at` and `phone_ok`), students text
   `STUDENT` (sets `Students.texts = yes`, `texts_at`).
 - The sender is matched by the mobile number on the list, or by the Google
   Voice contact name matching the name on the list.
@@ -455,7 +455,9 @@ it has not changed for more than an hour, the check is not running.
 | Where | What it tells you |
 | --- | --- |
 | **Coaches** `ask_slots` (JSON) and `ask_made` (ms) | The coach submitted times on the page and we are waiting for their YES (email *Confirm your coaching times [CTTC ref …]* and/or a text). Nothing is published until then. The email and text say when the coach must reply by: 48 hours after sending (`ASK_TTL_MS`). A lapsed list is kept another 14 days (`LATE_ASK_MS`) so a late reply is answered, never ignored (below). |
-| **Coaches** `registered_at` | The coach's texts work (they texted the club number). Empty means texting them fails. |
+| **Coaches** `registered_at`, `phone_ok` | The coach's texts work: they texted the club number (`registered_at` is when) from the number in `phone_ok`. Empty, or a `phone_ok` that differs from `phone`, means the mobile is not confirmed (see *The setup checklist*, below). |
+| **Coaches** `email_ok` | The address the coach last answered one of our emails from. When it differs from `email` (a new address in `CLUB_COACHES`), the email is not confirmed. |
+| **Coaches** `phone_set_at` (ms) | When the club last set the mobile number on Coach Admin; only a text after this confirms the new number. |
 | **Coaches** `rate_50`, `rate_25` | The coach's published lesson rates in whole dollars; empty means no rate listed. Set by the coach on the page and published by their YES (below), never typed in the Sheet. |
 | **Coaches** `ask_rates` (JSON) | The rates in the list waiting for the coach's YES, only when that list changes them. Cleared with `ask_slots`. |
 | **Requests** `rate` | The rate the student saw and confirmed for that lesson; empty when the coach listed none (and for requests made before rates). Every email about the lesson quotes this, even after the coach changes their rates. |
@@ -517,6 +519,52 @@ are **at most 28 days ahead** (`HORIZON_DAYS`), on Fridays 7 to 10 PM or
 Saturdays 3 to 6 PM Pacific. Emails ask students to cancel or move at least 24
 hours ahead when they can (`CANCEL_NOTICE_HOURS`); that is not enforced.
 
+### The setup checklist (the green ✓) and Coach Admin
+
+A coach's button on the coaching page (*I am a coach*) shows a green ✓ only
+when the coach is fully set up (`setupSteps_` in `coaching-app/Code.js`):
+
+| Step | Done when | Not done |
+| --- | --- | --- |
+| Email | The coach has answered one of our emails (a list of times or a lesson request) from the address on file (`email_ok` = `email`). | *untested*: an address is on file but no answer has come from it; *missing*: no address. |
+| Mobile | The coach has texted the club number from the number on file (`registered_at`, and `phone_ok` = `phone`). | *untested*, or *missing* (the app emails only). |
+| Rates | Both lesson rates (50 and 25 minutes) are published, since a student may book either length with any coach. | *missing*. |
+
+A changed address or number goes back to *untested* until the coach answers
+from it, so the ✓ never stays on a contact nobody has tried. A coach with steps
+left shows *Coach D · 2 steps left*; picking the name shows the checklist with
+a button for each step not done:
+
+- **Send me a test email** (`coachEmailCheck`): emails *Confirm your email for
+  CTTC coaching [CTTC ref …]* to the address on file (the page shows only a hint
+  of it, such as `t•••y@gmail.com`). Any YES or NO from that address within 48
+  hours ticks Email (`email_check_at` holds when it was sent). At most one every
+  10 minutes and 3 a day per coach; it only ever goes to the coach's own address.
+- **Text COACH now**: an `sms:` link that opens the phone's Messages with the
+  club number and COACH filled in, with the steps written out for a computer.
+  The app cannot text a coach first (Google Voice only replies), so this is the
+  coach's own text.
+- **Set my rates**: scrolls to the rate boxes and puts the cursor in the first
+  empty one. The ✓ changes nothing else: any coach with an email or
+a mobile can offer times and be booked, as before.
+
+When the checklist arrived (December 2026) the sweep looked back once through
+the Log tab (its latest 500 rows): a coach who had already answered an email
+from the address now on file keeps the email step, and a coach verified by text
+before keeps the mobile step. The Log gets one `setup-steps-filled` row with
+the counts.
+
+**Coach Admin** (`coach-admin.html` on the site, the lock button on the
+Coaching page; the desk's `?view=coaches`, `apps-script/CoachAdmin.js`) opens
+only for the club's Google account. It lists every coach with the three steps,
+and is the one place a coach's mobile number is set or removed: type the number,
+**Review** (the coaching app checks it: a 10-digit US number, not another
+coach's), then **Confirm**. The desk log records `coach_phone_set` with who, the
+coach and the last four digits before and after; the coaching app's Log tab
+records `coach-phone-set` with codes. A new number starts *untested*. Email
+addresses are not set there: they are public on `coaching.html` and change in
+`CLUB_COACHES` by a reviewed PR.
+
 ## 6. How the website shows the app
 
 The **Coaching** page's button opens the site's own copy of the page,
@@ -573,7 +621,7 @@ screen, so a refused request looked like nothing happened.
 | Student says they replied YES to a cancel or move but nothing changed (or, before November 2026, a request is still `unverified`) | Reply not recognised (§4): different address, edited subject, a first line that does not start with yes, or too late. Check the status read-out for `unreadable=`. | Find the reply in the club Gmail. | Ask them to reply to the original email with just `YES`, or ask again from the page. |
 | Student never got any email about their request | The address was mistyped (the confirm box shows it large and points out likely typos, but it can still be wrong), or it went to spam. | `student_email` on the row; `student_emailed = pending` means it went out. | The coach has the address the student typed in their request email; correct it by cancelling and booking again. |
 | Row is `pending` for a long time | Coach has not answered, or their answer was not recognised (§4). | `coach_emailed = pending`? `coach_texted = pending`? `Coaches.ask_ref` = this `request_id`? | Remind the coach to reply `YES` to the email or text. |
-| Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | `Coaches.registered_at` empty; `phone` column. | Have them text `COACH` to the club number. |
+| Coach never gets texts | They never texted the club number, or the Voice contact name/number does not match the list. | Coach Admin: the coach's **Mobile** step is not ticked, or no number is on file. | Have them text `COACH` to the club number; set or correct the number on Coach Admin (Review and Confirm). |
 | No emails at all for a while | Daily mail quota low (sending pauses at 10 left), or Gmail/MailApp errors. | Executions log; `student_emailed`/`coach_emailed` lagging behind `status`. | Wait for the quota reset; the sweep retries for 3 days. |
 | A time is missing from the board | It has started (Pacific time), so it no longer takes requests. Expected. ("Closed (less than a day ahead)" is only shown by an app released before November 2026.) | `date`/`start`. | None in the app. |
 | Public Sheet out of date | It is rebuilt only after changes and hourly; a failed rebuild is logged, never fatal. | Executions log for "Could not update the public schedule". | Run `sweep` from the editor. |
