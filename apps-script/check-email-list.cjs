@@ -60,7 +60,11 @@ assert.match(read('Code.js'), /view === 'subscribers' \? emailListPage_\(\)/, '?
 assert.deepEqual(JSON.parse(read('appsscript.json')).webapp, { executeAs: 'USER_DEPLOYING', access: 'MYSELF' }, 'the desk opens only for the club account');
 
 // ----- The page: the Bcc box, the unsubscribe line, the allowance -----
-const pageHtml = read('EmailListPage.html');
+const pageSource = read('EmailListPage.html');
+// The desk's framing guard first (it also tells email-list.html the page opened), word for word; the rest is the page.
+const deskGuard = /<body>\s*<script>([\s\S]*?)<\/script>/;
+assert.equal(deskGuard.exec(pageSource)[1], deskGuard.exec(read('Index.html'))[1], 'the desk\'s framing guard, word for word');
+const pageHtml = pageSource.replace(deskGuard, '<body>');
 function loadPage(addresses) {
   const dom = new JSDOM(pageHtml.replace(/<script>[\s\S]*<\/script>/, ''), { url: 'https://example.test/', runScripts: 'outside-only' });
   const runner = {};
@@ -97,14 +101,41 @@ const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(
 assert.match(csp, /default-src 'none'/);
 assert.match(csp, /frame-src https:\/\/script\.google\.com(;|$)/, 'only Google can be framed');
 assert.match(launcher, /<meta name="robots" content="noindex, nofollow">/);
+// Runs the launcher's script with a stand-in page: the frame address, the opening line, the sign-in card after the wait, and
+// the desk's "opened" word (only from Google's sandbox) taking both away.
+function runLauncher(script) {
+  const els = {};
+  const el = id => els[id] = els[id] || { id, hidden: true, src: '', href: '', addEventListener() {} };
+  let onMessage = null;
+  let pending = null;
+  vm.runInNewContext(script, { URL, URLSearchParams, document: { getElementById: el },
+    window: { addEventListener: (name, fn) => { if (name === 'message') onMessage = fn; } },
+    setTimeout: fn => { pending = fn; return 1; }, clearTimeout: () => { pending = null; } });
+  return { els, wait: () => pending && pending(), message: (origin, data) => onMessage({ origin, data }) };
+}
 const script = /<script>([\s\S]*?)<\/script>/.exec(launcher)[1];
-const frame = { src: '' };
-const direct = { href: '' };
-vm.runInNewContext(script, { URL, URLSearchParams, document: { getElementById: id => (id === 'admin' ? frame : direct) } });
+const launched = runLauncher(script);
+const frame = launched.els.admin;
+const direct = launched.els.direct;
 const base = /new URL\('([^']+)'\)/.exec(script)[1];
 assert.equal(base, /new URL\('([^']+)'\)/.exec(fs.readFileSync(path.join(root, 'desk.html'), 'utf8'))[1], 'the released desk, never /dev');
 assert.equal(frame.src, base + '?view=subscribers');
 assert.equal(direct.href, frame.src);
+{
+  const opening = runLauncher(script);
+  assert.equal(opening.els.loading.hidden, false, 'says it is opening instead of a blank frame');
+  assert.equal(opening.els.signin.hidden, true);
+  opening.wait();
+  assert.equal(opening.els.signin.hidden, false, 'the sign-in card when the page has not said it opened');
+  assert.equal(opening.els.loading.hidden, true);
+  opening.message('https://evil.example', { cttcDesk: 'ready' });
+  assert.equal(opening.els.signin.hidden, false, 'only Google\'s sandbox can say it opened');
+  opening.message('https://n-abc123-0lu-script.googleusercontent.com', { cttcDesk: 'ready' });
+  assert.equal(opening.els.signin.hidden, true, 'the page opened: the card goes');
+  assert.equal(opening.els.loading.hidden, true);
+  assert.match(launcher, /\.loading \{[^}]*pointer-events: none;/, 'the opening line never blocks the page');
+  assert.match(launcher, /<a id="direct" class="go" target="_top">/, 'the sign-in button opens the page itself, where Google can sign in');
+}
 const button = /<a id="email-list-launch"[^>]*>[\s\S]*?<\/a>/.exec(fs.readFileSync(path.join(root, 'membership.html'), 'utf8'));
 assert.ok(button && /href="email-list\.html"/.test(button[0]) && /&#128274;[\s\S]*Email list/.test(button[0]), 'a lock button on the Membership page, beside Cash flow');
 
