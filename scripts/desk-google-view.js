@@ -1,11 +1,14 @@
-// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers|subscribers] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
+// Run: npm run desk:google -- [--exec] [--date YYYY-MM-DD] [--view cash|clover|volunteers|subscribers|coaches] [--selector CSS] [--width 1280] [--height 1800] [--out DIR]
 //      npm run desk:google -- --app meeting [--view board] ...   the executive committee meeting app (meeting-app/) instead
+//      npm run desk:google -- --app coaching|staffing|subscribe ...   the coaching, volunteer or subscribe app's own page
+//      (their /dev needs the club sign-in; their /exec is public). The Tonight page's app (turnout-app/) has no page of its
+//      own: tonight.html on the site shows it.
 // Opens the real Google-hosted desk (/dev by default, /exec with --exec) in headless Chromium, signed in with the
 // club's clasp sign-in (~/.clasprc.json), so an agent can see what it pushed. It looks, it does not touch: the script
 // never clicks, types or saves. It only loads the page, optionally switches the date picker (which only reads), waits
 // for the page to settle, prints a short summary and saves screenshots: desk.png is the browser window (Google keeps the
 // desk in a frame the window's height, so raise --height to see further down), and --selector saves one part of the
-// page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover, ?view=volunteers, ?view=subscribers) instead, and waits
+// page in full however long it is. --view opens one of the desk's other pages (?view=cash, ?view=clover, ?view=volunteers, ?view=subscribers, ?view=coaches) instead, and waits
 // for it to finish loading. --app meeting opens the meeting app's controller (or its projector board with --view board).
 //
 // Both URLs run against the real club Sheet, Gmail and member data. Screenshots therefore show real names: keep them
@@ -38,10 +41,19 @@ async function accessToken() {
   return (await response.json()).access_token;
 }
 
+// Each app's Apps Script project, and what on its page means it has loaded (inside Google's frames).
+const APPS = {
+  desk: { dir: 'apps-script', ready: '#date' },
+  meeting: { dir: 'meeting-app', ready: '#status' },
+  coaching: { dir: 'coaching-app', ready: '#app button' },
+  staffing: { dir: 'staffing-app', ready: '#calendar' },
+  subscribe: { dir: 'subscribe-app', ready: '#form' }
+};
+
 // /dev is the deployment at HEAD; /exec is the numbered one. Looked up rather than written down, so a new
 // deployment never leaves this script pointing at the old one.
 async function deployment(token, live, app) {
-  const scriptId = JSON.parse(fs.readFileSync(path.join(ROOT, app === 'meeting' ? 'meeting-app' : 'apps-script', '.clasp.json'), 'utf8')).scriptId;
+  const scriptId = JSON.parse(fs.readFileSync(path.join(ROOT, APPS[app].dir, '.clasp.json'), 'utf8')).scriptId;
   const response = await fetch('https://script.googleapis.com/v1/projects/' + scriptId + '/deployments', { headers: { Authorization: 'Bearer ' + token } });
   if (!response.ok) throw new Error('Could not list the desk deployments (' + response.status + ')');
   const deployments = (await response.json()).deployments || [];
@@ -66,9 +78,10 @@ async function deployment(token, live, app) {
   const out = path.resolve(option('out', path.join(os.tmpdir(), 'cttc-desk-view')));
   if (out.startsWith(ROOT + path.sep)) throw new Error('Screenshots show real member data: choose an --out directory outside the repository.');
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('--date must be YYYY-MM-DD');
-  if (!/^(desk|meeting)$/.test(app)) throw new Error('--app must be desk or meeting');
+  if (!Object.prototype.hasOwnProperty.call(APPS, app)) throw new Error('--app must be ' + Object.keys(APPS).join(', '));
+  if (!/^(desk|meeting)$/.test(app) && (view || date)) throw new Error('--view and --date are for the desk and the meeting app');
   if (app === 'meeting' && (date || (view && view !== 'board'))) throw new Error('The meeting app takes only --view board');
-  if (app === 'desk' && view && !/^(cash|clover|volunteers|subscribers)$/.test(view)) throw new Error('--view must be cash, clover, volunteers or subscribers');
+  if (app === 'desk' && view && !/^(cash|clover|volunteers|subscribers|coaches)$/.test(view)) throw new Error('--view must be cash, clover, volunteers, subscribers or coaches');
   if (view && date) throw new Error('--date is for the desk; leave it out with --view');
   fs.mkdirSync(out, { recursive: true, mode: 0o700 });
 
@@ -87,7 +100,7 @@ async function deployment(token, live, app) {
 
     // The desk runs two frames deep inside Google's sandbox; find the one holding the session date picker (or, for
     // another page, its status bar).
-    const marker = view || app === 'meeting' ? '#status' : '#date';
+    const marker = view ? '#status' : APPS[app].ready;
     let desk = null;
     for (let second = 0; second < 90 && !desk; second += 1) {
       for (const frame of page.frames()) if (await frame.$(marker).catch(() => null)) desk = frame;
@@ -107,8 +120,8 @@ async function deployment(token, live, app) {
 
     const summary = await desk.evaluate(() => ({
       date: document.getElementById('date') ? document.getElementById('date').value : '',
-      status: (document.getElementById('status').textContent || '').slice(0, 200),
-      statusClass: document.getElementById('status').className,
+      status: document.getElementById('status') ? (document.getElementById('status').textContent || '').slice(0, 200) : '',
+      statusClass: document.getElementById('status') ? document.getElementById('status').className : '',
       sections: [...document.querySelectorAll('h2')].filter(heading => heading.getClientRects().length).map(heading => heading.textContent)
     }));
     const shots = [];
