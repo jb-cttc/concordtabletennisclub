@@ -51,6 +51,7 @@
     "check:meeting": "node meeting-app/check-meeting.cjs",
     "check:meeting-mailer": "node meeting-mailer/check-meeting-mailer.cjs",
     "meeting:draft": "node scripts/meeting-draft-email.js",
+    "club:email": "node scripts/club-email.js",
     "turnout:backtest": "node scripts/turnout-backtest.js",
     "publish:finalized": "node scripts/publish-finalized-sessions.js",
     "preflight:live": "node scripts/preflight-live-publication.js",
