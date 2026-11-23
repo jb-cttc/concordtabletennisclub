@@ -53,9 +53,119 @@
   .review p { margin: 0 0 8px; }
   .review .change { font-weight: 700; }
   .review .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Coach management folds away, so the control center is one tap from the top. */
+  .fold { margin: 0 0 22px; background: rgba(255,255,255,.55); border: 1px solid var(--line); border-radius: 8px; }
+  .fold > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 12px 14px; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary::before { content: '\25B8'; color: var(--green); font-size: 15px; width: 1em; transition: transform .15s; }
+  .fold[open] > summary::before { transform: rotate(90deg); }
+  .fold > summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 8px; }
+  .fold-title { font: 700 19px Georgia, serif; }
+  .fold-note { font: 14px Arial, sans-serif; color: var(--muted); }
+  .fold-body { padding: 0 14px 14px; }
+  .fold-body > h2 { margin-top: 18px; }
+
+  /* The control center. */
+  .center-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 4px; }
+  .center-head h2 { margin: 0; font-size: 22px; }
+  .center-head .updated { font: 13px Arial, sans-serif; color: var(--muted); }
+  .center-head .btn { margin-left: auto; }
+  .center-intro { font: 14px/1.5 Arial, sans-serif; color: #3b4640; margin: 4px 0 12px; max-width: 820px; }
+  h3.part { font: 700 17px Georgia, serif; margin: 22px 0 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  h3.part small { font: 13px Arial, sans-serif; color: var(--muted); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+  .tile { text-align: left; background: #fff; border: 1px solid var(--line); border-left: 5px solid #aab5ae; border-radius: 6px; padding: 10px 12px; font: 13px Arial, sans-serif; color: var(--ink); }
+  button.tile:hover { border-color: var(--green); }
+  .tile .num { display: block; font: 700 26px Georgia, serif; line-height: 1.1; }
+  .tile .label { display: block; font-weight: 700; margin-top: 2px; }
+  .tile .sub { display: block; color: var(--muted); margin-top: 2px; }
+  .tile.good { border-left-color: var(--green); }
+  .tile.warn { border-left-color: #c25e00; }
+  .tile.bad { border-left-color: var(--red); background: #fdf3f2; }
+  .tile.bad .num { color: var(--red); }
+  .tile[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--green); }
+  .items { display: grid; gap: 8px; }
+  .empty { font: 14px Arial, sans-serif; color: var(--muted); background: #fff; border: 1px dashed var(--line); border-radius: 6px; padding: 12px 14px; margin: 0; }
+  .lesson, .item { background: #fff; border: 1px solid var(--line); border-left: 5px solid #aab5ae; border-radius: 6px; padding: 10px 12px; font: 14px Arial, sans-serif; }
+  .lesson.waiting, .item.waiting { border-left-color: #c25e00; }
+  .lesson.stuck { border-left-color: var(--red); }
+  .lesson.booked { border-left-color: var(--green); }
+  .lesson.done { background: #fafbfa; }
+  .lesson-main { display: grid; grid-template-columns: minmax(120px, 170px) minmax(140px, 1fr) minmax(130px, auto) minmax(180px, 1.5fr); gap: 4px 14px; align-items: start; }
+  .lesson-main > div > span, .lesson-main > div > strong { display: block; }
+  .muted, .lesson-main .sub { color: var(--muted); font-size: 13px; }
+  .muted { font: 13px Arial, sans-serif; }
+  .code { font: 12px "Courier New", monospace; color: #4d5852; letter-spacing: .05em; margin-top: 3px; }
+  .badges { display: flex; gap: 4px; flex-wrap: wrap; }
+  .badge.booked { background: #e3f1e7; color: #14563d; }
+  .badge.waiting { background: #fff0dc; color: var(--amber); }
+  .badge.stuck { background: #f6e8e6; color: #7a1f17; }
+  .badge.closed { background: #eceeec; color: #4d5852; }
+  .due { display: inline-block; margin-top: 3px; font-weight: 700; font-size: 12px; color: var(--amber); }
+  .due.late { color: var(--red); }
+  .lesson-foot { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+  .detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid #edf0ed; }
+  ol.steps { list-style: none; margin: 0 0 8px; padding: 0; }
+  ol.steps li { display: grid; grid-template-columns: 1.5em 1fr; gap: 6px; padding: 3px 0; }
+  ol.steps .mark { font-weight: 700; text-align: center; }
+  ol.steps .done .mark { color: var(--green); }
+  ol.steps .now .mark { color: #c25e00; }
+  ol.steps .next .mark { color: #7c8a82; }
+  ol.steps .stuck { color: #6f241f; font-weight: 700; }
+  ol.steps .stuck .mark { color: var(--red); }
+  ol.steps .at { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 6px; white-space: nowrap; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .btn.danger { border-color: var(--red); color: var(--red); background: #fff; }
+  .btn.danger.go { background: var(--red); color: #fff; }
+  .notice { margin-top: 8px; padding: 8px 12px; border-radius: 4px; font: 14px Arial, sans-serif; background: #e3f1e7; border-left: 4px solid var(--green); color: #14432a; }
+  .notice.error { background: #f6e8e6; border-left-color: var(--red); color: #6f241f; }
+  .controls { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { border: 1px solid #aeb7b1; background: #fff; border-radius: 16px; padding: 5px 12px; font: 13px Arial, sans-serif; color: var(--ink); }
+  .chip[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #fff; font-weight: 700; }
+  .search { flex: 1 1 200px; max-width: 320px; border: 1px solid #aeb7b1; border-radius: 4px; padding: 7px 9px; font: 14px Arial, sans-serif; }
+  .day { font: 700 15px Georgia, serif; margin: 14px 0 6px; color: #123f2b; }
+  .day:first-child { margin-top: 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 22px; }
+  .box { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; font: 14px Arial, sans-serif; }
+  .box h3.part { margin-top: 4px; }
+  table.counts { width: 100%; border-collapse: collapse; }
+  table.counts th, table.counts td { text-align: left; padding: 6px 4px; border-top: 1px solid #edf0ed; vertical-align: top; font-weight: 400; }
+  table.counts thead th { border-top: 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  table.counts td.n, table.counts thead th.n { text-align: right; width: 5.5em; }
+  table.counts td.n { font-weight: 700; }
+  dl.health { margin: 0; display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 0 12px; }
+  dl.health dt, dl.health dd { padding: 6px 0; border-top: 1px solid #edf0ed; margin: 0; }
+  dl.health dt { font-weight: 700; }
+  dl.health dd.bad { color: var(--red); font-weight: 700; }
+  dl.health dd.warn { color: var(--amber); font-weight: 700; }
+  .tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .tool { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: 14px Arial, sans-serif; display: flex; flex-direction: column; gap: 6px; }
+  .tool strong { font: 700 15px Georgia, serif; }
+  .tool p { margin: 0; color: var(--muted); font-size: 13px; }
+  .tool .review p { color: var(--ink); }
+  .tool .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+  .tool select { flex: 1 1 140px; min-width: 0; border: 1px solid #aeb7b1; border-radius: 4px; padding: 6px; font: 14px Arial, sans-serif; background: #fff; }
+  details.log { margin-top: 22px; }
+  details.log > summary { cursor: pointer; font: 700 16px Georgia, serif; }
+  ol.log { list-style: none; margin: 8px 0 0; padding: 0; font: 13px Arial, sans-serif; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+  ol.log li { display: grid; grid-template-columns: 9.5em minmax(120px, 16em) 1fr; gap: 2px 10px; padding: 6px 10px; border-top: 1px solid #edf0ed; }
+  ol.log li:first-child { border-top: 0; }
+  ol.log li.error { background: #fdf3f2; color: #6f241f; }
+  ol.log .kind { font-family: "Courier New", monospace; font-size: 12px; overflow-wrap: anywhere; }
+  @media (max-width: 860px) {
+    .lesson-main { grid-template-columns: 1fr 1fr; }
+    .two { grid-template-columns: 1fr; }
+  }
   @media (max-width: 560px) {
     .top-inner, .shell { padding-left: 12px; padding-right: 12px; }
     .coaches { grid-template-columns: 1fr; }
+    .fold-body { padding: 0 10px 10px; }
+    .lesson-main { grid-template-columns: 1fr; }
+    .tiles { grid-template-columns: 1fr 1fr; }
+    .search { max-width: none; }
+    ol.log li { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -83,10 +193,37 @@
 </div></header>
 <main class="shell">
   <div id="status" class="statusbar" role="status">Loading the coaches&hellip;</div>
+  <details id="manage" class="fold" open>
+  <summary><span class="fold-title">Coach management</span><span id="manage-note" class="fold-note"></span></summary>
+  <div class="fold-body">
   <p class="intro">A coach gets the green &#10003; on the coaching page when all three steps are done: they have answered one of the coaching app's emails from the address on file, texted the club number from the mobile on file, and published both lesson rates. A new address or number counts only once the coach answers from it. Coaches see the same steps, and what to do, when they pick their name on the coaching page. Email addresses come from the club's coach list (coaching.html) and change by a reviewed pull request; mobile numbers are set here.</p>
   <div id="coaches" class="coaches"></div>
   <h2 id="off-heading" hidden>Not offered on the coaching page</h2>
   <div id="off" class="coaches"></div>
+  </div>
+  </details>
+  <section id="center" aria-labelledby="center-title">
+    <div class="center-head"><h2 id="center-title">Coaching control center</h2><span id="center-updated" class="updated"></span>
+      <button id="refresh" type="button" class="btn plain small">Refresh</button></div>
+    <p class="center-intro">Every lesson and request, upcoming and from the last two weeks: where each one is, what has been sent, and what is still to come. The controls move a booking on through the coaching app's own steps, as if the coach or student had answered, and each one asks you to Review, then Confirm. Every change is recorded in the desk log with your account and the time.</p>
+    <div id="center-status" class="statusbar" role="status">Loading the lessons&hellip;</div>
+    <div id="tiles" class="tiles"></div>
+    <h3 class="part">Needs attention <small id="attention-note"></small></h3>
+    <div id="attention" class="items"></div>
+    <h3 class="part">All lessons</h3>
+    <div class="controls">
+      <div id="filters" class="chips" role="group" aria-label="Show"></div>
+      <input id="search" class="search" type="search" placeholder="Booking code, student or coach" aria-label="Find a booking by code, student or coach" autocomplete="off">
+    </div>
+    <div id="lessons"></div>
+    <div class="two">
+      <section class="box" aria-labelledby="counts-title"><h3 class="part" id="counts-title">Today and yesterday</h3><div id="counts"></div></section>
+      <section class="box" aria-labelledby="health-title"><h3 class="part" id="health-title">App health</h3><div id="health"></div></section>
+    </div>
+    <h3 class="part">Admin tools <small>Each one asks you to Review, then Confirm.</small></h3>
+    <div id="tools" class="tools"></div>
+    <details class="log"><summary>Recent activity in the coaching log</summary><ol id="log" class="log"></ol></details>
+  </section>
 </main>
 <script>
 (function () {
@@ -105,8 +242,8 @@
     return node;
   }
   function say(text, kind) { var box = $('status'); box.textContent = text; box.className = 'statusbar' + (kind ? ' ' + kind : ''); }
-  function call(name, args, done) {
-    google.script.run.withSuccessHandler(done).withFailureHandler(function (error) { say(error.message || String(error), 'error'); render(); })[name].apply(null, args);
+  function call(name, args, done, failed) {
+    google.script.run.withSuccessHandler(done).withFailureHandler(failed || function (error) { say(error.message || String(error), 'error'); render(); })[name].apply(null, args);
   }
   function load(message) {
     call('getCoachAdmin', [], function (result) {
@@ -180,6 +317,9 @@
     $('off').textContent = '';
     off.forEach(function (coach) { $('off').appendChild(card(coach)); });
     $('off-heading').hidden = !off.length;
+    var ready = shown.filter(function (coach) { return !coach.steps.left; }).length;
+    $('manage-note').textContent = ready + ' of ' + shown.length + ' coaches fully set up' + (off.length ? ', ' + off.length + ' not offered' : '');
+    renderTools();
   }
   function reviewPhone(coach, typed, button) {
     button.disabled = true;
@@ -201,7 +341,375 @@
       load('Saved: ' + answer.name + '’s mobile is now ' + (answer.after || 'removed') + '.');
     });
   }
+  // ---------- Coach management folds away ----------
+  // Open unless this browser folded it last time (a per-viewer convenience: the page works the same without it).
+  (function () {
+    var fold = $('manage');
+    try { if (window.localStorage.getItem('cttc-coach-admin-manage') === 'closed') fold.open = false; } catch (error) { /* stays open */ }
+    fold.addEventListener('toggle', function () {
+      try { window.localStorage.setItem('cttc-coach-admin-manage', fold.open ? 'open' : 'closed'); } catch (error) { /* not remembered */ }
+    });
+  })();
+
+  // ---------- The control center ----------
+  var overview = null;
+  var filter = 'upcoming';
+  var query = '';
+  var expanded = {};
+  // The control under review ({kind, id, where, answer}) and the last result shown where it was done ({kind, id, where, text, tone}).
+  var pending = null;
+  var notice = null;
+  var LABELS = {
+    accept: 'Accept for the coach', decline: 'Decline for the coach', remind: 'Remind the coach now', 'cancel-coach': 'Cancel for the coach',
+    'apply-change': 'Apply the student’s change', 'drop-change': 'Drop the change', 'confirm-request': 'Confirm for the student', 'drop-request': 'Drop the request',
+    'resend-student': 'Resend the student’s email', 'resend-coach': 'Resend the coach’s email', 'publish-times': 'Publish for the coach', 'drop-times': 'Drop the list',
+    sweep: 'Run now', summary: 'Send now', 'test-email': 'Send test email', 'test-text': 'Send test text'
+  };
+  var DANGER = { decline: true, 'cancel-coach': true, 'drop-change': true, 'drop-request': true, 'drop-times': true };
+  var FILTERS = [['upcoming', 'Upcoming'], ['waiting', 'Waiting'], ['stuck', 'Stuck'], ['past', 'Past and closed'], ['all', 'All']];
+  var MARK = { done: '✓', now: '●', next: '○', stuck: '!' };
+  var MARK_SAYS = { done: 'done', now: 'waiting', next: 'to come', stuck: 'stuck' };
+
+  function centerSay(text, kind) { var box = $('center-status'); box.hidden = !text; box.textContent = text || ''; box.className = 'statusbar' + (kind ? ' ' + kind : ''); }
+  function pacific(ms, options) {
+    try { return new Date(ms).toLocaleString('en-US', Object.assign({ timeZone: 'America/Los_Angeles' }, options)); } catch (error) { return new Date(ms).toLocaleString(); }
+  }
+  function moment(ms) { return pacific(ms, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+  function span(ms) {
+    var minutes = Math.round(Math.abs(ms) / 60000);
+    if (minutes < 60) return minutes + ' min';
+    var hours = Math.round(minutes / 60);
+    return hours < 48 ? hours + ' h' : Math.round(hours / 24) + ' days';
+  }
+  function ago(ms) { return ms ? span(Date.now() - ms) + ' ago' : 'never'; }
+  function runAt(run) { return run && run.at ? Date.parse(run.at) : 0; }
+
+  function loadOverview(message, tone) {
+    $('refresh').disabled = true;
+    call('getCoachingOverview', [], function (result) {
+      $('refresh').disabled = false;
+      if (!result || !result.ok) { centerSay(result && result.message || 'The coaching app did not answer.', 'error'); return; }
+      overview = result;
+      $('center-updated').textContent = 'Updated ' + pacific(Date.now(), { hour: 'numeric', minute: '2-digit' });
+      renderCenter();
+      if (message) centerSay(message, tone || 'ok');
+      else centerSay('');
+    }, function (error) {
+      $('refresh').disabled = false;
+      centerSay(error.message || String(error), 'error');
+    });
+  }
+
+  function isOpen(lesson) { return lesson.status === 'pending' || lesson.status === 'unverified' || lesson.status === 'confirmed'; }
+  function matches(lesson, which) {
+    if (which === 'upcoming') return isOpen(lesson) && !lesson.started;
+    if (which === 'waiting') return lesson.attention === 'waiting' || (lesson.attention === 'stuck' && (!!lesson.waitingOn || !!lesson.change));
+    if (which === 'stuck') return lesson.attention === 'stuck';
+    if (which === 'past') return lesson.started || !isOpen(lesson);
+    return true;
+  }
+  function found(lesson) {
+    if (!query) return true;
+    var text = (lesson.code + ' ' + lesson.student + ' ' + (lesson.guardian || '') + ' ' + lesson.coach).toLowerCase();
+    return query.split(/\s+/).every(function (word) { return text.indexOf(word) >= 0; });
+  }
+
+  // The status in a word or two, and whether it needs a look.
+  function badges(lesson) {
+    var list = [];
+    if (lesson.attention === 'stuck') list.push(['stuck', 'Stuck']);
+    if (lesson.status === 'pending') list.push(['waiting', 'Waiting on coach']);
+    else if (lesson.status === 'unverified') list.push(['waiting', 'Waiting on student']);
+    else if (lesson.status === 'confirmed') list.push(lesson.started ? ['closed', 'Lesson done'] : ['booked', 'Booked']);
+    else list.push(['closed', lesson.status.charAt(0).toUpperCase() + lesson.status.slice(1)]);
+    if (lesson.change) list.push(['waiting', (lesson.change === 'cancel' ? 'Cancel' : 'Move') + ' asked']);
+    if (lesson.status === 'cancelled' && lesson.attention === 'waiting') list.push(['waiting', 'UNDO open']);
+    return el('div', { 'class': 'badges' }, list.map(function (item) { return el('span', { 'class': 'badge ' + item[0], text: item[1] }); }));
+  }
+
+  function actionButton(kind, id, where) {
+    var busy = !!pending && (!pending.answer || pending.sending);
+    return el('button', { type: 'button', 'class': 'btn small ' + (DANGER[kind] ? 'danger' : 'plain'), text: LABELS[kind] || kind, 'data-kind': kind,
+      onclick: function (event) { if (!busy) review(kind, id, where); } }, []);
+  }
+
+  // The Review box (or the result of the last control) for one control's place on the page.
+  function reviewBox(where, id) {
+    if (notice && notice.where === where && notice.id === id) return el('div', { 'class': 'notice' + (notice.tone === 'error' ? ' error' : ''), role: 'status', text: notice.text });
+    if (!pending || pending.where !== where || pending.id !== id) return null;
+    if (!pending.answer) return el('div', { 'class': 'notice', role: 'status', text: 'Checking…' });
+    var answer = pending.answer;
+    var confirm = el('button', { type: 'button', 'class': 'btn' + (DANGER[pending.kind] ? ' danger go' : ''), text: pending.sending ? 'Working…' : 'Confirm', onclick: function () { confirmAction(); } });
+    var cancel = el('button', { type: 'button', 'class': 'btn plain', text: 'Cancel', onclick: function () { pending = null; renderCenter(); } });
+    if (pending.sending) { confirm.disabled = true; cancel.disabled = true; }
+    return el('div', { 'class': 'review', role: 'group', 'aria-label': 'Review: ' + answer.title }, [
+      el('p', { 'class': 'change', text: answer.title }),
+      answer.lesson ? el('p', { text: answer.lesson }) : null,
+      el('p', { text: answer.effect }),
+      el('p', { text: 'Recorded in the desk log with your account and the time.' }),
+      el('div', { 'class': 'buttons' }, [confirm, cancel])
+    ]);
+  }
+
+  function review(kind, id, where) {
+    notice = null;
+    pending = { kind: kind, id: id, where: where, answer: null };
+    renderCenter();
+    call('previewCoachingAction', [kind, id], function (answer) {
+      if (!answer || !answer.ok) {
+        pending = null;
+        notice = { where: where, id: id, text: answer && answer.message || 'The coaching app did not answer.', tone: 'error' };
+        renderCenter();
+        return;
+      }
+      pending = { kind: kind, id: id, where: where, answer: answer };
+      renderCenter();
+      var box = document.querySelector('.review .btn');
+      if (box) box.focus();
+    }, function (error) { pending = null; notice = { where: where, id: id, text: error.message || String(error), tone: 'error' }; renderCenter(); });
+  }
+
+  function confirmAction() {
+    var doing = pending;
+    doing.sending = true;
+    renderCenter();
+    call('runCoachingAction', [doing.kind, doing.id], function (answer) {
+      pending = null;
+      var ok = !!answer && answer.ok;
+      notice = { where: doing.where, id: doing.id, text: ok ? answer.message : (answer && answer.message || 'The coaching app did not answer.'), tone: ok ? 'ok' : 'error' };
+      if (!ok) { renderCenter(); return; }
+      // The coaches' checklist can change too (a published list brings rates).
+      load();
+      loadOverview(answer.message);
+    }, function (error) { pending = null; notice = { where: doing.where, id: doing.id, text: error.message || String(error), tone: 'error' }; renderCenter(); });
+  }
+
+  function lessonRow(lesson, where, withDay) {
+    var key = where + ':' + lesson.id;
+    var open = where === 'attention' || !!expanded[key];
+    var deadline = lesson.deadline ? el('span', { 'class': 'due' + (lesson.deadline < Date.now() ? ' late' : ''),
+      text: lesson.deadline < Date.now() ? 'Deadline passed ' + ago(lesson.deadline) : 'Deadline in ' + span(lesson.deadline - Date.now()) }) : null;
+    var main = el('div', { 'class': 'lesson-main' }, [
+      el('div', {}, [el('strong', { text: withDay ? lesson.day.replace(/, \d{4}$/, '') : lesson.time }), el('span', { 'class': 'sub', text: (withDay ? lesson.time + ', ' : '') + 'Table ' + lesson.table })]),
+      el('div', {}, [el('strong', { text: lesson.student + (lesson.guardian ? ' (guardian ' + lesson.guardian + ')' : '') }),
+        el('span', { 'class': 'sub', text: 'with ' + lesson.coach + (lesson.rate ? ', $' + lesson.rate : '') + (lesson.coachActive ? '' : ' (not offered now)') })]),
+      el('div', {}, [badges(lesson), el('span', { 'class': 'code', text: lesson.code })]),
+      el('div', {}, [el('span', { text: lesson.next }), deadline])
+    ]);
+    var children = [main];
+    if (where !== 'attention') {
+      children.push(el('div', { 'class': 'lesson-foot' }, [el('button', { type: 'button', 'class': 'link', 'aria-expanded': open ? 'true' : 'false',
+        text: open ? 'Hide the steps' : 'Steps' + (lesson.actions.length ? ' and controls' : ''), onclick: function () { expanded[key] = !open; renderCenter(); } })]));
+    }
+    if (open) {
+      children.push(el('div', { 'class': 'detail' }, [
+        el('ol', { 'class': 'steps', 'aria-label': 'Steps for booking ' + lesson.code }, lesson.steps.map(function (step) {
+          return el('li', { 'class': step.state }, [el('span', { 'class': 'mark', text: MARK[step.state], title: MARK_SAYS[step.state], 'aria-label': MARK_SAYS[step.state] }),
+            el('span', {}, [step.text, step.at ? el('span', { 'class': 'at', text: moment(step.at) }) : null])]);
+        })),
+        lesson.actions.length ? el('div', { 'class': 'actions' }, lesson.actions.map(function (kind) { return actionButton(kind, lesson.id, where); })) : null,
+        reviewBox(where, lesson.id)
+      ]));
+    }
+    return el('article', { 'class': 'lesson ' + lesson.attention, 'aria-label': 'Booking ' + lesson.code + ': ' + lesson.student + ' with ' + lesson.coach + ', ' + lesson.when }, children);
+  }
+
+  function proposalItem(item) {
+    return el('article', { 'class': 'item waiting', 'aria-label': item.coach + '’s list of times' }, [
+      el('div', { 'class': 'lesson-main' }, [
+        el('div', {}, [el('strong', { text: 'Times to publish' }), el('span', { 'class': 'sub', text: 'sent ' + ago(item.sentAt) })]),
+        el('div', {}, [el('strong', { text: item.coach }), el('span', { 'class': 'sub', text: item.times + (item.times === 1 ? ' time' : ' times') + (item.rates ? ' and new rates' : '') })]),
+        el('div', {}, [el('div', { 'class': 'badges' }, [el('span', { 'class': 'badge waiting', text: 'Waiting on coach' })])]),
+        el('div', {}, [el('span', { text: 'Waiting for ' + item.coach + '’s YES' + (item.texted ? ' (asked by email and text)' : ' (asked by email)') }),
+          el('span', { 'class': 'due', text: 'Lapses in ' + span(item.lapsesAt - Date.now()) })])
+      ]),
+      el('div', { 'class': 'detail' }, [el('div', { 'class': 'actions' }, item.actions.map(function (kind) { return actionButton(kind, item.coachId, 'proposal'); })),
+        reviewBox('proposal', item.coachId)])
+    ]);
+  }
+
+  function tile(number, label, sub, tone, show) {
+    var attributes = { 'class': 'tile ' + tone };
+    if (show) {
+      attributes.type = 'button';
+      attributes['aria-pressed'] = filter === show ? 'true' : 'false';
+      attributes.onclick = function () { filter = show; renderCenter(); var chips = $('filters'); if (chips.scrollIntoView) chips.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    }
+    return el(show ? 'button' : 'div', attributes, [el('span', { 'class': 'num', text: String(number) }), el('span', { 'class': 'label', text: label }), sub ? el('span', { 'class': 'sub', text: sub }) : null]);
+  }
+
+  function healthIssues(health) {
+    var issues = [];
+    var swept = runAt(health.sweep);
+    if (!swept || Date.now() - swept > 75 * 60000) issues.push('The hourly sweep last ran ' + ago(swept) + '.');
+    if (health.sweep && !health.sweep.ok) issues.push('The last sweep failed.');
+    if (health.check && !health.check.ok) issues.push('The last check failed.');
+    health.failing.forEach(function (step) { issues.push('Cannot ' + step.name + ' since ' + moment(step.since) + '.'); });
+    if (health.mailLeft != null && health.mailLeft <= health.mailReserve) issues.push('Out of emails for today.');
+    return issues;
+  }
+
+  function renderTiles(lessons) {
+    var health = overview.health;
+    var coachWait = lessons.filter(function (lesson) { return lesson.status === 'pending'; }).length + overview.proposals.length;
+    var studentWait = lessons.filter(function (lesson) { return lesson.status === 'unverified' || !!lesson.change; }).length;
+    var stuck = lessons.filter(function (lesson) { return lesson.attention === 'stuck'; }).length;
+    var upcoming = lessons.filter(function (lesson) { return lesson.status === 'confirmed' && !lesson.started; });
+    var issues = healthIssues(health);
+    var mail = health.mailLeft;
+    var box = $('tiles');
+    box.textContent = '';
+    [tile(coachWait, 'Waiting on coaches', 'to accept or publish', coachWait ? 'warn' : 'good', 'waiting'),
+      tile(studentWait, 'Waiting on students', 'a YES to a change', studentWait ? 'warn' : 'good', 'waiting'),
+      tile(stuck, 'Stuck', stuck ? 'should have moved by now' : 'nothing overdue', stuck ? 'bad' : 'good', 'stuck'),
+      tile(upcoming.length, 'Upcoming lessons', upcoming.length ? 'next ' + upcoming[0].day.replace(/, \d{4}$/, '').replace(/^(\w{3})\w*/, '$1') + ', ' + upcoming[0].time.split(' to ')[0] : 'none booked', 'good', 'upcoming'),
+      tile(mail == null ? '?' : mail, 'Emails left today', 'the club account’s allowance', mail == null ? '' : mail <= health.mailReserve ? 'bad' : mail < 30 ? 'warn' : 'good'),
+      tile(issues.length ? issues.length : '✓', 'App health', issues.length ? issues[0] : 'sweep ' + ago(runAt(health.sweep)), issues.length ? 'bad' : 'good')
+    ].forEach(function (node) { box.appendChild(node); });
+  }
+
+  function renderAttention(lessons) {
+    var list = lessons.filter(function (lesson) { return lesson.attention === 'stuck' || lesson.attention === 'waiting'; }).sort(function (a, b) {
+      var rank = function (lesson) { return lesson.attention === 'stuck' ? 0 : 1; };
+      return rank(a) - rank(b) || (a.deadline || Infinity) - (b.deadline || Infinity) || (a.date + a.start).localeCompare(b.date + b.start);
+    });
+    var box = $('attention');
+    box.textContent = '';
+    list.forEach(function (lesson) { box.appendChild(lessonRow(lesson, 'attention', true)); });
+    overview.proposals.forEach(function (item) { box.appendChild(proposalItem(item)); });
+    var count = list.length + overview.proposals.length;
+    $('attention-note').textContent = count ? count + (count === 1 ? ' item' : ' items') : '';
+    if (!count) box.appendChild(el('p', { 'class': 'empty', text: 'Nothing needs attention: no request is waiting for an answer, and every email and text has gone out.' }));
+  }
+
+  function renderLessons(lessons) {
+    var chips = $('filters');
+    chips.textContent = '';
+    FILTERS.forEach(function (entry) {
+      var count = lessons.filter(function (lesson) { return matches(lesson, entry[0]); }).length;
+      chips.appendChild(el('button', { type: 'button', 'class': 'chip', 'aria-pressed': filter === entry[0] ? 'true' : 'false', text: entry[1] + ' (' + count + ')',
+        onclick: function () { filter = entry[0]; renderCenter(); } }));
+    });
+    var shown = lessons.filter(function (lesson) { return matches(lesson, filter) && found(lesson); });
+    if (filter === 'past') shown.reverse();
+    var box = $('lessons');
+    box.textContent = '';
+    if (!shown.length) {
+      box.appendChild(el('p', { 'class': 'empty', text: query ? 'No booking matches “' + query + '” here. Try All.' : 'None.' }));
+      return;
+    }
+    var day = '';
+    var group = null;
+    shown.forEach(function (lesson) {
+      if (lesson.date !== day) {
+        day = lesson.date;
+        box.appendChild(el('h4', { 'class': 'day', text: lesson.day + (lesson.date === overview.today ? ' (today)' : '') }));
+        group = box.appendChild(el('div', { 'class': 'items' }));
+      }
+      group.appendChild(lessonRow(lesson, 'all', false));
+    });
+  }
+
+  function renderCounts() {
+    var today = overview.counts.today;
+    var yesterday = overview.counts.yesterday;
+    var row = function (label, pick) { return el('tr', {}, [el('th', { scope: 'row', text: label }), el('td', { 'class': 'n', text: String(pick(today)) }), el('td', { 'class': 'n', text: String(pick(yesterday)) })]); };
+    var box = $('counts');
+    box.textContent = '';
+    box.appendChild(el('table', { 'class': 'counts' }, [
+      el('thead', {}, [el('tr', {}, [el('th', { text: '' }), el('th', { 'class': 'n', text: 'Today' }), el('th', { 'class': 'n', text: 'Yesterday' })])]),
+      el('tbody', {}, [
+        row('New requests sent to coaches', function (day) { return day.booked; }),
+        row('Accepted by the coach', function (day) { return day.counts['coach-request']; }),
+        row('Expired without the coach’s answer', function (day) { return day.unanswered; }),
+        row('Cancelled on the page', function (day) { return day.cancelledOnPage; }),
+        row('Put back by UNDO', function (day) { return day.undone; }),
+        row('Cancels and moves confirmed by YES', function (day) { return day.counts['student-c']; }),
+        row('Lists of times published', function (day) { return day.counts['coach-slots']; }),
+        row('NO answers applied', function (day) { return day.declined; }),
+        row('YES answers applied in all', function (day) { return day.confirmed; })
+      ])
+    ]));
+    box.appendChild(el('p', { 'class': 'muted', text: 'The same counts as the daily summary email, from the coaching log.' +
+      (overview.counts.complete ? '' : ' The log does not reach back to the start of yesterday, so yesterday may be low.') + ' ' + overview.waitlist + (overview.waitlist === 1 ? ' person is' : ' people are') + ' on a waitlist for a time.' }));
+  }
+
+  function renderHealth() {
+    var health = overview.health;
+    var swept = runAt(health.sweep);
+    var checked = runAt(health.check);
+    var rows = [
+      ['Hourly sweep', (swept ? ago(swept) : 'never') + (health.sweep && !health.sweep.ok ? ', failed: ' + health.sweep.failed.join('; ') : health.sweep ? ', worked' : ''),
+        !swept || Date.now() - swept > 75 * 60000 || (health.sweep && !health.sweep.ok) ? 'bad' : ''],
+      ['Reply check', (checked ? ago(checked) : 'never') + (health.check && !health.check.ok ? ', failed: ' + health.check.failed.join('; ') : health.check ? ', worked' : ''), health.check && !health.check.ok ? 'bad' : ''],
+      ['Failing steps', health.failing.length ? health.failing.map(function (step) { return step.name + ' since ' + moment(step.since) + (step.alerted ? ' (club emailed)' : ''); }).join('; ') : 'None', health.failing.length ? 'bad' : ''],
+      ['Emails left today', health.mailLeft == null ? 'Unknown' : health.mailLeft + ' (the app stops at ' + health.mailReserve + ')', health.mailLeft != null && health.mailLeft < 30 ? 'warn' : ''],
+      ['Daily summary', (health.summarySent === overview.today ? 'Sent today' : 'Not sent yet today: it goes with the first sweep after ' + health.summaryHour + ' AM') + ', to ' + health.summaryTo, ''],
+      ['Timer run time', health.runtime.runs + (health.runtime.runs === 1 ? ' run, ' : ' runs, ') + health.runtime.seconds + ' seconds today (every app shares 90 minutes)', '']
+    ];
+    var box = $('health');
+    box.textContent = '';
+    box.appendChild(el('dl', { 'class': 'health' }, rows.reduce(function (all, item) {
+      return all.concat([el('dt', { text: item[0] }), el('dd', { 'class': item[2], text: item[1] })]);
+    }, [])));
+  }
+
+  function renderTools() {
+    var box = $('tools');
+    if (!box) return;
+    var coaches = data ? data.coaches.filter(function (coach) { return coach.active; }) : [];
+    var picked = {};
+    ['test-email', 'test-text'].forEach(function (kind) { var current = $('pick-' + kind); picked[kind] = current ? current.value : ''; });
+    box.textContent = '';
+    var tool = function (title, text, kind, withCoach) {
+      var select = null;
+      if (withCoach) {
+        select = el('select', { id: 'pick-' + kind, 'aria-label': 'Coach for ' + title }, coaches.map(function (coach) {
+          var option = el('option', { value: coach.id, text: coach.name + (kind === 'test-text' && !coach.phone ? ' (no mobile)' : '') });
+          if (picked[kind] === coach.id) option.selected = true;
+          return option;
+        }));
+      }
+      var id = withCoach ? function () { return select.value; } : function () { return ''; };
+      var where = 'tool:' + kind;
+      var busy = !!pending && (!pending.answer || pending.sending);
+      var button = el('button', { type: 'button', 'class': 'btn small', text: LABELS[kind], onclick: function () { if (!busy && (!withCoach || select.value)) review(kind, id(), where); } });
+      if (withCoach && !coaches.length) button.disabled = true;
+      return el('div', { 'class': 'tool' }, [el('strong', { text: title }), el('p', { text: text }), el('div', { 'class': 'row' }, [select, button]),
+        reviewBox(where, withCoach ? (pending && pending.where === where ? pending.id : notice && notice.where === where ? notice.id : null) : '')]);
+    };
+    box.appendChild(tool('Run the sweep and the check', 'What the hourly run does, now: records expired requests, sends anything not sent yet, then reads new replies.', 'sweep', false));
+    box.appendChild(tool('Send the daily summary now', 'The owner’s summary email as it stands right now. Tomorrow’s still goes as usual.', 'summary', false));
+    box.appendChild(tool('Test email to a coach', 'Asks the coach to reply YES; their reply confirms their address on the checklist.', 'test-email', true));
+    box.appendChild(tool('Test text to a coach', 'A text from the club number. Works once the coach has texted the club number.', 'test-text', true));
+  }
+
+  function renderLog() {
+    var box = $('log');
+    box.textContent = '';
+    overview.log.forEach(function (line) {
+      box.appendChild(el('li', { 'class': line.channel === 'error' ? 'error' : '' }, [el('span', { 'class': 'muted', text: moment(Date.parse(line.at)) }),
+        el('span', { 'class': 'kind', text: line.kind + (line.about ? ' · ' + line.about : '') }), el('span', { text: line.detail || '' })]));
+    });
+    if (!overview.log.length) box.appendChild(el('li', {}, [el('span', { text: 'Nothing logged yet.' })]));
+  }
+
+  function renderCenter() {
+    if (!overview) return;
+    var lessons = overview.lessons;
+    renderTiles(lessons);
+    renderAttention(lessons);
+    renderLessons(lessons);
+    renderCounts();
+    renderHealth();
+    renderTools();
+    renderLog();
+  }
+
+  $('refresh').addEventListener('click', function () { notice = null; loadOverview(); });
+  $('search').addEventListener('input', function (event) { query = String(event.target.value || '').trim().toLowerCase(); renderCenter(); });
   load();
+  loadOverview();
 })();
 </script>
 </body>

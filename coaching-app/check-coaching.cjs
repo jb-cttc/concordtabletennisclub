@@ -2159,6 +2159,156 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.equal(run('coachBoard', hal).steps.email, 'untested', 'it runs once');
 }
 
+// ---- Coach Admin's control center: every lesson with its steps, and controls that move a booking on through the app's own steps ----
+{
+  cache = {};
+  clock += hours(1);
+  const nedId = addCoach('Ned Coach', 'ned@example.com', '(925) 555-0161');
+  check();
+  const admin = body => JSON.parse(context.doPost({ postData: { contents: JSON.stringify(Object.assign({ fn: 'admin', key: ADMIN_KEY }, body)) } }).text);
+  const act = (kind, id, preview) => { cache = {}; return admin({ action: 'act', kind, id, preview }); };
+  const overview = () => admin({ action: 'overview' });
+  const lesson = email => { const id = cell('Requests', latestRequest(email), 'request_id'); return overview().lessons.find(entry => entry.id === id); };
+  assert.equal(JSON.parse(context.doPost({ postData: { contents: JSON.stringify({ fn: 'admin', key: WAKE_KEY, action: 'overview' }) } }).text).ok, false, 'only with the admin key');
+  let friday = new Date(clock + 3 * 86400000);
+  while (friday.getUTCDay() !== 5) friday = new Date(+friday + 86400000);
+  const date = friday.toISOString().slice(0, 10);
+  publish(nedId, 'Ned Coach', [slot(date, '19:00', 60), slot(date, '20:00', 60), slot(date, '21:00', 60)]);
+  const nedSlots = () => run('openSlots').slots.filter(entry => entry.coach === 'Coach Ned' && entry.minutes === 50);
+  assert.equal(nedSlots().length, 3);
+  const ask = (name, email, picked = nedSlots()[0]) => { cache = {}; clock += 60000; return book({ key: picked.key, name, email }); };
+  const nedEmail = () => run('coachBoard', nedId).steps.email;
+  assert.equal(nedEmail(), 'untested', 'he published by text, so his email is untested');
+
+  // A request waiting on the coach: its steps, its deadline, and what the club can do about it.
+  ask('Nia Student', 'nia@example.com');
+  let view = overview();
+  let nia = lesson('nia@example.com');
+  assert.deepEqual([nia.status, nia.waitingOn, nia.attention, nia.coach, nia.student], ['pending', 'coach', 'waiting', 'Coach Ned', 'Nia Student']);
+  assert.match(nia.code, /^[0-9A-F]{6}$/);
+  assert.ok(nia.deadline > clock);
+  assert.deepEqual(nia.actions, ['accept', 'decline', 'remind', 'resend-student']);
+  assert.ok(nia.steps.some(step => step.state === 'done' && /^Email to Coach Ned \(pending\) sent$/.test(step.text)), 'what was sent');
+  assert.ok(nia.steps.some(step => step.state === 'now' && /^Waiting for Coach Ned to accept/.test(step.text)), 'who it waits on');
+  assert.ok(!JSON.stringify(view.lessons).includes('@'), 'no student address goes to the page');
+  assert.equal(view.health.mailLeft, quota);
+  assert.ok(view.counts.today.booked >= 1, 'counted like the daily summary');
+  assert.ok(view.log.length > 0 && view.log.every(line => !/@/.test(line.detail + line.about)));
+
+  // Accept for the coach: Review changes nothing; Confirm goes through his YES, and proves nothing about his email.
+  const unchanged = JSON.stringify(grids.Requests);
+  const reviewed = act('accept', nia.id, true);
+  assert.deepEqual([reviewed.ok, reviewed.preview, reviewed.title], [true, true, 'Accept for Coach Ned']);
+  assert.match(reviewed.effect, /only when they told the club YES/);
+  assert.equal(JSON.stringify(grids.Requests), unchanged, 'a preview changes nothing');
+  let before = sent.length;
+  const accepted = act('accept', nia.id);
+  assert.equal(accepted.ok, true, accepted.message);
+  assert.equal(accepted.record.coach, 'Coach Ned');
+  assert.equal(accepted.record.booking, nia.code, 'the desk records the booking code, never the student');
+  assert.equal(statusOf('nia@example.com'), 'confirmed');
+  assert.ok(sent.slice(before).some(message => message.to === 'nia@example.com' && /^Lesson confirmed/.test(message.subject)), 'the usual confirmation goes');
+  assert.equal(nedEmail(), 'untested', 'the club answering is not the coach answering by email');
+  assert.ok(grids.Log.some(line => line[1] === 'club' && line[2] === 'reply:coach-request:yes'), 'logged as the club\'s answer');
+  assert.ok(grids.Log.some(line => line[2] === 'club-action:accept' && line[3] === nia.id));
+  assert.match(act('accept', nia.id, true).message, /is confirmed now, so it cannot be accepted/, 'Confirm again finds it moved on');
+  assert.deepEqual(lesson('nia@example.com').actions, ['cancel-coach', 'resend-student', 'resend-coach']);
+
+  // Cancel for the coach, as his confirmation email promises: both sides are told, and the time opens again.
+  assert.match(act('cancel-coach', nia.id, true).effect, /student is emailed .* that their coach cancelled/);
+  before = sent.length;
+  const textsBefore = textsTo('Ned Coach').length;
+  assert.equal(act('cancel-coach', nia.id).ok, true);
+  const niaRow = latestRequest('nia@example.com');
+  assert.deepEqual([cell('Requests', niaRow, 'status'), cell('Requests', niaRow, 'cancelled_by')], ['cancelled', 'coach']);
+  assert.ok(sent.slice(before).some(message => message.to === 'nia@example.com' && message.subject === 'Lesson cancelled by your coach'));
+  assert.ok(sent.slice(before).some(message => message.to === 'ned@example.com' && /^Lesson cancelled: /.test(message.subject) && /the club cancelled your lesson/.test(message.body)));
+  assert.match(textsTo('Ned Coach').slice(textsBefore).join('\n'), /the club cancelled Student Nia's lesson/);
+  assert.equal(nedSlots().length, 3, 'the time is open again');
+  assert.match(lesson('nia@example.com').steps.map(step => step.text).join('|'), /Cancelled by the club for Coach Ned/);
+  assert.equal(act('cancel-coach', nia.id).ok, false, 'not twice');
+
+  // Decline for the coach.
+  ask('Oli Student', 'oli@example.com');
+  assert.equal(act('decline', lesson('oli@example.com').id).ok, true);
+  assert.equal(statusOf('oli@example.com'), 'declined');
+  assert.equal(mailTo('oli@example.com').pop().subject, 'Coaching request not accepted');
+
+  // Remind the coach now, and resend the student's email.
+  ask('Ria Student', 'ria@example.com');
+  const ria = lesson('ria@example.com');
+  before = sent.length;
+  assert.equal(act('remind', ria.id).ok, true);
+  assert.match(sent.slice(before).find(message => message.to === 'ned@example.com').subject, /^Reminder: Lesson request from Ria Student \[CTTC ref /);
+  before = sent.length;
+  assert.equal(act('resend-student', ria.id).ok, true);
+  assert.deepEqual(sent.slice(before).map(message => [message.to, message.subject]), [['ria@example.com', 'Coaching request sent to Coach Ned (not confirmed yet)']]);
+
+  // A message the sweep has not sent hours after its step shows as stuck; running the sweep from the page sends it.
+  const riaRow = latestRequest('ria@example.com');
+  riaRow[column('Requests', 'student_emailed')] = '';
+  riaRow[column('Requests', 'updated_at')] = new Date(clock - hours(3)).toISOString();
+  const stuck = lesson('ria@example.com');
+  assert.equal(stuck.attention, 'stuck');
+  assert.match(stuck.next, /^Email to the student \(pending\) not sent yet/);
+  assert.match(act('sweep', '', true).effect, /sends any email or text not sent yet/);
+  before = sent.length;
+  assert.match(act('sweep', '').message, /^Done: the sweep ran/);
+  assert.ok(sent.slice(before).some(message => message.to === 'ria@example.com'));
+  assert.equal(lesson('ria@example.com').attention, 'waiting');
+
+  // A move the student asked for, applied for them; and a change dropped.
+  assert.equal(act('accept', ria.id).ok, true);
+  const later = nedSlots().find(entry => entry.start === '21:00');
+  assert.equal(run('studentChange', { key: keyOf('ria@example.com'), action: 'move', to: later.key, contact: 'ria@example.com' }).ok, true);
+  const moving = lesson('ria@example.com');
+  assert.deepEqual([moving.change, moving.attention], ['move', 'waiting']);
+  assert.ok(moving.actions.includes('apply-change') && moving.actions.includes('drop-change'));
+  assert.match(act('apply-change', moving.id, true).effect, /move the lesson to .* with Coach Ned/);
+  assert.equal(act('apply-change', moving.id).ok, true);
+  assert.deepEqual([cell('Requests', latestRequest('ria@example.com'), 'start'), statusOf('ria@example.com')], ['21:00', 'pending'], 'moved: the new time goes to the coach');
+
+  // The coach's list of times, published for him.
+  assert.equal(act('publish-times', nedId, true).ok, false, 'nothing waiting');
+  assert.equal(propose(nedId, mine(nedId).concat([slot(date, '22:00', 0)]).filter(entry => entry.minutes), { 50: '60', 25: '35' }).ok, true);
+  assert.equal(overview().proposals.find(item => item.coachId === nedId).rates, true);
+  assert.match(act('publish-times', nedId, true).effect, /as if they had replied YES/);
+  before = sent.length;
+  assert.equal(act('publish-times', nedId).ok, true);
+  assert.equal(overview().proposals.length, 0);
+  assert.deepEqual(run('openSlots').rates[nedId], { 50: '60', 25: '35' }, 'published');
+  assert.ok(sent.slice(before).some(message => message.to === 'ned@example.com' && message.subject === 'Your coaching times'), 'he is told what is published');
+
+  // Test email and test text, spaced out.
+  before = sent.length;
+  assert.equal(act('test-email', nedId).ok, true);
+  assert.match(sent.slice(before)[0].subject, /^Confirm your email for CTTC coaching \[CTTC ref /);
+  assert.match(act('test-email', nedId).message, /in the last 10 minutes/);
+  replyTo('ned@example.com', 'YES', /^Confirm your email for CTTC coaching/);
+  assert.equal(nedEmail(), 'done', 'his reply to the club\'s test ticks his email');
+  assert.match(act('test-text', nedId, true).effect, /from the club number/);
+  assert.equal(act('test-text', nedId).ok, true);
+  assert.equal(textsTo('Ned Coach').pop(), context.TEST_TEXT);
+  assert.match(admin({ action: 'act', kind: 'test-text', id: nedId }).message, /in the last 10 minutes/, 'one every 10 minutes');
+  const ozId = addCoach('Oz Coach', 'oz@example.com', '(925) 555-0162', false);
+  assert.match(act('test-text', ozId).message, /Ask them to text COACH to/, 'Voice can only answer someone who texted in');
+
+  // The daily summary on demand: today's usual one still goes.
+  const sentFor = properties.SUMMARY_SENT;
+  assert.match(act('summary', '', true).effect, /^Emails "CTTC daily summary: /);
+  before = sent.length;
+  assert.equal(act('summary', '').ok, true);
+  assert.match(sent.slice(before)[0].subject, /^CTTC daily summary: /);
+  assert.equal(properties.SUMMARY_SENT, sentFor);
+
+  // Anything else is refused.
+  assert.match(act('force-status', nia.id).message, /not known/);
+  assert.match(act('accept', 'not-an-id').message, /not found/);
+  assert.match(act('accept', 'f'.repeat(16)).message, /not found/);
+  assert.ok(!JSON.stringify(grids.Log.filter(line => /^club-action/.test(line[2]))).includes('@'), 'club actions are logged as codes');
+  assertPublicIsAnonymous();
+}
+
 // ---- Coach initials, and students who opt in to texts by texting STUDENT ----
 {
   const abeId = addCoach('Abe Coach', 'abe@example.com', '(925) 555-0161');
@@ -2423,7 +2573,7 @@ assert.equal(viewed.lines.length, Math.min(context.LOG_SHOWN, grids.Log.length -
 viewed.lines.forEach(line => {
   assert.deepEqual(Object.keys(line), ['at', 'channel', 'kind', 'ref', 'to', 'detail']);
   assert.match(line.at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/);
-  assert.match(line.channel, /^(email|text|step|error|-)$/);
+  assert.match(line.channel, /^(email|text|step|error|club|-)$/);
   assert.match(line.kind, /^[a-z0-9_:-]+$/);
   assert.match(line.ref, /^([0-9A-F]{6}|-)$/, 'what a message was about is shown only as a code');
   assert.match(line.to, /^([0-9A-F]{6}|-)$/);

@@ -55,7 +55,34 @@ assert.throws(() => context.setCoachPhone(ID, '9'.repeat(41)), /not a phone numb
 answers = [500];
 assert.throws(() => context.getCoachAdmin(), /did not answer/);
 answers = [{ ok: false, message: 'Unknown request.' }];
-assert.throws(() => context.getCoachAdmin(), /needs the release with Coach Admin/, 'an older coaching app says so plainly');
+assert.throws(() => context.getCoachAdmin(), /needs its latest release/, 'an older coaching app says so plainly');
+
+// The control center: its data, and each control previewed (not logged) then done (logged once, with the booking code).
+answers = [{ ok: true, lessons: [], proposals: [] }];
+assert.equal(context.getCoachingOverview().ok, true);
+assert.deepEqual(calls.pop().body, { fn: 'admin', key: KEY, action: 'overview' });
+const LESSON = '0123456789abcdef';
+answers = [{ ok: true, preview: true, title: 'Accept for Coach Gus', effect: '...' }];
+assert.equal(context.previewCoachingAction('accept', LESSON).preview, true);
+assert.deepEqual(calls.pop().body, { fn: 'admin', key: KEY, action: 'act', kind: 'accept', id: LESSON, preview: true });
+assert.equal(audits.length, 1, 'a preview is not logged');
+answers = [{ ok: true, message: 'Accepted for Coach Gus: ...', record: { booking: '3F09A1', coach: 'Coach Gus' } }];
+context.runCoachingAction('accept', LESSON);
+assert.equal(calls.pop().body.preview, false);
+assert.deepEqual(JSON.parse(JSON.stringify(audits.pop())), { action: 'coaching_accept', type: 'coaching', id: LESSON, details: { about: 'lesson', booking: '3F09A1', coach: 'Coach Gus' } },
+  'who and when come with the entry; what it was about is the booking code and coach');
+answers = [{ ok: true, message: 'Done: the sweep ran.' }];
+context.runCoachingAction('sweep', 'ignored');
+assert.equal(calls.pop().body.id, '', 'an app-wide control carries no id');
+assert.equal(audits.pop().action, 'coaching_sweep');
+answers = [{ ok: false, message: 'That booking is confirmed now, so it cannot be accepted. Reload the page.' }];
+assert.equal(context.runCoachingAction('accept', LESSON).ok, false);
+assert.equal(audits.length, 1, 'a refusal is not logged');
+assert.throws(() => context.runCoachingAction('force-status', LESSON), /not known/, 'only the controls the coaching app knows');
+assert.throws(() => context.runCoachingAction('accept', 'x'), /not found/);
+const known = /var ADMIN_ACTIONS = \{([\s\S]*?)\};/.exec(fs.readFileSync(require('node:path').join(__dirname, '..', 'coaching-app', 'Code.js'), 'utf8'))[1];
+const coachingKinds = [...known.matchAll(/'?([a-z-]+)'?: \{ about: '([a-z]+)' \}/g)].map(match => match[1] + ':' + match[2]).sort();
+assert.deepEqual(Object.entries(context.COACHING_ACTIONS_).map(entry => entry.join(':')).sort(), coachingKinds, 'the same controls on both sides');
 
 // The desk opens the page at ?view=coaches.
 assert.match(fs.readFileSync(require('node:path').join(__dirname, 'Code.js'), 'utf8'), /view === 'coaches' \? coachAdminPage_\(\)/);
