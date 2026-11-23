@@ -57,6 +57,12 @@ environment gains a new kind of access, add it here and to
   meeting app and sends the secretary a `[DRAFT NOTES]` email through the meeting
   mailer (`meeting-mailer/`, its own Apps Script project). Send only when the
   owner asks; steps in `docs/meeting-app.md`. Uses the clasp sign-in.
+- **A short club email** (a coaching update for a coach, say):
+  `npm run club:email -- preview|send --dir <scratchpad dir>` sends a
+  `[CTTC] ...` email from the club account to 1 to 3 people through the same
+  mailer, written by hand in `message.json`. Every email is copied to the club
+  account. Send only when the owner asks; steps in `docs/meeting-app.md`,
+  *Club messages*.
 - **The private round-robin Sheet, read-only:** `npm run sheet:read -- <Tab>`
   prints a tab's columns and row count (`--rows` for the rows);
   `fetchSheetRows` in `scripts/lib/google-sheets.js` reads any range from a

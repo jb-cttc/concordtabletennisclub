@@ -108,10 +108,15 @@ prepare the draft notes; the secretary reviews them and sends them on. The steps
    in the account's Sent folder.
 5. Delete `<dir>`.
 
-The mailer sends only subjects starting with `[DRAFT NOTES]`, to at most 3 people;
+The mailer sends only subjects starting with `[DRAFT NOTES]` (and `[CTTC]` club
+messages, below), to at most 3 people plus a copy to the club account, always;
 it keeps 10 of the club's daily email recipients for the other apps; it refuses
-the same draft to the same people twice within 30 minutes unless sent with
-`--resend`; and it logs each send in its script property `SENT_LOG`. The first
+the same email to the same people twice within 30 minutes unless sent with
+`--resend`; and it logs each send in its script property `SENT_LOG`. Every email
+is copied (Cc) to the club account, so the club's Inbox shows everything the
+mailer sends: the scripts take the club address from the club sign-in, and the
+mailer refuses a send without that copy, and remembers the address from its
+first send (script property `CLUB_COPY`) and refuses a copy to any other. The first
 time after it is released, the club account must open the mailer's `/exec`
 address once and click **Allow** (permission to send email as the account).
 
@@ -123,6 +128,24 @@ its attendee list.
 A projector plugged into the main laptop works too: **Projector screen →
 Open the board on this laptop** opens the board in a new window there, and it
 changes the moment the controls do.
+
+## Club messages
+
+When the owner asks for a short email to someone (a coaching update for a coach,
+say), it goes from the club account through the same mailer:
+
+1. Write `<dir>/message.json` in a folder outside the repository (it names
+   people): `to` (1 to 3 `{ name, email }`), `subject` (one line; `[CTTC] ` is
+   added), `body` (plain text: paragraphs split by a blank line, `- ` or `1. `
+   lists, `**bold**`, web addresses become links) and `from` (who asked). The
+   fields are listed at the top of `scripts/lib/club-email.js`.
+2. `npm run club:email -- preview --dir <dir>` writes `email.html` and
+   `email.txt`; look at them wide and at phone width.
+3. `npm run club:email -- send --dir <dir>` sends it, subject `[CTTC] …`,
+   sender *Concord Table Tennis Club*, with a copy to the club account. The
+   footer says it was sent from the club account by Claude, an AI assistant, at
+   the named person's request, and that a reply reaches the club.
+4. Delete `<dir>`.
 
 ## How it works
 

@@ -1,7 +1,7 @@
 'use strict';
 
-// The meeting mailer (sends only [DRAFT NOTES] emails, to at most 3 people, within the shared email allowance, never
-// the same draft twice by accident) against a fake Google, and the draft email it sends (scripts/lib/meeting-email.js):
+// The meeting mailer (sends only [DRAFT NOTES] and [CTTC] emails, to at most 3 people plus a copy to the club account,
+// always, within the shared email allowance, never the same email twice by accident) against a fake Google, and the draft email it sends (scripts/lib/meeting-email.js):
 // the note to the secretary kept apart from the draft, everything escaped, follow-ups by owner. Synthetic names only.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -17,7 +17,7 @@ assert.equal(fs.readFileSync(path.join(dir, '.claspignore'), 'utf8').trim(), 'ch
 const code = fs.readFileSync(path.join(dir, 'Code.js'), 'utf8');
 assert.doesNotMatch(code, /=>|`|^\s*(let|const|class)\s/m, 'ES5 style, like the other Apps Script projects');
 assert.doesNotMatch(code, /GmailApp|SpreadsheetApp|UrlFetchApp|DriveApp|newTrigger/, 'no Gmail, Sheets, web calls, Drive or timers');
-assert.deepEqual([...code.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(m => m[1]).filter(n => !n.endsWith('_')).sort(), ['doGet', 'sendDraftNotes', 'sentLog']);
+assert.deepEqual([...code.matchAll(/^function ([A-Za-z0-9_]+)\(/gm)].map(m => m[1]).filter(n => !n.endsWith('_')).sort(), ['doGet', 'sendClubMessage', 'sendDraftNotes', 'sentLog']);
 
 // ---- The mailer against a fake Google ----
 let clock = Date.parse('2026-11-22T18:00:00Z');
@@ -27,7 +27,7 @@ const props = new Map();
 const server = vm.createContext({
   Date: class extends Date { constructor(...a) { super(...(a.length ? a : [clock])); } static now() { return clock; } },
   JSON, Math,
-  MailApp: { getRemainingDailyQuota: () => quota, sendEmail: message => { sent.push(message); quota -= message.to.split(',').length; } },
+  MailApp: { getRemainingDailyQuota: () => quota, sendEmail: message => { sent.push(message); quota -= message.to.split(',').length + (message.cc ? message.cc.split(',').length : 0); } },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props.has(k) ? props.get(k) : null, setProperty: (k, v) => props.set(k, String(v)) }) },
   LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
   HtmlService: { createHtmlOutput: html => ({ html, setTitle() { return this; } }) }
@@ -35,40 +35,79 @@ const server = vm.createContext({
 vm.runInContext(code, server);
 const plain = v => JSON.parse(JSON.stringify(v));
 const send = draft => plain(server.sendDraftNotes(draft));
-const good = { to: ['Secretary@Example.org'], subject: '[DRAFT NOTES] CTTC Executive Committee Meeting – Saturday, November 21, 2026', html: '<p>Draft</p>', text: 'Draft', meetingId: 'm20261121abcd' };
+const club = message => plain(server.sendClubMessage(message));
+const CLUB = 'club@example.org';
+const good = { to: ['Secretary@Example.org'], copy: ['Club@Example.org'], subject: '[DRAFT NOTES] CTTC Executive Committee Meeting – Saturday, November 21, 2026', html: '<p>Draft</p>', text: 'Draft', meetingId: 'm20261121abcd' };
 assert.match(server.doGet().html, /id="ready"/, 'the page the script waits for');
 
+// Every email is copied to the club account, so the club sees everything sent: none without the copy.
+assert.throws(() => send(Object.assign({}, good, { copy: [] })), /copied to the club account/, 'no copy, no email');
+assert.throws(() => send(Object.assign({}, good, { copy: [CLUB, 'other@example.org'] })), /only to it/, 'and the copy goes to the club account only');
+assert.equal(sent.length, 0);
 const result = send(good);
 assert.equal(result.sent, true);
-assert.deepEqual(result.to, ['secretary@example.org']);
-assert.equal(result.quotaLeft, 99);
-assert.deepEqual(sent.map(m => [m.to, m.subject, m.htmlBody, m.body, m.name]), [['secretary@example.org', good.subject, '<p>Draft</p>', 'Draft', 'CTTC Executive Committee']]);
-assert.equal(plain(server.sentLog())[0].meetingId, 'm20261121abcd', 'each send is logged');
-
-// A copy to the club account: in Cc, counted against the recipients and the allowance, logged.
-const copied = send(Object.assign({}, good, { subject: '[DRAFT NOTES] With a copy', copy: ['Club@Example.org'] }));
-assert.deepEqual([copied.to, copied.copy, copied.quotaLeft], [['secretary@example.org'], ['club@example.org'], 97]);
-assert.deepEqual([sent[sent.length - 1].to, sent[sent.length - 1].cc], ['secretary@example.org', 'club@example.org']);
-assert.deepEqual(plain(server.sentLog()).pop().copy, ['club@example.org']);
-assert.equal(send(Object.assign({}, good, { subject: '[DRAFT NOTES] Same person', copy: ['secretary@example.org'] })).copy.length, 0, 'never the same person twice');
-assert.throws(() => send(Object.assign({}, good, { to: ['a@example.org', 'b@example.org', 'c@example.org'], copy: ['club@example.org'] })), /counting the copy/);
+assert.deepEqual([result.to, result.copy, result.quotaLeft], [['secretary@example.org'], [CLUB], 98], 'the copy counts against the allowance');
+assert.deepEqual(sent.map(m => [m.to, m.cc, m.subject, m.htmlBody, m.body, m.name]), [['secretary@example.org', CLUB, good.subject, '<p>Draft</p>', 'Draft', 'CTTC Executive Committee']]);
+assert.equal(props.get('CLUB_COPY'), CLUB, 'the club address is remembered from the first send');
+assert.deepEqual([plain(server.sentLog())[0].meetingId, plain(server.sentLog())[0].kind], ['m20261121abcd', 'draft'], 'each send is logged');
+assert.throws(() => send(Object.assign({}, good, { subject: '[DRAFT NOTES] Elsewhere', copy: ['someone.else@example.org'] })), /copy must go to the club account/,
+  'a copy to any other address is refused');
+assert.equal(send(Object.assign({}, good, { subject: '[DRAFT NOTES] Same person', to: ['secretary@example.org', CLUB] })).to.length, 1, 'never the same person twice');
+assert.equal(send(Object.assign({}, good, { subject: '[DRAFT NOTES] Three', to: ['a@example.org', 'b@example.org', 'c@example.org'] })).to.length, 3, 'three people, plus the club copy');
 assert.throws(() => send(Object.assign({}, good, { subject: '[DRAFT NOTES] Bad copy', copy: ['not an address'] })), /not an email address/);
 
-assert.throws(() => send(good), /same draft went to the same people/, 'no accidental second send');
+assert.throws(() => send(good), /same email went to the same people/, 'no accidental second send');
 assert.equal(send(Object.assign({}, good, { resend: true })).sent, true, 'unless asked to resend');
 clock += 31 * 60000;
 assert.equal(send(good).sent, true, 'or after half an hour');
 assert.throws(() => send(Object.assign({}, good, { subject: 'CTTC minutes' })), /must start with \[DRAFT NOTES\]/, 'draft notes only');
+assert.throws(() => send(Object.assign({}, good, { subject: '[CTTC] A club message' })), /must start with \[DRAFT NOTES\]/, 'a club message is not a draft');
 send(Object.assign({}, good, { subject: '[DRAFT NOTES] x\nBcc: someone@example.org' }));
 assert.equal(sent[sent.length - 1].subject, '[DRAFT NOTES] x Bcc: someone@example.org', 'a line break in the subject becomes a space: it can never add a header');
 assert.throws(() => send(Object.assign({}, good, { to: ['a@example.org', 'b@example.org', 'c@example.org', 'd@example.org'] })), /1 to 3 recipients/);
 assert.throws(() => send(Object.assign({}, good, { to: ['not an address'] })), /not an email address/);
 assert.throws(() => send(Object.assign({}, good, { to: ['a@example.org, b@example.org'] })), /not an email address/, 'one address per entry');
 assert.throws(() => send(Object.assign({}, good, { text: '' })), /plain-text copy/);
+
+// Club messages: the same rules, their own subject and sender name.
+const clubNote = { to: ['Coach@Example.org'], copy: [CLUB], subject: '[CTTC] Coaching update', html: '<p>Hi</p>', text: 'Hi' };
+assert.equal(club(clubNote).sent, true);
+assert.deepEqual([sent[sent.length - 1].to, sent[sent.length - 1].cc, sent[sent.length - 1].name], ['coach@example.org', CLUB, 'Concord Table Tennis Club']);
+assert.equal(plain(server.sentLog()).pop().kind, 'club');
+assert.throws(() => club(Object.assign({}, clubNote, { subject: '[DRAFT NOTES] Not a club message' })), /must start with \[CTTC\]/, 'a draft is not a club message');
+assert.throws(() => club(Object.assign({}, clubNote, { subject: 'Coaching update' })), /must start with \[CTTC\]/);
+assert.throws(() => club(Object.assign({}, clubNote, { copy: [] })), /copied to the club account/);
+assert.throws(() => club(clubNote), /same email went to the same people/);
+
 const before = sent.length;
 quota = 10;
 assert.throws(() => send(Object.assign({}, good, { subject: '[DRAFT NOTES] another' })), /only 10 email recipients are left today/, 'the other apps keep their share of the allowance');
+assert.throws(() => club(Object.assign({}, clubNote, { subject: '[CTTC] another' })), /only 10 email recipients are left today/);
 assert.equal(sent.length, before, 'nothing sent when refused');
+
+// ---- The club message (scripts/lib/club-email.js) ----
+{
+  const message = require('../scripts/lib/club-email.js');
+  const m = { to: [{ name: 'Sam Coach', email: 'coach@example.org' }], subject: 'Coaching update', from: 'Pat Example',
+    body: 'Hi Sam, **your email** is on https://concordtabletennisclub.com/coaching.html.\n\n- One <b>step</b>\n- Two\n\n1. First\n2. Second' };
+  assert.equal(message.subject(m), '[CTTC] Coaching update', 'the subject the mailer accepts');
+  assert.match(message.subject(m), /^\[CTTC\] \S/);
+  const page = message.html(m);
+  assert.match(page, /<strong>your email<\/strong>/);
+  assert.match(page, /<a href="https:\/\/concordtabletennisclub\.com\/coaching\.html"[^>]*>https:\/\/concordtabletennisclub\.com\/coaching\.html<\/a>\./, 'a link, without the full stop after it');
+  assert.match(page, /<ul[^>]*><li[^>]*>One &lt;b&gt;step&lt;\/b&gt;<\/li><li[^>]*>Two<\/li><\/ul>/, 'a list, everything escaped');
+  assert.match(page, /<ol[^>]*><li[^>]*>First<\/li>/);
+  assert.match(page, /by Claude, an AI assistant, at Pat Example’s request\. Reply to this email to reach the club\./, 'it says who wrote it and for whom');
+  const plainText = message.text(m);
+  assert.match(plainText, /^Hi Sam, your email is on https:\/\/concordtabletennisclub\.com\/coaching\.html\.\n\n- One <b>step<\/b>\n- Two\n\n1\. First\n2\. Second\n\n--\nSent from/);
+  assert.throws(() => message.subject(Object.assign({}, m, { subject: '[CTTC] Twice' })), /without \[CTTC\]/);
+  assert.throws(() => message.html(Object.assign({}, m, { to: [] })), /1 to 3 people/);
+  assert.throws(() => message.html(Object.assign({}, m, { from: '' })), /who asked/);
+  const script = fs.readFileSync(path.join(dir, '..', 'scripts', 'club-email.js'), 'utf8');
+  assert.match(script, /use a folder outside the repository/);
+  assert.match(script, /fn: 'sendClubMessage'/);
+  assert.match(script, /copy: \[club\]/, 'every message is copied to the club account');
+}
 
 // ---- The draft email ----
 const email = require('../scripts/lib/meeting-email.js');
