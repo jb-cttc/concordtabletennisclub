@@ -1,6 +1,6 @@
 'use strict';
 
-// The meeting mailer (sends only [DRAFT NOTES] and [CTTC] emails, to at most 3 people plus a copy to the club account,
+// The meeting mailer (sends only [DRAFT NOTES] and [CTTC] emails, to at most 20 people plus a copy to the club account,
 // always, within the shared email allowance, never the same email twice by accident) against a fake Google, and the draft email it sends (scripts/lib/meeting-email.js):
 // the note to the secretary kept apart from the draft, everything escaped, follow-ups by owner. Synthetic names only.
 const assert = require('node:assert/strict');
@@ -64,7 +64,10 @@ assert.throws(() => send(Object.assign({}, good, { subject: 'CTTC minutes' })), 
 assert.throws(() => send(Object.assign({}, good, { subject: '[CTTC] A club message' })), /must start with \[DRAFT NOTES\]/, 'a club message is not a draft');
 send(Object.assign({}, good, { subject: '[DRAFT NOTES] x\nBcc: someone@example.org' }));
 assert.equal(sent[sent.length - 1].subject, '[DRAFT NOTES] x Bcc: someone@example.org', 'a line break in the subject becomes a space: it can never add a header');
-assert.throws(() => send(Object.assign({}, good, { to: ['a@example.org', 'b@example.org', 'c@example.org', 'd@example.org'] })), /1 to 3 recipients/);
+const many = n => Array.from({ length: n }, (_, i) => 'member' + i + '@example.org');
+assert.equal(send(Object.assign({}, good, { subject: '[DRAFT NOTES] Everyone', to: many(20) })).to.length, 20, 'up to 20 people, a whole committee');
+assert.equal(sent[sent.length - 1].cc, CLUB, 'still copied to the club');
+assert.throws(() => send(Object.assign({}, good, { subject: '[DRAFT NOTES] Too many', to: many(21) })), /1 to 20 recipients/);
 assert.throws(() => send(Object.assign({}, good, { to: ['not an address'] })), /not an email address/);
 assert.throws(() => send(Object.assign({}, good, { to: ['a@example.org, b@example.org'] })), /not an email address/, 'one address per entry');
 assert.throws(() => send(Object.assign({}, good, { text: '' })), /plain-text copy/);
@@ -101,7 +104,7 @@ assert.equal(sent.length, before, 'nothing sent when refused');
   const plainText = message.text(m);
   assert.match(plainText, /^Hi Sam, your email is on https:\/\/concordtabletennisclub\.com\/coaching\.html\.\n\n- One <b>step<\/b>\n- Two\n\n1\. First\n2\. Second\n\n--\nSent from/);
   assert.throws(() => message.subject(Object.assign({}, m, { subject: '[CTTC] Twice' })), /without \[CTTC\]/);
-  assert.throws(() => message.html(Object.assign({}, m, { to: [] })), /1 to 3 people/);
+  assert.throws(() => message.html(Object.assign({}, m, { to: [] })), /1 to 20 people/);
   assert.throws(() => message.html(Object.assign({}, m, { from: '' })), /who asked/);
   const script = fs.readFileSync(path.join(dir, '..', 'scripts', 'club-email.js'), 'utf8');
   assert.match(script, /use a folder outside the repository/);

@@ -117,7 +117,7 @@ its settings:
 | Gmail reads, emails, web requests | nothing | 20,000 / 100 / 20,000 a day |
 | Settings reads | a few per change, none on a quiet beat (a few hundred) | 50,000 a day |
 | Settings writes | one per save (a few hundred at most) | 50,000 a day |
-| Draft notes and club messages (`meeting-mailer/`) | 2 email recipients (`MailApp`) per meeting's draft notes (the secretary, and a copy to the club account); a club message the owner asks for (December 2026) is 1 to 3 people plus the club copy, so 2 to 4. Sent only by a maintainer's script when asked; it refuses below 10 left, like the other apps | 100 recipients a day |
+| Draft notes and club messages (`meeting-mailer/`) | 2 email recipients (`MailApp`) per meeting's draft notes (the secretary, and a copy to the club account); a club message the owner asks for (December 2026) is 1 to 20 people plus the club copy, so 2 to 21: usually the secretary (2), at most a whole committee. Sent only by a maintainer's script when asked; it refuses when the send would leave fewer than 10 for the other apps, so a 21-recipient message needs 31 left | 100 recipients a day |
 | Follow-up tracker | opening or refreshing it reads every kept meeting (2 to 3 settings reads each, so about 100 for a year of monthly meetings); each change in it is one save | (within the settings rows above) |
 | Script properties stored | at most 60 KB per meeting, 400 KB for every meeting kept (the app refuses past that and asks to delete an old meeting) | 500 KB per project |
 

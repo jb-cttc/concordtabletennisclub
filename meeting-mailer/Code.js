@@ -16,7 +16,7 @@
 // twice within REPEAT_MS unless asked to resend; and it keeps a log of each send (script property SENT_LOG, the last
 // LOG_KEEP).
 var MIN_QUOTA = 10;
-var MAX_TO = 3;
+var MAX_TO = 20;
 var MAX_HTML = 200000;
 var MAX_TEXT = 100000;
 var REPEAT_MS = 30 * 60 * 1000;

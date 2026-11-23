@@ -59,7 +59,7 @@ environment gains a new kind of access, add it here and to
   owner asks; steps in `docs/meeting-app.md`. Uses the clasp sign-in.
 - **A short club email** (a coaching update for a coach, say):
   `npm run club:email -- preview|send --dir <scratchpad dir>` sends a
-  `[CTTC] ...` email from the club account to 1 to 3 people through the same
+  `[CTTC] ...` email from the club account to 1 to 20 people through the same
   mailer, written by hand in `message.json`. Every email is copied to the club
   account. Send only when the owner asks; steps in `docs/meeting-app.md`,
   *Club messages*.

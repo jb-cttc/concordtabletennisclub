@@ -4,7 +4,7 @@
 // as a coaching update for a coach. scripts/club-email.js builds it from <dir>/message.json, written by hand:
 //
 // message: {
-//   to: [{ name, email }],          1 to 3 people (the club account is copied on every send, on top)
+//   to: [{ name, email }],          1 to 20 people (the club account is copied on every send, on top)
 //   subject: 'Coaching update',     shown after "[CTTC] "
 //   body: 'Hi Raymond, ...',        plain text: paragraphs split by a blank line; a paragraph whose lines all start with
 //                                   "- " is a list, "1. " a numbered list; **bold**; web addresses become links
@@ -39,8 +39,8 @@ function blocks(body) {
 
 function check(message) {
   const to = Array.isArray(message.to) ? message.to : [];
-  if (!to.length || to.length > 3 || !to.every(person => person && person.name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email || ''))) {
-    throw new Error('message.json needs to: [{ name, email }], 1 to 3 people.');
+  if (!to.length || to.length > 20 || !to.every(person => person && person.name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(person.email || ''))) {
+    throw new Error('message.json needs to: [{ name, email }], 1 to 20 people.');
   }
   if (!String(message.subject || '').trim() || /[\r\n]/.test(message.subject) || /^\[/.test(message.subject)) throw new Error('message.json needs subject: one line, without [CTTC] (it is added).');
   if (!String(message.body || '').trim()) throw new Error('message.json needs body.');

@@ -109,7 +109,7 @@ prepare the draft notes; the secretary reviews them and sends them on. The steps
 5. Delete `<dir>`.
 
 The mailer sends only subjects starting with `[DRAFT NOTES]` (and `[CTTC]` club
-messages, below), to at most 3 people plus a copy to the club account, always;
+messages, below), to at most 20 people plus a copy to the club account, always;
 it keeps 10 of the club's daily email recipients for the other apps; it refuses
 the same email to the same people twice within 30 minutes unless sent with
 `--resend`; and it logs each send in its script property `SENT_LOG`. Every email
@@ -135,7 +135,7 @@ When the owner asks for a short email to someone (a coaching update for a coach,
 say), it goes from the club account through the same mailer:
 
 1. Write `<dir>/message.json` in a folder outside the repository (it names
-   people): `to` (1 to 3 `{ name, email }`), `subject` (one line; `[CTTC] ` is
+   people): `to` (1 to 20 `{ name, email }`), `subject` (one line; `[CTTC] ` is
    added), `body` (plain text: paragraphs split by a blank line, `- ` or `1. `
    lists, `**bold**`, web addresses become links) and `from` (who asked). The
    fields are listed at the top of `scripts/lib/club-email.js`.
