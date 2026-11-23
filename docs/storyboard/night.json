@@ -2989,7 +2989,7 @@
       {
        "when": "Everyone in one group leaves",
        "happens": "That group goes; every other group keeps its printed number, so Table #3's sheet is still Group 3 on the desk, the board and the results. No sheet is named to replace. (Before Nov 11, 2026 the later groups were renumbered.)",
-       "handling": "Nothing to do; the table is free for open play.",
+       "handling": "Nothing to do; the table is free.",
        "status": "handled",
        "evidence": "apps-script/Index.html:964"
       },

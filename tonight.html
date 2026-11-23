@@ -240,7 +240,7 @@
     byId("stat-likely-box").hidden = view.phase === "underway";
     var lede;
     if (view.phase === "underway") {
-      lede = "Sign-up has closed: " + plural(sum.playing, "player is", "players are") + " on the floor " + word + ". Come watch, or join open play.";
+      lede = "Sign-up has closed: " + plural(sum.playing, "player is", "players are") + " on the floor " + word + ". " + (T.weekday(view.date) === 6 ? "Come watch, or join open play." : "Come watch.");
     } else if (view.today) {
       lede = "About " + plural(sum.expected, "player", "players") + " expected " + word +
         (sum.playing ? ", and " + sum.playing + " already in: " + sum.here + " signed in at the desk, " + sum.texted + " texted." : ". Be one of the first in.") +

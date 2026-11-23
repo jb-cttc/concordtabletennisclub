@@ -239,7 +239,7 @@ const phases = [
       subtext: 'Before Monday\'s fix this rebuilt the whole order and the screen stopped matching the paper.',
       caveats: ['Strike the player\'s matches through on the paper sheet.'],
       exceptions: [
-        X('Everyone in one group leaves', 'That group goes; every other group keeps its printed number, so Table #3\'s sheet is still Group 3 on the desk, the board and the results. No sheet is named to replace. (Before Nov 11, 2026 the later groups were renumbered.)', 'Nothing to do; the table is free for open play.', 'handled', 'apps-script/Index.html:964'),
+        X('Everyone in one group leaves', 'That group goes; every other group keeps its printed number, so Table #3\'s sheet is still Group 3 on the desk, the board and the results. No sheet is named to replace. (Before Nov 11, 2026 the later groups were renumbered.)', 'Nothing to do; the table is free.', 'handled', 'apps-script/Index.html:964'),
         X('A player with scores is removed', 'Their matches and scores are dropped from the night.', 'Use a forfeit instead if the results should count.', 'partial', 'apps-script/Index.html:1174')],
       screen: { kind: 'desk', highlight: ['group-row', 'scoring'], note: 'A removed row, and the scoring list with the remaining matches in printed order.' },
       tech: {
