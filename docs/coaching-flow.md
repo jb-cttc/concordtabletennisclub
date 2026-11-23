@@ -468,7 +468,7 @@ it has not changed for more than an hour, the check is not running.
 | **Coaches** `rate_50`, `rate_25` | The coach's published lesson rates in whole dollars; empty means no rate listed. Set by the coach on the page and published by their YES (below), never typed in the Sheet. |
 | **Coaches** `ask_rates` (JSON) | The rates in the list waiting for the coach's YES, only when that list changes them. Cleared with `ask_slots`. |
 | **Requests** `rate` | The rate the student saw and confirmed for that lesson; empty when the coach listed none (and for requests made before rates). Every email about the lesson quotes this, even after the coach changes their rates. |
-| **Coaches** `status = disabled` | The coach and all their times are hidden. The hourly sweep sets this for anyone not in `CLUB_COACHES` in `coaching-app/Code.js`, and for a club coach the coaching page does not show (Pending at USATT and not one of the owner's `showWhilePending` exceptions in `data/coach-certifications.json`). It clears it for a club coach the page shows. The desk copies who is shown from the site to the hidden `CoachList` tab of its Sheet every hour; until that tab exists, or when it cannot be read, club coaches stay as they are. Add or remove a coach in `CLUB_COACHES` and the table on `coaching.html`, not in the Sheet. |
+| **Coaches** `status = disabled` | The coach and all their times are hidden. The hourly sweep sets this for anyone not in `CLUB_COACHES` in `coaching-app/Code.js`, and for a club coach the coaching page does not show (Pending at USATT and not one of the club's exceptions, `showWhilePending` in `data/coach-certifications.json`, set on Coach Admin). It clears it for a club coach the page shows. The desk copies who is shown from the site to the hidden `CoachList` tab of its Sheet every hour; until that tab exists, or when it cannot be read, club coaches stay as they are. Add or remove a coach in `CLUB_COACHES` and the table on `coaching.html`, not in the Sheet. |
 | **Availability** rows with `confirmed = yes` | Published times. A row is one slot: `minutes` 30 or 60, `table` 1 to 3. A 25-minute booking on a 60-minute slot splits it into two 30-minute rows. Two open 30-minute rows of one coach, back to back at one table, can be booked together as one 50-minute lesson: the request (`minutes` 60) covers both rows, which stay as they are and reopen as 30-minute times if it is cancelled, declined or expires. Past rows are deleted by the sweep. |
 | **Waitlist** | People emailed (*A coaching time you wanted is open*) when a held time frees up; each is removed once told. |
 
@@ -571,6 +571,32 @@ coach and the last four digits before and after; the coaching app's Log tab
 records `coach-phone-set` with codes. A new number starts *untested*. Email
 addresses are not set there: they are public on `coaching.html` and change in
 `CLUB_COACHES` by a reviewed PR.
+
+### Who is offered, and why (Coach Admin, USATT)
+
+Each coach card on Coach Admin has a **USATT** line (Active with the coaching
+level, or Pending, from `data/coach-certifications.json` on the site, which the
+GitHub data update writes after checking USATT's Find a Coach directory:
+`scripts/check-usatt-coaches.js`). A coach who is not offered, and a Pending
+coach offered as the club's exception, has a box saying why, with the control
+that fits (`coachOffer_` in `apps-script/CoachAdmin.js`):
+
+| Why | Control |
+| --- | --- |
+| USATT certification pending (hidden from `coaching.html`) | **Offer while pending**: the desk starts the data update with `coach_exception: offer:<name>`, which adds them to `showWhilePending` and lists them on `coaching.html` as Pending (`scripts/coach-exception.js`). The exception ends by itself once USATT certifies them. |
+| Offered as the club's exception | **Stop offering until certified** (`end:<name>`): hidden again; lessons already booked stay. |
+| The page shows (or hides) them but the coaching app has not caught up (it follows within two hours: the desk's hourly copy to `CoachList`, then the coaching app's hourly sweep) | **Sync now**: the copy and the coaching app's sweep, at once. |
+| Not on the club's coach list (`CLUB_COACHES`), or not in `coaching.html`'s table | None: that list changes only by a reviewed pull request, and the box says so. |
+
+**Re-check USATT now** (above the cards) starts the data update with no
+exception, so a coach USATT has just certified shows without waiting for the
+next scheduled run. The data update takes about 10 minutes; GitHub keeps one
+waiting run, so Coach Admin starts one change at a time, and shows a change the
+page still does not show after 30 minutes as skipped, to be asked again. Each
+control is previewed (Review) and done on Confirm, and recorded in the desk log
+(`coach_exception_requested`, `coach_exception_end_requested`,
+`usatt_recheck_requested`, `coach_list_synced`) with the coach; GitHub records
+the change itself as a commit. It uses the GitHub token publishing already uses.
 
 ### The control center (Coach Admin, below the coaches)
 

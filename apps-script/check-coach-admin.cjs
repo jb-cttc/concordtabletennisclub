@@ -8,18 +8,55 @@ const KEY = 'k'.repeat(64);
 const calls = [];
 let answers = [];
 const audits = [];
+// The club site's coach file (data/coach-certifications.json) and the desk's CoachList tab, made up.
+let coachFile = { source: 'https://coaches.usatt.org/', showWhilePending: [], coaches: {
+  'Ann Coach': { status: 'USATT Certification Active', level: 'Coaching Level 1' },
+  'Bo Coach': { status: 'USATT Certification Pending', level: null, hidden: true, contact: 'bo@example.com' },
+  'Cy Coach': { status: 'USATT Certification Pending', level: null } } };
+let siteDown = false;
+let coachListTab = [['shown_coach'], ['Ann Coach']];
+const siteReads = [];
+const dispatches = [];
+let githubCode = 204;
+const properties = {};
+let cache = {};
+let clock = Date.parse('2026-11-23T20:00:00Z');
 const context = {
   JSON, Object, Array, Number, String, Error,
+  Date: class extends Date { static now() { return clock; } },
   UrlFetchApp: { fetch: (url, options) => {
+    if (url.startsWith('https://concordtabletennisclub.com/data/coach-certifications.json')) {
+      siteReads.push(url);
+      return { getResponseCode: () => (siteDown ? 503 : 200), getContentText: () => JSON.stringify(coachFile) };
+    }
+    if (url.startsWith('https://api.github.com/')) {
+      dispatches.push({ url, body: JSON.parse(options.payload) });
+      return { getResponseCode: () => githubCode, getContentText: () => '' };
+    }
     calls.push({ url, body: JSON.parse(options.payload) });
     const next = answers.shift();
     return { getResponseCode: () => (next === 500 ? 500 : 200), getContentText: () => JSON.stringify(next) };
   } },
+  CacheService: { getScriptCache: () => ({ get: key => cache[key] || null, put: (key, value) => { cache[key] = String(value); }, remove: key => { delete cache[key]; } }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties[key] || null, setProperty: (key, value) => { properties[key] = String(value); } }) },
+  Utilities: { formatDate: (date, zone, format) => { assert.equal(zone, 'America/Los_Angeles'); return 'Mon 12:00 PM'; } },
+  SpreadsheetApp: { getActive: () => ({ getSheetByName: name => name !== 'CoachList' ? null : {
+    getLastRow: () => coachListTab.length,
+    getRange: (row, column, rows) => ({ getValues: () => coachListTab.slice(row - 1, row - 1 + rows).map(line => line.slice()),
+      setNumberFormat() { return this; }, setValues: values => { coachListTab = Array.from(values, line => Array.from(line)); } }),
+    clearContents: () => { coachListTab = []; } }, insertSheet: () => { throw new Error('the tab exists'); } }) },
+  githubToken_: () => 'token',
+  githubHeaders_: token => ({ Authorization: 'Bearer ' + token }),
+  workflowUrl_: () => 'https://api.github.com/repos/jb-cttc/concordtabletennisclub/actions/workflows/update-data.yml',
+  githubErrorMessage_: code => 'GitHub returned HTTP ' + code + '.',
+  deskLog_: () => {},
+  console,
   HtmlService: { createHtmlOutputFromFile: name => { assert.equal(name, 'CoachAdminPage'); const page = { setTitle: () => page, addMetaTag: () => page, setXFrameOptionsMode: () => page }; return page; }, XFrameOptionsMode: { ALLOWALL: 1 } },
   volunteerAdminKey_: () => KEY,
   appendAudit_: (action, type, id, details) => audits.push({ action, type, id, details })
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, 'CoachList.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require('node:path').join(__dirname, 'CoachAdmin.js'), 'utf8'), context);
 const ID = 'abcdef0123456789';
 
@@ -86,4 +123,95 @@ assert.deepEqual(Object.entries(context.COACHING_ACTIONS_).map(entry => entry.jo
 
 // The desk opens the page at ?view=coaches.
 assert.match(fs.readFileSync(require('node:path').join(__dirname, 'Code.js'), 'utf8'), /view === 'coaches' \? coachAdminPage_\(\)/);
+
+// ---- Who is offered, and why: USATT status from the site's coach file, and the controls that fit ----
+const A = 'a'.repeat(16);
+const B = 'b'.repeat(16);
+const C = 'c'.repeat(16);
+const D = 'd'.repeat(16);
+const E = 'e'.repeat(16);
+const roster = () => ({ ok: true, textNumber: '(925) 238-3505', coaches: [
+  { id: A, name: 'Ann Coach', active: true, club: true },
+  { id: B, name: 'Bo Coach', active: false, club: true },
+  { id: C, name: 'Cy Coach', active: true, club: true },
+  { id: D, name: 'Di Gone', active: false, club: false },
+  { id: E, name: 'Ed Unlisted', active: false, club: true }] });
+coachFile.showWhilePending = ['Cy Coach'];
+coachListTab = [['shown_coach'], ['Ann Coach'], ['Cy Coach']];
+const offers = () => { cache = {}; answers = [roster()]; const view = JSON.parse(JSON.stringify(context.getCoachAdmin())); return Object.fromEntries(view.coaches.map(coach => [coach.name, coach.offer])); };
+let offered = offers();
+assert.deepEqual([offered['Ann Coach'].status, offered['Ann Coach'].level, offered['Ann Coach'].certified, offered['Ann Coach'].actions], ['USATT Certification Active', 'Coaching Level 1', true, []]);
+assert.match(offered['Bo Coach'].reason, /^USATT certification pending/);
+assert.deepEqual(offered['Bo Coach'].actions, ['offer'], 'a Pending coach can be made a club exception');
+assert.deepEqual([offered['Cy Coach'].exception, offered['Cy Coach'].actions], [true, ['end']], 'an exception can be ended');
+assert.match(offered['Di Gone'].reason, /Not on the club's coach list .* reviewed pull request/);
+assert.deepEqual(offered['Di Gone'].actions, [], 'only a pull request brings back a coach taken off the list');
+assert.match(offered['Ed Unlisted'].reason, /not in the coaching page's coach table/);
+assert.ok(siteReads.every(url => /^https:\/\/concordtabletennisclub\.com\/data\/coach-certifications\.json\?at=\d+$/.test(url)), 'read past the site cache');
+siteDown = true;
+cache = {};
+answers = [roster()];
+const down = context.getCoachAdmin();
+assert.equal(down.coaches.length, 5, 'the coaches still come');
+assert.match(down.usatt.message, /could not be read from the club site/);
+siteDown = false;
+
+// Offer Bo while pending: Review starts nothing; Confirm starts the data update with his name, once, and is logged.
+const before = audits.length;
+answers = [roster()];
+const asked = context.previewCoachOffer('offer', B);
+assert.deepEqual([asked.ok, asked.preview, asked.title], [true, true, 'Offer Bo Coach while USATT certification is pending']);
+assert.match(asked.effect, /club exception.*GitHub records the change as a commit/);
+assert.equal(dispatches.length, 0, 'a preview starts nothing');
+assert.equal(audits.length, before, 'nor is logged');
+answers = [roster()];
+assert.equal(context.setCoachOffer('offer', B).ok, true);
+assert.deepEqual(JSON.parse(JSON.stringify(dispatches.pop().body)), { ref: 'main', inputs: { coach_exception: 'offer:Bo Coach' } });
+assert.deepEqual(JSON.parse(JSON.stringify(audits.pop())), { action: 'coach_exception_requested', type: 'coaching', id: B, details: { coach: 'Bo Coach' } });
+// Until the page shows it, his card says it was asked, and nothing else can be started (GitHub keeps one waiting run).
+offered = offers();
+assert.match(offered['Bo Coach'].request.text, /Asked to offer them at .*GitHub is updating the coaching page/);
+assert.deepEqual(offered['Bo Coach'].actions, []);
+answers = [roster()];
+assert.match(context.setCoachOffer('end', C).message, /The change for Bo Coach asked at .* is still running/);
+assert.match(context.previewCoachOffer('recheck', '').message, /still running/);
+// The data update shows him: the coaching app has not caught up, so Sync now.
+coachFile.showWhilePending = ['Cy Coach', 'Bo Coach'];
+delete coachFile.coaches['Bo Coach'].hidden;
+offered = offers();
+assert.equal(offered['Bo Coach'].request, null);
+assert.match(offered['Bo Coach'].reason, /coaching app has not caught up yet/);
+assert.deepEqual(offered['Bo Coach'].actions, ['sync']);
+answers = [roster(), { ok: true, message: 'Done: the sweep ran.' }];
+cache['coach-list-checked'] = '1';
+assert.equal(context.setCoachOffer('sync', B).ok, true);
+assert.deepEqual(coachListTab.map(line => String(line[0])), ['shown_coach', 'Ann Coach', 'Bo Coach', 'Cy Coach'], 'the list copied now, in page order, despite the hourly wait');
+assert.deepEqual(calls.pop().body, { fn: 'admin', key: KEY, action: 'act', kind: 'sweep', id: '' }, 'then the coaching app follows it');
+assert.equal(audits.pop().action, 'coach_list_synced');
+// A control that does not fit is refused with the reason.
+answers = [roster()];
+assert.match(context.setCoachOffer('offer', A).message, /not needed for Ann Coach/);
+answers = [roster()];
+assert.match(context.setCoachOffer('offer', D).message, /not needed for Di Gone now\. Not on the club's coach list/);
+// A request GitHub skipped can be asked again after half an hour.
+clock += 11 * 60000;
+answers = [roster()];
+assert.equal(context.setCoachOffer('end', C).ok, true);
+assert.deepEqual(dispatches.pop().body.inputs, { coach_exception: 'end:Cy Coach' });
+clock += 31 * 60000;
+offered = offers();
+assert.ok(offered['Cy Coach'].request.stale, 'still not shown after 30 minutes');
+assert.match(offered['Cy Coach'].request.text, /GitHub most likely skipped that run\. Ask again\./);
+assert.deepEqual(offered['Cy Coach'].actions, ['end']);
+// Re-check USATT: the data update with no exception.
+answers = [];
+assert.equal(context.setCoachOffer('recheck', '').ok, true);
+assert.deepEqual(dispatches.pop().body, { ref: 'main', inputs: {} });
+assert.equal(audits.pop().action, 'usatt_recheck_requested');
+clock += 11 * 60000;
+githubCode = 403;
+answers = [roster()];
+assert.throws(() => context.setCoachOffer('end', C), /GitHub returned HTTP 403/, 'a GitHub refusal is shown, and nothing is recorded');
+assert.throws(() => context.setCoachOffer('promote', B), /not known/);
+assert.throws(() => context.setCoachOffer('offer', 'x'), /not found/);
 console.log('Coach Admin desk checks passed');

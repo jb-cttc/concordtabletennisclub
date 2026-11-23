@@ -76,4 +76,30 @@ const clubNames = [...club[1].matchAll(/\[\s*'([^']+)'/g)].map(m => m[1]);
 assert.deepEqual(clubNames.slice().sort(), roster(page, data).map(r => r.name).sort(),
   'CLUB_COACHES in coaching-app/Code.js names every coach on coaching.html plus the hidden ones in data/coach-certifications.json');
 
+// The club's exception from Coach Admin (scripts/coach-exception.js, run by the data update): offer a Pending coach, end it.
+const { applyException } = require('./coach-exception');
+const offered = applyException(first.html, first.data, 'offer:Bo Two');
+assert.deepEqual(readCoaches(offered.html), ['Ann One', 'Bo Two', 'Cy Three', 'Di Four'], 'back on the page, in place, from the stored statuses');
+assert.ok(offered.html.includes('<td>Bo Two</td>\n        <td><a href="mailto:B@x.org">B@x.org</a></td>\n        <td class="usatt-status" data-usatt="pending">'), 'with their contact, shown as Pending');
+assert.deepEqual(offered.data.showWhilePending, ['Di Four', 'Bo Two']);
+assert.equal(offered.data.coaches['Bo Two'].hidden, undefined);
+assert.match(offered.message, /offered while USATT certification is pending/);
+const kept = applyStatuses(offered.html, offered.data, { 'Ann One': A, 'Bo Two': P, 'Cy Three': A, 'Di Four': P });
+assert.deepEqual(readCoaches(kept.html), readCoaches(offered.html), 'the certification check that runs next keeps the exception');
+assert.deepEqual(applyStatuses(offered.html, offered.data, { 'Ann One': A, 'Bo Two': A, 'Cy Three': A, 'Di Four': P }).data.showWhilePending, ['Di Four'], 'and ends it once certified');
+const ended = applyException(offered.html, offered.data, 'end:Bo Two');
+assert.deepEqual(readCoaches(ended.html), ['Ann One', 'Cy Three', 'Di Four']);
+assert.equal(ended.data.coaches['Bo Two'].hidden, true);
+assert.equal(ended.data.coaches['Bo Two'].contact, '<a href="mailto:B@x.org">B@x.org</a>', 'the contact is kept for next time');
+assert.deepEqual(applyException(first.html, first.data, 'offer:Ann One').data.showWhilePending, ['Di Four'], 'a certified coach needs no exception');
+assert.equal(applyException(offered.html, offered.data, 'offer:Bo Two').html, offered.html, 'asking twice changes nothing');
+assert.throws(() => applyException(first.html, first.data, 'offer:Zed Stranger'), /not a coach on coaching.html/, 'only a coach the check follows');
+assert.throws(() => applyException(first.html, first.data, 'promote:Bo Two'), /expected offer/);
+assert.throws(() => applyException(first.html, first.data, ''), /expected offer/);
+const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'update-data.yml'), 'utf8');
+const step = /- name: Apply the club's coaching exception from Coach Admin[\s\S]*?run: node scripts\/coach-exception\.js/.exec(workflow);
+assert.ok(step, 'the data update runs it');
+assert.ok(workflow.indexOf(step[0]) < workflow.indexOf('run: npm run check:usatt-coaches'), 'before the certification check');
+assert.doesNotMatch(step[0].split('run:')[1], /\$\{\{/, 'the value reaches the script as an environment variable, never inside the command');
+
 console.log('coach certification checks passed');

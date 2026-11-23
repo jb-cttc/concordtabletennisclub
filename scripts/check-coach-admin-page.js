@@ -32,7 +32,13 @@ const C = 'c'.repeat(16);
 const board = { ok: true, textNumber: '(925) 238-3505', coaches: [
   { id: A, name: 'Ann Coach', label: 'Coach A', active: true, club: true, email: 'ann@example.com', phone: '(925) 555-0101', rates: { 50: '50', 25: '30' }, steps: steps('done', 'done', 'done') },
   { id: B, name: 'Bo Coach', label: 'Coach B', active: true, club: true, email: 'bo@example.com', phone: '(925) 555-0102', rates: { 50: '', 25: '' }, steps: steps('untested', 'done', 'missing') },
-  { id: C, name: 'Cy Coach', label: 'Coach C', active: false, club: true, email: 'cy@example.com', phone: '', rates: { 50: '45', 25: '' }, steps: steps('untested', 'missing', 'missing') }] };
+  { id: C, name: 'Cy Coach', label: 'Coach C', active: false, club: true, email: 'cy@example.com', phone: '', rates: { 50: '45', 25: '' }, steps: steps('untested', 'missing', 'missing') }],
+  usatt: { ok: true, source: 'https://coaches.usatt.org/', exceptions: 1, busy: '' } };
+// What USATT and the coaching page say about each (CoachAdmin.js coachOffer_): Ann certified, Bo the club's exception, Cy pending.
+const offerOf = (status, level, extra) => Object.assign({ status, level, certified: status === 'USATT Certification Active', exception: false, onPage: true, inList: true, reason: '', actions: [], request: null }, extra);
+board.coaches[0].offer = offerOf('USATT Certification Active', 'Coaching Level 1');
+board.coaches[1].offer = offerOf('USATT Certification Pending', '', { exception: true, reason: 'Offered as the club\'s exception while USATT certification is pending.', actions: ['end'] });
+board.coaches[2].offer = offerOf('USATT Certification Pending', '', { onPage: false, inList: false, reason: 'USATT certification pending: USATT\'s Find a Coach directory does not list them with a coaching level.', actions: ['offer'] });
 const calls = [];
 let answer = null;
 // The control center's data, made up: a request waiting on Bo, a booked lesson whose email is stuck, a lesson booked ahead,
@@ -71,6 +77,8 @@ const dom = makePage(() => {
   runner.getCoachAdmin = () => onOk(JSON.parse(JSON.stringify(board)));
   runner.previewCoachPhone = (id, phone) => { calls.push(['preview', id, phone]); onOk(answer); };
   runner.setCoachPhone = (id, phone) => { calls.push(['set', id, phone]); onOk(answer); };
+  runner.previewCoachOffer = (kind, id) => { calls.push(['offer?', kind, id]); onOk(answer); };
+  runner.setCoachOffer = (kind, id) => { calls.push(['offer!', kind, id]); onOk(answer); };
   runner.getCoachingOverview = () => { overviews += 1; onOk(JSON.parse(JSON.stringify(center))); };
   runner.previewCoachingAction = (kind, id) => { calls.push(['review', kind, id]); onOk(answer); };
   runner.runCoachingAction = (kind, id) => { calls.push(['do', kind, id]); onOk(answer); };
@@ -88,7 +96,7 @@ assert.deepEqual($$('#off section').map(node => node.getAttribute('aria-label'))
 assert.equal($('#off-heading').hidden, false);
 assert.match(text(cardOf('Ann Coach')), /✓ Fully set up/);
 assert.match(text(cardOf('Bo Coach')), /2 steps left/);
-assert.deepEqual([...cardOf('Bo Coach').querySelectorAll('.step')].map(node => node.className), ['step todo', 'step done', 'step todo'], 'each step marked');
+assert.deepEqual([...cardOf('Bo Coach').querySelectorAll('.step')].map(node => node.className), ['step todo', 'step done', 'step todo', 'step todo'], 'each step marked, and USATT');
 assert.match(text(cardOf('Bo Coach')), /Not confirmed yet: confirmed when they reply YES or NO to any of our emails/);
 assert.match(text(cardOf('Cy Coach')), /\$45 for 50 min/);
 assert.match(text(cardOf('Cy Coach')), /Not offered/);
@@ -197,6 +205,33 @@ buttonIn(tool('Test email to a coach').querySelector('.review'), 'Cancel').click
 buttonIn(tool('Run the sweep and the check'), 'Run now').click();
 assert.deepEqual(calls.pop(), ['review', 'sweep', '']);
 
+// USATT on every card, and for a coach not offered, why, with the control that fits.
+const usattOf = name => [...cardOf(name).querySelectorAll('.step')].find(node => /^USATT/.test(node.querySelector('.what').textContent));
+assert.equal(usattOf('Ann Coach').className, 'step done');
+assert.match(text(usattOf('Ann Coach')), /USATT: Active, Coaching Level 1/);
+assert.match(text(usattOf('Bo Coach')), /USATT: Pending/);
+assert.match(text(cardOf('Bo Coach').querySelector('.why')), /Offered as the club's exception/, 'the exception explained below');
+assert.equal(cardOf('Ann Coach').querySelector('.why'), null, 'nothing to explain for a certified coach');
+assert.equal(cardOf('Cy Coach').querySelector('.why.off strong').textContent, 'Why they are not offered');
+assert.match(cardOf('Cy Coach').querySelector('.why.off p').textContent, /^USATT certification pending/);
+assert.match(text($('#usatt')), /checked by every data update.*club's exceptions \(1 now\)/);
+calls.length = 0;
+answer = { ok: true, preview: true, title: 'Offer Cy Coach while USATT certification is pending', effect: 'Makes Cy Coach a club exception.' };
+buttonIn(cardOf('Cy Coach'), 'Offer while pending').click();
+assert.deepEqual(calls, [['offer?', 'offer', C]], 'Review asks the desk; nothing is done');
+assert.match(text(cardOf('Cy Coach').querySelector('.review')), /Offer Cy Coach while USATT certification is pending.*recorded in the desk log/i);
+answer = { ok: true, message: 'Asked GitHub to offer Cy Coach.' };
+buttonIn(cardOf('Cy Coach').querySelector('.review'), 'Confirm').click();
+assert.deepEqual(calls[1], ['offer!', 'offer', C], 'Confirm does what was reviewed, for the same coach');
+assert.equal(text(cardOf('Cy Coach').querySelector('.notice')), 'Asked GitHub to offer Cy Coach.', 'the result stays on the card after the reload');
+answer = { ok: false, message: 'The change for Cy Coach asked at Mon 12:00 PM is still running.' };
+buttonIn(cardOf('Bo Coach'), 'Stop offering until certified').click();
+assert.match(text(cardOf('Bo Coach').querySelector('.notice.error')), /still running/, 'a refusal says why, on the card');
+answer = { ok: true, preview: true, title: 'Re-check USATT now', effect: 'Starts GitHub\'s data update now.' };
+buttonIn($('#usatt'), 'Re-check USATT now').click();
+assert.deepEqual(calls.pop(), ['offer?', 'recheck', '']);
+assert.ok($('#usatt .review'), 'reviewed in the USATT bar');
+
 // A coaching app without the control center yet: Coach Admin still works, and the control center says why it is empty.
 const older = makePage(() => {
   const runner = {};
@@ -204,10 +239,11 @@ const older = makePage(() => {
   let onFail = null;
   runner.withSuccessHandler = done => { onOk = done; return runner; };
   runner.withFailureHandler = failed => { onFail = failed; return runner; };
-  runner.getCoachAdmin = () => onOk(JSON.parse(JSON.stringify(board)));
+  runner.getCoachAdmin = () => onOk(Object.assign(JSON.parse(JSON.stringify(board)), { usatt: { ok: false, message: 'The USATT status could not be read from the club site just now.' } }));
   runner.getCoachingOverview = () => onFail(new Error('The coaching app does not know this request yet: it needs its latest release.'));
   return runner;
 });
 assert.equal(older.window.document.querySelectorAll('#coaches section').length, 2);
 assert.match(older.window.document.querySelector('#center-status').textContent, /needs its latest release/);
+assert.match(older.window.document.querySelector('#usatt').textContent, /could not be read from the club site/, 'and says when USATT status is missing');
 console.log('Coach Admin page checks passed');

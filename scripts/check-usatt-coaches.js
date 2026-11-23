@@ -4,7 +4,8 @@
 // page: "USATT Certification Active" when the coach is listed with a coaching level,
 // otherwise "USATT Certification Pending". Only Active coaches are shown, plus any
 // Pending coach named in "showWhilePending" in data/coach-certifications.json (that
-// exception ends once the coach is certified). A hidden coach stays in that file with
+// exception ends once the coach is certified). The club sets or ends an exception on Coach
+// Admin, which starts the data update with coach_exception (scripts/coach-exception.js). A hidden coach stays in that file with
 // "hidden": true and their contact cell, keeps being checked, and is put back on the
 // page in their old place once USATT lists them as certified. To add a coach, add a
 // row to coaching.html; to drop one for good, delete their row (and, if hidden, their

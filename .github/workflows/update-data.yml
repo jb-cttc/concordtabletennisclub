@@ -11,6 +11,10 @@ on:
         description: "Also send the session summary email (the desk sets this 2 minutes after the site is published)"
         type: boolean
         default: false
+      coach_exception:
+        description: "Coach Admin: offer:<coach name> offers a coach while USATT certification is pending; end:<coach name> stops it"
+        type: string
+        default: ""
   schedule:
     # Normally the desk starts this workflow itself: 2 minutes after a session is
     # finalized (publish only), then again 2 minutes after the site lists it with
@@ -103,6 +107,16 @@ jobs:
         env:
           CTTC_ACCESS_DIR: .cache/access-parallel
           CTTC_FETCH_DELAY_MS: 250
+
+      # The club's exception from Coach Admin (the desk starts this run with coach_exception): adds or removes a coach in
+      # showWhilePending and rebuilds coaching.html from the stored statuses, before the certification check below, which
+      # keeps it. The value reaches the script only as an environment variable, never as part of the command.
+      - name: Apply the club's coaching exception from Coach Admin
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.coach_exception != '' }}
+        continue-on-error: true
+        env:
+          COACH_EXCEPTION: ${{ github.event.inputs.coach_exception }}
+        run: node scripts/coach-exception.js
 
       # Re-checks the coaches on coaching.html (and Pending coaches hidden from it) against
       # USATT's public directory: hidden coaches return once certified. A directory outage
