@@ -2089,7 +2089,7 @@ seedCheck();
   const open = board().nights.filter(entry => entry.status !== 'closed' && entry.status !== 'past');
   assert.ok(open.some(entry => dayOf(entry.date) === 6) && open.filter(entry => dayOf(entry.date) === 6).every(entry => entry.contact === 'Zoey'), 'the public calendar updates at once');
   assert.ok(open.filter(entry => dayOf(entry.date) === 5).every(entry => entry.contact === ''), 'a cleared weekday names nobody');
-  assert.doesNotMatch(JSON.stringify(board()), /Hart|zoey\.hart|555/, 'no last name, email or phone on the public calendar');
+  assert.doesNotMatch(JSON.stringify(board()), /Hart|zoey\.hart|555-0188/, 'no last name, email or phone on the public calendar (the phone as written: ids are random hex and can hold 555)');
   assert.equal(admin('board').contacts.find(day => day.weekday === 6).details, 'Zoey Hart, zoey.hart@example.com, (925) 555-0188');
   // Put Monday and Friday back for the checks below.
   answer = admin('apply', { changes: [{ kind: 'contact', weekday: 1, playerId: idOf('Ada Park') }, { kind: 'contact', weekday: 5, playerId: idOf('Eve Stone') }] });
