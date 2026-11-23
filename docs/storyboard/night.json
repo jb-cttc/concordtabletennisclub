@@ -1276,7 +1276,7 @@
       {
        "when": "A coach is not shown on the coaching page",
        "happens": "The hourly sweep disables them and hides their times.",
-       "handling": "Add or remove a coach in CLUB_COACHES and coaching.html, not in the Sheet.",
+       "handling": "Add or remove a coach, or change a coach's email, in CLUB_COACHES and coaching.html, not in the Sheet.",
        "status": "handled",
        "evidence": "docs/coaching-flow.md:454"
       }

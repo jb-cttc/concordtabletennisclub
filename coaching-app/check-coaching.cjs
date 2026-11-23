@@ -353,13 +353,24 @@ assert.equal(created.length, 2, 'setup is safe to run again');
 assert.deepEqual(grids.Coaches.slice(1).map(line => [line[0], line[1], line[2], line[5]]), [
   ['Dominic Chan', 'dominicchan@sbcglobal.net', '', 'Coach D'],
   ['Fuqun (Bill) Xing', 'xfqslw@gmail.com', '', 'Coach F'], ['Tom (Xiaoyun) Zeng', 'xiaoyunzeng64@gmail.com', '', 'Coach T'],
-  ['Raymond Trinh', '', '', 'Coach R']
+  ['Raymond Trinh', 'trinhray@gmail.com', '', 'Coach R']
 ], 'the four club coaches are listed once, with no phone numbers in the code');
 assert.equal(run('coachList').coaches.filter(coach => coach.registered).length, 0, 'nobody starts with a green check');
 // ---- The hourly sweep keeps the Coaches tab in line with the club list ----
 {
   const statusOf = name => (grids.Coaches.find(line => line[0] === name) || [])[3];
   const labels = () => run('coachList').coaches.map(coach => coach.label);
+  // A coach whose row has no email, or an old one, gets the address from the club list, logged without the address.
+  const raymond = () => grids.Coaches.find(line => line[0] === 'Raymond Trinh');
+  raymond()[1] = '';
+  context.sweep();
+  assert.equal(raymond()[1], 'trinhray@gmail.com', 'a blank email on a club coach is filled from the club list');
+  const emailLog = grids.Log.slice(1).filter(line => line[2] === 'coach-email-set');
+  assert.equal(emailLog.length, 1, 'the change is logged once');
+  assert.match(emailLog[0][5], /^from blank to [0-9A-F]{6}$/, 'before and after, as codes');
+  assert.ok(!JSON.stringify(grids.Log).includes('trinhray'), 'no address in the log');
+  context.sweep();
+  assert.equal(grids.Log.slice(1).filter(line => line[2] === 'coach-email-set').length, 1, 'an email already right is left alone');
   grids.Coaches.push(['Retired Coach', 'retired@example.com', '(925) 555-0199', '', '', '', '', '', '', '', '', '']);
   context.sweep();
   assert.equal(statusOf('Fuqun (Bill) Xing'), '', 'until the desk has written who the page shows, club coaches stay as they are');

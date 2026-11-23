@@ -86,13 +86,14 @@ var DEFAULT_GUIDELINES = 'Be on time, tell your coach about any injury, and trea
 // npm test checks they match). The app offers only those the page shows: USATT-certified coaches and the owner's exceptions
 // (showWhilePending). The desk copies the shown names from the site to the hidden CoachList tab of its Sheet every hour
 // (apps-script/CoachList.js). Every sweep (hourly) adds any coach missing from the Coaches tab, marks a coach not shown, or
-// no longer listed here, 'disabled', and switches a shown coach back on. To add or remove a coach, change this list and the
-// table on coaching.html. The owner adds each mobile number in the Sheet.
+// no longer listed here, 'disabled', switches a shown coach back on, and sets a listed coach's email from here. To add or
+// remove a coach, or change a coach's email, change this list and the table on coaching.html. The owner adds each mobile
+// number in the Sheet.
 var CLUB_COACHES = [
   ['Dominic Chan', 'dominicchan@sbcglobal.net'],
   ['Fuqun (Bill) Xing', 'xfqslw@gmail.com'],
   ['Tom (Xiaoyun) Zeng', 'xiaoyunzeng64@gmail.com'],
-  ['Raymond Trinh', '']
+  ['Raymond Trinh', 'trinhray@gmail.com']
 ];
 
 var EMAIL_PATTERN = /^[a-z0-9][a-z0-9._%+'-]{0,63}@(?:[a-z0-9-]+\.)+[a-z]{2,24}$/i;
@@ -2018,6 +2019,14 @@ function syncClubCoaches_() {
   };
   listed.forEach(function (entry) {
     var club = CLUB_COACHES.filter(function (coach) { return matches(entry, coach); })[0];
+    // The list is where a club coach's email is kept: a new or changed address reaches the tab here, logged by coach id with
+    // short codes for the before and after addresses (no address is written to the log).
+    if (club && club[1] && cleanEmail_(entry.email) !== club[1]) {
+      logRow_('-', 'coach-email-set', entry.coach_id || club[0], '-',
+        'from ' + (cleanEmail_(entry.email) ? code_('to:' + cleanEmail_(entry.email)).slice(0, 6) : 'blank') + ' to ' + code_('to:' + club[1]).slice(0, 6));
+      entry.email = club[1];
+      save_('Coaches', entry);
+    }
     // Not knowing who the page shows (the desk has not written the list, or it cannot be read), a club coach stays as is.
     if (club && !shown) return;
     var on = !!club && !!shown[club[0].toLowerCase()];
