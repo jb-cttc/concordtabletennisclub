@@ -21,6 +21,18 @@
   button.danger { background: #fff; color: #8b1a1a; border-color: #8b1a1a; }
   button:disabled { opacity: 0.6; cursor: default; }
   button.registered { border-width: 2px; color: #13853a; }
+  button .left { font-weight: 400; color: #6b675e; }
+  .setup { list-style: none; margin: 6px 0 0; padding: 0; }
+  .setup li { display: flex; gap: 8px; margin: 6px 0; }
+  .setup .mark { flex: 0 0 1.2em; font-weight: 700; text-align: center; }
+  .setup .done .mark { color: #13853a; }
+  .setup .todo .mark { color: #8b1a1a; }
+  .setup .fix { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+  .setup .fix a.button { display: inline-block; padding: 7px 14px; border: 1px solid #1f6b3a; border-radius: 4px; background: #1f6b3a; color: #fff; font-weight: 600; text-decoration: none; }
+  .setup .fix button, .setup .fix a.button { font-size: 0.95em; }
+  .setup .hint { margin: 6px 0 0; font-size: 0.95em; color: #4a463f; }
+  .setup .sent { margin: 6px 0 0; font-size: 0.95em; color: #13853a; font-weight: 600; }
+  .setup .sent.error { color: #8b1a1a; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .row > * { flex: 1 1 140px; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
@@ -1005,7 +1017,7 @@
     app.appendChild(el('h2', { text: 'Which CTTC registered coach are you?' }));
     var list = el('div', { 'class': 'actions' }, [el('p', { text: 'Loading...' })]);
     app.appendChild(list);
-    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is verified: the club has their email and mobile number, and they have texted the club number. Privacy: students see you only by first name (such as Coach Dominic) until you accept a lesson. Each lesson request comes with the student\'s name, email and mobile number (if given), so you can reach them before you answer; once you accept, the student gets your name, email and mobile number (if the club has them).' }));
+    app.appendChild(el('p', { text: 'No account is needed. Nothing changes until you reply YES to the email we send to the address the club has for you. If the club also has your mobile number, we text you too and you can answer either one. A green \u2713 means the coach is fully set up: they have answered one of our emails, texted the club number from their mobile, and published both lesson rates. If steps are left, pick your name to see what to do. Privacy: students see you only by first name (such as Coach Dominic) until you accept a lesson. Each lesson request comes with the student\'s name, email and mobile number (if given), so you can reach them before you answer; once you accept, the student gets your name, email and mobile number (if the club has them).' }));
     var last = saved('cttc-coach');
     load('coachList', [], function (result) {
       preload('openSlots', []);
@@ -1013,8 +1025,11 @@
       if (!result.ok) { show(result.message, 'error'); return; }
       if (!result.coaches.length) list.appendChild(el('p', { text: 'No coaches are set up yet. Please ask the club.' }));
       result.coaches.forEach(function (coach) {
-        var button = el('button', { type: 'button', 'class': coach.registered ? 'plain registered' : 'plain', text: (coach.registered ? '\u2713 ' : '') + coach.label + (coach.ready ? '' : ' (not set up yet)') });
-        if (coach.registered) button.title = 'Verified';
+        // left: the steps of the setup checklist not done yet (an app from before the checklist sends none).
+        var steps = coach.ready && !coach.registered && coach.left ? el('span', { 'class': 'left', text: ' \u00b7 ' + coach.left + (coach.left === 1 ? ' step' : ' steps') + ' left' }) : null;
+        var button = el('button', { type: 'button', 'class': coach.registered ? 'plain registered' : 'plain' },
+          [document.createTextNode((coach.registered ? '\u2713 ' : '') + coach.label + (coach.ready ? '' : ' (not set up yet)')), steps]);
+        if (coach.registered) button.title = 'Fully set up';
         if (!coach.ready) button.disabled = true;
         var warm = function () { if (coach.ready) preload('coachBoard', [coach.id]); };
         button.addEventListener('pointerenter', warm);
@@ -1025,6 +1040,59 @@
         if (auto && coach.ready && coach.id === last) coachBoard(coach.id);
       });
     });
+  }
+
+  // The setup checklist behind the green check (Code.js setupSteps_): each step done, or what the coach does to finish it, with
+  // a button for each: a test email to reply YES to, a text to the club number started on the phone (the app cannot text a
+  // coach first: Google Voice only replies), and the rate boxes further down the page.
+  function setupCard(data) {
+    var steps = data.steps;
+    var item = function (done, text, fix) {
+      return el('li', { 'class': done ? 'done' : 'todo' }, [el('span', { 'class': 'mark', text: done ? '✓' : '✗' }),
+        el('div', {}, [el('span', { text: text })].concat(done ? [] : fix || []))]);
+    };
+    var email = { done: 'Email: you have answered one of our emails from the address the club has for you.',
+      untested: 'Email: not confirmed yet. Reply YES to any email we send you, or send yourself a test email now:',
+      missing: 'Email: the club has no email address for you. Please ask the club to add it.' }[steps.email];
+    var emailFix = [];
+    if (steps.email === 'untested') {
+      var said = el('p', { 'class': 'sent', role: 'status' });
+      var send = el('button', { type: 'button', 'class': 'plain', text: 'Send me a test email' });
+      send.addEventListener('click', function () {
+        said.className = 'sent';
+        said.textContent = 'Sending…';
+        guarded(send, 'coachEmailCheck', [data.id], function (result) {
+          said.className = result.ok ? 'sent' : 'sent error';
+          said.textContent = result.message;
+        });
+      });
+      emailFix = [el('div', { 'class': 'fix' }, [send]), said];
+    }
+    var digits = String(data.textNumber || '').replace(/\D/g, '');
+    var text = { done: 'Mobile: you have texted the club number from the mobile the club has for you.',
+      untested: 'Mobile: not confirmed yet. Text the word COACH to ' + data.textNumber + ' from your mobile. We cannot text you first: the club number can only reply.',
+      missing: 'Mobile: the club has no mobile number for you. Please ask the club to add it on Coach Admin.' }[steps.text];
+    var textFix = steps.text !== 'untested' ? [] : [
+      el('div', { 'class': 'fix' }, [el('a', { 'class': 'button', href: 'sms:+1' + digits + '?&body=COACH', target: '_top', text: 'Text COACH now' })]),
+      el('p', { 'class': 'hint', text: 'On your phone, the button opens Messages with the number and COACH filled in: just press send. On a computer: open Messages on your mobile, start a new message to ' +
+        data.textNumber + ', type COACH and send it. Mobile turns green within a few minutes; refresh this page to see it.' })];
+    var rates = steps.rates === 'done' ? 'Rates: your 50 and 25 minute lesson rates are published.' :
+      'Rates: enter both your 50 and 25 minute lesson rates and submit. They are published when you reply YES.';
+    var goRates = el('button', { type: 'button', 'class': 'plain', text: 'Set my rates' });
+    goRates.addEventListener('click', function () {
+      var form = document.getElementById('coachRates');
+      if (!form) return;
+      form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var first = ['rate50', 'rate25'].map(function (id) { return document.getElementById(id); }).filter(function (input) { return input && !input.value.trim(); })[0] ||
+        document.getElementById('rate50');
+      if (first) first.focus({ preventScroll: true });
+    });
+    var done = 3 - steps.left;
+    return el('div', { 'class': 'card' }, [
+      el('strong', { text: steps.left ? 'Your setup: ' + done + ' of 3 done' : '✓ You are fully set up' }),
+      el('ul', { 'class': 'setup' }, [item(steps.email === 'done', email, emailFix), item(steps.text === 'done', text, textFix),
+        item(steps.rates === 'done', rates, [el('div', { 'class': 'fix' }, [goRates])])])
+    ]);
   }
 
   function coachBoard(coachId, message) {
@@ -1058,6 +1126,7 @@
     var by = data.email && data.text ? 'email and text' : data.text ? 'text' : 'email';
     app.appendChild(el('p', { text: 'You are ' + data.name + ' (the ' + data.label + ' button). Students and the public schedule see you as ' + data.name + '.' }));
     app.appendChild(el('div', { 'class': 'actions' }, [back]));
+    if (data.steps) app.appendChild(setupCard(data));
     if (!data.ready) app.appendChild(el('p', { 'class': 'card', text: data.name + ' is not set up yet. Please ask the club to add your email address or mobile number.' }));
     else if (!data.text) app.appendChild(el('p', { 'class': 'card', text: 'We confirm by email. Want to answer by text instead? Ask the club to add your mobile number, then text COACH to ' + data.textNumber + ' once.' }));
     if (data.pending) {
@@ -1071,8 +1140,8 @@
     var rateFields = { rate50: '#rate50', rate25: '#rate25' };
     var rateNote = el('p', { 'class': 'legend', id: 'rateNote' });
     var rateForm = el('form', { 'class': 'card', id: 'coachRates', novalidate: 'novalidate' }, [
-      el('h2', { text: 'Your lesson rates (optional)' }),
-      el('p', { text: 'Students see your rate when they pick one of your times, in the confirm step and in their emails. Whole dollars, paid directly to you. Leave a box empty to show no rate.' }),
+      el('h2', { text: 'Your lesson rates' }),
+      el('p', { text: 'Students see your rate when they pick one of your times, in the confirm step and in their emails. Whole dollars, paid directly to you. Both rates are needed for the green \u2713; a box left empty shows no rate.' }),
       el('div', { 'class': 'row' }, [50, 25].map(function (minutes) {
         var input = el('input', { type: 'text', id: 'rate' + minutes, inputmode: 'numeric', maxlength: '7', autocomplete: 'off', placeholder: 'not listed' });
         input.value = shownRates[minutes] || '';

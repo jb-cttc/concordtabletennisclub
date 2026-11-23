@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CTTC Coach Admin</title>
+<style>
+  /* The desk's look, as on Volunteer Admin: green bar with a gold rule, white panels, Georgia headings, Arial for the details. */
+  :root { --ink: #17211b; --muted: #657069; --line: #d8ddd9; --green: #176b45; --green2: #0f5235; --gold: #c99934; --red: #a43831; --amber: #8a3d00; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: linear-gradient(135deg, #eef2ed, #f8f7f1 48%, #edf2f3); color: var(--ink); font-family: Georgia, "Times New Roman", serif; }
+  button, input { font: inherit; }
+  button { cursor: pointer; }
+  [hidden] { display: none !important; }
+  .top { background: #123f2b; color: #fff; border-bottom: 5px solid var(--gold); }
+  .top-inner { max-width: 1100px; margin: auto; padding: 14px 24px; display: flex; align-items: center; gap: 10px; }
+  .brand { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .brand small { display: block; margin-top: 2px; color: #dce9e1; font: 12px Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  .lock { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 4px; background: #8b1a1a; font-size: 17px; }
+  .shell { max-width: 1100px; margin: auto; padding: 18px 24px 80px; }
+  .statusbar { min-height: 40px; padding: 10px 14px; background: #e7eee9; border-left: 4px solid var(--green); font: 14px Arial, sans-serif; margin-bottom: 14px; }
+  .statusbar.error { background: #f6e8e6; border-color: var(--red); color: #6f241f; }
+  .statusbar.ok { background: #e3f1e7; border-color: var(--green); color: #14432a; font-weight: 700; }
+  .intro { font: 14px/1.5 Arial, sans-serif; color: #3b4640; margin: 0 0 14px; max-width: 820px; }
+  h2 { font-size: 18px; margin: 18px 0 8px; }
+  .coaches { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .coach { background: #fff; border: 1px solid var(--line); border-top: 4px solid #c25e00; border-radius: 6px; padding: 12px 14px; font: 14px Arial, sans-serif; }
+  .coach.ready { border-top-color: var(--green); }
+  .coach.off { opacity: .7; border-top-color: #aab5ae; }
+  .coach-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .coach-head h3 { margin: 0; font: 700 17px Georgia, serif; }
+  .coach-head .label { color: var(--muted); font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9px; font: 700 12px Arial, sans-serif; white-space: nowrap; }
+  .badge.done { background: #e3f1e7; color: #14563d; }
+  .badge.left { background: #fff0dc; color: var(--amber); }
+  .badge.off { background: #eceeec; color: #4d5852; }
+  .step { display: grid; grid-template-columns: 1.4em 1fr; gap: 2px 6px; padding: 7px 0; border-top: 1px solid #edf0ed; }
+  .step .mark { font-weight: 700; text-align: center; }
+  .step.done .mark { color: var(--green); }
+  .step.todo .mark { color: var(--red); }
+  .step .what { font-weight: 700; }
+  .step .value { overflow-wrap: anywhere; }
+  .step .note { grid-column: 2; color: var(--muted); font-size: 13px; }
+  .step .act { grid-column: 2; margin-top: 4px; }
+  .link { border: 0; background: none; padding: 0; color: #1f4f8f; text-decoration: underline; font: 13px Arial, sans-serif; }
+  .editor { grid-column: 2; display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .editor input { flex: 1 1 160px; min-width: 0; border: 1px solid #aeb7b1; border-radius: 4px; padding: 7px 9px; }
+  .btn { border: 1px solid var(--green); border-radius: 4px; background: var(--green); color: #fff; padding: 7px 13px; font: 700 13px Arial, sans-serif; }
+  .btn.plain { background: #fff; color: var(--green); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .review { grid-column: 1 / -1; margin-top: 8px; padding: 10px 12px; background: #fffbea; border: 1px solid #efe1a8; border-left: 4px solid var(--gold); border-radius: 4px; }
+  .review p { margin: 0 0 8px; }
+  .review .change { font-weight: 700; }
+  .review .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  @media (max-width: 560px) {
+    .top-inner, .shell { padding-left: 12px; padding-right: 12px; }
+    .coaches { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<script>
+// ALLOWALL framing lets any site embed this signed-in app, so only the club site (or localhost for testing) may; anyone else gets an opaque cover.
+(function () {
+  var ancestors = window.location.ancestorOrigins ? Array.prototype.slice.call(window.location.ancestorOrigins) : null;
+  var sandbox = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+  var trusted = /^(https:\/\/concordtabletennisclub\.com|http:\/\/(localhost|127\.0\.0\.1):\d+)$/;
+  var direct = !!ancestors && ancestors.length === 2 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com';
+  var embedded = !!ancestors && ancestors.length === 3 && sandbox.test(ancestors[0]) && ancestors[1] === 'https://script.google.com' && trusted.test(ancestors[2]);
+  // Framed by the club site: tell its page the desk opened, so it does not show its sign-in help (desk.html).
+  if (embedded) { try { window.top.postMessage({ cttcDesk: 'ready' }, ancestors[2]); } catch (error) { /* the site keeps its help */ } }
+  if (!ancestors || direct || embedded) return;
+  var cover = document.createElement('div');
+  cover.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483647;background:#fff;color:#17211b;font:16px Arial,sans-serif;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px';
+  cover.textContent = 'The CTTC desk can only be opened directly or from the club website.';
+  document.body.appendChild(cover);
+})();
+</script>
+<header class="top"><div class="top-inner">
+  <span class="lock" aria-hidden="true">&#128274;</span>
+  <div class="brand"><div>Coach Admin<small>Concord Table Tennis Club</small></div></div>
+</div></header>
+<main class="shell">
+  <div id="status" class="statusbar" role="status">Loading the coaches&hellip;</div>
+  <p class="intro">A coach gets the green &#10003; on the coaching page when all three steps are done: they have answered one of the coaching app's emails from the address on file, texted the club number from the mobile on file, and published both lesson rates. A new address or number counts only once the coach answers from it. Coaches see the same steps, and what to do, when they pick their name on the coaching page. Email addresses come from the club's coach list (coaching.html) and change by a reviewed pull request; mobile numbers are set here.</p>
+  <div id="coaches" class="coaches"></div>
+  <h2 id="off-heading" hidden>Not offered on the coaching page</h2>
+  <div id="off" class="coaches"></div>
+</main>
+<script>
+(function () {
+  var data = null;
+  var open = '';
+  var reviewed = null;
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attributes, children) {
+    var node = document.createElement(tag);
+    Object.keys(attributes || {}).forEach(function (key) {
+      if (key === 'text') node.textContent = attributes[key];
+      else if (key === 'onclick') node.addEventListener('click', attributes[key]);
+      else node.setAttribute(key, attributes[key]);
+    });
+    (children || []).forEach(function (child) { if (child) node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child); });
+    return node;
+  }
+  function say(text, kind) { var box = $('status'); box.textContent = text; box.className = 'statusbar' + (kind ? ' ' + kind : ''); }
+  function call(name, args, done) {
+    google.script.run.withSuccessHandler(done).withFailureHandler(function (error) { say(error.message || String(error), 'error'); render(); })[name].apply(null, args);
+  }
+  function load(message) {
+    call('getCoachAdmin', [], function (result) {
+      if (!result || !result.ok) { say(result && result.message || 'The coaching app did not answer.', 'error'); return; }
+      data = result;
+      render();
+      if (message) say(message, 'ok');
+      else {
+        var shown = data.coaches.filter(function (coach) { return coach.active; });
+        var ready = shown.filter(function (coach) { return !coach.steps.left; }).length;
+        say(ready + ' of ' + shown.length + ' coaches fully set up.');
+      }
+    });
+  }
+  function step(done, what, value, note, extra) {
+    return el('div', { 'class': 'step ' + (done ? 'done' : 'todo') }, [el('span', { 'class': 'mark', text: done ? '✓' : '✗', 'aria-label': done ? 'done' : 'not done' }),
+      el('div', {}, [el('span', { 'class': 'what', text: what + ': ' }), el('span', { 'class': 'value', text: value })]), note ? el('div', { 'class': 'note', text: note }) : null].concat(extra || []));
+  }
+  function rateText(rates) {
+    var parts = [];
+    if (rates[50]) parts.push('$' + rates[50] + ' for 50 min');
+    if (rates[25]) parts.push('$' + rates[25] + ' for 25 min');
+    return parts.length ? parts.join(', ') : 'none published';
+  }
+  function card(coach) {
+    var steps = coach.steps;
+    var badge = !coach.active ? el('span', { 'class': 'badge off', text: 'Not offered' }) : steps.left ?
+      el('span', { 'class': 'badge left', text: steps.left + (steps.left === 1 ? ' step left' : ' steps left') }) : el('span', { 'class': 'badge done', text: '✓ Fully set up' });
+    var emailNote = { done: 'Answered one of our emails from this address.', untested: 'Not confirmed yet: confirmed when they reply YES or NO to any of our emails.',
+      missing: 'No email on file. Add it to the club\'s coach list (coaching.html) in a pull request.' }[steps.email];
+    var textNote = { done: 'Texted the club number from this mobile.', untested: 'Not confirmed yet: confirmed when they text ' + data.textNumber + ' from it (COACH, or anything).',
+      missing: 'No mobile on file: the app emails them only.' }[steps.text];
+    var editing = open === coach.id;
+    var phoneExtra = [];
+    if (editing) {
+      var input = el('input', { type: 'tel', id: 'phone-' + coach.id, value: reviewed && reviewed.id === coach.id ? reviewed.typed : coach.phone, autocomplete: 'off',
+        'aria-label': 'New mobile number for ' + coach.name, placeholder: '(925) 555-0123, or empty to remove' });
+      var review = el('button', { type: 'button', 'class': 'btn', text: 'Review', onclick: function () { reviewPhone(coach, input.value, review); } });
+      var cancel = el('button', { type: 'button', 'class': 'btn plain', text: 'Cancel', onclick: function () { open = ''; reviewed = null; render(); } });
+      // While the change is up for review, its own Confirm and Cancel are the only buttons.
+      phoneExtra.push(el('div', { 'class': 'editor' }, [input, review, reviewed && reviewed.id === coach.id ? null : cancel]));
+      if (reviewed && reviewed.id === coach.id) {
+        var confirm = el('button', { type: 'button', 'class': 'btn', text: 'Confirm', onclick: function () { savePhone(coach, confirm); } });
+        phoneExtra.push(el('div', { 'class': 'review', role: 'group', 'aria-label': 'Review the change' }, [
+          el('p', { 'class': 'change', text: coach.name + '’s mobile: ' + (reviewed.answer.before || 'none') + ' → ' + (reviewed.answer.after || 'none (removed)') }),
+          el('p', { text: reviewed.answer.effect }),
+          el('p', { text: 'The change is recorded in the desk log with your account and the time.' }),
+          el('div', { 'class': 'buttons' }, [confirm, el('button', { type: 'button', 'class': 'btn plain', text: 'Cancel', onclick: function () { open = ''; reviewed = null; render(); } })])
+        ]));
+      }
+    } else {
+      phoneExtra.push(el('div', { 'class': 'act' }, [el('button', { type: 'button', 'class': 'link', text: coach.phone ? 'Change mobile number' : 'Add mobile number',
+        onclick: function () { open = coach.id; reviewed = null; render(); var box = $('phone-' + coach.id); if (box) box.focus(); } })]));
+    }
+    return el('section', { 'class': 'coach' + (!coach.active ? ' off' : steps.left ? '' : ' ready'), 'aria-label': coach.name }, [
+      el('div', { 'class': 'coach-head' }, [el('div', {}, [el('h3', { text: coach.name }), el('span', { 'class': 'label', text: coach.label + ' on the coaching page' })]), badge]),
+      step(steps.email === 'done', 'Email', coach.email || 'none', emailNote),
+      step(steps.text === 'done', 'Mobile', coach.phone || 'none', textNote, phoneExtra),
+      step(steps.rates === 'done', 'Rates', rateText(coach.rates), steps.rates === 'done' ? 'Both lesson lengths have a published rate.' :
+        'The coach sets both rates on the coaching page; they are published by the coach\'s YES.')
+    ]);
+  }
+  function render() {
+    if (!data) return;
+    var shown = data.coaches.filter(function (coach) { return coach.active; });
+    var off = data.coaches.filter(function (coach) { return !coach.active; });
+    var list = $('coaches');
+    list.textContent = '';
+    shown.forEach(function (coach) { list.appendChild(card(coach)); });
+    if (!shown.length) list.appendChild(el('p', { 'class': 'intro', text: 'No coaches are offered on the coaching page.' }));
+    $('off').textContent = '';
+    off.forEach(function (coach) { $('off').appendChild(card(coach)); });
+    $('off-heading').hidden = !off.length;
+  }
+  function reviewPhone(coach, typed, button) {
+    button.disabled = true;
+    say('Checking ' + coach.name + '’s new number…');
+    call('previewCoachPhone', [coach.id, typed], function (answer) {
+      if (!answer.ok) { say(answer.message, 'error'); reviewed = null; render(); return; }
+      reviewed = { id: coach.id, typed: typed, answer: answer };
+      say('Review the change below, then Confirm.');
+      render();
+    });
+  }
+  function savePhone(coach, button) {
+    button.disabled = true;
+    say('Saving…');
+    call('setCoachPhone', [coach.id, reviewed.typed], function (answer) {
+      if (!answer.ok) { say(answer.message, 'error'); reviewed = null; render(); return; }
+      open = '';
+      reviewed = null;
+      load('Saved: ' + answer.name + '’s mobile is now ' + (answer.after || 'removed') + '.');
+    });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

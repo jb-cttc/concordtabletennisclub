@@ -87,8 +87,8 @@ var DEFAULT_GUIDELINES = 'Be on time, tell your coach about any injury, and trea
 // (showWhilePending). The desk copies the shown names from the site to the hidden CoachList tab of its Sheet every hour
 // (apps-script/CoachList.js). Every sweep (hourly) adds any coach missing from the Coaches tab, marks a coach not shown, or
 // no longer listed here, 'disabled', switches a shown coach back on, and sets a listed coach's email from here. To add or
-// remove a coach, or change a coach's email, change this list and the table on coaching.html. The owner adds each mobile
-// number in the Sheet.
+// remove a coach, or change a coach's email, change this list and the table on coaching.html. The club sets each mobile
+// number on the desk's Coach Admin page (adminPhone_), never in the Sheet.
 var CLUB_COACHES = [
   ['Dominic Chan', 'dominicchan@sbcglobal.net'],
   ['Fuqun (Bill) Xing', 'xfqslw@gmail.com'],
@@ -107,14 +107,18 @@ var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'A
 
 // Private Sheet. The label columns hold the public pseudonyms.
 var TABS = {
-  // The owner types name, email and mobile number (columns A to C); the rest is filled in by the app. The name must match the
+  // Name and email come from CLUB_COACHES (syncClubCoaches_) and the mobile number from the desk's Coach Admin page
+  // (adminPhone_); the rest is filled in by the app. Nobody types into this tab. The name must match the
   // contact name saved in Google Voice, which is how a text from a coach is recognised. ask_ref is the one question last texted
   // ('slots' or a request id), so a YES or NO always answers it; ask_slots is the submitted list of times (JSON) until answered.
   // rate_50 and rate_25 are the coach's published lesson rates (whole dollars, '' for none listed); ask_rates (JSON) is the
   // rates in the waiting list of times, only when that list changes them. Both are set from the coaching page and published
-  // by the coach's YES, like times (see "Lesson rates"), never typed here.
+  // by the coach's YES, like times (see "Lesson rates"), never typed here. email_ok is the address the coach last answered an
+  // email from, phone_ok the mobile number they last texted from (see "Coach setup checklist"); phone_set_at is when the club last
+  // set the mobile number on the desk's Coaches page (only a text after that confirms the new number); email_check_at is when
+  // the coach last asked for a test email from the page (coachEmailCheck), whose reply confirms the address.
   Coaches: ['name', 'email', 'phone', 'status', 'coach_id', 'label', 'created_at', 'ask_at', 'ask_slots', 'ask_ref', 'ask_made', 'registered_at',
-    'rate_50', 'rate_25', 'ask_rates'],
+    'rate_50', 'rate_25', 'ask_rates', 'email_ok', 'phone_ok', 'phone_set_at', 'email_check_at'],
   // texts is 'yes' after the student texts STUDENT from the phone below, and '' after STOP; texts_at is that text's time.
   // ask_ref is the one question last texted to them ('v:' or 'c:' and a request id).
   Students: ['label', 'email', 'created_at', 'name', 'phone', 'texts', 'texts_at', 'ask_ref', 'ask_at'],
@@ -160,7 +164,7 @@ var PUBLIC_TABS = {
 // signed in to several Google accounts, and a request with no cookies never meets that. Only these can be called this way,
 // and the desk's wake.
 function doPost(e) {
-  var calls = { openSlots: openSlots, coachList: coachList, coachBoard: coachBoard, coachPropose: coachPropose, requestSlot: requestSlot, joinWaitlist: joinWaitlist, studentChange: studentChange };
+  var calls = { openSlots: openSlots, coachList: coachList, coachBoard: coachBoard, coachPropose: coachPropose, coachEmailCheck: coachEmailCheck, requestSlot: requestSlot, joinWaitlist: joinWaitlist, studentChange: studentChange };
   var result = null;
   try {
     var body = e && e.postData ? String(e.postData.contents || '') : '';
@@ -168,6 +172,7 @@ function doPost(e) {
     var name = String(request && request.fn || '');
     // The desk's mail reader, when texts or an email reply came in (wake_).
     if (name === 'wake') result = wake_(request);
+    else if (name === 'admin') result = admin_(request);
     else result = Object.prototype.hasOwnProperty.call(calls, name) ? calls[name].apply(null, Array.isArray(request.args) ? request.args.slice(0, 3) : []) : fail_('Unknown request.');
   } catch (error) {
     logError_('answer a request from the club site', error);
@@ -897,9 +902,82 @@ function coachList() {
   return {
     ok: true,
     coaches: coaches.filter(function (coach) { return coach.coach_id && active_(coach); }).map(function (coach) {
-      return { id: coach.coach_id, label: coach.label, ready: ready_(coach), registered: verified_(coach) };
+      var steps = setupSteps_(coach);
+      return { id: coach.coach_id, label: coach.label, ready: ready_(coach), registered: steps.left === 0, left: steps.left };
     })
   };
+}
+
+// ---------- The desk's Coaches page ----------
+// The club's own page (the desk's ?view=coaches, apps-script/CoachAdmin.js) lists every coach with their setup checklist and
+// sets a coach's mobile number, through doPost with fn 'admin' and the desk's admin key (AppWake!B2 in the desk Sheet, the key
+// the volunteer app checks too). Emails stay in CLUB_COACHES: they are public on coaching.html and change by a reviewed PR.
+// Mobile numbers are private, so they are set here, never typed into the Sheet.
+//   coaches: every coach with a coach id, their contacts, rates and checklist.
+//   phone:   a new mobile number (or '' to remove it) for one coach. With preview nothing changes and the answer says what
+//            would; otherwise the number is saved, the mobile step goes back to untested until the coach texts from it, and a
+//            coach-phone-set row (codes, never numbers) goes in the Log tab. The desk records who made the change.
+function adminKeyMatches_(key) {
+  if (!key || key.length < 32) return false;
+  var cache = CacheService.getScriptCache();
+  if (cache.get('admin-key') === key) return true;
+  var tab = book_('DESK_SHEET_ID').getSheetByName('AppWake');
+  var stored = tab && tab.getLastRow() >= 2 ? String(tab.getRange(2, 2, 1, 1).getValues()[0][0] || '') : '';
+  if (stored.length < 32 || stored !== key) return false;
+  cache.put('admin-key', stored, 21600);
+  return true;
+}
+
+function admin_(request) {
+  if (!adminKeyMatches_(String(request.key || ''))) return fail_('Unknown request.');
+  if (request.action === 'coaches') return adminCoaches_();
+  if (request.action === 'phone') return adminPhone_(String(request.coachId || ''), String(request.phone == null ? '' : request.phone), !!request.preview);
+  return fail_('Unknown request.');
+}
+
+function adminCoaches_() {
+  var club = {};
+  CLUB_COACHES.forEach(function (coach) { club[coach[0].toLowerCase()] = true; });
+  return {
+    ok: true, textNumber: TEXT_NUMBER,
+    coaches: rows_('Coaches').filter(function (coach) { return coach.coach_id; }).map(function (coach) {
+      return { id: coach.coach_id, name: String(coach.name).trim(), label: coach.label, active: active_(coach), club: !!club[String(coach.name).trim().toLowerCase()],
+        email: cleanEmail_(coach.email), phone: phoneLabel_(coach.phone), rates: coachRates_(coach), steps: setupSteps_(coach) };
+    })
+  };
+}
+
+function adminPhone_(coachId, typed, preview) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var coaches = rows_('Coaches');
+    var coach = /^[a-f0-9]{16}$/.test(coachId) ? coaches.filter(function (entry) { return entry.coach_id === coachId; })[0] : null;
+    if (!coach) return fail_('That coach was not found. Reload the page.');
+    var digits = phoneDigits_(typed);
+    if (typed.trim() && !digits) return fail_('Enter a 10 digit US mobile number, like (925) 555-0123, or leave it empty to remove the number.');
+    var before = phoneDigits_(coach.phone);
+    if (digits === before) return fail_(digits ? 'That is already ' + coachName_(coach) + '\'s number.' : coachName_(coach) + ' has no mobile number on file.');
+    var other = digits && coaches.filter(function (entry) { return entry !== coach && phoneDigits_(entry.phone) === digits; })[0];
+    if (other) return fail_('That number is already on file for ' + coachName_(other) + '.');
+    var answer = { ok: true, name: String(coach.name).trim(), label: coach.label, before: phoneLabel_(before), after: phoneLabel_(digits),
+      effect: digits ? coachName_(coach) + '\'s mobile shows as not yet confirmed until they text ' + TEXT_NUMBER + ' from it. Lesson texts go to the new number.' :
+        'We will stop texting ' + coachName_(coach) + '. They answer by email only' + (cleanEmail_(coach.email) ? '.' : ', and have no email on file, so they cannot be reached.') };
+    if (preview) return Object.assign(answer, { preview: true });
+    coach.phone = phoneLabel_(digits);
+    coach.phone_ok = '';
+    coach.registered_at = '';
+    coach.phone_set_at = String(Date.now());
+    // A question texted to the old number cannot be answered from the new one; the next check asks again (askCoaches_).
+    coach.ask_ref = '';
+    coach.ask_at = '';
+    save_('Coaches', coach);
+    var code = function (number) { return number ? code_('to:' + number).slice(0, 6) : 'none'; };
+    logRow_('-', 'coach-phone-set', coach.coach_id, '-', 'from ' + code(before) + ' to ' + code(digits));
+    return answer;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------- Lesson rates ----------
@@ -977,8 +1055,144 @@ function coachRateRow_(request) {
   return request.rate ? [['Rate', '$' + request.rate + ' for this ' + lessonMinutes_(request.minutes) + ' minute lesson (your listed rate, as the student saw it when they asked)']] : [];
 }
 
-// The green check: the club has the coach's email and mobile, and the coach has texted the club number.
-function verified_(coach) { return !!(coach.registered_at && cleanEmail_(coach.email) && phoneDigits_(coach.phone)); }
+// ---------- Coach setup checklist ----------
+// The green check on the coaching page means the coach is fully set up, so students and the club never meet a gap:
+//   email  an address on file that the coach has answered one of our emails from (email_ok holds that address),
+//   text   a mobile number on file that the coach has texted the club number from (phone_ok holds that number; registered_at
+//          is when it was first seen),
+//   rates  both lesson rates published, since a student may book either length with any coach.
+// A changed address or number is untested until the coach answers from it, so the check never stays green on a contact nobody
+// has tried. Each step is 'done', 'untested' (on file, never answered from) or 'missing'; left counts the steps not done.
+var SETUP_STEPS = ['email', 'text', 'rates'];
+
+function setupSteps_(coach) {
+  var email = cleanEmail_(coach.email);
+  var phone = phoneDigits_(coach.phone);
+  var rates = coachRates_(coach);
+  var steps = {
+    email: !email ? 'missing' : coach.email_ok === email ? 'done' : 'untested',
+    // A coach verified before phone_ok was kept counts for the number on file (backfillSetupSteps_ fills phone_ok in).
+    text: !phone ? 'missing' : coach.registered_at && (!coach.phone_ok || coach.phone_ok === phone) ? 'done' : 'untested',
+    rates: rates[50] && rates[25] ? 'done' : 'missing'
+  };
+  steps.left = SETUP_STEPS.filter(function (key) { return steps[key] !== 'done'; }).length;
+  return steps;
+}
+
+// The green check: every step of the checklist done.
+function verified_(coach) { return setupSteps_(coach).left === 0; }
+
+// A text from the number on file proves it works; an email reply from the address on file proves that.
+function markTextOk_(coach) {
+  if (!coach.registered_at) coach.registered_at = nowIso_();
+  coach.phone_ok = phoneDigits_(coach.phone);
+}
+
+function markEmailOk_(coach) { coach.email_ok = cleanEmail_(coach.email); }
+
+// The email step's button on the coaching page: a short email to the address on file asking for a reply. Like a list of
+// times, anyone who picks the coach can press it, but it only ever goes to the coach's own address, at most once every
+// PROPOSE_WAIT_MS and EMAIL_CHECKS_PER_DAY times a day. Any YES or NO reply from that address within ASK_TTL_MS confirms
+// it (emailQuestions_, kind 'email-check'). The page is never shown the address, only a hint (t•••y@gmail.com).
+var EMAIL_CHECKS_PER_DAY = 3;
+
+function emailCheckCode_(coachId, sent) { return code_('e:' + coachId + ':' + sent); }
+
+function emailHint_(address) {
+  var parts = String(address).split('@');
+  var name = parts[0];
+  return (name.length <= 2 ? name.charAt(0) : name.charAt(0) + '\u2022\u2022\u2022' + name.charAt(name.length - 1)) + '@' + parts[1];
+}
+
+function coachEmailCheck(coachId) {
+  var coach = coachById_(coachId);
+  if (!coach) return fail_('That coach was not found. Please pick again.');
+  var email = cleanEmail_(coach.email);
+  if (!email) return fail_('The club has no email address for ' + coachName_(coach) + '. Please ask the club to add it.');
+  if (setupSteps_(coach).email === 'done') return fail_('Your email is already confirmed.');
+  var now = Date.now();
+  if (now - Number(coach.email_check_at || 0) < PROPOSE_WAIT_MS) return fail_('We sent a test email a few minutes ago. Reply YES to it, or wait 10 minutes to send another.');
+  if (!mailAvailable_()) return fail_('We cannot send email right now. Please try again tomorrow.');
+  var cache = CacheService.getScriptCache();
+  var daily = 'email-check:' + coach.coach_id + ':' + pacificNow_().date;
+  if (Number(cache.get(daily) || 0) >= EMAIL_CHECKS_PER_DAY) return fail_('That is the most test emails for one day. Please try again tomorrow.');
+  cache.put(daily, String(Number(cache.get(daily) || 0) + 1), 86400);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    coach = coachById_(coachId);
+    coach.email_check_at = String(now);
+    save_('Coaches', coach);
+  } finally {
+    lock.releaseLock();
+  }
+  sendMail_(email, 'Confirm your email for CTTC coaching ' + refTag_(emailCheckCode_(coach.coach_id, now)), [
+    { callout: '**Reply YES** to this email to confirm this is your address for coaching.', tone: 'action' },
+    'Lesson requests and your lists of coaching times come to this address. Your reply ticks **Email** on your setup checklist on the coaching page, within a few minutes.',
+    'If you did not ask for this, ignore this email and nothing will change.'
+  ], null, ['coach-email-check', coach.coach_id]);
+  return { ok: true, message: 'Sent to ' + emailHint_(email) + '. Reply YES to it, and Email turns green within a few minutes of your reply.' };
+}
+
+// A reply to the test email, from the address it went to: the address works, whatever the answer.
+function emailCheckAnswer_(coachId, sent, answer) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  var coach = null;
+  try {
+    coach = coachById_(coachId);
+    if (!coach || Number(coach.email_check_at) !== sent) return;
+    markEmailOk_(coach);
+    coach.email_check_at = '';
+    save_('Coaches', coach);
+  } finally {
+    lock.releaseLock();
+  }
+  logReply_('email', 'coach-email-check', coachId, answer, true, '');
+}
+
+// Once, when the checklist arrived: a coach who has already answered an email from the address now on file, or texted from the
+// number now on file, keeps that step. The Log tab (its latest LOG_KEEP rows) is the only record of email replies, and a reply
+// from before the sweep changed that coach's address (a coach-email-set row) came from the old one, so it does not count.
+function backfillSetupSteps_() {
+  var properties = PropertiesService.getScriptProperties();
+  if (properties.getProperty('SETUP_STEPS_FILLED')) return;
+  var coaches = rows_('Coaches');
+  var idOf = {};
+  coaches.forEach(function (coach) {
+    if (coach.coach_id) idOf[coach.coach_id] = idOf[String(coach.name).trim().toLowerCase()] = coach.coach_id;
+  });
+  var coachOfRequest = {};
+  rows_('Requests').forEach(function (request) { coachOfRequest[request.request_id] = request.coach_id; });
+  var answered = {};
+  var replaced = {};
+  rows_('Log').forEach(function (line) {
+    if (line.kind === 'coach-email-set') {
+      var changed = idOf[line.ref] || idOf[String(line.ref).trim().toLowerCase()];
+      if (changed) replaced[changed] = line.at;
+    } else if (line.channel === 'email' && /^reply:coach-(request|slots):/.test(line.kind)) {
+      var id = line.kind.indexOf('reply:coach-slots:') === 0 ? line.ref : coachOfRequest[line.ref];
+      if (id && (!answered[id] || line.at > answered[id])) answered[id] = line.at;
+    }
+  });
+  var filled = { email: 0, text: 0 };
+  coaches.forEach(function (coach) {
+    var changed = false;
+    if (cleanEmail_(coach.email) && !coach.email_ok && answered[coach.coach_id] && !(replaced[coach.coach_id] && replaced[coach.coach_id] > answered[coach.coach_id])) {
+      markEmailOk_(coach);
+      filled.email += 1;
+      changed = true;
+    }
+    if (phoneDigits_(coach.phone) && coach.registered_at && !coach.phone_ok) {
+      coach.phone_ok = phoneDigits_(coach.phone);
+      filled.text += 1;
+      changed = true;
+    }
+    if (changed) save_('Coaches', coach);
+  });
+  logRow_('-', 'setup-steps-filled', '-', '-', 'email ' + filled.email + ', text ' + filled.text);
+  properties.setProperty('SETUP_STEPS_FILLED', nowIso_());
+}
 
 // A coach can confirm once the owner has listed an email address or a mobile number for them.
 function ready_(coach) { return !!cleanEmail_(coach.email) || !!phoneDigits_(coach.phone); }
@@ -1040,6 +1254,8 @@ function coachBoard(coachId) {
         change: entry.change };
     }),
     pending: pending, pendingSince: pending ? momentLabel_(Number(coach.ask_made)) : '',
+    // The setup checklist (setupSteps_), shown to the coach with what to do for each step not done.
+    steps: setupSteps_(coach),
     // The published rates, and those in the waiting list when it changes them (shown in the rate boxes until answered).
     rates: coachRates_(coach), pendingRates: pending ? proposalRates_(coach) : null
   };
@@ -2064,6 +2280,7 @@ function sweep_() {
   try {
     ensureHeaders_();
     syncClubCoaches_();
+    backfillSetupSteps_();
     var now = Date.now();
     var coaches = ensureCoachIds_(rows_('Coaches'));
     var students = rows_('Students');
@@ -2732,8 +2949,9 @@ function answer_(coachId, ref, answer, channel) {
     // A text answers the question texted last; a text with no question open can only be a late answer to an expired list.
     var lateText = !!coach && channel === 'text' && ref === 'slots' && !coach.ask_ref && !!expiredProposal_(coach, now);
     if (!coach || (channel === 'text' && coach.ask_ref !== ref && !lateText)) return;
-    // A text reply from the number on the list proves the coach's thread works.
-    if (channel === 'text' && !coach.registered_at) coach.registered_at = nowIso_();
+    // A reply from the number or address on the list proves it works (the setup checklist).
+    if (channel === 'text') markTextOk_(coach);
+    else markEmailOk_(coach);
     if (ref === 'slots') {
       if (answer === 'yes' && proposalOf_(coach, now)) {
         var done = applyProposal_(coach, now);
@@ -3107,7 +3325,7 @@ function mailClub_(subject, lines, key) {
 // A coach on the list whose number (or Voice contact name) has texted the club, COACH or anything else, can be texted back: that
 // is a verified coach. Each is told once, by a reply on that thread. Gmail is searched at most every 10 minutes for this.
 function verifyCoaches_() {
-  var waiting = rows_('Coaches').filter(function (coach) { return coach.coach_id && active_(coach) && !coach.registered_at && phoneDigits_(coach.phone); });
+  var waiting = rows_('Coaches').filter(function (coach) { return coach.coach_id && active_(coach) && setupSteps_(coach).text === 'untested'; });
   // When the desk wakes the check, any text from one of these coaches is worth a look (wakeWanted_).
   var list = JSON.stringify(waiting.map(function (coach) { return { name: coach.name, phone: coach.phone }; }));
   var properties = PropertiesService.getScriptProperties();
@@ -3119,7 +3337,9 @@ function verifyCoaches_() {
   var found = {};
   waiting.forEach(function (coach) {
     var latest = voiceTextsFrom_(coach, THREAD_DAYS)[0];
-    if (latest) found[coach.coach_id] = latest;
+    // After the club sets a new number, only a text sent since then confirms it (a text found by the Voice contact name may
+    // have come from the old number).
+    if (latest && !(Number(coach.phone_set_at) && latest.at <= Number(coach.phone_set_at))) found[coach.coach_id] = latest;
   });
   if (!Object.keys(found).length) return;
   var told = [];
@@ -3127,8 +3347,8 @@ function verifyCoaches_() {
   lock.waitLock(30000);
   try {
     rows_('Coaches').forEach(function (coach) {
-      if (!found[coach.coach_id] || coach.registered_at) return;
-      coach.registered_at = nowIso_();
+      if (!found[coach.coach_id] || setupSteps_(coach).text !== 'untested') return;
+      markTextOk_(coach);
       save_('Coaches', coach);
       told.push({ message: found[coach.coach_id].message, label: coach.label, name: coachName_(coach), coach: coach });
     });
@@ -3137,7 +3357,7 @@ function verifyCoaches_() {
   }
   told.forEach(function (entry) {
     try {
-      entry.message.reply('CTTC: Thanks, you are verified as ' + entry.name + '. To offer coaching times, open ' + PAGE_URL.replace('https://', '') +
+      entry.message.reply('CTTC: Thanks, your mobile is confirmed for ' + entry.name + '. To offer coaching times, open ' + PAGE_URL.replace('https://', '') +
         ', tap I am a coach and pick ' + entry.label + '. We will text you here to confirm your times and lesson requests.');
       logSent_('text', 'coach-verified', entry.coach.coach_id, phoneDigits_(entry.coach.phone) || entry.coach.name);
     } catch (error) {
@@ -3270,6 +3490,10 @@ function emailQuestions_(now) {
     if (proposalOf_(coach, now) || expiredProposal_(coach, now)) {
       questions.push({ code: proposalCode_(coach.coach_id, coach.ask_made), email: cleanEmail_(coach.email), after: Number(coach.ask_made), kind: 'slots', id: coach.coach_id });
     }
+    var sent = Number(coach.email_check_at);
+    if (sent && now - sent < ASK_TTL_MS) {
+      questions.push({ code: emailCheckCode_(coach.coach_id, sent), email: cleanEmail_(coach.email), after: sent, kind: 'email-check', id: coach.coach_id });
+    }
   });
   var requests = rows_('Requests');
   requests.forEach(function (request) {
@@ -3358,6 +3582,7 @@ function checkMail_() {
     var found = answers[code];
     var question = found.question;
     if (question.kind === 'slots') answer_(question.id, 'slots', found.answer, 'email');
+    else if (question.kind === 'email-check') emailCheckAnswer_(question.id, question.after, found.answer);
     else if (question.kind === 'request') answer_(question.coachId, question.id, found.answer, 'email');
     else if (question.kind === 'b') answerBundle_(question.id, found.answer, found.at);
     else if (question.kind === 'r') replacedAnswer_(question.id, found.answer);

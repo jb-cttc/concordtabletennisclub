@@ -26,7 +26,7 @@ assert.deepEqual(pngSize('assets/icons/apple-touch-icon.png'), [180, 180]);
 // the Text CTTC icon, the front desk payment page (pay.html), the storyboard (a generated document,
 // scripts/build-storyboard.js, that links back to About), and the volunteer and coaching apps' pages, which the deploy
 // copies in from staffing-app/ and coaching-app/ and the home and Coaching pages open in place.
-const pages = fs.readdirSync(site.dir()).filter(name => name.endsWith('.html') && !['desk.html', 'cash.html', 'volunteer-admin.html', 'email-list.html', 'meeting.html', 'text.html', 'storyboard.html', 'pay.html', 'volunteer-app.html', 'coaching-app.html'].includes(name));
+const pages = fs.readdirSync(site.dir()).filter(name => name.endsWith('.html') && !['desk.html', 'cash.html', 'volunteer-admin.html', 'coach-admin.html', 'email-list.html', 'meeting.html', 'text.html', 'storyboard.html', 'pay.html', 'volunteer-app.html', 'coaching-app.html'].includes(name));
 pages.forEach(name => {
   const html = site.read(name);
   assert.match(html, /<link rel="apple-touch-icon" href="assets\/icons\/apple-touch-icon\.png">/, name);

@@ -103,6 +103,13 @@
     "A pass holder could take a free spot for up to an hour"
    ],
    [
+    "Desk (Coach Admin)",
+    "Coaching app",
+    "The coaches' checklist, and a mobile number the club confirmed (admin key)",
+    "When the club opens Coach Admin",
+    "Coach Admin says the coaching app did not answer; nothing changes"
+   ],
+   [
     "Coaching app Sheet",
     "Desk: Open Play / Coaching",
     "Lessons confirmed for the date",
@@ -1267,7 +1274,7 @@
      "title": "A coach offers times",
      "who": "Owner",
      "when": "Up to 28 days ahead",
-     "summary": "A club coach picks times on the coaching page (Fridays 7–10 PM, Saturdays 3–6 PM, 30 or 60 minutes, on table 1 to 3) and confirms them by replying YES to *Confirm your coaching times*. Only then are the times published on the booking board. In **Your lesson rates (optional)** at the top of the page the coach can also list what they charge for a 50- and a 25-minute lesson; rates go in the same list (*Confirm your coaching times and rates*, or *Confirm your lesson rates*) and the same YES publishes them.",
+     "summary": "A club coach picks times on the coaching page (Fridays 7–10 PM, Saturdays 3–6 PM, 30 or 60 minutes, on table 1 to 3) and confirms them by replying YES to *Confirm your coaching times*. Only then are the times published on the booking board. In **Your lesson rates (optional)** at the top of the page the coach can also list what they charge for a 50- and a 25-minute lesson; rates go in the same list (*Confirm your coaching times and rates*, or *Confirm your lesson rates*) and the same YES publishes them. A coach's button shows a green **✓** only when they are fully set up (an email answered from, a mobile texted from, both rates published); otherwise *Coach D · 2 steps left*, and picking the name shows **Your setup** with a button for each step left: **Send me a test email** (reply YES), **Text COACH now** (opens Messages with the club number filled in) and **Set my rates**.",
      "subtext": "Which coaches can offer is set by the club site's coaching page (USATT certified); the desk copies that list to its Sheet every hour for the coaching app to read.",
      "caveats": [
       "A coach list not confirmed in 48 hours lapses; a late YES is answered and the list offered again if the times are still free."
@@ -1279,6 +1286,13 @@
        "handling": "Add or remove a coach, or change a coach's email, in CLUB_COACHES and coaching.html, not in the Sheet.",
        "status": "handled",
        "evidence": "docs/coaching-flow.md:454"
+      },
+      {
+       "when": "A coach has a new mobile number",
+       "happens": "Their texts go to the old number until it is changed.",
+       "handling": "Set it on **Coach Admin** (the lock button on the Coaching page): Review, then Confirm. The mobile step shows untested until they text the club number from it.",
+       "status": "handled",
+       "evidence": "apps-script/CoachAdmin.js:49"
       }
      ],
      "screen": {
@@ -1292,25 +1306,25 @@
       "entry": [
        {
         "file": "coaching-app/Code.js",
-        "line": 91,
+        "line": 92,
         "symbol": "CLUB_COACHES",
         "note": "The club's coaches."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1051,
+        "line": 1206,
         "symbol": "coachPropose",
         "note": "Times and rates, sent to the coach to confirm."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 914,
+        "line": 992,
         "symbol": "cleanRate_",
         "note": "A rate is whole dollars, $1 to $500, or none."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 2012,
+        "line": 2167,
         "symbol": "syncClubCoaches_",
         "note": "Matches the CoachList tab the desk writes."
        },
@@ -1322,26 +1336,48 @@
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 120,
+        "line": 124,
         "symbol": "Availability",
         "note": "avail_id, coach_id, date, start, minutes, confirmed, table."
+       },
+       {
+        "file": "coaching-app/Code.js",
+        "line": 1067,
+        "symbol": "setupSteps_",
+        "note": "The setup checklist behind the green ✓."
+       },
+       {
+        "file": "coaching-app/Code.js",
+        "line": 949,
+        "symbol": "adminPhone_",
+        "note": "Coach Admin sets a mobile number, after a preview."
+       },
+       {
+        "file": "apps-script/CoachAdmin.js",
+        "line": 32,
+        "symbol": "getCoachAdmin",
+        "note": "The desk's Coach Admin page asks the coaching app with the admin key."
        }
       ],
       "state": [
        "Coaches.ask_slots, ask_made, ask_rates",
        "Coaches.rate_50, rate_25",
+       "Coaches.email_ok, phone_ok, registered_at, phone_set_at",
        "Availability rows"
       ],
       "writes": [
-       "Coaching Sheet: Availability, Coaches (rates)"
+       "Coaching Sheet: Availability, Coaches (rates, checklist, mobile from Coach Admin)",
+       "Desk log: coach_phone_set"
       ],
       "reads": [
-       "Desk Sheet: CoachList"
+       "Desk Sheet: CoachList, AppWake (admin key)"
       ],
       "invariants": [
        "A time is published only after the coach's YES.",
        "Two lessons never share a table at the same time.",
-       "A lesson rate is published only by the coach's YES, in the same list as their times; nobody types rates into the Sheet."
+       "A lesson rate is published only by the coach's YES, in the same list as their times; nobody types rates into the Sheet.",
+       "The green ✓ shows only when the email, the mobile and both rates are done; a changed address or number is untested until the coach answers from it.",
+       "A mobile number is set only on Coach Admin, after Review and Confirm, and each change is in the desk log."
       ],
       "limits": [
        "HORIZON_DAYS 28."
@@ -1356,6 +1392,21 @@
         "file": "coaching-app/check-coaching.cjs",
         "case": "Lesson rates: set with the times",
         "covers": "Rates checked, sent with the times, published by YES (on time or late), left by NO, taken down by blank boxes."
+       },
+       {
+        "file": "coaching-app/check-coaching.cjs",
+        "case": "The setup checklist behind the green check",
+        "covers": "Each step, a changed address or number untested, the admin key, a mobile set after a preview, the one-time look-back."
+       },
+       {
+        "file": "apps-script/check-coach-admin.cjs",
+        "case": "",
+        "covers": "The desk side: admin key, preview not logged, a change logged with the last four digits."
+       },
+       {
+        "file": "scripts/check-coach-admin-page.js",
+        "case": "",
+        "covers": "The Coach Admin page: Confirm sends the number that was reviewed."
        }
       ],
       "untested": [],
