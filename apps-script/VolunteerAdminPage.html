@@ -146,7 +146,9 @@
   .email { border: 1px solid var(--line); border-radius: 4px; margin: 8px 0; }
   .email summary { padding: 8px 10px; cursor: pointer; background: #f7f9f7; }
   .email pre { margin: 0; padding: 10px; white-space: pre-wrap; font: 13px/1.45 Arial, sans-serif; }
-  .drawer-foot { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+  .drawer-foot { padding: 12px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .drawer-foot .step { flex: 1 1 100%; margin: 0; font: 13px/1.4 Arial, sans-serif; color: var(--muted); }
+  .drawer-foot .step b { color: var(--ink, #17211b); }
   /* Adding someone to an open spot: a small window over the schedule. */
   .picker-back { position: fixed; inset: 0; z-index: 40; background: rgba(10,30,20,.45); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 12px 12px; overflow: auto; }
   .picker { width: min(460px, 100%); background: #fff; border-radius: 6px; box-shadow: 0 12px 32px rgba(0,0,0,.25); font: 14px Arial, sans-serif; }
@@ -221,7 +223,7 @@
     <div id="nights" class="nights"></div>
   </section>
   <section id="training" role="tabpanel" aria-labelledby="tabTraining" hidden>
-    <p class="legend"><span>Who may take the restricted spots. Changes wait in the bucket until you submit them; nobody is emailed about training.</span></p>
+    <p class="legend"><span>Who may take the restricted spots. Changes wait under Changes to submit until you review and confirm them; nobody is emailed about training.</span></p>
     <div id="skills" class="skills"></div>
   </section>
   <section id="recent" class="recent" hidden></section>
@@ -232,8 +234,9 @@
   <div class="drawer-head"><h2 id="drawerTitle">Changes to submit</h2><button id="drawerClose" type="button" aria-label="Close">&times;</button></div>
   <div id="drawerBody" class="drawer-body"></div>
   <div class="drawer-foot">
-    <button id="review" class="secondary" type="button">Review emails</button>
-    <button id="submit" class="primary" type="button" disabled>Submit</button>
+    <p id="step" class="step"></p>
+    <button id="review" class="primary" type="button">Review changes</button>
+    <button id="submit" class="primary" type="button" hidden>Confirm</button>
     <button id="clear" class="link" type="button">Discard all</button>
   </div>
 </aside>
@@ -243,7 +246,7 @@
   var board = null;
   var bucket = { newPlayers: [], changes: [] };
   var note = '';
-  var reviewed = null;      // the preview answer for the bucket as it was when reviewed
+  var reviewed = null;      // the preview answer for the bucket as it was when reviewed (step 2: Confirm)
   var lastProblems = [];
   var month = 'all';
   var selected = '';        // a sign-up id being moved by tapping
@@ -271,7 +274,7 @@
   function call(name, args, done, failed) {
     busy = true;
     google.script.run.withSuccessHandler(function (result) { busy = false; done(result); })
-      .withFailureHandler(function (error) { busy = false; (failed || function (e) { say(e.message || String(e), 'error'); })(error); })[name].apply(null, args);
+      .withFailureHandler(function (error) { busy = false; (failed || function (e) { say(e.message || String(e), 'error'); })(error); drawFoot(); })[name].apply(null, args);
   }
 
   // ----- The board as the bucket would leave it -----
@@ -359,7 +362,7 @@
       bucket.changes.push({ kind: 'move', id: id, was: { date: original.date, position: original.position }, to: { date: date, position: position } });
     }
     selected = '';
-    say(original.slot.name + ' moved to ' + spec(position).label + ', ' + nightOf(date).short + '. It waits in the bucket until you submit.', 'ok');
+    say(original.slot.name + ' moved to ' + spec(position).label + ', ' + nightOf(date).short + '. It waits under Changes to submit until you review and confirm it.', 'ok');
     changed();
   }
   function remove(id) {
@@ -381,7 +384,7 @@
     if (reason) { say(reason + ': ' + nameOf(playerId) + ' was not added.', 'error'); return false; }
     var id = 'add-' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
     bucket.changes.push({ kind: 'add', id: id, playerId: playerId, to: { date: date, position: position }, email: email || '' });
-    say(nameOf(playerId) + ' added to ' + spec(position).label + ', ' + nightOf(date).short + '. It waits in the bucket until you submit.', 'ok');
+    say(nameOf(playerId) + ' added to ' + spec(position).label + ', ' + nightOf(date).short + '. It waits under Changes to submit until you review and confirm it.', 'ok');
     changed();
     return true;
   }
@@ -403,7 +406,7 @@
     if (now.playerId !== playerId) bucket.changes.push({ kind: 'contact', weekday: weekday, playerId: playerId });
     var days = 'ALL ' + now.day + 's';
     say(playerId === now.playerId ? 'The point of contact for ' + days + ' stays as it is.' : (playerId ? nameOf(playerId) + ' will be the point of contact for ' + days :
-      'The point of contact for ' + days + ' will be cleared') + '. It waits in the bucket until you submit.', 'ok');
+      'The point of contact for ' + days + ' will be cleared') + '. It waits under Changes to submit until you review and confirm it.', 'ok');
     changed();
   }
   function labelOf(id) {
@@ -518,7 +521,7 @@
     if (item.added) {
       node.removeAttribute('draggable');
       node.removeAttribute('tabindex');
-      node.appendChild(el('span', { 'class': 'meta', title: 'Added by the club when you submit: confirmed, and emailed', text: '+ adding, confirmed' }));
+      node.appendChild(el('span', { 'class': 'meta', title: 'Added by the club when you confirm: confirmed, and emailed', text: '+ adding, confirmed' }));
       var drop = el('button', { type: 'button', 'class': 'undo', text: 'undo', 'aria-label': 'Do not add ' + slot.name });
       drop.addEventListener('click', function (event) { event.stopPropagation(); undo(slot.id); });
       node.appendChild(drop);
@@ -612,7 +615,7 @@
         confirmStep({ playerId: '', name: name, rating: rating, fresh: true });
       });
       form.append(el('b', { text: 'New player on the desk' }), el('label', { text: 'Full name' }), nameBox, el('label', { text: 'Starting rating (the desk needs one)' }), ratingBox, why,
-        el('p', { 'class': 'muted', text: 'They are added to the desk\'s player list when you submit, exactly as from the desk.' }), addNew);
+        el('p', { 'class': 'muted', text: 'They are added to the desk\'s player list when you confirm, exactly as from the desk.' }), addNew);
       input.addEventListener('input', function () {
         finds.replaceChildren();
         var query = input.value.trim().toLowerCase();
@@ -629,7 +632,7 @@
         fresh.addEventListener('click', function () { form.hidden = false; nameBox.value = input.value.trim(); nameBox.focus(); });
         finds.appendChild(el('li', {}, [fresh]));
       });
-      body.replaceChildren(el('p', { 'class': 'muted', text: 'For when the normal sign-up is not working. They are confirmed straight away (no YES asked) and emailed when you submit.' }),
+      body.replaceChildren(el('p', { 'class': 'muted', text: 'For when the normal sign-up is not working. They are confirmed straight away (no YES asked) and emailed when you confirm.' }),
         input, finds, form);
       input.focus();
     }
@@ -726,7 +729,7 @@
         setTraining(tempId, skill.id, true);
       });
       form.append(el('b', { text: 'New player on the desk' }), el('label', { text: 'Full name' }), nameBox, el('label', { text: 'Starting rating (the desk needs one)' }), ratingBox, why,
-        el('p', { 'class': 'muted', text: 'They are added to the desk\'s player list when you submit, exactly as from the desk, so the desk knows them from the start.' }), addNew);
+        el('p', { 'class': 'muted', text: 'They are added to the desk\'s player list when you confirm, exactly as from the desk, so the desk knows them from the start.' }), addNew);
       box.appendChild(el('div', { 'class': 'skill' }, [el('h3', { text: info[skill.id][0] }), el('p', { text: info[skill.id][1] }), list, el('div', { 'class': 'add-row' }, [input]), finds, form]));
     });
   }
@@ -836,7 +839,11 @@
     if (schedule) {
       var area = el('textarea', { maxlength: String(board.noteMax), placeholder: 'Optional: a message to include in every email (for example, why the change)' });
       area.value = note;
-      area.addEventListener('input', function () { note = area.value; reviewed = null; save(); $('submit').disabled = true; });
+      area.addEventListener('input', function () {
+        note = area.value;
+        if (reviewed) { reviewed = null; drawDrawer(); }  // the emails shown are out of date: back to step 1
+        save();
+      });
       body.append(el('label', { text: 'Message to the volunteers (optional)' }), area);
     }
     if (reviewed && (reviewed.contacts || []).length) {
@@ -855,11 +862,34 @@
       reviewed.emails.forEach(function (email) {
         body.appendChild(el('details', { 'class': 'email' }, [el('summary', { text: email.name + ' (' + email.to + '): ' + email.subject }), el('pre', { text: email.text })]));
       });
-      body.appendChild(el('p', { 'class': 'muted', text: board.quota + ' emails left today.' }));
+      if (reviewed.emails.length) body.appendChild(el('p', { 'class': 'muted', text: board.quota + ' emails left today.' }));
     }
-    $('review').disabled = !count() || busy;
-    $('submit').disabled = !reviewed || busy;
-    $('submit').textContent = reviewed ? 'Submit ' + count() + ' change' + (count() === 1 ? '' : 's') + (reviewed.emails && reviewed.emails.length ? ' and send ' + reviewed.emails.length + ' email' + (reviewed.emails.length === 1 ? '' : 's') : '') : 'Submit (review first)';
+    drawFoot();
+  }
+  // Two steps, said in words at the foot of the drawer. 1, Review: the volunteer app checks every change against the
+  // sign-ups as they are now and answers what will happen (the emails, if any); nothing is saved. 2, Confirm: saves
+  // exactly what was reviewed. Any edit to the bucket or the message goes back to step 1.
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function drawFoot() {
+    var n = count();
+    var mails = reviewed && reviewed.emails ? reviewed.emails.length : 0;
+    var step = $('step');
+    step.replaceChildren();
+    if (!n) step.append('Nothing to save yet.');
+    else if (!reviewed) {
+      var schedule = bucket.changes.some(function (change) { return change.kind !== 'training' && change.kind !== 'contact'; });
+      step.append(el('b', { text: 'Step 1 of 2: Review. ' }), 'Checks ' + (n === 1 ? 'the change' : 'every change') + ' against the latest sign-ups' +
+        (schedule ? ' and shows the email each volunteer will get' : '') + '. Nothing is saved yet.');
+    } else {
+      step.append(el('b', { text: 'Step 2 of 2: Confirm. ' }), (n === 1 ? 'The change can' : 'Every change can') + ' be made. ' +
+        (mails ? 'Read the ' + (mails === 1 ? 'email' : 'emails') + ' above, then confirm.' : 'Nobody will be emailed.'));
+    }
+    $('review').hidden = !!reviewed || !n;
+    $('review').disabled = busy;
+    $('review').textContent = 'Review ' + plural(n, 'change');
+    $('submit').hidden = !reviewed || !n;
+    $('submit').disabled = busy;
+    $('submit').textContent = 'Confirm: save ' + plural(n, 'change') + (mails ? ' and send ' + plural(mails, 'email') : '');
   }
   function drawRecent() {
     var box = $('recent');
@@ -883,7 +913,7 @@
         var item = ids[change.id];
         return !!item && item.date === change.was.date && item.position === change.was.position;
       });
-      say(message || ('Loaded ' + board.nights.length + ' nights. Changes wait in the bucket until you review the emails and submit.'), message ? 'ok' : '');
+      say(message || ('Loaded ' + board.nights.length + ' nights. Changes wait under Changes to submit until you review and confirm them.'), message ? 'ok' : '');
       render();
     });
   }
@@ -899,14 +929,17 @@
       if (!result.ok) return answered(result);
       reviewed = result;
       lastProblems = [];
-      say('Checked: every change can be made. Read the emails, then Submit.', 'ok');
+      say('Checked: ' + (count() === 1 ? 'the change can' : 'every change can') + ' be made. ' +
+        ((result.emails || []).length ? 'Read the emails, then Confirm.' : 'Nobody will be emailed. Press Confirm to save.'), 'ok');
       render();
+      var shown = $('drawerBody').querySelector('h3');
+      if (shown && shown.scrollIntoView) shown.scrollIntoView({ block: 'start' });
     });
-    drawDrawer();
+    drawFoot();
   });
   $('submit').addEventListener('click', function () {
     if (!reviewed) return;
-    say('Saving the changes and sending the emails…');
+    say((reviewed.emails || []).length ? 'Saving the changes and sending the emails…' : 'Saving the changes…');
     call('submitVolunteerAdmin', [payload(), note], function (result) {
       // New players the desk already added stay added: the bucket uses them from now on.
       (result.added || []).forEach(function (player) {
@@ -923,7 +956,7 @@
       load('Done: ' + result.changes + ' change' + (result.changes === 1 ? '' : 's') + ' saved' + (result.people ? ', ' + result.emailed + ' of ' + result.people + ' people emailed' : '') +
         ((result.added || []).length ? ', ' + result.added.map(function (player) { return player.name; }).join(', ') + ' added to the desk' : '') + '.');
     }, function (error) { say((error.message || String(error)) + ' Nothing may have been saved: reload before trying again.', 'error'); });
-    drawDrawer();
+    drawFoot();
   });
   $('clear').addEventListener('click', function () { if (count() && !confirm('Discard all ' + count() + ' changes?')) return; bucket = { newPlayers: [], changes: [] }; note = ''; changed(); });
   $('bucketOpen').addEventListener('click', function () { $('drawer').hidden = false; drawDrawer(); });

@@ -63,6 +63,8 @@ runner.previewVolunteerAdmin = bucket => {
     : { weekday: change.weekday, label: 'Point of contact for ALL Mondays', name: '', was: 'Ann Sample', publicName: '', details: '', warning: '' });
   onOk({ ok: true, preview: true, changes: bucket.changes.length, emails: [], contacts });
 };
+const submitted = [];
+runner.submitVolunteerAdmin = (bucket, note) => { submitted.push({ bucket: JSON.parse(JSON.stringify(bucket)), note }); onOk({ ok: true, changes: bucket.changes.length, emailed: 0, people: 0 }); };
 dom.window.google = { script: { run: runner } };
 dom.window.eval(/<script>([\s\S]*)<\/script>/.exec(adminHtml)[1]);
 const $ = selector => dom.window.document.querySelector(selector);
@@ -97,14 +99,43 @@ heads()[0].querySelector('button').click();
 $$('#picker button').find(button => /^Clear: no point of contact for ALL Mondays$/.test(button.textContent)).click();
 assert.match(heads()[0].textContent, /Nobody yet[\s\S]*Was Ann Sample/);
 $('#bucketOpen').click();
+// Two steps, said at the foot: Review first (Confirm not offered), then Confirm (Review gone). Nothing about emails when
+// nothing can be emailed.
+assert.match($('#step').textContent, /^Step 1 of 2: Review\. Checks every change against the latest sign-ups\. Nothing is saved yet\.$/);
+assert.equal($('#review').hidden, false);
+assert.equal($('#review').textContent, 'Review 2 changes');
+assert.equal($('#submit').hidden, true, 'no Confirm before the review');
 $('#review').click();
-assert.deepEqual(JSON.parse(JSON.stringify(calls.pop().changes)).map(change => [change.kind, change.weekday, change.playerId]), [['contact', 6, 'p-mo'], ['contact', 1, '']],
+assert.match($('#step').textContent, /^Step 2 of 2: Confirm\. Every change can be made\. Nobody will be emailed\.$/);
+assert.equal($('#review').hidden, true);
+assert.equal($('#submit').hidden, false);
+assert.equal($('#submit').textContent, 'Confirm: save 2 changes');
+assert.deepEqual(JSON.parse(JSON.stringify(calls[calls.length - 1].changes)).map(change => [change.kind, change.weekday, change.playerId]), [['contact', 6, 'p-mo'], ['contact', 1, '']],
   'Review sends the weekday and the player (none to clear)');
 assert.match($('#drawerBody').textContent, /CONTACTPoint of contact for ALL Saturdays: nobody → Mo Sample/);
 assert.match($('#drawerBody').textContent, /CONTACTPoint of contact for ALL Mondays: Ann Sample → nobody/);
 assert.match($('#drawerBody').textContent, /What volunteers will see[\s\S]*On the public calendar: Mo[\s\S]*Mo Sample has no email on file/);
 assert.match($('#drawerBody').textContent, /Nobody is emailed \(training and points of contact only\)/);
 assert.equal($('#drawerBody textarea'), null, 'no message box: nobody is emailed');
+// Confirm sends exactly what was reviewed.
+const reviewedBucket = JSON.parse(JSON.stringify(calls.pop()));
+$('#submit').click();
+assert.deepEqual(submitted.pop().bucket, reviewedBucket, 'Confirm saves what was reviewed');
+assert.equal($('#bucketOpen').textContent, 'Changes to submit (0)', 'saved: the bucket is empty');
+// Again, and an edit after the review goes back to step 1.
+heads()[3].querySelector('button').click();
+$('#picker input[type=search]').value = 'mo s';
+$('#picker input[type=search]').dispatchEvent(new dom.window.Event('input'));
+$$('#picker .finds button').find(button => /Mo Sample/.test(button.textContent)).click();
+$('#bucketOpen').click();
+$('#review').click();
+calls.pop();
+assert.equal($('#submit').hidden, false);
+heads()[0].querySelector('button').click();
+$$('#picker button').find(button => /^Clear: no point of contact for ALL Mondays$/.test(button.textContent)).click();
+assert.equal($('#submit').hidden, true, 'a change after the review: Confirm is taken away');
+assert.match($('#step').textContent, /^Step 1 of 2: Review\./);
+assert.equal(submitted.length, 0);
 // Undo, from the drawer and from the column head.
 $$('#drawerBody .undo')[0].click();
 heads()[0].querySelector('small button').click();
@@ -145,8 +176,17 @@ dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key:
 assert.equal($('#picker').hidden, true, 'Esc closes the add window');
 // Review sends the add, with its email, to the volunteer app.
 $('#bucketOpen').click();
+assert.match($('#step').textContent, /^Step 1 of 2: Review\. Checks the change against the latest sign-ups and shows the email each volunteer will get\. Nothing is saved yet\.$/);
+assert.equal($('#review').textContent, 'Review 1 change');
 $('#review').click();
 assert.deepEqual(JSON.parse(JSON.stringify(calls.pop().changes)).map(change => [change.kind, change.playerId, change.to.date, change.to.position, change.email]), [['add', 'p-mo', '2026-11-13', 'tables', 'mo@example.com']]);
+// The message to volunteers is part of what was reviewed: typing in it goes back to step 1.
+const message = $('#drawerBody textarea');
+assert.ok(message, 'a schedule change offers a message to the volunteers');
+message.value = 'Thanks!';
+message.dispatchEvent(new dom.window.Event('input'));
+assert.equal($('#submit').hidden, true, 'a new message: review again');
+assert.equal($('#review').hidden, false);
 assert.match($('#drawerBody').textContent, /ADDMo Sample: Fri 11-13, Table\/barrier setup \(confirmed by the club; email to put on file: mo@example\.com\)/);
 // Undo takes it back off the board.
 $$('#drawerBody .undo')[0].click();

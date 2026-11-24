@@ -656,7 +656,7 @@ first name the public calendar shows. **Assign** or **Change** searches the
 desk's players; **Clear** leaves the weekday with nobody. A change waits in the
 bucket like any other; Review shows what volunteers will see (and warns when
 the person has no email on file, so volunteers get the name only). Nobody is
-emailed about it. On Submit it is saved to the `Contacts` tab, recorded in
+emailed about it. On Confirm it is saved to the `Contacts` tab, recorded in
 `AdminChanges` (kind `contact`, before and after), and the public calendar
 shows it on its next load.
 
@@ -666,7 +666,7 @@ shows it on its next load.
   training, already opening that night, full). Someone not on the desk's list
   can be added there first, as under Training & access. If the volunteer app
   has **no email on file** for them, the page asks for one: it is put on file
-  for them (`Emails`, source `owner`) on Submit, so this email and later ones
+  for them (`Emails`, source `owner`) on Confirm, so this email and later ones
   reach them. An added shift is **confirmed** at once (no YES asked): it is
   saved as its own submission (`Batches` source `club`, answer `club`), and
   its person is emailed with the rest of the bucket. If that email fails, the
@@ -690,12 +690,21 @@ searches the desk's own player list. Someone not on it is added there first:
 rating**, and the desk adds them exactly as its own Add a player does, so the
 desk knows them before they ever volunteer. Nobody is emailed about training.
 
-**The bucket.** Nothing changes until it is submitted. Every add, move, removal,
+**The bucket.** Nothing changes until it is confirmed. Every add, move, removal,
 training change, point of contact and new player waits under **Changes to submit**, each with
-*undo*, and is kept on that device if the page is closed. **Review emails**
-asks this app to check everything against the Sheet as it is now and shows the
-email each person will get; **Submit** is offered only after that. On Submit
-the desk adds any new players, then this app checks again and makes every
+*undo*, and is kept on that device if the page is closed. Saving takes two
+steps, and the foot of the drawer says which one you are on:
+
+1. **Review N changes** (*Step 1 of 2: Review*) asks this app to check
+   everything against the sign-ups as they are now and shows the email each
+   person will get, or *Nobody will be emailed* (training and points of
+   contact only). Nothing is saved.
+2. **Confirm: save N changes** (and *send M emails* when there are any),
+   *Step 2 of 2: Confirm*, is offered only after that, in place of Review, and
+   saves exactly what was reviewed. Any edit to the bucket or the message goes
+   back to step 1.
+
+On Confirm the desk adds any new players, then this app checks again and makes every
 change, or none: a shift someone else changed meanwhile, a full spot or missing
 training stops the whole bucket, and the page marks which change and why. An
 optional message goes into every email.
@@ -719,5 +728,5 @@ one `change_id` per submission, what, the person, before and after, and
 `step:club-change`.
 
 **Preview without Google:** `npm run preview:desk`, then
-`http://localhost:3100/?view=volunteers` (made-up volunteers; Submit there
+`http://localhost:3100/?view=volunteers` (made-up volunteers; Confirm there
 changes nothing).

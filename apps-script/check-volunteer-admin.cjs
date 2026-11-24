@@ -118,6 +118,6 @@ const page = fs.readFileSync(__dirname + '/VolunteerAdminPage.html', 'utf8');
 for (const name of ['getVolunteerAdmin', 'previewVolunteerAdmin', 'submitVolunteerAdmin']) assert.match(page, new RegExp("call\\('" + name + "'"), 'the page calls ' + name);
 assert.match(page, /Volunteer Admin/);
 assert.match(page, /draggable/, 'people can be dragged');
-assert.match(page, /Review emails/, 'nothing is submitted without reviewing the emails');
-assert.match(page, /\$\('submit'\)\.disabled = !reviewed/, 'Submit waits for the review');
+assert.match(page, /Step 1 of 2: Review/, 'nothing is saved without a review first');
+assert.match(page, /\$\('submit'\)\.hidden = !reviewed/, 'Confirm is offered only after the review');
 console.log('Volunteer Admin desk checks passed');
