@@ -132,14 +132,21 @@
     return pairs;
   }
 
-  // A group's matches once its sheet has printed: the pairs on the printed sheets still in this group keep the
-  // order (and the sides) they printed in, whoever has left since, and pairs the sheets never had (a late arrival, a
-  // player moved in) follow at the end. printed: every pair on the printed sheets, [one, two], in sheet order.
+  // A group's matches once its sheet has printed. A group that only lost players (or is unchanged) keeps the order
+  // (and the sides) its pairs printed in, so the paper still lines up. A group that gained a player its sheet never
+  // had (a late add, or someone moved in) gets a fresh round robin order, so the newcomer's matches spread through
+  // the night: only that group's sheet needs reprinting, and every other group keeps the order on its paper. A player
+  // moved back puts the group back on its printed order. printed: every pair on the printed sheets, [one, two], in
+  // sheet order.
   function keptPairs(printed, ids) {
     var here = {};
     var seen = {};
     var out = [];
     var key = function (pair) { return pair.slice().sort().join('::'); };
+    var onPaper = {};
+    (printed || []).forEach(function (pair) { onPaper[key(pair)] = true; });
+    var fresh = roundRobinPairs(ids);
+    if (fresh.some(function (pair) { return !onPaper[key(pair)]; })) return fresh;
     ids.forEach(function (id) { here[id] = true; });
     (printed || []).forEach(function (pair) {
       if (!here[pair[0]] || !here[pair[1]] || pair[0] === pair[1] || seen[key(pair)]) return;
