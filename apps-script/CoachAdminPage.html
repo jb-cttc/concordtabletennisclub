@@ -77,6 +77,8 @@
   .why strong { display: block; font-size: 13px; margin-bottom: 3px; }
   .why p { margin: 0 0 6px; }
   .why .actions { margin-top: 4px; }
+  .why .still { font-weight: 700; color: #7a1f17; }
+  .coach-head .load { display: block; margin-top: 2px; color: var(--muted); font: 12px Arial, sans-serif; }
 
   /* The control center. */
   .center-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 4px; }
@@ -317,7 +319,7 @@
         onclick: function () { open = coach.id; reviewed = null; render(); var box = $('phone-' + coach.id); if (box) box.focus(); } })]));
     }
     return el('section', { 'class': 'coach' + (!coach.active ? ' off' : steps.left ? '' : ' ready'), 'aria-label': coach.name }, [
-      el('div', { 'class': 'coach-head' }, [el('div', {}, [el('h3', { text: coach.name }), el('span', { 'class': 'label', text: coach.label + ' on the coaching page' })]), badge]),
+      el('div', { 'class': 'coach-head' }, [el('div', {}, [el('h3', { text: coach.name }), el('span', { 'class': 'label', text: coach.label + ' on the coaching page' }), loadLine(coach)]), badge]),
       step(steps.email === 'done', 'Email', coach.email || 'none', emailNote),
       step(steps.text === 'done', 'Mobile', coach.phone || 'none', textNote, phoneExtra),
       step(steps.rates === 'done', 'Rates', rateText(coach.rates), steps.rates === 'done' ? 'Both lesson lengths have a published rate.' :
@@ -325,6 +327,14 @@
       usattStep(coach),
       whyBox(coach)
     ]);
+  }
+
+  // What a coach has on the books: "2 lessons booked · 1 request waiting · 6 times published".
+  function loadLine(coach) {
+    var load = coach.lessons;
+    if (!load) return null;
+    var plural = function (count, one, many) { return count + ' ' + (count === 1 ? one : many); };
+    return el('span', { 'class': 'load', text: [plural(load.booked, 'lesson booked', 'lessons booked'), plural(load.waiting, 'request waiting', 'requests waiting'), plural(load.times, 'time published', 'times published')].join(' · ') });
   }
 
   // ---------- USATT status, and why a coach is or is not offered ----------
@@ -359,6 +369,7 @@
       el('strong', { text: coach.active ? 'On the coaching page' : 'Why they are not offered' }),
       offer.request ? el('p', { text: offer.request.text }) : null,
       offer.reason ? el('p', { text: offer.reason }) : null,
+      !coach.active && coach.lessons && coach.lessons.booked ? el('p', { 'class': 'still', text: 'Still booked: ' + coach.lessons.booked + (coach.lessons.booked === 1 ? ' upcoming lesson, left off the desk\'s list for its night. It is' : ' upcoming lessons, left off the desk\'s list for their nights. They are') + ' marked Stuck in the control center below.' }) : null,
       offer.actions.length ? el('div', { 'class': 'actions' }, offer.actions.map(function (kind) { return offerButton(kind, coach.id); })) : null,
       offerBox('', coach.id)
     ]);
@@ -803,6 +814,11 @@
   }
 
   $('refresh').addEventListener('click', function () { notice = null; loadOverview(); });
+  // Kept current while the page is in view: every 5 minutes, unless something is being reviewed or edited.
+  window.setInterval(function () {
+    if (document.visibilityState !== 'visible' || pending || offerReview || reviewed || open) return;
+    loadOverview(notice ? notice.text : '', notice ? notice.tone : '');
+  }, 5 * 60 * 1000);
   $('search').addEventListener('input', function (event) { query = String(event.target.value || '').trim().toLowerCase(); renderCenter(); });
   load();
   loadOverview();

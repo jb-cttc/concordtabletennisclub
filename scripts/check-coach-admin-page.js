@@ -246,4 +246,7 @@ const older = makePage(() => {
 assert.equal(older.window.document.querySelectorAll('#coaches section').length, 2);
 assert.match(older.window.document.querySelector('#center-status').textContent, /needs its latest release/);
 assert.match(older.window.document.querySelector('#usatt').textContent, /could not be read from the club site/, 'and says when USATT status is missing');
+// Each page keeps its 5-minute refresh timer; closing the windows ends them, so the check exits.
+dom.window.close();
+older.window.close();
 console.log('Coach Admin page checks passed');

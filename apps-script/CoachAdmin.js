@@ -226,10 +226,15 @@ function coachOfferAction_(kind, coachId, preview) {
   var busy = kind !== 'sync' && coachRequestBusy_(data, now);
   if (busy) return { ok: false, message: (busy.action === 'recheck' ? 'A USATT re-check' : 'The change for ' + busy.coach) + ' asked at ' + pacificTime_(busy.at) + ' is still running. GitHub runs one at a time: try again in a few minutes.' };
   var name = coach ? coach.name : '';
+  // What stopping them leaves behind: booked lessons stay booked but leave the desk's list, and waiting requests expire.
+  var load = coach && coach.lessons || { booked: 0, waiting: 0 };
+  var leftBehind = (load.booked ? ' ' + name + ' has ' + load.booked + (load.booked === 1 ? ' upcoming lesson' : ' upcoming lessons') + ' booked: ' + (load.booked === 1 ? 'it stays' : 'they stay') +
+    ' booked but ' + (load.booked === 1 ? 'leaves' : 'leave') + ' the desk\'s list for the night, and the control center marks ' + (load.booked === 1 ? 'it' : 'them') + ' Stuck: cancel for the coach any they will not give.' : '') +
+    (load.waiting ? ' ' + load.waiting + (load.waiting === 1 ? ' request waiting for them expires' : ' requests waiting for them expire') + ', since they cannot accept while not offered.' : '');
   if (preview) {
     var effects = {
       offer: { title: 'Offer ' + name + ' while USATT certification is pending', effect: 'Makes ' + name + ' a club exception: GitHub\'s data update adds them to the exceptions in the coaching page\'s coach file and lists them on coaching.html as USATT Certification Pending, usually within 10 minutes. The coaching app then offers them within two hours, or at once with Sync now. The exception ends by itself once USATT certifies them. GitHub records the change as a commit.' },
-      end: { title: 'Stop offering ' + name + ' until USATT certifies them', effect: 'Ends the club exception: GitHub\'s data update hides ' + name + ' from coaching.html, usually within 10 minutes, and the coaching app stops offering their times within two hours, or at once with Sync now. Lessons already booked stay booked. They come back by themselves once USATT certifies them.' },
+      end: { title: 'Stop offering ' + name + ' until USATT certifies them', effect: 'Ends the club exception: GitHub\'s data update hides ' + name + ' from coaching.html, usually within 10 minutes, and the coaching app stops offering their times within two hours, or at once with Sync now. They come back by themselves once USATT certifies them.' + (leftBehind || ' They have no lessons booked or requests waiting.') },
       sync: { title: 'Sync ' + name + ' now', effect: 'Copies who the coaching page shows to the coaching app now, then runs the coaching app\'s sweep, so ' + name + (coach && coach.active ? ' stops being offered' : ' is offered') + ' at once instead of within two hours. Takes up to a minute.' },
       recheck: { title: 'Re-check USATT now', effect: 'Starts GitHub\'s data update now: it looks every coach up in USATT\'s Find a Coach directory, shows newly certified coaches on coaching.html and hides any whose certification lapsed (club exceptions stay). Usually under 10 minutes; then Sync now on a coach the coaching app has not caught up with.' }
     };

@@ -2301,6 +2301,26 @@ assert.ok(grids.Schedule.slice(1).every(line => /^Coach [A-Z][a-z]+$/.test(line[
   assert.match(sent.slice(before)[0].subject, /^CTTC daily summary: /);
   assert.equal(properties.SUMMARY_SENT, sentFor);
 
+  // Each coach's card counts what they have on the books.
+  assert.equal(act('accept', lesson('ria@example.com').id).ok, true);
+  const loads = () => admin({ action: 'coaches' }).coaches.find(coach => coach.id === nedId).lessons;
+  assert.deepEqual(loads(), { booked: 1, waiting: 0, times: 3 }, 'Ria\'s lesson booked; three times published');
+  // A coach the club stops offering: their booked lesson is flagged (it stays booked, but leaves the desk's list), and a
+  // request waiting for them cannot be accepted, so the club is told what to do.
+  ask('Sol Student', 'sol@example.com', nedSlots().find(entry => entry.start === '19:00'));
+  assert.deepEqual(loads(), { booked: 1, waiting: 1, times: 3 });
+  const statusColumn = column('Coaches', 'status');
+  coachRow(nedId)[statusColumn] = 'disabled';
+  const kept = lesson('ria@example.com');
+  assert.equal(kept.attention, 'stuck');
+  assert.match(kept.next, /Coach Ned is not offered on the coaching page now: the lesson is still booked, but not on the desk's list/);
+  assert.ok(kept.actions.includes('cancel-coach'), 'the club can still cancel it for the coach');
+  const sol = lesson('sol@example.com');
+  assert.match(sol.next, /their YES cannot be applied and the request will expire/);
+  assert.deepEqual(sol.actions, ['resend-student'], 'no accept, decline or reminder for a coach who cannot answer');
+  coachRow(nedId)[statusColumn] = '';
+  assert.equal(lesson('ria@example.com').attention, 'booked', 'offered again: nothing to flag');
+
   // Anything else is refused.
   assert.match(act('force-status', nia.id).message, /not known/);
   assert.match(act('accept', 'not-an-id').message, /not found/);

@@ -133,7 +133,7 @@ const E = 'e'.repeat(16);
 const roster = () => ({ ok: true, textNumber: '(925) 238-3505', coaches: [
   { id: A, name: 'Ann Coach', active: true, club: true },
   { id: B, name: 'Bo Coach', active: false, club: true },
-  { id: C, name: 'Cy Coach', active: true, club: true },
+  { id: C, name: 'Cy Coach', active: true, club: true, lessons: { booked: 2, waiting: 1, times: 5 } },
   { id: D, name: 'Di Gone', active: false, club: false },
   { id: E, name: 'Ed Unlisted', active: false, club: true }] });
 coachFile.showWhilePending = ['Cy Coach'];
@@ -195,6 +195,9 @@ answers = [roster()];
 assert.match(context.setCoachOffer('offer', D).message, /not needed for Di Gone now\. Not on the club's coach list/);
 // A request GitHub skipped can be asked again after half an hour.
 clock += 11 * 60000;
+answers = [roster()];
+assert.match(context.previewCoachOffer('end', C).effect, /Cy Coach has 2 upcoming lessons booked: they stay booked but leave the desk's list .* 1 request waiting for them expires/,
+  'stopping a coach says what it leaves behind');
 answers = [roster()];
 assert.equal(context.setCoachOffer('end', C).ok, true);
 assert.deepEqual(dispatches.pop().body.inputs, { coach_exception: 'end:Cy Coach' });

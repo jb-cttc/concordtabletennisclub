@@ -940,14 +940,33 @@ function admin_(request) {
   return fail_('Unknown request.');
 }
 
+// What each coach has on the books, for their card: upcoming lessons booked, requests waiting for their YES, and times published
+// from today on (booked or open).
+function coachLoads_() {
+  var now = Date.now();
+  var nowWall = nowMinutes_();
+  var today = pacificNow_().date;
+  var loads = {};
+  var of = function (coachId) { return loads[coachId] || (loads[coachId] = { booked: 0, waiting: 0, times: 0 }); };
+  rows_('Requests').forEach(function (request) {
+    var status = effectiveStatus_(request, now);
+    if (status === 'confirmed' && wallMinutes_(request.date, request.start) > nowWall) of(request.coach_id).booked += 1;
+    if (status === 'pending') of(request.coach_id).waiting += 1;
+  });
+  rows_('Availability').forEach(function (entry) { if (entry.date >= today) of(entry.coach_id).times += 1; });
+  return loads;
+}
+
 function adminCoaches_() {
   var club = {};
   CLUB_COACHES.forEach(function (coach) { club[coach[0].toLowerCase()] = true; });
+  var loads = coachLoads_();
   return {
     ok: true, textNumber: TEXT_NUMBER,
     coaches: rows_('Coaches').filter(function (coach) { return coach.coach_id; }).map(function (coach) {
       return { id: coach.coach_id, name: String(coach.name).trim(), label: coach.label, active: active_(coach), club: !!club[String(coach.name).trim().toLowerCase()],
-        email: cleanEmail_(coach.email), phone: phoneLabel_(coach.phone), rates: coachRates_(coach), steps: setupSteps_(coach) };
+        email: cleanEmail_(coach.email), phone: phoneLabel_(coach.phone), rates: coachRates_(coach), steps: setupSteps_(coach),
+        lessons: loads[coach.coach_id] || { booked: 0, waiting: 0, times: 0 } };
     })
   };
 }
@@ -1129,6 +1148,14 @@ function lessonOverview_(request, coach, coaches, availability, now, nowWall) {
       coach: 'Cancelled by the club for ' + coachShown }[request.cancelled_by] || 'Cancelled');
     var undoUntil = undoUntil_(request);
     if (undoUntil > now) add('now', 'The student can still UNDO, until ' + momentLabel_(undoUntil).replace(' Pacific Time', ''), undoUntil);
+  }
+  // A coach the club no longer offers (USATT lapsed, or the club stopped it on Coach Admin): their booked lessons stay booked
+  // but are left off the desk's list for the night (apps-script/Coaching.js), and their YES to a request cannot be applied.
+  if (coach && !active_(coach) && ((status === 'confirmed' && !started) || status === 'pending')) {
+    add('stuck', status === 'confirmed' ? coachShown + ' is not offered on the coaching page now: the lesson is still booked, but not on the desk\'s list for the night. ' +
+      'Offer them again on their card above, or Cancel for the coach (the student is told).' : coachShown + ' is not offered on the coaching page now, so their YES cannot be applied ' +
+      'and the request will expire (the student is told). Offer them again on their card above to let them answer.');
+    actions = actions.filter(function (action) { return action !== 'accept' && action !== 'decline' && action !== 'remind'; });
   }
   var stuck = steps.some(function (step) { return step.state === 'stuck'; });
   var open = steps.filter(function (step) { return step.state === 'stuck'; })[0] || steps.filter(function (step) { return step.state === 'now'; })[0] ||
