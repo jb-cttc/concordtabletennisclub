@@ -588,6 +588,15 @@ that fits (`coachOffer_` in `apps-script/CoachAdmin.js`):
 | The page shows (or hides) them but the coaching app has not caught up (it follows within two hours: the desk's hourly copy to `CoachList`, then the coaching app's hourly sweep) | **Sync now**: the copy and the coaching app's sweep, at once. |
 | Not on the club's coach list (`CLUB_COACHES`), or not in `coaching.html`'s table | None: that list changes only by a reviewed pull request, and the box says so. |
 
+Each card also counts what the coach has on the books: lessons booked, requests
+waiting and times published. A coach who stops being offered keeps their booked
+lessons (the students still expect them), but the desk leaves those lessons off
+its list for the night, and the coaching app cannot apply that coach's YES to a
+waiting request, which then expires. So **Stop offering until certified** says
+beforehand what it leaves behind, the card says *Still booked*, and the control
+center marks each such lesson and request **Stuck**: offer the coach again, or
+**Cancel for the coach** (the student is told).
+
 **Re-check USATT now** (above the cards) starts the data update with no
 exception, so a coach USATT has just certified shows without waiting for the
 next scheduled run. The data update takes about 10 minutes; GitHub keeps one

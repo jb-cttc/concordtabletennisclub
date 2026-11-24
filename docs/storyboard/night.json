@@ -1,6 +1,6 @@
 {
  "meta": {
-  "commit": "e1893d5a1851ffb69571562b82b058af8b0e1756",
+  "commit": "1b5e3d5cb12b36c25f161ee7458cdf627613bfbc",
   "intro": "A night at the club, from the volunteers who sign up days ahead to open and close, the players who text in and the coaches who book tables, through the round robin desk and the projector, to results on the site: what each person does, what the screen shows, what can go wrong, and how the tools behind it work.",
   "source": "Read from the repository at commit `{commit}`: the desk in apps-script/, its tests and simulator, and docs/round-robin-operations.md. Findings marked \"reproduced\" were run in the repository simulator (scripts/lib/desk-sim.js) or measured in a real browser on the local preview; the scripts that reproduce them are in docs/storyboard/repro/. Every repository file reference opens that line on GitHub.",
   "findingsNote": "Items noticed while walking a night through the code, most important first, each with how it was confirmed. None stops the club from running; each is a candidate for a future improvement."
@@ -1319,19 +1319,19 @@
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1641,
+        "line": 1668,
         "symbol": "coachPropose",
         "note": "Times and rates, sent to the coach to confirm."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1360,
+        "line": 1387,
         "symbol": "cleanRate_",
         "note": "A rate is whole dollars, $1 to $500, or none."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 2615,
+        "line": 2642,
         "symbol": "syncClubCoaches_",
         "note": "Matches the CoachList tab the desk writes."
        },
@@ -1349,13 +1349,13 @@
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1435,
+        "line": 1462,
         "symbol": "setupSteps_",
         "note": "The setup checklist behind the green ✓."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 955,
+        "line": 974,
         "symbol": "adminPhone_",
         "note": "Coach Admin sets a mobile number, after a preview."
        },
@@ -1482,7 +1482,7 @@
        "happens": "Their *Lesson confirmed* email tells them to reply and the club will cancel it.",
        "handling": "**Cancel for the coach** on Coach Admin: the student gets *Lesson cancelled by your coach* (and a text if they get texts), the coach a note that it is done, and the time opens again. (Until late November 2026 the club had no control for this.)",
        "status": "handled",
-       "evidence": "coaching-app/Code.js:1286"
+       "evidence": "coaching-app/Code.js:1313"
       },
       {
        "when": "The coach changes a rate while the student is booking",
@@ -1541,7 +1541,7 @@
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1416,
+        "line": 1443,
         "symbol": "rateRow_",
         "note": "The Rate row in the student's emails."
        },
@@ -1565,7 +1565,7 @@
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 2400,
+        "line": 2427,
         "symbol": "sweep",
         "note": "Hourly: expiries, reminders, retries, the public Sheet."
        }
@@ -1656,6 +1656,13 @@
        "handling": "Add them under Add a player.",
        "status": "handled",
        "evidence": "apps-script/Index.html:4249"
+      },
+      {
+       "when": "A lesson's coach is no longer offered",
+       "happens": "Their USATT certification lapsed, or the club stopped offering them on Coach Admin. The lesson stays booked (the student still expects it), but the desk leaves it off **Open Play / Coaching**.",
+       "handling": "Coach Admin's control center marks it **Stuck** before the night: offer the coach again on their card, or **Cancel for the coach** (the student is told). **Stop offering until certified** warns about booked lessons before it is confirmed.",
+       "status": "partial",
+       "evidence": "coaching-app/Code.js:1155"
       },
       {
        "when": "The coaching Sheet cannot be read",
@@ -1792,7 +1799,14 @@
        "happens": "The booking shows **Stuck** with the message not sent.",
        "handling": "**Run the sweep and the check** (it sends what is due), or **Resend** the email; after 3 days the sweep stops retrying and only Resend sends it.",
        "status": "handled",
-       "evidence": "docs/coaching-flow.md:614"
+       "evidence": "docs/coaching-flow.md:623"
+      },
+      {
+       "when": "A booked lesson's coach is no longer offered",
+       "happens": "The lesson stays booked but leaves the desk's list for the night; a request waiting for that coach cannot be accepted and will expire.",
+       "handling": "It shows **Stuck**, with what to do: offer the coach again on their card, or **Cancel for the coach**. Accept, Decline and Remind are not offered, since the coach's YES cannot be applied.",
+       "status": "handled",
+       "evidence": "docs/coaching-flow.md:591"
       },
       {
        "when": "The coaching app has not got this release yet",
@@ -1810,31 +1824,31 @@
       "entry": [
        {
         "file": "coaching-app/Code.js",
-        "line": 1001,
+        "line": 1020,
         "symbol": "adminOverview_",
         "note": "Every lesson and request from 14 days ago, the waiting lists of times, health, day counts and the latest Log lines."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1067,
+        "line": 1086,
         "symbol": "lessonOverview_",
         "note": "One booking's steps, what is stuck, and the controls that fit."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 1156,
+        "line": 1183,
         "symbol": "adminAct_",
         "note": "A control: preview, then done, logged as club-action:<kind>."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 2455,
+        "line": 2482,
         "symbol": "dayCounts_",
         "note": "The day counts shared with the daily summary."
        },
        {
         "file": "coaching-app/Code.js",
-        "line": 3347,
+        "line": 3374,
         "symbol": "answer_",
         "note": "A coach's YES or NO; channel club for one the club applies."
        },
@@ -1846,7 +1860,7 @@
        },
        {
         "file": "apps-script/CoachAdminPage.html",
-        "line": 793,
+        "line": 804,
         "symbol": "renderCenter",
         "note": "The control center."
        }
@@ -1869,7 +1883,8 @@
        "Nothing changes on Review; Confirm does the control that was reviewed, on the same booking or coach.",
        "Each control done is in the desk log (who, when, the booking code or coach) and in the coaching Log as codes; the page never receives a student's email address.",
        "An answer the club applies for a coach never ticks the coach's email or mobile on the setup checklist.",
-       "A test email or text goes only to the coach's own address or number, at most one every 10 minutes per coach."
+       "A test email or text goes only to the coach's own address or number, at most one every 10 minutes per coach.",
+       "A booked lesson or waiting request whose coach is not offered is shown as stuck, never as booked or waiting as usual."
       ],
       "limits": [
        "1 web call when the page opens or refreshes, and 2 per control (Review and Confirm).",
