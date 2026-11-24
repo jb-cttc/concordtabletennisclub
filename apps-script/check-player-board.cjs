@@ -861,26 +861,37 @@ const cases = {
     assert.deepEqual([still.playerOneGames, still.playerTwoGames], [3, 1], 'and their scores');
     numbers.slice(1).forEach(n => assert.deepEqual(orderOf(tab, n), paper[n], 'Group ' + n + ' is untouched'));
 
-    // A late arrival: every printed match stays where it was, and the new player's matches follow at the end.
+    // A late arrival: only the group they join gets a fresh round robin order (its sheet is reprinted); every other
+    // group keeps the order on its paper.
     const late = world.players[24].player_id;
+    const othersBefore = {};
+    numbers.forEach(n => { othersBefore[n] = orderOf(tab, n); });
     tab.addPlayer(late);
     await run(world, 400);
     const joined = tab.desk().groups.find(g => g.playerIds.includes(late)).groupNumber;
-    const before = joined === 1 ? without(paper[1], gone) : paper[joined];
-    assert.deepEqual(orderOf(tab, joined).slice(0, before.length), before, 'the printed matches keep their places');
-    assert.ok(orderOf(tab, joined).slice(before.length).every(text => text.split(' v ').includes(late)), 'the late add\u2019s matches come last');
-    assert.equal(orderOf(tab, joined).length, before.length + tab.desk().groups[joined - 1].playerIds.length - 1);
+    const joinedIds = tab.desk().groups[joined - 1].playerIds.slice();
+    assert.deepEqual(orderOf(tab, joined), Array.from(tab.window.CTTCOrganizer.roundRobinPairs(joinedIds), p => p.join(' v ')), 'the late add\u2019s group gets a fresh round robin order');
+    assert.ok(orderOf(tab, joined).slice(-(joinedIds.length - 1)).some(text => !text.split(' v ').includes(late)), 'the late add\u2019s matches are not all at the end');
+    numbers.filter(n => n !== joined).forEach(n => assert.deepEqual(orderOf(tab, n), othersBefore[n], 'Group ' + n + ' keeps its order'));
+    if (joined === 1) {
+      const kept = tab.desk().matches.find(m => [m.playerOneId, m.playerTwoId].sort().join(' v ') === scoredText.split(' v ').sort().join(' v '));
+      assert.ok(kept && [kept.playerOneGames, kept.playerTwoGames].sort().join() === '1,3', 'a score stays with its match through the new order');
+    }
 
-    // A move to the next group and back puts the player's matches back where the paper has them.
+    // A move to the next group: the group left keeps its order, the group joined gets a fresh round robin order, and
+    // a move back puts the player's matches back where the paper has them.
     const mover = lineup[1][2];
+    const freshOrder = n => Array.from(tab.window.CTTCOrganizer.roundRobinPairs(tab.desk().groups[n - 1].playerIds.slice()), p => p.join(' v '));
+    const keptOrFresh = (n, paperOrder) => joined === n ? freshOrder(n) : paperOrder;
     tab.movePlayer(mover, '1');
     await run(world, 400);
     assert.ok(tab.desk().groups[2].playerIds.includes(mover), 'moved down a group');
-    assert.deepEqual(orderOf(tab, 2).filter(text => !text.split(' v ').includes(late)), without(paper[2], [mover]), 'the group left keeps its order');
-    assert.deepEqual(orderOf(tab, 3).filter(text => !text.split(' v ').includes(late) && !text.split(' v ').includes(mover)), paper[3], 'and so does the group joined');
+    assert.deepEqual(orderOf(tab, 2), keptOrFresh(2, without(paper[2], [mover])), 'the group left keeps its order');
+    assert.deepEqual(orderOf(tab, 3), freshOrder(3), 'the group joined gets a fresh order');
     tab.movePlayer(mover, '-1');
     await run(world, 400);
-    assert.deepEqual(orderOf(tab, 2).filter(text => !text.split(' v ').includes(late)), paper[2], 'back in the group, back in the printed order');
+    assert.deepEqual(orderOf(tab, 2), keptOrFresh(2, paper[2]), 'back in the group, back in the printed order');
+    assert.deepEqual(orderOf(tab, 3), keptOrFresh(3, paper[3]), 'and the group they visited is back on its paper');
 
     // A reprint keeps the order it printed with, here and on a device that loads the night afterwards.
     const shown = {};
@@ -916,10 +927,9 @@ const cases = {
     const fresh = old.device().open();
     await run(old, 15000);
     // (With the print undone, the removals rebuilt the groups by rating, so Group 1 also took players from Group 2:
-    // their matches are not on Group 1's sheet and follow the printed ones.)
-    const kept = without(oldPaper, left);
-    assert.deepEqual(orderOf(fresh, 1).slice(0, kept.length), kept, 'a fresh load restores the printed order');
-    assert.ok(orderOf(fresh, 1).slice(kept.length).every(text => text.split(' v ').some(id => !oldLineup[0].includes(id))), 'with the matches the sheet never had after them');
+    // a group that gained players gets a fresh round robin order, the same on every device.)
+    assert.ok(fresh.desk().groups[0].playerIds.some(id => !oldLineup[0].includes(id)), 'Group 1 gained a player');
+    assert.deepEqual(orderOf(fresh, 1), Array.from(fresh.window.CTTCOrganizer.roundRobinPairs(fresh.desk().groups[0].playerIds.slice()), p => p.join(' v ')), 'a group that gained a player gets a fresh order on load');
     await run(old, 70000);
     assert.deepEqual(orderOf(first, 1), orderOf(fresh, 1), 'and a desk left open follows within its refresh');
 

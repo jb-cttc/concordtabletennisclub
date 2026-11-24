@@ -1132,7 +1132,7 @@ body[data-mode=dev] .top{box-shadow:inset 0 6px 0 #e8c06a}
     state.matches.forEach(function (match) { saved[pairKey(match.playerOneId, match.playerTwoId)] = match; });
     state.matches = [];
     // Once the sheets have printed, the matches keep the order on the paper (O.keptPairs): removing a player takes
-    // only that player's matches out, and a late arrival's matches go at the end. The printed order comes from the
+    // only that player's matches out, and a group that gains a player (late add or moved in) gets a fresh order. The printed order comes from the
     // print mark, so every device draws the same order, and a night reordered before this rule is put back on load.
     var onPaper = state.event !== 'equalizer' && window.cttcPlayerBoard && window.cttcPlayerBoard.printedPairs ? window.cttcPlayerBoard.printedPairs() : null;
     state.groups.forEach(function (group) {

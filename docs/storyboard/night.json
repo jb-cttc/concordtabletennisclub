@@ -3137,10 +3137,10 @@
      "title": "A late arrival joins after printing",
      "who": "Desk volunteer",
      "when": "After 7:10 PM",
-     "summary": "Sign them in as usual. They join the group their rating gives them, even if that makes a group of 7 or 8, and nobody else moves. The status says the player was added **as a late add. Nobody else moved**, and the row carries a **Late add** label. Their matches go at the end of that group's list.",
-     "subtext": "The group's printed matches keep their places, so the paper still lines up with the screen for everything already on it.",
+     "summary": "Sign them in as usual. They join the group their rating gives them, even if that makes a group of 7 or 8, and nobody else moves. The status says the player was added **as a late add. Nobody else moved**, and the row carries a **Late add** label. That group's play order is redrawn as a fresh round robin, so the late add's matches spread through the night instead of all coming last; every other group keeps the order on its paper.",
+     "subtext": "Reprint only the group the late add joined (**Print labels** names it). A group that gains a player moved in with the arrows is redrawn the same way; a group that only loses a player keeps its printed order.",
      "caveats": [
-      "Write the late add's matches onto the table's sheet by hand, or reprint that one group (**Print labels** names it)."
+      "Reprint that one group's sheet (**Print labels** names it): its order changed. The scores already entered stay with their matches."
      ],
      "exceptions": [
       {
@@ -3172,7 +3172,7 @@
         "file": "apps-script/Organizer.html",
         "line": 138,
         "symbol": "keptPairs",
-        "note": "Printed pairs keep order and sides; new pairs follow."
+        "note": "A group that gained a player gets a fresh round robin order; one that only lost players keeps its printed order and sides."
        },
        {
         "file": "apps-script/Index.html",
@@ -3191,7 +3191,8 @@
       "reads": [],
       "invariants": [
        "After print, no printed player changes group because of a sign-in.",
-       "The printed matches of a group keep their relative order and sides; new matches come after them."
+       "Only a group that gained a player (late add or moved in) is redrawn; every other group keeps its printed order and sides.",
+       "Scores stay with their matches through a redraw."
       ],
       "limits": [],
       "tests": [
@@ -3203,7 +3204,7 @@
        {
         "file": "apps-script/check-player-board.cjs",
         "case": "playOrderAfterPrint",
-        "covers": "A late add's matches go at the end."
+        "covers": "A late add redraws only the group joined; the other groups keep their order."
        }
       ],
       "untested": [],
