@@ -3,7 +3,7 @@
 // and amount the player saw. This file checks all of it, works out the price itself from the desk's fee rules, and asks
 // Clover's Hosted Checkout for a checkout page; the answer is only that page's address. The player pays on Clover's own
 // page, so no card number ever reaches the site or Google, and the desk's Clover reader (apps-script/CloverPayments.js)
-// matches the payment to the player by the checkout's customer name and the amount, as it does every Clover payment.
+// matches the payment to the player by the name on the checkout's one line (cloverPrepayOf_) and the amount.
 //
 // Script properties (set by the owner in the app's Project Settings, never in the repository): CLOVER_CHECKOUT_TOKEN, the
 // Clover Ecommerce private token made for Hosted checkout, and CLOVER_MERCHANT_ID. The app also keeps one counter,
@@ -117,15 +117,14 @@ function prepayFee_(kind, date) {
   return special ? special.fee : PREPAY_FEES[kind];
 }
 
-// What Clover is asked for. The customer name is what the desk matches on; the line item says the night and the fee.
+// What Clover is asked for: one line with the night, the fee and the name picked, which is what the desk matches on.
+// No customer is sent: Clover's page locks a customer name it is given, and the name the desk knows a player by can
+// differ from the name on their card, so the player fills in their own details on Clover's page.
 function prepayCheckout_(name, kind, date, dollars) {
-  var parts = name.split(' ');
-  var customer = parts.length > 1 ? { firstName: parts[0], lastName: parts.slice(1).join(' ') } : { firstName: name };
   var noon = new Date(date + 'T12:00:00Z');
   var day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][noon.getUTCDay()] + ' ' +
     ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][noon.getUTCMonth()] + ' ' + noon.getUTCDate();
   return {
-    customer: customer,
     shoppingCart: { lineItems: [{ name: 'CTTC round robin, ' + day, price: dollars * 100, unitQty: 1, note: PREPAY_KINDS[kind] + ': ' + name }] },
     redirectUrls: { success: SITE + '/pay.html?paid=' + date, failure: SITE + '/pay.html?prepay=failed', cancel: SITE + '/pay.html?prepay=cancelled' }
   };
