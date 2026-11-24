@@ -235,8 +235,10 @@ looks off, pay at the desk as usual.* On other days it is not shown at all.
    `apps-script/NightFees.js`). Anything else is refused with a short reason,
    and the page says so. Then it asks Clover's Hosted Checkout
    (`api.clover.com/invoicingcheckoutservice/v1/checkouts`) for a checkout
-   with the name as the customer and one line, *CTTC round robin, Mon Nov 23*,
-   noted with the fee and the name, and answers only Clover's page address.
+   with one line, *CTTC round robin, Mon Nov 23*, noted with the fee and the
+   name, and answers only Clover's page address. It sends no customer: Clover
+   locks a customer name it is given, and a player's card name can differ from
+   how the desk knows them, so they type their own details on Clover's page.
 5. The player pays on Clover's page (no card number reaches the site or
    Google) and Clover sends them back to `pay.html?paid=<date>`: *Paid for
    tonight by card. Just check in at the desk*, with a link to text the club

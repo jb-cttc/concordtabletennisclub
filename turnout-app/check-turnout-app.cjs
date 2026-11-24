@@ -364,14 +364,13 @@ assert.equal(sent.options.method, 'post');
 assert.equal(sent.options.headers.Authorization, 'Bearer tok-secret-123');
 assert.equal(sent.options.headers['X-Clover-Merchant-Id'], 'MERCHANT123');
 assert.deepEqual(sent.payload, {
-  customer: { firstName: 'Ada', lastName: 'Every' },
   shoppingCart: { lineItems: [{ name: 'CTTC round robin, Mon Oct 26', price: 1000, unitQty: 1, note: 'Member: Ada Every' }] },
   redirectUrls: {
     success: 'https://concordtabletennisclub.com/pay.html?paid=2026-10-26',
     failure: 'https://concordtabletennisclub.com/pay.html?prepay=failed',
     cancel: 'https://concordtabletennisclub.com/pay.html?prepay=cancelled'
   }
-}, 'the customer name the desk matches on, the night, and the price in cents');
+}, 'no customer (Clover would lock the name); the line has the name the desk matches on, the night, and the price in cents');
 assert.equal(properties['PREPAY_COUNT_2026-10-26'], '1');
 const startedRow = rowsOf('prepay_started')[0];
 assert.equal(startedRow[3], '2026-10-26');
@@ -391,9 +390,9 @@ assert.equal(checkouts[checkouts.length - 1].payload.shoppingCart.lineItems[0].n
   .forEach(bad => assert.equal(prepay(Object.assign({}, ada, bad)).reason, 'invalid', JSON.stringify(bad)));
 const one = prepay(Object.assign({}, ada, { name: '  José   Núñez ' }));
 assert.equal(one.ok, true, 'accented names are names');
-assert.deepEqual(checkouts[checkouts.length - 1].payload.customer, { firstName: 'José', lastName: 'Núñez' }, 'spaces tidied');
+assert.equal(checkouts[checkouts.length - 1].payload.shoppingCart.lineItems[0].note, 'Member: José Núñez', 'spaces tidied');
 prepay(Object.assign({}, ada, { name: 'Prince' }));
-assert.deepEqual(checkouts[checkouts.length - 1].payload.customer, { firstName: 'Prince' }, 'one name is a first name');
+assert.equal(checkouts[checkouts.length - 1].payload.shoppingCart.lineItems[0].note, 'Member: Prince', 'one name is a name');
 
 // Open on round robin days only, until 8:30 PM, and never on a day the gym is closed.
 const startedCount = () => checkouts.length;
